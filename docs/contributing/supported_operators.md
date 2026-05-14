@@ -21,9 +21,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
 
     -  and support from full `aten::`: 
 
-    [=306/624 "306/624"]
+    [=308/624 "308/624"]
 
-     (total operators listed as supported by `torch_to_nnef` being 355)
+     (total operators listed as supported by `torch_to_nnef` being 357)
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
@@ -258,8 +258,8 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td>cross_entropy_loss</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.ctc_loss.html">ctc_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cuda.html">cuda</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummax.html">cummax</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummin.html">cummin</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummax.html">cummax</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummin.html">cummin</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cumprod.html">cumprod</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>degrees</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dequantize.html">dequantize</a></td><td></td><td>❌</td><td>-</td></tr>

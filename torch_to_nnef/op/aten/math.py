@@ -4,7 +4,11 @@ import numpy as np
 import torch
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR, dtype_is_whole_number
+from torch_to_nnef.dtypes import (
+    TORCH_DTYPE_TO_TRACT_STR,
+    TORCH_TO_NUMPY_DTYPE,
+    dtype_is_whole_number,
+)
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import tract_complex_support
@@ -1095,6 +1099,152 @@ def cumprod(node, op_helper, inference_target, **kwargs):
         pass_quantization_params=True,
     )
     return ["cumprod"]
+
+
+def _emit_cum_minmax(node, op_helper, inference_target, op_label: str):
+    """Shared body for `cummax` / `cummin`.
+
+    PyTorch returns `(values, indices)` so the IR node has two outputs.
+    We run two single-output scans (mirror of `cumsum`):
+
+    * `tract_cum{max,min}_values` returns running max / min values.
+    * `tract_cum{max,min}_indices` keeps a `(running_val, running_idx)`
+      pair in its state but emits only the index, so we don't need to
+      teach `tract_core_scan` about multi-output deserialisation.
+
+    `gt` / `lt` (strict) preserve the first-occurrence tie-break that
+    PyTorch uses.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            f"{op_label} need `TractNNEF` inference target"
+        )
+    input_node, dim_node = node.inputs[:2]
+    axis = pick_axis(input_node, dim_node.data)
+    if not isinstance(input_node.shape[axis], int):
+        raise T2NErrorNotImplemented(
+            f"{op_label} on dynamic axis {axis} not yet supported"
+        )
+    k = input_node.shape[axis]
+    input_dtype = input_node.dtype or torch.float32
+    finfo = torch.finfo(input_dtype)
+    # `init_val` is `-inf` for cummax (so the first step's input always
+    # wins the strict-gt compare) and `+inf` for cummin.
+    sentinel = finfo.min if op_label == "cummax" else finfo.max
+    base = node.outputs[0].export_name
+
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+
+    x = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    # `node` has two outputs (values, indices), so the
+    # `add_single_output_op_from_nnef_tensors` helper isn't usable here
+    # (it asserts single-output). Build intermediates manually.
+    slice_shape = list(input_node.shape)
+    slice_shape[axis] = 1
+    np_dtype = TORCH_TO_NUMPY_DTYPE[input_dtype]
+
+    def _emit_intermediate(op_type, inputs_, suffix, attrs=None, shape=None):
+        out_name = f"{base}_{suffix}"
+        out_t = NTensor(g, out_name, dtype=np_dtype, shape=shape or slice_shape)
+        name_to_tensor[out_name] = out_t
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type=op_type,
+            name=f"{out_name}_op",
+            inputs=tuple(inputs_),
+            outputs=(out_t,),
+            attribs=attrs or {},
+        )
+        return out_t
+
+    first = _emit_intermediate(
+        "slice",
+        [x],
+        f"{op_label}_first",
+        attrs={
+            "axes": [axis],
+            "begin": [0],
+            "end": [1],
+            "stride": [1],
+        },
+    )
+    zeroed = _emit_intermediate("sub", [first, first], f"{op_label}_zero")
+    sentinel_const = PythonConstant(
+        name=f"{base}_{op_label}_sentinel",
+        data=torch.tensor(float(sentinel), dtype=input_dtype),
+    )
+    sentinel_ref = op_helper.get_or_add_tensor_variable_in_nnef(sentinel_const)
+    init_val = _emit_intermediate(
+        "add", [zeroed, sentinel_ref], f"{op_label}_init_val"
+    )
+
+    # 1st scan: running values into `node.outputs[0]`.
+    values_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        node.outputs[0], prevent_variable=True
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=op_helper.name_to_tensor,
+        graph=op_helper.g,
+        type=f"tract_{op_label}_values",
+        name=f"{node.outputs[0].export_name}_{op_label}_values",
+        inputs=(x, init_val),
+        outputs=(values_ref,),
+        attribs={"axis": axis},
+    )
+
+    # `idx_full`: tensor of shape `input_node.shape` with `arange(K)`
+    # broadcast along `axis`. Each scan step picks the per-position
+    # index without needing a separate step counter.
+    idx_shape = [1] * input_node.rank
+    idx_shape[axis] = k
+    idx_arange = torch.arange(k, dtype=torch.int64).reshape(idx_shape)
+    idx_data = idx_arange.expand(list(input_node.shape)).contiguous()
+    idx_const = PythonConstant(
+        name=f"{node.outputs[1].export_name}_{op_label}_idx_full",
+        data=idx_data,
+    )
+    idx_full_ref = op_helper.get_or_add_tensor_variable_in_nnef(idx_const)
+
+    # `init_idx`: zeros (any int constant works; the first iteration
+    # always overwrites it).
+    init_idx_const = PythonConstant(
+        name=f"{node.outputs[1].export_name}_{op_label}_init_idx",
+        data=torch.zeros(
+            [s if i != axis else 1 for i, s in enumerate(input_node.shape)],
+            dtype=torch.int64,
+        ),
+    )
+    init_idx_ref = op_helper.get_or_add_tensor_variable_in_nnef(init_idx_const)
+
+    # 2nd scan: running indices into `node.outputs[1]`.
+    indices_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        node.outputs[1], prevent_variable=True
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=op_helper.name_to_tensor,
+        graph=op_helper.g,
+        type=f"tract_{op_label}_indices",
+        name=f"{node.outputs[1].export_name}_{op_label}_indices",
+        inputs=(x, idx_full_ref, init_val, init_idx_ref),
+        outputs=(indices_ref,),
+        attribs={"axis": axis},
+    )
+    return [op_label]
+
+
+@OP_REGISTRY.register()
+def cummax(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: `aten::cummax(self, dim) -> (values, indices)`."""
+    return _emit_cum_minmax(node, op_helper, inference_target, "cummax")
+
+
+@OP_REGISTRY.register()
+def cummin(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: `aten::cummin(self, dim) -> (values, indices)`."""
+    return _emit_cum_minmax(node, op_helper, inference_target, "cummin")
 
 
 @OP_REGISTRY.register()

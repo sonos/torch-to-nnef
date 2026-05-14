@@ -1,0 +1,79 @@
+extension tract_registry tract_core;
+
+
+# Two scans, one per output of `torch.cummax`:
+#
+# * `scan_body_max_only` tracks just the running max value.
+# * `scan_body_argmax` tracks both (running max value, argmax index)
+#   in its state but only emits the index as the scan output. PyTorch
+#   breaks ties by keeping the first occurrence, so we use `gt` (strict
+#   greater-than) for the update test -- equal values fail the test and
+#   leave both `acc_val` / `acc_idx` unchanged.
+
+fragment scan_body_max_only(
+    scan_input: tensor<scalar>,
+    acc_input: tensor<scalar>
+) -> ( new_acc: tensor<scalar> )
+{
+    is_greater = gt(scan_input, acc_input);
+    new_acc = select(is_greater, scan_input, acc_input);
+}
+
+
+fragment scan_body_argmax(
+    scan_input: tensor<scalar>,
+    scan_idx:   tensor<integer>,
+    acc_val:    tensor<scalar>,
+    acc_idx:    tensor<integer>
+) -> ( new_val: tensor<scalar>, new_idx: tensor<integer> )
+{
+    is_greater = gt(scan_input, acc_val);
+    new_val = select(is_greater, scan_input, acc_val);
+    new_idx = select(is_greater, scan_idx, acc_idx);
+}
+
+
+fragment tract_cummax_values(
+    input:    tensor<scalar>,
+    init_val: tensor<scalar>,
+    axis:     integer
+) -> ( output: tensor<scalar> )
+{
+    output = tract_core_scan(
+        body = "scan_body_max_only",
+        scan = [
+            ("scan_input", input, axis, 1)
+        ],
+        full = [],
+        state = [("acc_input", init_val, "new_acc")],
+        output = [("new_acc", "full", axis, 1)],
+        skip = 0,
+        reset_every_turn = false
+    );
+}
+
+
+fragment tract_cummax_indices(
+    input:    tensor<scalar>,
+    idx_full: tensor<integer>,
+    init_val: tensor<scalar>,
+    init_idx: tensor<integer>,
+    axis:     integer
+) -> ( output: tensor<integer> )
+{
+    output = tract_core_scan(
+        body = "scan_body_argmax",
+        scan = [
+            ("scan_input", input, axis, 1),
+            ("scan_idx",   idx_full, axis, 1)
+        ],
+        full = [],
+        state = [
+            ("acc_val", init_val, "new_val"),
+            ("acc_idx", init_idx, "new_idx")
+        ],
+        output = [("new_idx", "full", axis, 1)],
+        skip = 0,
+        reset_every_turn = false
+    );
+}

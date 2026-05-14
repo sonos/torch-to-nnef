@@ -1,0 +1,72 @@
+extension tract_registry tract_core;
+
+
+# Mirror of cummax with `lt` instead of `gt` for the update test.
+
+fragment scan_body_min_only(
+    scan_input: tensor<scalar>,
+    acc_input: tensor<scalar>
+) -> ( new_acc: tensor<scalar> )
+{
+    is_less = lt(scan_input, acc_input);
+    new_acc = select(is_less, scan_input, acc_input);
+}
+
+
+fragment scan_body_argmin(
+    scan_input: tensor<scalar>,
+    scan_idx:   tensor<integer>,
+    acc_val:    tensor<scalar>,
+    acc_idx:    tensor<integer>
+) -> ( new_val: tensor<scalar>, new_idx: tensor<integer> )
+{
+    is_less = lt(scan_input, acc_val);
+    new_val = select(is_less, scan_input, acc_val);
+    new_idx = select(is_less, scan_idx, acc_idx);
+}
+
+
+fragment tract_cummin_values(
+    input:    tensor<scalar>,
+    init_val: tensor<scalar>,
+    axis:     integer
+) -> ( output: tensor<scalar> )
+{
+    output = tract_core_scan(
+        body = "scan_body_min_only",
+        scan = [
+            ("scan_input", input, axis, 1)
+        ],
+        full = [],
+        state = [("acc_input", init_val, "new_acc")],
+        output = [("new_acc", "full", axis, 1)],
+        skip = 0,
+        reset_every_turn = false
+    );
+}
+
+
+fragment tract_cummin_indices(
+    input:    tensor<scalar>,
+    idx_full: tensor<integer>,
+    init_val: tensor<scalar>,
+    init_idx: tensor<integer>,
+    axis:     integer
+) -> ( output: tensor<integer> )
+{
+    output = tract_core_scan(
+        body = "scan_body_argmin",
+        scan = [
+            ("scan_input", input, axis, 1),
+            ("scan_idx",   idx_full, axis, 1)
+        ],
+        full = [],
+        state = [
+            ("acc_val", init_val, "new_val"),
+            ("acc_idx", init_idx, "new_idx")
+        ],
+        output = [("new_idx", "full", axis, 1)],
+        skip = 0,
+        reset_every_turn = false
+    );
+}

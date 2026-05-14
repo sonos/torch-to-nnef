@@ -61,6 +61,58 @@ for axis in [0, 1, 2, -1]:
     )
 
 
+class _CumMaxModel(torch.nn.Module):
+    """Return both values+indices so the test framework checks both."""
+
+    def __init__(self, dim: int):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        out = torch.cummax(x, dim=self.dim)
+        return out.values, out.indices
+
+
+class _CumMinModel(torch.nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        out = torch.cummin(x, dim=self.dim)
+        return out.values, out.indices
+
+
+# cummax / cummin across typical axes. Use a varied input that has
+# multiple plateaus so tie-breaking exercises (cummax/cummin keep the
+# first occurrence on equal values).
+_inp_m = torch.tensor(
+    [
+        [
+            [0.5, 1.5, -0.5, 2.0],
+            [2.0, 1.2, 0.9, -1.1],
+            [1.0, 0.7, 1.3, 0.95],
+        ],
+        [
+            [1.1, 0.9, 1.05, 0.85],
+            [-1.2, 0.95, 1.15, 1.0],
+            [0.6, 1.4, 0.7, 1.25],
+        ],
+    ],
+)
+for axis in [0, 1, 2, -1]:
+    test_suite.add(
+        (_inp_m,),
+        _CumMaxModel(dim=axis),
+        inference_conditions=_skip_if_not_tract,
+    )
+    test_suite.add(
+        (_inp_m,),
+        _CumMinModel(dim=axis),
+        inference_conditions=_skip_if_not_tract,
+    )
+
+
 @pytest.mark.parametrize(
     "_id,test_input,model,inference_target",
     test_suite.test_samples,
