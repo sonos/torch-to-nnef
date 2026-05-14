@@ -194,3 +194,31 @@ def polar(node, op_helper, inference_target, **kwargs):
         attrs={"axis": abs_node.rank},
     )
     return ["polar"]
+
+
+@OP_REGISTRY.register()
+def sgn(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:sgn' to NNEF.
+
+    Real input: alias of `sign` (-1 / 0 / +1).  Complex input
+    (stored as `(..., 2)` real): `z / |z|` with `0 -> 0`, routed
+    through the `sgn_complex` fragment.
+    """
+    if tract_complex_support(inference_target):
+        raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
+    (input_node,) = node.inputs
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    if input_node.dtype not in (torch.complex64, torch.complex128):
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node, "sign", inputs=inp
+        )
+        return []
+    # Complex path: trailing-2 axis already lives in the t2n IR rank
+    # (see `_emit_conjugate` for the same convention).
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "sgn_complex",
+        inputs=[inp],
+        attrs={"axis": input_node.rank - 1},
+    )
+    return ["sgn_complex"]

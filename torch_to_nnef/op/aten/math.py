@@ -1311,6 +1311,74 @@ def fmin(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def logaddexp(node, op_helper, **kwargs):
+    """aten::logaddexp -> numerically-stable `log(exp a + exp b)`."""
+    a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "logaddexp", inputs=[a, b]
+    )
+    return ["logaddexp"]
+
+
+@OP_REGISTRY.register()
+def logaddexp2(node, op_helper, **kwargs):
+    """aten::logaddexp2 -> base-2 variant."""
+    a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "logaddexp2", inputs=[a, b]
+    )
+    return ["logaddexp2"]
+
+
+@OP_REGISTRY.register()
+def copysign(node, op_helper, **kwargs):
+    """aten::copysign -> `|a| * sign(b)`."""
+    a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "copysign", inputs=[a, b]
+    )
+    return ["copysign"]
+
+
+@OP_REGISTRY.register()
+def sinc(node, op_helper, **kwargs):
+    """aten::sinc -> normalised `sin(pi x)/(pi x)` with 0 -> 1."""
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "sinc", inputs=inp)
+    return ["sinc"]
+
+
+@OP_REGISTRY.register()
+def isclose(node, op_helper, **kwargs):
+    """aten::isclose -> `|a - b| <= atol + rtol * |b|`.
+
+    Reads optional `rtol` / `atol` from the trace (defaults match
+    torch's 1e-5 / 1e-8 via the fragment defaults). `equal_nan=True`
+    is not yet handled -- rare in real traces; raises if set.
+    """
+    input_a, input_b, *opt = node.inputs
+    attrs = {}
+    # Trace order: `aten::isclose(self, other, rtol, atol, equal_nan)`.
+    if len(opt) >= 1 and opt[0].data is not None:
+        attrs["rtol"] = float(opt[0].data)
+    if len(opt) >= 2 and opt[1].data is not None:
+        attrs["atol"] = float(opt[1].data)
+    if len(opt) >= 3 and opt[2].data:
+        raise T2NErrorNotImplemented(
+            "isclose with `equal_nan=True` not yet supported"
+        )
+    a = op_helper.get_or_add_tensor_variable_in_nnef(input_a)
+    b = op_helper.get_or_add_tensor_variable_in_nnef(input_b)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "isclose", inputs=[a, b], attrs=attrs
+    )
+    return ["isclose"]
+
+
+@OP_REGISTRY.register()
 def fmod(node, op_helper, **kwargs):
     """aten::fmod.
 
