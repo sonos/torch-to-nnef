@@ -969,6 +969,69 @@ def cdist(node, op_helper, **kwargs):
     return ["cdist"]
 
 
+@OP_REGISTRY.register()
+def pdist(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: `aten::pdist(self, p)` to NNEF.
+
+    `torch.pdist(x, p)` returns a 1-D tensor of length `N*(N-1)/2`
+    holding the pairwise p-norm distances between rows of the
+    rank-2 input `x` (shape `(N, D)`). We reuse the existing `cdist`
+    fragment to build the `(N, N)` distance matrix against `x` itself,
+    flatten it, and gather the strict upper-triangle entries
+    `i*N + j` for `i < j`. Static `N` only (the upper-triangle index
+    constant is baked at export time).
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "pdist requires `tract_core_gather` (TractNNEF target)"
+        )
+    input_node, p_node = node.inputs[:2]
+    p_val = float(p_node.data) if p_node.data is not None else 2.0
+    if p_val <= 0:
+        raise T2NErrorNotImplemented(f"pdist with p={p_val} not supported")
+    if input_node.rank != 2:
+        raise T2NErrorNotImplemented(
+            f"pdist expects rank-2 input; got rank={input_node.rank}"
+        )
+    n = input_node.shape[0]
+    if not isinstance(n, int):
+        raise T2NErrorNotImplemented(
+            "pdist on dynamic N not yet supported (upper-tri index "
+            "constant is baked at export time)"
+        )
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    dist_matrix = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "cdist",
+        inputs=[inp_ref, inp_ref],
+        attrs={"a_axis": 1, "b_axis": 0, "reduce_axis": 2, "p": p_val},
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="_pdist_matrix",
+    )
+    flat = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=[dist_matrix],
+        attrs={"shape": [n * n]},
+        output_tensor_name_suffix="_pdist_flat",
+    )
+    upper_indices = [i * n + j for i in range(n) for j in range(i + 1, n)]
+    idx_const = PythonConstant(
+        name=f"{node.outputs[0].export_name}_pdist_idx",
+        data=torch.tensor(upper_indices, dtype=torch.int64),
+    )
+    idx_ref = op_helper.get_or_add_tensor_variable_in_nnef(idx_const)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather",
+        inputs=[flat, idx_ref],
+        attrs={"axis": 0},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["cdist", "tract_core"]
+
+
 @OP_REGISTRY.register(torch_op_ids=["cross", "linalg_cross"])
 def cross(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:cross' to NNEF via a fragment.
@@ -1433,6 +1496,66 @@ def ldexp(node, op_helper, **kwargs):
         node, "ldexp", inputs=[x, e]
     )
     return ["exp2", "ldexp"]
+
+
+@OP_REGISTRY.register()
+def logcumsumexp(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: `aten::logcumsumexp(self, dim)`.
+
+    Numerically-stable scan with two state vars `(running_max,
+    running_sum_shifted)`. Init: `finfo.min` and `0` so the first
+    step naturally produces `out[0] = input[0]`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "logcumsumexp need `TractNNEF` inference target"
+        )
+    input_node, dim_node = node.inputs[:2]
+    axis = pick_axis(input_node, dim_node.data)
+    input_dtype = input_node.dtype or torch.float32
+    finfo = torch.finfo(input_dtype)
+    base = node.outputs[0].export_name
+
+    x = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    first = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "slice",
+        inputs=x,
+        attrs={
+            "axes": [axis],
+            "begin": [0],
+            "end": [1],
+            "stride": [1],
+        },
+        output_tensor_name_suffix="_lcsex_first",
+        pass_quantization_params=True,
+    )
+    init_sum = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "sub",
+        inputs=[first, first],
+        output_tensor_name_suffix="_lcsex_init_sum",
+        pass_quantization_params=True,
+    )
+    neg_inf_const = PythonConstant(
+        name=f"{base}_lcsex_neg_inf",
+        data=torch.tensor(float(finfo.min), dtype=input_dtype),
+    )
+    neg_inf_ref = op_helper.get_or_add_tensor_variable_in_nnef(neg_inf_const)
+    init_max = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "add",
+        inputs=[init_sum, neg_inf_ref],
+        output_tensor_name_suffix="_lcsex_init_max",
+        pass_quantization_params=True,
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_logcumsumexp",
+        inputs=[x, init_max, init_sum],
+        attrs={"axis": axis},
+    )
+    return ["logcumsumexp"]
 
 
 @OP_REGISTRY.register()

@@ -1,0 +1,18 @@
+# `renorm(self, p, dim, maxnorm)`: for each slice along `dim`,
+# scale by `min(1, maxnorm / norm_p)` so its p-norm <= maxnorm.
+# `eps` keeps division stable when a slice is all zeros (scale stays
+# at 0 then since `maxnorm * 0 / eps = 0` -- the all-zero slice
+# survives unchanged).
+fragment renorm(
+    input:   tensor<scalar>,
+    norm:    tensor<scalar>,
+    maxnorm: scalar,
+    eps:     scalar = 1.0e-7
+) -> ( output: tensor<scalar> )
+{
+    safe_norm = norm + eps;
+    raw_scale = maxnorm / safe_norm;
+    one_t     = mul(norm, 0.0) + 1.0;
+    scale     = min(raw_scale, one_t);
+    output    = input * scale;
+}

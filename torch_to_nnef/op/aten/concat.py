@@ -47,6 +47,45 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
+def column_stack(g, node, name_to_tensor, torch_graph, op_helper, **kwargs):
+    """Map PyTorch: 'aten:column_stack' to NNEF.
+
+    `torch.column_stack` stacks 1-D inputs as columns of a 2-D output
+    (each input becomes a column), and `cat`s 2-D inputs along dim 1.
+    We unsqueeze any rank-1 entry to rank 2 with the new axis at
+    position 1, then concat all on axis 1.
+    """
+    (input_node,) = node.inputs
+    assert isinstance(input_node, FixedTensorList)
+    nnef_inputs = []
+    for i, item in enumerate(input_node.data):
+        if item.export_name not in name_to_tensor and item.data is None:
+            torch_graph.printall()
+            raise T2NErrorNotImplemented(
+                f"column_stack with input: {item}"
+            )
+        ref = get_or_add_tensor_variable_in_nnef(g, item, name_to_tensor)
+        if item.rank == 1:
+            ref = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "unsqueeze",
+                inputs=[ref],
+                attrs={"axes": [1]},
+                output_tensor_name_suffix=f"_colstack_unsq_{i}",
+            )
+        nnef_inputs.append(ref)
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "concat",
+        inputs=nnef_inputs,
+        attrs={"axis": 1},
+        ensure_tuple=False,
+    )
+
+
+@OP_REGISTRY.register()
 def stack(g, node, name_to_tensor, torch_graph, **kwargs):
     """Map PyTorch: 'aten:stack' to NNEF."""
     (input_node, axis_node) = node.inputs

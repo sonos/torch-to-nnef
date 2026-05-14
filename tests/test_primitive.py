@@ -1220,6 +1220,51 @@ test_suite.add(
     BinaryPrimitive(torch.ldexp),
     inference_conditions=skip_khronos_interpreter,
 )
+# column_stack: 1-D inputs stack as columns of 2-D; 2-D inputs cat
+# on dim 1.
+test_suite.add(
+    (
+        [
+            torch.tensor([1.0, 2.0, 3.0]),
+            torch.tensor([4.0, 5.0, 6.0]),
+            torch.tensor([7.0, 8.0, 9.0]),
+        ],
+    ),
+    UnaryPrimitive(torch.column_stack),
+    inference_conditions=skip_khronos_interpreter,
+)
+# renorm: re-normalise slices along `dim` so each has p-norm <=
+# maxnorm. Use rows with mixed norms to exercise both branches
+# (some > maxnorm, scaled; others <= maxnorm, untouched).
+test_suite.add(
+    (
+        torch.tensor(
+            [[3.0, 4.0], [0.5, 0.5], [-6.0, 8.0]],
+        ),
+    ),
+    UnaryPrimitive(partial(torch.renorm, p=2, dim=0, maxnorm=2.0)),
+    inference_conditions=skip_khronos_interpreter,
+)
+# logcumsumexp: numerically stable `log(cumsum(exp(x)))` over `dim`.
+test_suite.add(
+    (torch.tensor([[-2.0, 1.0, 0.5, 3.0], [4.0, -1.0, 2.0, 0.0]]),),
+    UnaryPrimitive(partial(torch.logcumsumexp, dim=1)),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([[-2.0, 1.0, 0.5, 3.0], [4.0, -1.0, 2.0, 0.0]]),),
+    UnaryPrimitive(partial(torch.logcumsumexp, dim=0)),
+    inference_conditions=skip_khronos_interpreter,
+)
+# pdist: pairwise distances within one tensor (1-D output of length
+# N*(N-1)/2). Static-shape only.
+test_suite.add(
+    (torch.tensor([[0.0, 0.0], [3.0, 4.0], [1.0, 1.0], [-2.0, 2.0]]),),
+    UnaryPrimitive(partial(torch.pdist, p=2)),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
 # Fused matmul family: addbmm (sum-bmm + bias), addmv (matrix-vector
 # + bias), addr (outer product + bias). All accept `beta` / `alpha`
 # scalars; defaults are 1.0.
