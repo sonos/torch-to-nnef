@@ -3424,9 +3424,11 @@ the output to the input.</p>
         <p>No-op ATen ops -- just remap output to input.</p>
 <p><code>resolve_conj</code> / <code>resolve_neg</code> flip an internal "is conjugated"
 / "is negated" view bit and are the identity once those bits are
-cleared; for real-valued tensors they are unconditionally identity.
-<code>conj_physical</code> actually conjugates, but for real tensors it is
-also the identity.</p>
+cleared; for real-valued tensors they are unconditionally
+identity. (<code>conj_physical</code> used to live here too, which silently
+returned the input unchanged on complex inputs -- it now lives in
+<code>op/aten/complex.py</code> next to <code>conj</code>, routed through the
+<code>conjugate</code> fragment.)</p>
 
     </div>
 
