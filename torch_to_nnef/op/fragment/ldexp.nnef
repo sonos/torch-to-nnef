@@ -1,0 +1,9 @@
+# `ldexp(x, exp) = x * 2^exp`. Built on the existing `exp2` fragment
+# (which itself lowers to `exp(exp * ln 2)`).
+fragment ldexp(
+    input:    tensor<scalar>,
+    exponent: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    output = input * exp2(exponent);
+}

@@ -1,0 +1,6 @@
+# Complementary error function: `1 - erf(x)`. Direct use of NNEF
+# `erf` (registered via `tract_core`).
+fragment erfc( input: tensor<scalar> ) -> ( output: tensor<scalar> )
+{
+    output = sub(1.0, erf(input));
+}

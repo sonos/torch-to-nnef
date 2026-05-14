@@ -1189,6 +1189,47 @@ test_suite.add(
     UnaryPrimitive(torch.sgn),
     inference_conditions=skip_khronos_interpreter,
 )
+# frac, signbit, erfc, tanhshrink: simple decompositions.
+test_suite.add(
+    (torch.tensor([-2.7, -0.5, 0.0, 0.5, 1.7, 3.25]),),
+    UnaryPrimitive(torch.frac),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([-1.5, 0.0, 0.1, -0.1, 2.5]),),
+    UnaryPrimitive(torch.signbit),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([-2.0, -1.0, 0.0, 0.5, 1.0, 2.5]),),
+    UnaryPrimitive(torch.erfc),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([-2.0, -0.5, 0.0, 0.5, 2.0]),),
+    UnaryPrimitive(nn.functional.tanhshrink),
+    inference_conditions=skip_khronos_interpreter,
+)
+# ldexp: int / float exponent (`other` may be either; PyTorch promotes
+# `other` to float in the math).
+test_suite.add(
+    (
+        torch.tensor([1.0, 2.0, 3.0, 4.0]),
+        torch.tensor([0.0, 1.0, -1.0, 2.0]),
+    ),
+    BinaryPrimitive(torch.ldexp),
+    inference_conditions=skip_khronos_interpreter,
+)
+# addcdiv: `self + value * (t1 / t2)` with non-zero divisor.
+test_suite.add(
+    (
+        torch.tensor([1.0, 2.0, 3.0]),
+        torch.tensor([1.0, -1.0, 0.5]),
+        torch.tensor([2.0, 0.5, 1.0]),
+    ),
+    TernaryPrimitive(partial(torch.addcdiv, value=0.5)),
+    inference_conditions=skip_khronos_interpreter,
+)
 test_suite.add(
     (
         torch.tensor([1.0, -2.0, 3.0]),

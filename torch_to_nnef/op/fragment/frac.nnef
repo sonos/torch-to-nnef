@@ -1,0 +1,7 @@
+# `x - trunc(x)`: fractional part with the sign of `x`. PyTorch's
+# `torch.frac` matches this (e.g. `frac(-2.7) = -0.7`). Uses the
+# existing `trunc` fragment (`select(x < 0, ceil, floor)`).
+fragment frac( input: tensor<scalar> ) -> ( output: tensor<scalar> )
+{
+    output = input - trunc(input);
+}

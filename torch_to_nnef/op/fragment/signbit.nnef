@@ -1,0 +1,7 @@
+# `True` where `x < 0`. NNEF / tract can't see the IEEE-754 sign
+# bit, so `signbit(-0.0) = False` here vs PyTorch's `True` (same
+# signed-zero caveat as `copysign` and `atan2`).
+fragment signbit( input: tensor<scalar> ) -> ( output: tensor<logical> )
+{
+    output = lt(input, mul(input, 0.0));
+}
