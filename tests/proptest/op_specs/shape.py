@@ -2765,6 +2765,95 @@ def _index_pixel_specs() -> T.List[OpSpec]:
     ]
 
 
+def _channel_shuffle_sample_st() -> st.SearchStrategy[OpSample]:
+    """`channel_shuffle((N, C, H, W), groups)`: requires C divisible by groups.
+
+    Draw `groups` then `c = groups * k` so the divisibility constraint
+    is satisfied by construction. The t2n emitter at
+    `torch_to_nnef/op/aten/axes_change.py:channel_shuffle` requires
+    rank>=2 and a static channel axis, both honored here.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        groups = draw(st.integers(min_value=1, max_value=4))
+        k = draw(st.integers(min_value=1, max_value=3))
+        c = groups * k
+        h = draw(st.integers(min_value=1, max_value=4))
+        w = draw(st.integers(min_value=1, max_value=4))
+        x = draw(
+            tensor_st(
+                (n, c, h, w),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(partial(F.channel_shuffle, groups=groups)),
+        )
+
+    return _draw()
+
+
+class _ColumnStackList(torch.nn.Module):
+    """Wrapper for `torch.column_stack` over a fixed-size list of 1-D inputs.
+
+    The graph extractor sees N positional inputs; the module folds
+    them back into the single list argument that `column_stack`
+    expects.
+    """
+
+    def forward(self, *tensors):
+        return torch.column_stack(list(tensors))
+
+
+def _column_stack_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.column_stack([t0, t1, ...])` over rank-1 inputs of same length.
+
+    The t2n emitter at `torch_to_nnef/op/aten/concat.py:column_stack`
+    only supports the 1-D-inputs path today (it raises for 2-D / mixed
+    inputs); the spec mirrors that limitation.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n_cols = draw(st.integers(min_value=2, max_value=4))
+        length = draw(st.integers(min_value=1, max_value=6))
+        tensors = tuple(
+            draw(
+                tensor_st(
+                    (length,),
+                    torch.float32,
+                    finite=True,
+                    domain=Interval(-10.0, 10.0),
+                )
+            )
+            for _ in range(n_cols)
+        )
+        return OpSample(inputs=tensors, module=_ColumnStackList())
+
+    return _draw()
+
+
+def _recent_shape_specs() -> T.List[OpSpec]:
+    """Specs for shape ops shipped in the recent PR cluster."""
+    return [
+        OpSpec(
+            name="channel_shuffle",
+            sample_st=_channel_shuffle_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="column_stack",
+            sample_st=_column_stack_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+    ]
+
+
 def _broadcast_tensors_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.broadcast_tensors(t0, t1, t2)` over 3 broadcastable inputs."""
 
@@ -3278,4 +3367,5 @@ SPECS = (
     *_shape_utility_specs(),
     *_alias_specs(),
     *_bucketize_searchsorted_specs(),
+    *_recent_shape_specs(),
 )

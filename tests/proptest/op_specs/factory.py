@@ -662,8 +662,132 @@ def _glue_specs() -> T.List[OpSpec]:
     ]
 
 
+# --- Complex constructors / conjugates ---
+#
+# These ops either consume or produce complex tensors. PyTorch's
+# `complex64` doesn't survive the NPZ comparator unmodified, so:
+#   - inputs that need to be complex are built via `view_as_complex`
+#     on a real `(..., 2)` tensor;
+#   - outputs that are complex are wrapped with `view_as_real(...)`
+#     plus `.resolve_conj()` (lazy-conjugation fix-up).
+# This matches the `_fft_op_real_output` pattern above.
+
+
+def _complex_constructor_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.complex(real, imag)` returns complex; wrap with view_as_real.
+
+    The t2n emitter at `torch_to_nnef/op/aten/complex.py:complex`
+    stacks `real` and `imag` on a new trailing axis, producing the
+    `(..., 2)` layout we read back with `view_as_real`.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=3, min_dim=2))
+        real = draw(
+            tensor_st(
+                shape, torch.float32, finite=True, domain=Interval(-3.0, 3.0)
+            )
+        )
+        imag = draw(
+            tensor_st(
+                shape, torch.float32, finite=True, domain=Interval(-3.0, 3.0)
+            )
+        )
+
+        def _fn(r: torch.Tensor, i: torch.Tensor) -> torch.Tensor:
+            return torch.view_as_real(torch.complex(r, i).resolve_conj())
+
+        return OpSample(inputs=(real, imag), module=BinaryPrimitive(_fn))
+
+    return _draw()
+
+
+_COMPLEX_UNARY_DEFAULT_DOMAIN = Interval(-3.0, 3.0)
+
+
+def _complex_unary_sample_st(
+    op: T.Callable[[torch.Tensor], torch.Tensor],
+    *,
+    domain: T.Optional[Interval] = None,
+) -> st.SearchStrategy[OpSample]:
+    """Complex-input unary op (`conj` / `conj_physical` / `sgn`).
+
+    The model takes a real `(..., 2)` input which it folds into
+    complex via `view_as_complex`, applies the op, and folds back
+    via `view_as_real` so the comparator sees real-on-both-sides.
+    """
+    domain = domain or _COMPLEX_UNARY_DEFAULT_DOMAIN
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        # `view_as_complex` requires last dim == 2 and a contiguous
+        # last axis: build a free leading shape then append `(2,)`.
+        leading = draw(shape_st(min_rank=1, max_rank=3, min_dim=2, max_dim=5))
+        shape = tuple(leading) + (2,)
+        x = draw(tensor_st(shape, torch.float32, finite=True, domain=domain))
+
+        def _fn(t: torch.Tensor) -> torch.Tensor:
+            return torch.view_as_real(
+                op(torch.view_as_complex(t)).resolve_conj()
+            )
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(_fn))
+
+    return _draw()
+
+
+def _complex_specs() -> T.List[OpSpec]:
+    """`complex` / `conj` / `conj_physical` / `sgn` on complex tensors."""
+    CLOSE = TractCheckTolerance.CLOSE
+    return [
+        OpSpec(
+            name="complex",
+            sample_st=_complex_constructor_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            # `conj` on complex flips the sign of the imag slice via the
+            # `conjugate` NNEF fragment. (`resolve_conj-complex` is not
+            # needed: `resolve_conj` is a no-op on a non-lazy tensor.)
+            name="conj-complex",
+            sample_st=_complex_unary_sample_st(torch.conj),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            # Mirror of `conj-complex`; `conj_physical` shares the
+            # `_emit_conjugate` code path but is a separate aten op.
+            name="conj_physical-complex",
+            sample_st=_complex_unary_sample_st(torch.conj_physical),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            # `sgn` on complex maps `z -> z / |z|` via `sgn_complex`
+            # (with the 0 -> 0 carve-out); real-input `sgn` is already
+            # covered by the existing `sign` spec.
+            # Subnormal-near inputs underflow `x*x + y*y` to 0 in tract's
+            # f32 (e.g. real=imag=3.35e-38 -> x*x=1.12e-75 below normal),
+            # which then silently propagates 0 through the divide rather
+            # than the documented z/|z|. Spec stays xfail until the
+            # `sgn_complex` fragment guards against the underflow.
+            name="sgn-complex-xfail",
+            sample_st=_complex_unary_sample_st(
+                torch.sgn, domain=Interval(-3.0, 3.0)
+            ),
+            tolerance=CLOSE,
+            xfail_reason=(
+                "sgn_complex underflows `x*x + y*y` to 0 for f32 inputs "
+                "near the subnormal boundary (~1e-19): tract returns 0, "
+                "torch returns z/|z|. Falsifying example: "
+                "real=imag=3.35e-38 -> tract 0, torch 0.707..."
+            ),
+        ),
+    ]
+
+
 SPECS = (
     *_constructors_index_sdpa_specs(),
     *_fft_specs(),
     *_glue_specs(),
+    *_complex_specs(),
 )
