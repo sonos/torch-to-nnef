@@ -61,9 +61,7 @@ def column_stack(g, node, name_to_tensor, torch_graph, op_helper, **kwargs):
     for i, item in enumerate(input_node.data):
         if item.export_name not in name_to_tensor and item.data is None:
             torch_graph.printall()
-            raise T2NErrorNotImplemented(
-                f"column_stack with input: {item}"
-            )
+            raise T2NErrorNotImplemented(f"column_stack with input: {item}")
         ref = get_or_add_tensor_variable_in_nnef(g, item, name_to_tensor)
         if item.rank == 1:
             ref = op_helper.add_single_output_op_from_nnef_tensors(
