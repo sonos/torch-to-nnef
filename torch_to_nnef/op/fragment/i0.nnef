@@ -1,0 +1,40 @@
+# Modified Bessel function of the first kind, order 0 (`I_0(x)`).
+# Abramowitz & Stegun 9.8.1 / 9.8.2 polynomial approximations.
+#
+# Two branches selected by `|x| < 3.75`:
+#   small: `1 + sum_{k=1..6} a_k * ((x/3.75)^2)^k`
+#   large: `exp(|x|) / sqrt(|x|) * sum_{k=0..8} b_k * (3.75/|x|)^k`
+#
+# `exp(|x|)` overflows in f32 for `|x| > ~88`; use `i0e` for the
+# scaled-exponential form when working with large magnitudes.
+fragment i0(input: tensor<scalar>) -> (output: tensor<scalar>)
+{
+    abs_x    = abs(input);
+    is_small = lt(abs_x, 3.75);
+
+    t_small = sqr(input / 3.75);
+    i0_small = 1.0 + t_small * (3.5156229
+              + t_small * (3.0899424
+              + t_small * (1.2067492
+              + t_small * (0.2659732
+              + t_small * (0.0360768
+              + t_small * 0.0045813)))));
+
+    # Safe `3.75 / |x|` for the large branch: clamp the divisor away
+    # from 0 so the small-x path doesn't propagate inf / NaN through
+    # the `select` (only the kept branch matters but tract evaluates
+    # both eagerly).
+    safe_abs   = max(abs_x, 3.75);
+    t_large    = 3.75 / safe_abs;
+    poly_large = 0.39894228 + t_large * (0.01328592
+                + t_large * (0.00225319
+                + t_large * (-0.00157565
+                + t_large * (0.00916281
+                + t_large * (-0.02057706
+                + t_large * (0.02635537
+                + t_large * (-0.01647633
+                + t_large * 0.00392377)))))));
+    i0_large = exp(safe_abs) / sqrt(safe_abs) * poly_large;
+
+    output = select(is_small, i0_small, i0_large);
+}

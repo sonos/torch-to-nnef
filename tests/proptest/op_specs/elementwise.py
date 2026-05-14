@@ -1248,6 +1248,47 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
     ]
 
 
+# Special functions (Bessel I0, lgamma)
+
+
+# `i0` / `i0e`: tested across both polynomial branches (|x| < 3.75
+# small-series and the |x| >= 3.75 asymptotic). VERY tolerance --
+# polynomial approximations are bounded to ~1e-7 relative error but
+# the exp / sqrt chain in the large branch amplifies that.
+_UNARY_I0_DOMAIN = Interval(-15.0, 15.0)
+
+# `lgamma`: only valid for `x > 0.5` in our Lanczos-only impl. Bound
+# above 0.6 to stay clear of the reflection branch.
+_UNARY_LGAMMA_DOMAIN = Interval(0.6, 50.0)
+
+
+def _special_function_specs() -> T.List[OpSpec]:
+    VERY = TractCheckTolerance.VERY
+    return [
+        OpSpec(
+            name="i0",
+            sample_st=_unary_sample_st(
+                torch.special.i0, domain=_UNARY_I0_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="special_i0e",
+            sample_st=_unary_sample_st(
+                torch.special.i0e, domain=_UNARY_I0_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="lgamma",
+            sample_st=_unary_sample_st(
+                torch.lgamma, domain=_UNARY_LGAMMA_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+    ]
+
+
 # Specialty ops (embedding, repeat_interleave, upsample, sdpa, ...)
 
 SPECS = (
@@ -1259,4 +1300,5 @@ SPECS = (
     *_clamp_where_specs(),
     *_bitwise_builder_specs(),
     *_recent_elementwise_specs(),
+    *_special_function_specs(),
 )

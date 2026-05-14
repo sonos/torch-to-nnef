@@ -1,0 +1,28 @@
+# Log-Gamma via the Numerical Recipes Lanczos approximation
+# (g = 5, N = 6). Accurate to ~1e-7 absolute for `x > 0.5`. Smaller
+# arguments need a reflection branch (`lgamma(x) = log(pi / |sin(pi
+# x)|) - lgamma(1 - x)`) which is left as a follow-up; in inference
+# traces `lgamma` is almost always called on positive shape / count
+# parameters, where the Lanczos branch alone suffices.
+fragment lgamma(input: tensor<scalar>) -> (output: tensor<scalar>)
+{
+    tmp     = input + 5.5;
+    log_tmp = log(tmp);
+
+    # Lanczos polynomial sum (`0.0 - X` to negate; NNEF stays safe
+    # about unary minus on literals).
+    ser = 1.000000000190015
+        + 76.18009172947146    / (input + 1.0)
+        + (0.0 - 86.50532032941677) / (input + 2.0)
+        + 24.01409824083091    / (input + 3.0)
+        + (0.0 - 1.231739572450155) / (input + 4.0)
+        + 0.1208650973866179e-2     / (input + 5.0)
+        + (0.0 - 0.5395239384953e-5) / (input + 6.0);
+
+    # 0.9189385332046727 = log(sqrt(2*pi))
+    output = 0.9189385332046727
+           + log(ser)
+           - log(input)
+           + (input + 0.5) * log_tmp
+           - tmp;
+}
