@@ -1036,6 +1036,68 @@ def cumsum(node, op_helper, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
+def cumprod(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:cumprod' to NNEF using a scan fragment.
+
+    Mirror of `cumsum` with a `mul` scan body and an init of `1` (built
+    pointwise via `mul(first, 0) + 1` to keep init shape-matching).
+    """
+    input_node, dim_node = node.inputs[:2]
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "cumprod need `TractNNEF` inference target"
+        )
+
+    axis = pick_axis(input_node, dim_node.data)
+    x = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    first = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "slice",
+        inputs=x,
+        attrs={
+            "axes": [axis],
+            "begin": [0],
+            "end": [1],
+            "stride": [1],
+        },
+        output_tensor_name_suffix="cumprod_first",
+        pass_quantization_params=True,
+    )
+    # init = 1, shape-matched to `first`. Build via `0 * first + 1`
+    # where the `1` is a scalar PythonConstant broadcast into `first`'s
+    # shape by `add`.
+    zeroed = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "sub",
+        inputs=[first, first],
+        output_tensor_name_suffix="cumprod_zero",
+        pass_quantization_params=True,
+    )
+    one_const = PythonConstant(
+        name=f"{node.outputs[0].export_name}_cumprod_one",
+        data=torch.tensor(1.0, dtype=input_node.dtype or torch.float32),
+    )
+    one_ref = op_helper.get_or_add_tensor_variable_in_nnef(one_const)
+    init = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "add",
+        inputs=[zeroed, one_ref],
+        output_tensor_name_suffix="cumprod_init",
+        pass_quantization_params=True,
+    )
+
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_cumprod",
+        inputs=[x, init],
+        attrs={"axis": axis},
+        pass_quantization_params=True,
+    )
+    return ["cumprod"]
+
+
+@OP_REGISTRY.register()
 def fmod(node, op_helper, **kwargs):
     """aten::fmod.
 

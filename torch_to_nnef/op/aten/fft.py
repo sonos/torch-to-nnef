@@ -522,6 +522,204 @@ def _fftn_loop(
 
 
 @OP_REGISTRY.register()
+def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
+    """Map PyTorch: 'aten:fft_irfft' to NNEF.
+
+    One-sided complex spectrum -> real signal of length `n` (defaults
+    to `2 * (K - 1)` where `K = input.shape[dim]`). Reconstruct the
+    Hermitian-symmetric full spectrum: take the slice `[1, K-1)`,
+    reverse it on `dim`, conjugate (negate imag), concat after the
+    input -> `(..., n, 2)`; run an inverse FFT; divide by `n`; drop
+    the imaginary part.
+    """
+    _check_fft_target(inference_target)
+    input_node, n_node, dim_node, norm_node = node.inputs
+    if norm_node.data is not None:
+        raise T2NErrorNotImplemented("norm unexpected")
+    if input_node.dtype not in (torch.complex64, torch.complex128):
+        raise T2NErrorNotImplemented(
+            f"fft_irfft expects complex input; got dtype={input_node.dtype}"
+        )
+
+    # `input_node.rank` is the PyTorch (complex) rank; NNEF emission
+    # adds a trailing-2 axis at position `input_node.rank`. The FFT
+    # axis sits inside the complex view, so `pick_axis` works against
+    # the PyTorch rank as usual.
+    dim = pick_axis(input_node, dim_node.data)
+    complex_axis = input_node.rank
+    k = input_node.shape[dim]
+    if not isinstance(k, int):
+        raise T2NErrorNotImplemented("fft_irfft on dynamic FFT axis")
+    if k < 2:
+        raise T2NErrorNotImplemented(
+            f"fft_irfft needs `input.shape[dim] >= 2`; got {k}"
+        )
+    n = n_node.data if n_node.data is not None else 2 * (k - 1)
+
+    inp = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+
+    # 1. Mirror chunk: slice `[1, K-1)` on the FFT axis -> (..., K-2, 2).
+    if k == 2:
+        # The Hermitian mirror is empty; the input itself is the full
+        # 2-bin spectrum. Skip the slice / flip / concat.
+        full_spec = inp
+    else:
+        mirror_src = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=inp,
+            attrs={
+                "axes": [dim],
+                "begin": [1],
+                "end": [k - 1],
+                "stride": [1],
+            },
+            output_tensor_name_suffix="_irfft_mirror_src",
+        )
+
+        # 2. Reverse on the FFT axis: `tract_core_gather` with the
+        # constant `[K-3, ..., 0]` index tensor.
+        idx_const = PythonConstant(
+            name=f"{node.outputs[0].export_name}_irfft_flip_idx",
+            data=torch.arange(k - 3, -1, -1, dtype=torch.int64),
+        )
+        idx_ref = get_or_add_tensor_variable_in_nnef(
+            g, idx_const, name_to_tensor
+        )
+        flipped = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_gather",
+            inputs=[mirror_src, idx_ref],
+            attrs={"axis": dim},
+            force_consistent_inputs_shapes=False,
+            output_tensor_name_suffix="_irfft_flipped",
+        )
+
+        # 3. Conjugate: keep real, negate imag, concat back.
+        real_part = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=flipped,
+            attrs={
+                "axes": [complex_axis],
+                "begin": [0],
+                "end": [1],
+                "stride": [1],
+            },
+            output_tensor_name_suffix="_irfft_re",
+        )
+        imag_part = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=flipped,
+            attrs={
+                "axes": [complex_axis],
+                "begin": [1],
+                "end": [2],
+                "stride": [1],
+            },
+            output_tensor_name_suffix="_irfft_im",
+        )
+        neg1_const = PythonConstant(
+            name=f"{node.outputs[0].export_name}_irfft_neg1",
+            data=torch.tensor(-1.0, dtype=torch.float32),
+        )
+        neg1_ref = get_or_add_tensor_variable_in_nnef(
+            g, neg1_const, name_to_tensor
+        )
+        neg_imag = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "mul",
+            inputs=[imag_part, neg1_ref],
+            output_tensor_name_suffix="_irfft_neg_im",
+        )
+        conj = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "concat",
+            inputs=[real_part, neg_imag],
+            attrs={"axis": complex_axis},
+            ensure_tuple=False,
+            output_tensor_name_suffix="_irfft_conj",
+        )
+
+        # 4. Concat input with conjugate mirror on the FFT axis
+        #    -> (..., n, 2).
+        full_spec = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "concat",
+            inputs=[inp, conj],
+            attrs={"axis": dim},
+            ensure_tuple=False,
+            output_tensor_name_suffix="_irfft_full_spec",
+        )
+
+    # 5. Inverse FFT on the FFT axis.
+    ifft = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_fft",
+        inputs=full_spec,
+        attrs={"axis": dim, "inverse": True},
+        output_tensor_name_suffix="_irfft_ifft",
+    )
+
+    # 6. Divide by `n` (default backward norm for irfft).
+    n_const = PythonConstant(
+        name=f"{node.outputs[0].export_name}_irfft_divisor",
+        data=torch.tensor(float(n), dtype=torch.float32),
+    )
+    n_ref = get_or_add_tensor_variable_in_nnef(g, n_const, name_to_tensor)
+    scaled = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "div",
+        inputs=[ifft, n_ref],
+        output_tensor_name_suffix="_irfft_scaled",
+    )
+
+    # 7. Drop the imaginary part: slice last axis `[0:1]` then squeeze.
+    real_only = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "slice",
+        inputs=scaled,
+        attrs={
+            "axes": [complex_axis],
+            "begin": [0],
+            "end": [1],
+            "stride": [1],
+        },
+        output_tensor_name_suffix="_irfft_real_slice",
+    )
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "squeeze",
+        inputs=real_only,
+        attrs={"axes": [complex_axis]},
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
 def fft_fftn(g, node, name_to_tensor, inference_target, **kwargs):
     """Map PyTorch: 'aten:fft_fftn' to NNEF (forward N-dim FFT)."""
     _check_fft_target(inference_target)

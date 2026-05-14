@@ -153,7 +153,6 @@ def _adaptive_pool2d_sample_st(
 
 
 def _pool_specs() -> T.List[OpSpec]:
-
     EXACT = TractCheckTolerance.EXACT
     APPROX = TractCheckTolerance.APPROXIMATE
     return [
@@ -308,6 +307,42 @@ def _cumsum_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _cumprod_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.cumprod(input, dim)`.
+
+    Bound elements close to 1 so the running product stays in range
+    over up-to-5 steps along the chosen axis.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=5),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-1.5, 1.5),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(partial(torch.cumprod, dim=dim)),
+        )
+
+    return _draw()
+
+
 def _atan2_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.atan2(y, x)`: broadcasted, no special domain."""
 
@@ -345,7 +380,6 @@ def _classifier_sample_st(
 
 
 def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
-
     EXACT = TractCheckTolerance.EXACT
     APPROX = TractCheckTolerance.APPROXIMATE
     CLOSE = TractCheckTolerance.CLOSE
@@ -396,6 +430,11 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         OpSpec(
             name="cumsum",
             sample_st=_cumsum_sample_st(),
+            tolerance=APPROX,
+        ),
+        OpSpec(
+            name="cumprod",
+            sample_st=_cumprod_sample_st(),
             tolerance=APPROX,
         ),
         OpSpec(

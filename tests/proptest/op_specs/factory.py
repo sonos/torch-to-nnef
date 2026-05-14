@@ -378,6 +378,44 @@ def _fft_sample_st(
     return _draw()
 
 
+def _irfft_sample_st() -> st.SearchStrategy[OpSample]:
+    """Real -> rfft -> irfft round-trip.
+
+    The model is just `torch.fft.irfft(torch.fft.rfft(x, dim=d), dim=d)`,
+    which yields a real tensor on both sides -- no view_as_real wrap
+    needed for comparison.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=8),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+
+        def _roundtrip(x_in: torch.Tensor, d: int = dim) -> torch.Tensor:
+            return torch.fft.irfft(torch.fft.rfft(x_in, dim=d), dim=d)
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(_roundtrip))
+
+    return _draw()
+
+
 def _fftn_sample_st(
     op: T.Callable[..., torch.Tensor],
 ) -> st.SearchStrategy[OpSample]:
@@ -448,6 +486,15 @@ def _fft_specs() -> T.List[OpSpec]:
         OpSpec(
             name="fft_ifftn",
             sample_st=_fftn_sample_st(torch.fft.ifftn),
+            tolerance=TractCheckTolerance.SUPER,
+        ),
+        OpSpec(
+            # `fft_irfft` takes a Hermitian-symmetric one-sided spectrum
+            # and returns real. We feed it a real-input rfft to build
+            # such a spectrum; the comparator then sees real-on-both-
+            # sides without needing the view_as_real wrapper.
+            name="fft_irfft",
+            sample_st=_irfft_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
         ),
     ]
