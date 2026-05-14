@@ -1,0 +1,9 @@
+# `sqrt(a^2 + b^2)`. Pointwise; no NaN handling beyond what `sqr` /
+# `add` / `sqrt` naturally do.
+fragment hypot(
+    a: tensor<scalar>,
+    b: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    output = sqrt(sqr(a) + sqr(b));
+}

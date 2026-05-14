@@ -1,0 +1,15 @@
+# NaN-skipping max: `fmax(NaN, x) = x`, `fmax(x, NaN) = x`,
+# `fmax(NaN, NaN) = NaN`. Differs from `max` which propagates NaN.
+# NaN detection via the IEEE-754 `NaN != NaN` invariant -- pure NNEF
+# stdlib, no `tract_core_is_nan` dependency.
+fragment fmax(
+    a: tensor<scalar>,
+    b: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    a_is_nan = ne(a, a);
+    b_is_nan = ne(b, b);
+    # If `b` is NaN, prefer `a`; else if `a` is NaN, prefer `b`; else max.
+    pick_a_for_b_nan = select(b_is_nan, a, max(a, b));
+    output = select(a_is_nan, b, pick_a_for_b_nan);
+}

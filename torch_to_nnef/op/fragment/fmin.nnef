@@ -1,0 +1,11 @@
+# Mirror of `fmax`: `fmin(NaN, x) = x`, `fmin(NaN, NaN) = NaN`.
+fragment fmin(
+    a: tensor<scalar>,
+    b: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    a_is_nan = ne(a, a);
+    b_is_nan = ne(b, b);
+    pick_a_for_b_nan = select(b_is_nan, a, min(a, b));
+    output = select(a_is_nan, b, pick_a_for_b_nan);
+}

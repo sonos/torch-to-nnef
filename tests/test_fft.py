@@ -175,6 +175,46 @@ add_test(torch.arange(24.0).reshape(2, 3, 4), MyIFFTN(dims=[1, 2]))
 add_test(torch.arange(8.0), MyHammingWindowScaled(8, "hamming"))
 add_test(torch.arange(8.0), MyHammingWindowScaled(8, "blackman"))
 add_test(torch.arange(8.0), MyHammingWindowScaled(8, "kaiser"))
+
+
+class MyComplex(nn.Module):
+    """Build a complex tensor and unfold to real for comparison."""
+
+    def forward(self, real, imag):
+        return torch.view_as_real(torch.complex(real, imag))
+
+
+class MyConj(nn.Module):
+    """Conjugate a complex tensor (with `resolve_conj` to materialise)."""
+
+    def forward(self, x):
+        c = torch.view_as_complex(x)
+        return torch.view_as_real(torch.conj(c).resolve_conj())
+
+
+class MyConjPhysical(nn.Module):
+    """`torch.conj_physical(complex)` -> conjugate (materialised)."""
+
+    def forward(self, x):
+        c = torch.view_as_complex(x)
+        return torch.view_as_real(torch.conj_physical(c))
+
+
+add_test(
+    (
+        torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+        torch.tensor([[0.5, -1.0], [-2.0, 1.5]]),
+    ),
+    MyComplex(),
+)
+add_test(
+    torch.tensor([[[1.0, 2.0], [3.0, -1.5]], [[-0.5, 0.7], [2.0, -2.0]]]),
+    MyConj(),
+)
+add_test(
+    torch.tensor([[[1.0, 2.0], [3.0, -1.5]], [[-0.5, 0.7], [2.0, -2.0]]]),
+    MyConjPhysical(),
+)
 add_test(
     torch.arange(12).float(),
     MySTFT(window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1])),

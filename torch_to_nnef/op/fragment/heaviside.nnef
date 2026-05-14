@@ -1,0 +1,16 @@
+# Heaviside step function:
+#   x > 0  -> 1
+#   x == 0 -> values (tie-breaker, broadcast to x's shape)
+#   x < 0  -> 0
+fragment heaviside(
+    x: tensor<scalar>,
+    values: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    zero_t = mul(x, 0.0);
+    one_t  = zero_t + 1.0;
+    is_pos = gt(x, zero_t);
+    is_zero = eq(x, zero_t);
+    at_zero_or_neg = select(is_zero, values, zero_t);
+    output = select(is_pos, one_t, at_zero_or_neg);
+}

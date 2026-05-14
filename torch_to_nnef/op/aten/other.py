@@ -123,7 +123,6 @@ def dropout(node, torch_graph, **kwargs):
         "contiguous",
         "resolve_conj",
         "resolve_neg",
-        "conj_physical",
     ]
 )
 def identity_remap(node, torch_graph, **kwargs):
@@ -131,9 +130,11 @@ def identity_remap(node, torch_graph, **kwargs):
 
     `resolve_conj` / `resolve_neg` flip an internal "is conjugated"
     / "is negated" view bit and are the identity once those bits are
-    cleared; for real-valued tensors they are unconditionally identity.
-    `conj_physical` actually conjugates, but for real tensors it is
-    also the identity.
+    cleared; for real-valued tensors they are unconditionally
+    identity. (`conj_physical` used to live here too, which silently
+    returned the input unchanged on complex inputs -- it now lives in
+    `op/aten/complex.py` next to `conj`, routed through the
+    `conjugate` fragment.)
     """
     torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
