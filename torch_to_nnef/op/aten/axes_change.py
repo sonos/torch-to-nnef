@@ -135,9 +135,14 @@ def numpy_t(g, node, name_to_tensor, **kwargs):
     )
 
 
-@OP_REGISTRY.register(torch_op_ids=["mT", "mH"])
+@OP_REGISTRY.register(torch_op_ids=["mT", "mH", "matrix_H"])
 def matrix_transpose(g, node, name_to_tensor, **kwargs):
-    """Map `aten::mT` and `aten::mH` (`Tensor.mT` / `Tensor.mH`) to NNEF.
+    """Map `aten::mT` / `aten::mH` / `aten::matrix_H` to NNEF.
+
+    `matrix_H` is the native-functions schema name for the Hermitian
+    transpose property (`Tensor.H`); aliased here since for real
+    dtypes it has the same semantics as `mT` / `mH` (axis swap on the
+    last two dims).
 
     Both ops swap the last two axes of a rank-`>=` 2 tensor. `mH` is the
     conjugate-transpose; for real-valued tensors (the only ones NNEF /

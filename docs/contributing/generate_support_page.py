@@ -378,6 +378,199 @@ _EXCLUDED_SPARSE_ONLY = frozenset(
     }
 )
 
+_EXCLUDED_FUNCTIONALIZATION_COPY_SCATTER = frozenset(
+    {
+        # Functionalization `*_copy` / `*_scatter` variants. The
+        # functionalization pass (used by FX / AOT export pipelines)
+        # emits these as out-of-place / strided-write surrogates for
+        # views. The JIT trace that t2n consumes skips functionalization
+        # and records the underlying view op (`view`, `slice`, `select`,
+        # `narrow`, `permute`, `unbind`, `as_strided`, ...), so the
+        # `_copy` / `_scatter` aliases never reach us.
+        "alias_copy",
+        "as_strided_copy",
+        "as_strided_scatter",
+        "detach_copy",
+        "diagonal_copy",
+        "diagonal_scatter",
+        "lift",
+        "lift_fresh",
+        "lift_fresh_copy",
+        "narrow_copy",
+        "permute_copy",
+        "select_copy",
+        "slice_copy",
+        "slice_inverse",
+        "split_copy",
+        "unbind_copy",
+        "unfold_copy",
+        "view_as_complex_copy",
+        "view_as_real_copy",
+        "view_copy",
+    }
+)
+
+_EXCLUDED_BATCH_NORM_TRAINING_INTERNALS = frozenset(
+    {
+        # Training-only / backward-only batch-norm internals: running
+        # stats computation (`*_stats`, `*_update_stats`,
+        # `*_gather_stats`) and the legit-mode forward that returns
+        # `(out, save_mean, save_invstd)` for the backward pass.
+        # Inference paths resolve through `aten::batch_norm`; these
+        # never escape into a JIT trace of an inference graph.
+        "batch_norm_elemt",
+        "batch_norm_gather_stats",
+        "batch_norm_gather_stats_with_counts",
+        "batch_norm_stats",
+        "batch_norm_update_stats",
+        "native_batch_norm",
+        "native_norm",
+        "norm_except_dim",
+    }
+)
+
+_EXCLUDED_LINALG_EX_AND_LEGACY = frozenset(
+    {
+        # `linalg_*_ex` paired-output kernels return `(result, info)`
+        # for per-batch error codes; the public `torch.linalg.*` Python
+        # wrappers strip `info` and record the bare op, so these
+        # variants never reach the trace.
+        "linalg_cholesky_ex",
+        "linalg_inv_ex",
+        "linalg_ldl_factor_ex",
+        "linalg_lu_factor_ex",
+        # Deprecated pre-`torch.linalg` wrappers: `torch.eig`, `lstsq`,
+        # `symeig`, `svd`, `pinverse` etc. live in `torch/_tensor.py` /
+        # `torch/functional.py` as shims forwarding to `torch.linalg.*`.
+        # JIT trace records the `linalg_*` callee, not the deprecation
+        # shim.
+        "eig",
+        "lstsq",
+        "matrix_rank",
+        "pinv",
+        "pinverse",
+        "solve",
+        "svd",
+        "symeig",
+    }
+)
+
+_EXCLUDED_FAKE_QUANT_TRAINING = frozenset(
+    {
+        # QAT `*_cachemask` outputs carry the mask tensor consumed only
+        # by the backward pass; `fused_moving_avg_obs_fake_quant` and
+        # `choose_qparams_optimized` are observer-fusion ops used to
+        # *learn* qparams during training. Inference quantized graphs
+        # call `quantize_per_*` / `dequantize` directly.
+        "choose_qparams_optimized",
+        "fake_quantize_per_channel_affine",
+        "fake_quantize_per_channel_affine_cachemask",
+        "fake_quantize_per_tensor_affine",
+        "fake_quantize_per_tensor_affine_cachemask",
+        "fused_moving_avg_obs_fake_quant",
+    }
+)
+
+_EXCLUDED_SLOW_CONV_FALLBACK = frozenset(
+    {
+        # `slow_conv*` / `thnn_conv*` are dispatcher-fallback CPU
+        # kernels (autograd-friendly, no fast backend). The JIT trace
+        # always records the generic dispatched name (`convolution` /
+        # `_convolution`); these names never appear in the recorded
+        # graph regardless of which backend actually runs.
+        "conv_depthwise3d",
+        "slow_conv3d",
+        "slow_conv3d_forward",
+        "slow_conv_dilated2d",
+        "slow_conv_dilated3d",
+        "slow_conv_transpose2d",
+        "slow_conv_transpose3d",
+        "thnn_conv2d",
+    }
+)
+
+_EXCLUDED_PYTHON_SCALAR_BUILTINS_EXTRA = frozenset(
+    {
+        # More Python / TorchScript scalar builtins routed through
+        # `aten::*` for scripting compatibility (see
+        # `torch/csrc/jit/runtime/register_prim_ops.cpp` and
+        # `ir_emitter.cpp` scaffolding). Unary scalar (`float`/`int`)
+        # math + container-protocol method names that the `rg "aten::"`
+        # sweep picks up but cannot produce tensor outputs in a graph.
+        "append",
+        "bin",
+        "count",
+        "cpu",
+        "cuda",
+        "degrees",
+        "divmod",
+        "dim",
+        "equal",
+        "fabs",
+        "factorial",
+        "insert",
+        "is_floating_point",
+        "item",
+        "len",
+        "list",
+        "list_with_default",
+        "neq",
+        "pop",
+        "radians",
+        "remove",
+        "replace",
+        "reverse",
+        "str",
+        "tensor",
+    }
+)
+
+_EXCLUDED_INPLACE_STORAGE_MUTATORS = frozenset(
+    {
+        # Inplace storage / metadata mutators with no value semantics
+        # in a functional graph -- JIT trace strips inplace ops via
+        # `remove_inplace_ops_for_onnx.cpp`; named-tensor inplace
+        # (`rename_`) cannot reach us because names are erased before
+        # trace recording. `from_file` constructs a tensor by loading
+        # disk data outside the graph entirely.
+        "fill_diagonal_",
+        "float_power_",
+        "rename_",
+        "resize",
+        "resize_as_",
+        "resize_as_sparse",
+        "set",
+        "sparse_resize_",
+        "sparse_resize_and_clear_",
+    }
+)
+
+_EXCLUDED_AUTOGRAD_TRAINING_INTERNALS = frozenset(
+    {
+        # Backward-only / dynamo-autograd internals:
+        # * `sum_to` is emitted by `python_compiled_autograd.cpp` for
+        #   broadcast-aware grad accumulation.
+        # * `*_forward` (paired-output) are autograd forward helpers
+        #   that return `(output, saved_tensor)`; inference uses the
+        #   bare forward.
+        # * `*_functional` are FX-style pure-output variants only used
+        #   by AOT autograd.
+        # * `embedding_renorm` fires only when
+        #   `nn.Embedding.max_norm is not None` (training-only).
+        # * `from_file` constructs a tensor from disk outside the graph.
+        "embedding_renorm",
+        "from_file",
+        "glu_jvp",
+        "log_sigmoid_forward",
+        "multilabel_margin_loss_forward",
+        "nll_loss_forward",
+        "normal_functional",
+        "rrelu_with_noise_functional",
+        "rowwise_prune",
+        "sum_to",
+    }
+)
+
 #: Combined exclusion table keyed by group label -- preserved so the
 #: support-page header can document the rationale to readers and we can
 #: surface a quick summary in the warning block.
@@ -398,6 +591,30 @@ NEVER_IN_INFERENCE_TRACE = {
     ),
     "Sparse-tensor machinery (NNEF / tract are dense-only)": (
         _EXCLUDED_SPARSE_ONLY
+    ),
+    "Functionalization `*_copy` / `*_scatter` variants": (
+        _EXCLUDED_FUNCTIONALIZATION_COPY_SCATTER
+    ),
+    "Batch-norm training / backward-only internals": (
+        _EXCLUDED_BATCH_NORM_TRAINING_INTERNALS
+    ),
+    "`linalg_*_ex` paired-output variants + deprecated linalg wrappers": (
+        _EXCLUDED_LINALG_EX_AND_LEGACY
+    ),
+    "QAT `fake_quantize_*` training-only ops": (
+        _EXCLUDED_FAKE_QUANT_TRAINING
+    ),
+    "`slow_conv*` / `thnn_conv*` dispatcher-fallback kernels": (
+        _EXCLUDED_SLOW_CONV_FALLBACK
+    ),
+    "Python / TorchScript scalar builtins (extra)": (
+        _EXCLUDED_PYTHON_SCALAR_BUILTINS_EXTRA
+    ),
+    "Inplace storage / metadata mutators stripped by JIT": (
+        _EXCLUDED_INPLACE_STORAGE_MUTATORS
+    ),
+    "Backward / dynamo-autograd internals": (
+        _EXCLUDED_AUTOGRAD_TRAINING_INTERNALS
     ),
 }
 

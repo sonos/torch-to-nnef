@@ -152,9 +152,14 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
     return list(set(used_custom_fragment))
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_op_ids=["floor_divide", "floordiv"])
 def floor_divide(node, op_helper, inference_target, torch_graph, **kwargs):
-    """Map PyTorch: 'aten:floor_divide' to NNEF."""
+    """Map PyTorch: 'aten::floor_divide' / 'aten::floordiv' to NNEF.
+
+    JIT records `aten::floordiv` for Python `//`; upstream
+    `normalize_ops.cpp` does not bridge it to `floor_divide`, so we
+    alias it on our side.
+    """
     input_node, divisor_node = node.inputs
     if (
         input_node.data

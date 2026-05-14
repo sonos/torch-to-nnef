@@ -17,13 +17,13 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
 
     - core PyTorch opset:
 
-    [=127/137 "127/137"]
+    [=127/138 "127/138"]
 
     -  and support from full `aten::`: 
 
-    [=321/624 "321/624"]
+    [=323/530 "323/530"]
 
-     (total operators listed as supported by `torch_to_nnef` being 374)
+     (total operators listed as supported by `torch_to_nnef` being 376)
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
@@ -142,6 +142,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.repeat.html">repeat</a></td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>replication_pad2d</td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>replication_pad3d</td><td></td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.resize_.html">resize_</a></td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.round.html">round</a></td><td>special_round</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rsqrt.html">rsqrt</a></td><td></td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>scalar_tensor</td><td></td><td>❌</td><td>✅</td></tr>
@@ -182,17 +183,13 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.addmv.html">addmv</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.addr.html">addr</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>affine_grid_generator</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>alias_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.all.html">all</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.allclose.html">allclose</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.alpha_dropout.html">alpha_dropout</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.aminmax.html">aminmax</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.angle.html">angle</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>append</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.argsort.html">argsort</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.argwhere.html">argwhere</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>as_strided_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>as_strided_scatter</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.as_tensor.html">as_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.atleast_1d.html">atleast_1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.atleast_2d.html">atleast_2d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -200,15 +197,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.baddbmm.html">baddbmm</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bartlett_window.html">bartlett_window</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.batch_norm.html">batch_norm</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_elemt</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_gather_stats</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_gather_stats_with_counts</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_stats</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_update_stats</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bernoulli.html">bernoulli</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>bias_addmm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.bilinear.html">bilinear</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>bin</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.binary_cross_entropy.html">binary_cross_entropy</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.binary_cross_entropy_with_logits.html">binary_cross_entropy_with_logits</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bincount.html">bincount</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -228,7 +219,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky.html">cholesky</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky_inverse.html">cholesky_inverse</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky_solve.html">cholesky_solve</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>choose_qparams_optimized</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.chunk.html">chunk</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>clamp_max</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>clamp_min</td><td></td><td>✅</td><td>-</td></tr>
@@ -241,7 +231,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv1d.html">conv1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv2d.html">conv2d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv3d.html">conv3d</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>conv_depthwise3d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>conv_tbc</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose1d.html">conv_transpose1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose2d.html">conv_transpose2d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -252,62 +241,43 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.copysign.html">copysign</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.cosine_embedding_loss.html">cosine_embedding_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.cosine_similarity.html">cosine_similarity</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>count</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cpu.html">cpu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cross.html">cross</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>cross_entropy_loss</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.ctc_loss.html">ctc_loss</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cuda.html">cuda</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummax.html">cummax</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummin.html">cummin</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cumprod.html">cumprod</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>degrees</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dequantize.html">dequantize</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.detach.html">detach</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>detach_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diag.html">diag</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diagflat.html">diagflat</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>diagonal_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diagonal_scatter.html">diagonal_scatter</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.digamma.html">digamma</a></td><td>special_digamma, special_psi</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.dim.html">dim</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dist.html">dist</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>divmod</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dot.html">dot</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.dropout.html">dropout</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dstack.html">dstack</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.eig.html">eig</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.einsum.html">einsum</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.embedding_bag.html">embedding_bag</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>embedding_renorm</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td>embedding_renorm_</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.empty_like.html">empty_like</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>empty_permuted</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>empty_quantized</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.equal.html">equal</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.erfc.html">erfc</a></td><td>special_erfc</td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.erfinv.html">erfinv</a></td><td>special_erfinv</td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.exp2.html">exp2</a></td><td>special_exp2</td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.expand_as.html">expand_as</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>exponential</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.eye.html">eye</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fabs</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>factorial</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fake_quantize_per_channel_affine.html">fake_quantize_per_channel_affine</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fake_quantize_per_channel_affine_cachemask</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fake_quantize_per_tensor_affine.html">fake_quantize_per_tensor_affine</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fake_quantize_per_tensor_affine_cachemask</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.feature_alpha_dropout.html">feature_alpha_dropout</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>feature_dropout</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_fftfreq</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_ihfft2</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_ihfftn</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_rfftfreq</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.fill_diagonal_.html">fill_diagonal_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.flatten.html">flatten</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>flatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.float_power_.html">float_power_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.floor_divide.html">floor_divide</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>floordiv</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td>floordiv</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fmax.html">fmax</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fmin.html">fmin</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.frac.html">frac</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -315,14 +285,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.fractional_max_pool3d.html">fractional_max_pool3d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.frexp.html">frexp</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>frobenius_norm</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.from_file.html">from_file</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fused_moving_avg_obs_fake_quant</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>gamma</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.gcd.html">gcd</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>geometric</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.geqrf.html">geqrf</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.glu.html">glu</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>glu_jvp</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>grid_sampler</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>grid_sampler_3d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.group_norm.html">group_norm</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -349,13 +316,10 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_copy.html">index_copy</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.index_fill.html">index_fill</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_reduce.html">index_reduce</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>insert</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.instance_norm.html">instance_norm</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_floating_point.html">is_floating_point</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isclose.html">isclose</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isfinite.html">isfinite</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.istft.html">istft</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.item.html">item</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kaiser_window.html">kaiser_window</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.kl_div.html">kl_div</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kthvalue.html">kthvalue</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -363,14 +327,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.layer_norm.html">layer_norm</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lcm.html">lcm</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ldexp.html">ldexp</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>len</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lerp.html">lerp</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lgamma.html">lgamma</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>lift</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>lift_fresh</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>lift_fresh_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg__powsum</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_cholesky_ex</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_cond</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>linalg_cross</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_det</td><td>det</td><td>❌</td><td>-</td></tr>
@@ -380,12 +339,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>linalg_eigvalsh</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_householder_product</td><td>orgqr</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_inv</td><td>inverse</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_inv_ex</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_ldl_factor_ex</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_ldl_solve</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_lstsq</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_lu</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_lu_factor_ex</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_lu_solve</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_matrix_exp</td><td>matrix_exp</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>linalg_matrix_norm</td><td></td><td>❌</td><td>-</td></tr>
@@ -402,11 +358,8 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td>linalg_vector_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.linear.html">linear</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linspace.html">linspace</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>list</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>list_with_default</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>log_normal</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>log_sigmoid</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>log_sigmoid_forward</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.log_softmax.html">log_softmax</a></td><td>special_log_softmax</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logcumsumexp.html">logcumsumexp</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logdet.html">logdet</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -415,7 +368,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logsumexp.html">logsumexp</a></td><td>special_logsumexp</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>lstm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>lstm_cell</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.lstsq.html">lstsq</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_solve.html">lu_solve</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_unpack.html">lu_unpack</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>mH</td><td>adjoint</td><td>❌</td><td>-</td></tr>
@@ -424,8 +376,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.masked_fill.html">masked_fill</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.masked_select.html">masked_select</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.matmul.html">matmul</a></td><td>linalg_matmul</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>matrix_H</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.matrix_rank.html">matrix_rank</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td>matrix_H</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_pool1d.html">max_pool1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>max_pool1d_with_indices</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_pool2d.html">max_pool2d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -439,7 +390,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.mse_loss.html">mse_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.multi_margin_loss.html">multi_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.multilabel_margin_loss.html">multilabel_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>multilabel_margin_loss_forward</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.multinomial.html">multinomial</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.mv.html">mv</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.mvlgamma.html">mvlgamma</a></td><td>special_multigammaln</td><td>❌</td><td>-</td></tr>
@@ -447,12 +397,8 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nanmedian.html">nanmedian</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nanquantile.html">nanquantile</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.narrow.html">narrow</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.narrow_copy.html">narrow_copy</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>native_batch_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>native_channel_shuffle</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>native_multi_head_self_attention</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>native_norm</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>neq</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.new_empty.html">new_empty</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>new_empty_strided</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.new_full.html">new_full</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -461,14 +407,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nextafter.html">nextafter</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.nll_loss.html">nll_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>nll_loss2d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>nll_loss_forward</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>nll_loss_nd</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>nonzero_numpy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>nonzero_static</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.norm.html">norm</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>norm_except_dim</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.normal.html">normal</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>normal_functional</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>nuclear_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.numel.html">numel</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>numpy_T</td><td></td><td>❌</td><td>-</td></tr>
@@ -481,15 +424,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>pad_sequence</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pairwise_distance.html">pairwise_distance</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pdist.html">pdist</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>permute_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.pinv.html">pinv</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.pinverse.html">pinverse</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pixel_shuffle.html">pixel_shuffle</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pixel_unshuffle.html">pixel_unshuffle</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.poisson.html">poisson</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.polar.html">polar</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.polygamma.html">polygamma</a></td><td>special_polygamma</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>pop</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.prelu.html">prelu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>put</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.qr.html">qr</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -504,7 +443,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.quantized_max_pool1d.html">quantized_max_pool1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.quantized_max_pool2d.html">quantized_max_pool2d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>quantized_max_pool3d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>radians</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rand_like.html">rand_like</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.randint.html">randint</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.randint_like.html">randint_like</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -512,57 +450,37 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>random</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.range.html">range</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.relu6.html">relu6</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>remove</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>rename_</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.renorm.html">renorm</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.repeat_interleave.html">repeat_interleave</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>replace</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>replication_pad1d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.reshape.html">reshape</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.reshape_as.html">reshape_as</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>resize</td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.resize_as_.html">resize_as_</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>resize_as_sparse</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td>resize_as_sparse_</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.resolve_conj.html">resolve_conj</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.resolve_neg.html">resolve_neg</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>reverse</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>rnn_relu</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rnn_relu_cell</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>rnn_tanh</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rnn_tanh_cell</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.roll.html">roll</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rot90.html">rot90</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>rowwise_prune</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise</td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise_functional</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>rsub</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.scaled_dot_product_attention.html">scaled_dot_product_attention</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.searchsorted.html">searchsorted</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.segment_reduce.html">segment_reduce</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>select_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.selu.html">selu</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>set</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.set_.html">set_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.signbit.html">signbit</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.silu.html">silu</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sinc.html">sinc</a></td><td>special_sinc</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.size.html">size</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slice_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slice_inverse</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv3d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv3d_forward</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv_dilated2d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv_dilated3d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv_transpose2d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv_transpose3d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.smooth_l1_loss.html">smooth_l1_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.soft_margin_loss.html">soft_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softmax.html">softmax</a></td><td>special_softmax</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softplus.html">softplus</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softshrink.html">softshrink</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.solve.html">solve</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_resize_.html">sparse_resize_</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_resize_and_clear_.html">sparse_resize_and_clear_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_airy_ai</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_bessel_j0</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_bessel_j1</td><td></td><td>❌</td><td>-</td></tr>
@@ -595,23 +513,16 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>special_spherical_bessel_j0</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_zeta</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.split.html">split</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>split_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.square.html">square</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stack.html">stack</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std.html">std</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std_mean.html">std_mean</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stft.html">stft</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>str</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>sum_to</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.svd.html">svd</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>symeig</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.t.html">t</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.take.html">take</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.tanhshrink.html">tanhshrink</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor.html">tensor</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor_split.html">tensor_split</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensordot.html">tensordot</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>thnn_conv2d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.threshold.html">threshold</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tile.html">tile</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.to.html">to</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -625,11 +536,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.triu_indices.html">triu_indices</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.type_as.html">type_as</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unbind.html">unbind</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>unbind_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unflatten.html">unflatten</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>unflatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.unfold.html">unfold</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>unfold_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>uniform</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unique_consecutive.html">unique_consecutive</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>unique_dim</td><td></td><td>❌</td><td>-</td></tr>
@@ -647,10 +556,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.var_mean.html">var_mean</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.view_as.html">view_as</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.view_as_complex.html">view_as_complex</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>view_as_complex_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.view_as_real.html">view_as_real</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>view_as_real_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>view_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vstack.html">vstack</a></td><td>row_stack</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>wrapped_linear_prepack</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>wrapped_quantized_linear_prepacked</td><td></td><td>❌</td><td>-</td></tr>
@@ -669,11 +575,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
 
     - core PyTorch opset:
 
-    [=123/137 "123/137"]
+    [=123/138 "123/138"]
 
     -  and support from full `aten::`: 
 
-    [=319/624 "319/624"]
+    [=306/530 "306/530"]
 
      (total operators listed as supported by PyTorch's TorchScript ONNX exporter being 348)
 
@@ -794,6 +700,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.repeat.html">repeat</a></td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>replication_pad2d</td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>replication_pad3d</td><td></td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.resize_.html">resize_</a></td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.round.html">round</a></td><td>special_round</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rsqrt.html">rsqrt</a></td><td></td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>scalar_tensor</td><td></td><td>❌</td><td>✅</td></tr>
@@ -834,17 +741,13 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.addmv.html">addmv</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.addr.html">addr</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>affine_grid_generator</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>alias_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.all.html">all</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.allclose.html">allclose</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.alpha_dropout.html">alpha_dropout</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.aminmax.html">aminmax</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.angle.html">angle</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td>append</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.argsort.html">argsort</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.argwhere.html">argwhere</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>as_strided_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>as_strided_scatter</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.as_tensor.html">as_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.atleast_1d.html">atleast_1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.atleast_2d.html">atleast_2d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -852,15 +755,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.baddbmm.html">baddbmm</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bartlett_window.html">bartlett_window</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.batch_norm.html">batch_norm</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_elemt</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_gather_stats</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_gather_stats_with_counts</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_stats</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>batch_norm_update_stats</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bernoulli.html">bernoulli</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>bias_addmm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.bilinear.html">bilinear</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>bin</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.binary_cross_entropy.html">binary_cross_entropy</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.binary_cross_entropy_with_logits.html">binary_cross_entropy_with_logits</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bincount.html">bincount</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -880,7 +777,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky.html">cholesky</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky_inverse.html">cholesky_inverse</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky_solve.html">cholesky_solve</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>choose_qparams_optimized</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.chunk.html">chunk</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>clamp_max</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>clamp_min</td><td></td><td>✅</td><td>-</td></tr>
@@ -893,7 +789,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv1d.html">conv1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv2d.html">conv2d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv3d.html">conv3d</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>conv_depthwise3d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>conv_tbc</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose1d.html">conv_transpose1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose2d.html">conv_transpose2d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -904,60 +799,41 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.copysign.html">copysign</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.cosine_embedding_loss.html">cosine_embedding_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.cosine_similarity.html">cosine_similarity</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>count</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cpu.html">cpu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cross.html">cross</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>cross_entropy_loss</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.ctc_loss.html">ctc_loss</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cuda.html">cuda</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummax.html">cummax</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummin.html">cummin</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cumprod.html">cumprod</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>degrees</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dequantize.html">dequantize</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.detach.html">detach</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>detach_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diag.html">diag</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diagflat.html">diagflat</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>diagonal_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diagonal_scatter.html">diagonal_scatter</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.digamma.html">digamma</a></td><td>special_digamma, special_psi</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.dim.html">dim</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dist.html">dist</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>divmod</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dot.html">dot</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.dropout.html">dropout</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dstack.html">dstack</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.eig.html">eig</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.einsum.html">einsum</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.embedding_bag.html">embedding_bag</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td>embedding_renorm</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td>embedding_renorm_</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.empty_like.html">empty_like</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>empty_permuted</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>empty_quantized</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.equal.html">equal</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.erfc.html">erfc</a></td><td>special_erfc</td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.erfinv.html">erfinv</a></td><td>special_erfinv</td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.exp2.html">exp2</a></td><td>special_exp2</td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.expand_as.html">expand_as</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>exponential</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.eye.html">eye</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fabs</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>factorial</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fake_quantize_per_channel_affine.html">fake_quantize_per_channel_affine</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fake_quantize_per_channel_affine_cachemask</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fake_quantize_per_tensor_affine.html">fake_quantize_per_tensor_affine</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fake_quantize_per_tensor_affine_cachemask</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.feature_alpha_dropout.html">feature_alpha_dropout</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>feature_dropout</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_fftfreq</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_ihfft2</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_ihfftn</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_rfftfreq</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.fill_diagonal_.html">fill_diagonal_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.flatten.html">flatten</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>flatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.float_power_.html">float_power_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.floor_divide.html">floor_divide</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>floordiv</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fmax.html">fmax</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -967,14 +843,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.fractional_max_pool3d.html">fractional_max_pool3d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.frexp.html">frexp</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>frobenius_norm</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.from_file.html">from_file</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fused_moving_avg_obs_fake_quant</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>gamma</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.gcd.html">gcd</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>geometric</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.geqrf.html">geqrf</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.glu.html">glu</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>glu_jvp</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>grid_sampler</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>grid_sampler_3d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.group_norm.html">group_norm</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -1001,13 +874,10 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_copy.html">index_copy</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.index_fill.html">index_fill</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_reduce.html">index_reduce</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td>insert</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.instance_norm.html">instance_norm</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_floating_point.html">is_floating_point</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isclose.html">isclose</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isfinite.html">isfinite</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.istft.html">istft</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.item.html">item</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kaiser_window.html">kaiser_window</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.kl_div.html">kl_div</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kthvalue.html">kthvalue</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -1015,14 +885,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.layer_norm.html">layer_norm</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lcm.html">lcm</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ldexp.html">ldexp</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td>len</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lerp.html">lerp</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lgamma.html">lgamma</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td>lift</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>lift_fresh</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>lift_fresh_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg__powsum</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_cholesky_ex</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_cond</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>linalg_cross</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>linalg_det</td><td>det</td><td>❌</td><td>-</td></tr>
@@ -1032,12 +897,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>linalg_eigvalsh</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_householder_product</td><td>orgqr</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_inv</td><td>inverse</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_inv_ex</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_ldl_factor_ex</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_ldl_solve</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_lstsq</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_lu</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_lu_factor_ex</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_lu_solve</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_matrix_exp</td><td>matrix_exp</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>linalg_matrix_norm</td><td></td><td>❌</td><td>-</td></tr>
@@ -1054,11 +916,8 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td>linalg_vector_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.linear.html">linear</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linspace.html">linspace</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td>list</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>list_with_default</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>log_normal</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>log_sigmoid</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>log_sigmoid_forward</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.log_softmax.html">log_softmax</a></td><td>special_log_softmax</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logcumsumexp.html">logcumsumexp</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logdet.html">logdet</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -1067,7 +926,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logsumexp.html">logsumexp</a></td><td>special_logsumexp</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>lstm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>lstm_cell</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.lstsq.html">lstsq</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_solve.html">lu_solve</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_unpack.html">lu_unpack</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>mH</td><td>adjoint</td><td>❌</td><td>-</td></tr>
@@ -1077,7 +935,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.masked_select.html">masked_select</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.matmul.html">matmul</a></td><td>linalg_matmul</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>matrix_H</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.matrix_rank.html">matrix_rank</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_pool1d.html">max_pool1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>max_pool1d_with_indices</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_pool2d.html">max_pool2d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -1091,7 +948,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.mse_loss.html">mse_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.multi_margin_loss.html">multi_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.multilabel_margin_loss.html">multilabel_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>multilabel_margin_loss_forward</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.multinomial.html">multinomial</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.mv.html">mv</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.mvlgamma.html">mvlgamma</a></td><td>special_multigammaln</td><td>❌</td><td>-</td></tr>
@@ -1099,12 +955,8 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nanmedian.html">nanmedian</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nanquantile.html">nanquantile</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.narrow.html">narrow</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.narrow_copy.html">narrow_copy</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>native_batch_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>native_channel_shuffle</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>native_multi_head_self_attention</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>native_norm</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>neq</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.new_empty.html">new_empty</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>new_empty_strided</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.new_full.html">new_full</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -1113,14 +965,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nextafter.html">nextafter</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.nll_loss.html">nll_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>nll_loss2d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>nll_loss_forward</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>nll_loss_nd</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>nonzero_numpy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>nonzero_static</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.norm.html">norm</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>norm_except_dim</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.normal.html">normal</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>normal_functional</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>nuclear_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.numel.html">numel</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>numpy_T</td><td></td><td>❌</td><td>-</td></tr>
@@ -1133,15 +982,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>pad_sequence</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pairwise_distance.html">pairwise_distance</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pdist.html">pdist</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>permute_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.pinv.html">pinv</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.pinverse.html">pinverse</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pixel_shuffle.html">pixel_shuffle</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pixel_unshuffle.html">pixel_unshuffle</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.poisson.html">poisson</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.polar.html">polar</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.polygamma.html">polygamma</a></td><td>special_polygamma</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td>pop</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.prelu.html">prelu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>put</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.qr.html">qr</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -1156,7 +1001,6 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.quantized_max_pool1d.html">quantized_max_pool1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.quantized_max_pool2d.html">quantized_max_pool2d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>quantized_max_pool3d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>radians</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rand_like.html">rand_like</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.randint.html">randint</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.randint_like.html">randint_like</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -1164,57 +1008,37 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>random</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.range.html">range</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.relu6.html">relu6</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>remove</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>rename_</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.renorm.html">renorm</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.repeat_interleave.html">repeat_interleave</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>replace</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>replication_pad1d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.reshape.html">reshape</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.reshape_as.html">reshape_as</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>resize</td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.resize_as_.html">resize_as_</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>resize_as_sparse</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td>resize_as_sparse_</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.resolve_conj.html">resolve_conj</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.resolve_neg.html">resolve_neg</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>reverse</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>rnn_relu</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rnn_relu_cell</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>rnn_tanh</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rnn_tanh_cell</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.roll.html">roll</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rot90.html">rot90</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>rowwise_prune</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise</td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise_functional</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>rsub</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.scaled_dot_product_attention.html">scaled_dot_product_attention</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.searchsorted.html">searchsorted</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.segment_reduce.html">segment_reduce</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>select_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.selu.html">selu</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>set</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.set_.html">set_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.signbit.html">signbit</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.silu.html">silu</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sinc.html">sinc</a></td><td>special_sinc</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.size.html">size</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slice_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slice_inverse</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv3d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv3d_forward</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv_dilated2d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv_dilated3d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv_transpose2d</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>slow_conv_transpose3d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.smooth_l1_loss.html">smooth_l1_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.soft_margin_loss.html">soft_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softmax.html">softmax</a></td><td>special_softmax</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softplus.html">softplus</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softshrink.html">softshrink</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.solve.html">solve</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_resize_.html">sparse_resize_</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_resize_and_clear_.html">sparse_resize_and_clear_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_airy_ai</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_bessel_j0</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_bessel_j1</td><td></td><td>❌</td><td>-</td></tr>
@@ -1247,23 +1071,16 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>special_spherical_bessel_j0</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_zeta</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.split.html">split</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>split_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.square.html">square</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stack.html">stack</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std.html">std</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std_mean.html">std_mean</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stft.html">stft</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>str</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>sum_to</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.svd.html">svd</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>symeig</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.t.html">t</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.take.html">take</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.tanhshrink.html">tanhshrink</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor.html">tensor</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor_split.html">tensor_split</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensordot.html">tensordot</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>thnn_conv2d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.threshold.html">threshold</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tile.html">tile</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.to.html">to</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -1277,11 +1094,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.triu_indices.html">triu_indices</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.type_as.html">type_as</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unbind.html">unbind</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>unbind_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unflatten.html">unflatten</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>unflatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.unfold.html">unfold</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>unfold_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>uniform</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unique_consecutive.html">unique_consecutive</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>unique_dim</td><td></td><td>❌</td><td>-</td></tr>
@@ -1299,10 +1114,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.var_mean.html">var_mean</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.view_as.html">view_as</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.view_as_complex.html">view_as_complex</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>view_as_complex_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.view_as_real.html">view_as_real</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>view_as_real_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>view_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vstack.html">vstack</a></td><td>row_stack</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>wrapped_linear_prepack</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>wrapped_quantized_linear_prepacked</td><td></td><td>❌</td><td>-</td></tr>
@@ -1360,4 +1172,28 @@ These names are filtered out of the support tables above because they cannot sur
 
 ??? note "Sparse-tensor machinery (NNEF / tract are dense-only) (25 names)"
     `ccol_indices`, `ccol_indices_copy`, `coalesce`, `col_indices`, `col_indices_copy`, `copy_sparse_to_sparse`, `crow_indices`, `crow_indices_copy`, `hspmm`, `indices`, `indices_copy`, `nested_to_padded_tensor`, `row_indices`, `row_indices_copy`, `smm`, `sparse_compressed_tensor`, `sparse_coo_tensor`, `sparse_mask`, `sparse_resize`, `sparse_resize_and_clear`, `sparse_sampled_addmm`, `sspaddmm`, `to_dense`, `to_padded_tensor`, `values_copy`
+
+??? note "Functionalization `*_copy` / `*_scatter` variants (20 names)"
+    `alias_copy`, `as_strided_copy`, `as_strided_scatter`, `detach_copy`, `diagonal_copy`, `diagonal_scatter`, `lift`, `lift_fresh`, `lift_fresh_copy`, `narrow_copy`, `permute_copy`, `select_copy`, `slice_copy`, `slice_inverse`, `split_copy`, `unbind_copy`, `unfold_copy`, `view_as_complex_copy`, `view_as_real_copy`, `view_copy`
+
+??? note "Batch-norm training / backward-only internals (8 names)"
+    `batch_norm_elemt`, `batch_norm_gather_stats`, `batch_norm_gather_stats_with_counts`, `batch_norm_stats`, `batch_norm_update_stats`, `native_batch_norm`, `native_norm`, `norm_except_dim`
+
+??? note "`linalg_*_ex` paired-output variants + deprecated linalg wrappers (12 names)"
+    `eig`, `linalg_cholesky_ex`, `linalg_inv_ex`, `linalg_ldl_factor_ex`, `linalg_lu_factor_ex`, `lstsq`, `matrix_rank`, `pinv`, `pinverse`, `solve`, `svd`, `symeig`
+
+??? note "QAT `fake_quantize_*` training-only ops (6 names)"
+    `choose_qparams_optimized`, `fake_quantize_per_channel_affine`, `fake_quantize_per_channel_affine_cachemask`, `fake_quantize_per_tensor_affine`, `fake_quantize_per_tensor_affine_cachemask`, `fused_moving_avg_obs_fake_quant`
+
+??? note "`slow_conv*` / `thnn_conv*` dispatcher-fallback kernels (8 names)"
+    `conv_depthwise3d`, `slow_conv3d`, `slow_conv3d_forward`, `slow_conv_dilated2d`, `slow_conv_dilated3d`, `slow_conv_transpose2d`, `slow_conv_transpose3d`, `thnn_conv2d`
+
+??? note "Python / TorchScript scalar builtins (extra) (25 names)"
+    `append`, `bin`, `count`, `cpu`, `cuda`, `degrees`, `dim`, `divmod`, `equal`, `fabs`, `factorial`, `insert`, `is_floating_point`, `item`, `len`, `list`, `list_with_default`, `neq`, `pop`, `radians`, `remove`, `replace`, `reverse`, `str`, `tensor`
+
+??? note "Inplace storage / metadata mutators stripped by JIT (9 names)"
+    `fill_diagonal_`, `float_power_`, `rename_`, `resize`, `resize_as_`, `resize_as_sparse`, `set`, `sparse_resize_`, `sparse_resize_and_clear_`
+
+??? note "Backward / dynamo-autograd internals (10 names)"
+    `embedding_renorm`, `from_file`, `glu_jvp`, `log_sigmoid_forward`, `multilabel_margin_loss_forward`, `nll_loss_forward`, `normal_functional`, `rowwise_prune`, `rrelu_with_noise_functional`, `sum_to`
 
