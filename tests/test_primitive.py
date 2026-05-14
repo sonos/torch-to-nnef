@@ -1220,6 +1220,36 @@ test_suite.add(
     BinaryPrimitive(torch.ldexp),
     inference_conditions=skip_khronos_interpreter,
 )
+# Fused matmul family: addbmm (sum-bmm + bias), addmv (matrix-vector
+# + bias), addr (outer product + bias). All accept `beta` / `alpha`
+# scalars; defaults are 1.0.
+test_suite.add(
+    (
+        torch.arange(6.0).reshape(2, 3),
+        torch.arange(24.0).reshape(4, 2, 3),
+        torch.arange(36.0).reshape(4, 3, 3),
+    ),
+    TernaryPrimitive(torch.addbmm),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.arange(3.0),
+        torch.arange(12.0).reshape(3, 4),
+        torch.arange(4.0),
+    ),
+    TernaryPrimitive(torch.addmv),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.arange(12.0).reshape(3, 4),
+        torch.arange(3.0),
+        torch.arange(4.0),
+    ),
+    TernaryPrimitive(torch.addr),
+    inference_conditions=skip_khronos_interpreter,
+)
 # addcdiv: `self + value * (t1 / t2)` with non-zero divisor.
 test_suite.add(
     (

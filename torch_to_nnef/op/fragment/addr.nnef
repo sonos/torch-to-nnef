@@ -1,0 +1,17 @@
+# `addr(self, vec1, vec2) = beta*self + alpha*(vec1 outer vec2)`.
+# `vec1` is `(n,)`, `vec2` is `(m,)` -> output `(n, m)`. Outer product
+# expressed as broadcast multiply of the two unsqueezed vectors
+# (no `matmul` needed).
+fragment addr(
+    input: tensor<scalar>,
+    vec1:  tensor<scalar>,
+    vec2:  tensor<scalar>,
+    alpha: scalar,
+    beta:  scalar
+) -> ( output: tensor<scalar> )
+{
+    vec1_col = unsqueeze(vec1, axes = [1]);
+    vec2_row = unsqueeze(vec2, axes = [0]);
+    outer    = mul(vec1_col, vec2_row);
+    output   = beta * input + alpha * outer;
+}

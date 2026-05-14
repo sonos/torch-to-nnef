@@ -1,0 +1,17 @@
+# `addbmm(M, b1, b2) = beta*M + alpha*sum_b(bmm(b1, b2))`.
+#
+# `b1` is `(B, n, m)`, `b2` is `(B, m, p)`; the bmm produces
+# `(B, n, p)` which we sum-reduce along the batch axis to `(n, p)`.
+fragment addbmm(
+    input:  tensor<scalar>,
+    batch1: tensor<scalar>,
+    batch2: tensor<scalar>,
+    alpha:  scalar,
+    beta:   scalar
+) -> ( output: tensor<scalar> )
+{
+    bmm_out      = matmul(batch1, batch2);
+    sum_unsqueeze = sum_reduce(bmm_out, axes = [0]);
+    sum_axis      = squeeze(sum_unsqueeze, axes = [0]);
+    output        = beta * input + alpha * sum_axis;
+}

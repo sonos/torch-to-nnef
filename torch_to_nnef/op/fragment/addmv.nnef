@@ -1,0 +1,17 @@
+# `addmv(self, mat, vec) = beta*self + alpha*(mat @ vec)`.
+# `mat` is `(n, m)`, `vec` is `(m,)` -> output `(n,)`.
+# `matmul` needs both inputs with matching rank, so we unsqueeze the
+# vector to `(m, 1)`, multiply to `(n, 1)`, then squeeze back.
+fragment addmv(
+    input: tensor<scalar>,
+    mat:   tensor<scalar>,
+    vec:   tensor<scalar>,
+    alpha: scalar,
+    beta:  scalar
+) -> ( output: tensor<scalar> )
+{
+    vec_col   = unsqueeze(vec, axes = [1]);
+    mat_vec   = matmul(mat, vec_col);
+    mat_vec_v = squeeze(mat_vec, axes = [1]);
+    output    = beta * input + alpha * mat_vec_v;
+}
