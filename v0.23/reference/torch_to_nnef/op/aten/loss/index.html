@@ -1502,6 +1502,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.loss.l1_loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;l1_loss
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.loss.mse_loss" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;mse_loss
@@ -3204,6 +3213,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.loss.l1_loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;l1_loss
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.loss.mse_loss" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;mse_loss
@@ -3370,6 +3388,28 @@ linear otherwise. Reduction applied by the emitter.</p>
 <code>log_softmax(...)</code>). Torch's <code>reduction='batchmean'</code> is lowered to
 <code>sum</code> plus an external division upstream of the aten op, so the
 aten reduction enum here is only 0 / 1 / 2.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.loss.l1_loss" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">l1_loss</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">l1_loss</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch <code>aten::l1_loss(input, target, reduction)</code> to NNEF.</p>
+<p>Pointwise <code>|input - target|</code> via the <code>l1_loss</code> fragment, then
+reduced. Like <code>mse_loss</code>, torch broadcasts upstream via
+<code>aten::broadcast_tensors</code>, so the fragment assumes matching shapes.</p>
 
     </div>
 
