@@ -68,9 +68,9 @@ def angle(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:angle' to NNEF.
 
     Calls the `angle` fragment (`atan2(imag, real)` on a `(..., 2)`
-    complex layout). The fragment delegates to `atan2`, which is
-    currently `atan(x/y)` -- outputs only match `torch.angle` when the
-    real part stays non-negative.
+    complex layout). The `atan2` fragment is quadrant-aware, so the
+    result matches `torch.angle` across the full plane (signed-zero
+    edge cases excepted).
     """
     if tract_complex_support(inference_target):
         raise T2NErrorNotImplemented("Complex not supported in vanilla spec")

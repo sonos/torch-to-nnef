@@ -399,13 +399,21 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             tolerance=APPROX,
         ),
         OpSpec(
+            # Quadrants are now handled (the `atan2.nnef` fragment got
+            # a quadrant-aware lowering). What remains diverging are two
+            # IEEE-754 corners the NNEF stdlib `lt` can't see:
+            # `atan2(y, -0.0)` flips sign (`lt(-0, 0)` is False so we
+            # don't add the `pi`-adjust), and `atan2(0, 0)` returns NaN
+            # vs torch's 0. Hypothesis hits both reliably under the
+            # `(-10, 10)` interval, so the spec stays xfail until the
+            # sample generator filters them out.
             name="atan2-xfail",
             sample_st=_atan2_sample_st(),
             tolerance=VERY,
             xfail_reason=(
-                "tract atan2 disagrees with PyTorch on quadrant boundaries "
-                "(e.g. atan2(0, -1) returns 0 in tract vs pi in PyTorch). "
-                "Likely a tract upstream bug in atan2 quadrant handling."
+                "Edge cases at signed zero -- `atan2(y, -0.0)` and "
+                "`atan2(0, 0)` -- diverge from PyTorch by pi or NaN. "
+                "The rest of the quadrant plane now matches."
             ),
         ),
         OpSpec(

@@ -1,4 +1,30 @@
+# Quadrant-aware `atan2(num, den)`.
+#
+# Naming follows the existing t2n call convention: `aten::atan2(self,
+# other)` passes `self` as `x` and `other` as `y`. In standard math
+# terms `x` is the numerator (aten `self`) and `y` is the denominator
+# (aten `other`), so the value computed is `atan2(self, other)` =
+# `atan2(x, y)`.
+#
+# Identity (matches `torch.atan2`):
+#   atan(num/den)                  if den > 0
+#   atan(num/den) + pi             if den < 0 and num >= 0
+#   atan(num/den) - pi             if den < 0 and num <  0
+#   +pi/2                          if den == 0 and num > 0
+#   -pi/2                          if den == 0 and num < 0
+#
+# We rely on IEEE-754 semantics for the `den == 0` rows: `atan(+inf) =
+# +pi/2`, `atan(-inf) = -pi/2`. The `(num, den) == (0, 0)` corner
+# returns `NaN` here vs `0` in torch -- accepted edge case.
 fragment atan2( x: tensor<scalar>, y: tensor<scalar> ) -> ( z: tensor<scalar> )
 {
-    z = atan(x / y);
+    base   = atan(x / y);
+    pi_pos = mul(x, 0.0) + 3.14159265358979323846;
+    pi_neg = mul(x, 0.0) - 3.14159265358979323846;
+    zero_t = mul(x, 0.0);
+    num_neg = lt(x, mul(x, 0.0));
+    den_neg = lt(y, mul(y, 0.0));
+    adjust_when_den_neg = select(num_neg, pi_neg, pi_pos);
+    adjust              = select(den_neg, adjust_when_den_neg, zero_t);
+    z = base + adjust;
 }
