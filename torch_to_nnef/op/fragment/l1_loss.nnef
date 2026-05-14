@@ -1,0 +1,10 @@
+# Pointwise absolute error: |input - target|.
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment l1_loss(
+    input: tensor<scalar>,
+    target: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    diff   = sub(input, target);
+    output = abs(diff);
+}

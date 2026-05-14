@@ -913,6 +913,15 @@ class SmoothL1LossMod(nn.Module):
         )
 
 
+class L1LossMod(nn.Module):
+    def __init__(self, reduction="mean") -> None:
+        super().__init__()
+        self.reduction = reduction
+
+    def forward(self, x, y):
+        return torch.nn.functional.l1_loss(x, y, reduction=self.reduction)
+
+
 # Mix small (|diff| < delta) and large residuals so both branches of
 # the piecewise loss run.
 _huber_in = torch.tensor([[0.1, 0.5, -2.0], [3.0, -0.2, 1.0]])
@@ -945,6 +954,21 @@ test_suite.add(
 test_suite.add(
     (_huber_in, _huber_tgt),
     SmoothL1LossMod(reduction="none"),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    L1LossMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    L1LossMod(reduction="sum"),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    L1LossMod(reduction="none"),
     inference_conditions=skip_khronos_interpreter,
 )
 

@@ -129,6 +129,23 @@ def mse_loss(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def l1_loss(node, op_helper, **kwargs):
+    """Map PyTorch `aten::l1_loss(input, target, reduction)` to NNEF.
+
+    Pointwise `|input - target|` via the `l1_loss` fragment, then
+    reduced. Like `mse_loss`, torch broadcasts upstream via
+    `aten::broadcast_tensors`, so the fragment assumes matching shapes.
+    """
+    input_node, target_node, reduction_node = node.inputs
+    reduction = _reduction_value(reduction_node, "l1_loss")
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
+    return _emit_pointwise_loss(
+        op_helper, node, "l1_loss", [inp, tgt], reduction, input_node.rank
+    )
+
+
+@OP_REGISTRY.register()
 def huber_loss(node, op_helper, **kwargs):
     """Map PyTorch `aten::huber_loss(input, target, reduction, delta)`.
 
