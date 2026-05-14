@@ -1558,6 +1558,44 @@ def logcumsumexp(node, op_helper, inference_target, **kwargs):
     return ["logcumsumexp"]
 
 
+@OP_REGISTRY.register(torch_op_ids=["i0", "special_i0"])
+def i0(node, op_helper, **kwargs):
+    """aten::i0 / aten::special_i0 -> Bessel `I_0(x)`.
+
+    Abramowitz & Stegun polynomial approximation; two branches at
+    `|x| = 3.75`.
+    """
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "i0", inputs=inp)
+    return ["i0"]
+
+
+@OP_REGISTRY.register(torch_op_ids=["special_i0e"])
+def special_i0e(node, op_helper, **kwargs):
+    """aten::special_i0e -> `exp(-|x|) * I_0(x)`.
+
+    Same Abramowitz & Stegun polynomial branches as `i0` but the
+    large-x branch drops `exp(|x|)` so the result stays finite for
+    arbitrarily large `|x|`.
+    """
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "i0e", inputs=inp)
+    return ["i0e"]
+
+
+@OP_REGISTRY.register()
+def lgamma(node, op_helper, **kwargs):
+    """aten::lgamma -> log-Gamma via Lanczos.
+
+    Numerical Recipes Lanczos approximation (g = 5, N = 6). Valid for
+    `x > 0.5`; smaller arguments need a reflection branch (left as a
+    follow-up).
+    """
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "lgamma", inputs=inp)
+    return ["lgamma"]
+
+
 @OP_REGISTRY.register()
 def addcdiv(node, op_helper, **kwargs):
     """aten::addcdiv -> `self + value * (t1 / t2)`."""

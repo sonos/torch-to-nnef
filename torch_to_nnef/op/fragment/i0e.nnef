@@ -1,0 +1,33 @@
+# Exponentially-scaled `I_0`: `i0e(x) = exp(-|x|) * I_0(x)`. Same
+# polynomial branches as `i0` (Abramowitz & Stegun 9.8.1 / 9.8.2);
+# the large-x branch drops the `exp(|x|)` factor entirely, so the
+# result stays finite for arbitrarily large `|x|` (useful for
+# numerically-stable Kaiser-window / VMF computations).
+fragment i0e(input: tensor<scalar>) -> (output: tensor<scalar>)
+{
+    abs_x    = abs(input);
+    is_small = lt(abs_x, 3.75);
+
+    t_small = sqr(input / 3.75);
+    i0_small = 1.0 + t_small * (3.5156229
+              + t_small * (3.0899424
+              + t_small * (1.2067492
+              + t_small * (0.2659732
+              + t_small * (0.0360768
+              + t_small * 0.0045813)))));
+    i0e_small = i0_small * exp(0.0 - abs_x);
+
+    safe_abs   = max(abs_x, 3.75);
+    t_large    = 3.75 / safe_abs;
+    poly_large = 0.39894228 + t_large * (0.01328592
+                + t_large * (0.00225319
+                + t_large * (-0.00157565
+                + t_large * (0.00916281
+                + t_large * (-0.02057706
+                + t_large * (0.02635537
+                + t_large * (-0.01647633
+                + t_large * 0.00392377)))))));
+    i0e_large = poly_large / sqrt(safe_abs);
+
+    output = select(is_small, i0e_small, i0e_large);
+}

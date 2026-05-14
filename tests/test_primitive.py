@@ -1189,6 +1189,26 @@ test_suite.add(
     UnaryPrimitive(torch.sgn),
     inference_conditions=skip_khronos_interpreter,
 )
+# Bessel I0: cover both branches (|x| < 3.75 small-series and
+# |x| >= 3.75 asymptotic).
+test_suite.add(
+    (torch.tensor([0.0, 0.5, 1.5, 3.0, 4.5, 7.0, 10.0]),),
+    UnaryPrimitive(torch.special.i0),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([0.0, 0.5, 1.5, 3.0, 4.5, 7.0, 10.0, 30.0]),),
+    UnaryPrimitive(torch.special.i0e),
+    inference_conditions=skip_khronos_interpreter,
+)
+# lgamma: positive small + positive large (skip reflection corner
+# `x <= 0.5` for now -- that branch needs `sin(pi*x)` and is rarely
+# hit in inference).
+test_suite.add(
+    (torch.tensor([0.6, 1.0, 1.5, 2.0, 3.0, 5.5, 12.0, 25.0]),),
+    UnaryPrimitive(torch.lgamma),
+    inference_conditions=skip_khronos_interpreter,
+)
 # frac, signbit, erfc, tanhshrink: simple decompositions.
 test_suite.add(
     (torch.tensor([-2.7, -0.5, 0.0, 0.5, 1.7, 3.25]),),
