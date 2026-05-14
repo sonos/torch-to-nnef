@@ -1,0 +1,4 @@
+fragment tanhshrink( input: tensor<scalar> ) -> ( output: tensor<scalar> )
+{
+    output = input - tanh(input);
+}

@@ -1379,6 +1379,74 @@ def isclose(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def frac(node, op_helper, **kwargs):
+    """aten::frac -> `x - trunc(x)` (sign-of-x fractional part)."""
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "frac", inputs=inp)
+    return ["trunc", "frac"]
+
+
+@OP_REGISTRY.register()
+def signbit(node, op_helper, **kwargs):
+    """aten::signbit -> `x < 0` (bool).
+
+    NNEF can't see the IEEE-754 sign bit, so `signbit(-0.0)` returns
+    False here (vs PyTorch's True); same caveat as `copysign` /
+    `atan2`.
+    """
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "signbit", inputs=inp
+    )
+    return ["signbit"]
+
+
+@OP_REGISTRY.register()
+def erfc(node, op_helper, **kwargs):
+    """aten::erfc -> `1 - erf(x)`."""
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "erfc", inputs=inp)
+    return ["erf", "erfc"]
+
+
+@OP_REGISTRY.register()
+def tanhshrink(node, op_helper, **kwargs):
+    """aten::tanhshrink -> `x - tanh(x)`."""
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "tanhshrink", inputs=inp
+    )
+    return ["tanhshrink"]
+
+
+@OP_REGISTRY.register()
+def ldexp(node, op_helper, **kwargs):
+    """aten::ldexp -> `x * 2^exp`."""
+    x = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    e = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "ldexp", inputs=[x, e]
+    )
+    return ["exp2", "ldexp"]
+
+
+@OP_REGISTRY.register()
+def addcdiv(node, op_helper, **kwargs):
+    """aten::addcdiv -> `self + value * (t1 / t2)`."""
+    input_node, a_node, b_node, *opt = node.inputs
+    attrs = {}
+    if opt and opt[0].data is not None:
+        attrs["value"] = float(opt[0].data)
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    a = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    b = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "addcdiv", inputs=[inp, a, b], attrs=attrs
+    )
+    return ["addcdiv"]
+
+
+@OP_REGISTRY.register()
 def fmod(node, op_helper, **kwargs):
     """aten::fmod.
 
