@@ -62,8 +62,7 @@ for axis in [0, 1, 2, -1]:
 
 
 class _CumMaxModel(torch.nn.Module):
-    """Returns both `values` and `indices` from `torch.cummax` so the
-    test framework checks both outputs."""
+    """Return both values+indices so the test framework checks both."""
 
     def __init__(self, dim: int):
         super().__init__()
