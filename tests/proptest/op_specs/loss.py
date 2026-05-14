@@ -23,7 +23,15 @@ from ._common import OpSample, OpSpec
 _REDUCTIONS = ("none", "mean", "sum")
 
 
-def _mse_sample_st() -> st.SearchStrategy[OpSample]:
+def _pointwise_loss_sample_st(
+    callable_factory: T.Callable[[str], T.Callable[..., torch.Tensor]],
+) -> st.SearchStrategy[OpSample]:
+    """Shared (input, target, reduction) draw for the elementwise losses.
+
+    `callable_factory(reduction)` returns the actual `F.<loss>(...)` to
+    invoke, capturing any scalar params (`delta`, `beta`) closure-style.
+    """
+
     @st.composite
     def _draw(draw) -> OpSample:
         rank = draw(st.integers(min_value=1, max_value=3))
@@ -49,12 +57,36 @@ def _mse_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(a, b),
-            module=BinaryPrimitive(
-                lambda x, y, _r=reduction: F.mse_loss(x, y, reduction=_r)
-            ),
+            module=BinaryPrimitive(callable_factory(reduction)),
         )
 
     return _draw()
+
+
+def _mse_sample_st() -> st.SearchStrategy[OpSample]:
+    return _pointwise_loss_sample_st(
+        lambda r: lambda x, y, _r=r: F.mse_loss(x, y, reduction=_r)
+    )
+
+
+def _l1_sample_st() -> st.SearchStrategy[OpSample]:
+    return _pointwise_loss_sample_st(
+        lambda r: lambda x, y, _r=r: F.l1_loss(x, y, reduction=_r)
+    )
+
+
+def _huber_sample_st() -> st.SearchStrategy[OpSample]:
+    # Default `delta=1.0`; mixed -3..3 range exercises both branches.
+    return _pointwise_loss_sample_st(
+        lambda r: lambda x, y, _r=r: F.huber_loss(x, y, reduction=_r)
+    )
+
+
+def _smooth_l1_sample_st() -> st.SearchStrategy[OpSample]:
+    # Default `beta=1.0`; same range covers both branches.
+    return _pointwise_loss_sample_st(
+        lambda r: lambda x, y, _r=r: F.smooth_l1_loss(x, y, reduction=_r)
+    )
 
 
 def _bce_logits_sample_st() -> st.SearchStrategy[OpSample]:
@@ -230,6 +262,21 @@ def _loss_specs() -> T.List[OpSpec]:
         OpSpec(
             name="mse_loss",
             sample_st=_mse_sample_st(),
+            tolerance=APPROX,
+        ),
+        OpSpec(
+            name="l1_loss",
+            sample_st=_l1_sample_st(),
+            tolerance=APPROX,
+        ),
+        OpSpec(
+            name="huber_loss",
+            sample_st=_huber_sample_st(),
+            tolerance=APPROX,
+        ),
+        OpSpec(
+            name="smooth_l1_loss",
+            sample_st=_smooth_l1_sample_st(),
             tolerance=APPROX,
         ),
         OpSpec(

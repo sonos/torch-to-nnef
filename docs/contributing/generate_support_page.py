@@ -489,6 +489,20 @@ _EXCLUDED_SLOW_CONV_FALLBACK = frozenset(
     }
 )
 
+_EXCLUDED_REGEX_SCRAPE_ARTIFACTS = frozenset(
+    {
+        # Phantom names produced by `get_aten_torch_from_code`'s regex
+        # against pytorch source. The sweep captures everything matching
+        # `aten::([a-zA-Z0-9_]*)`, so an f-string like
+        # `f"aten::conv{dim}d("` in
+        # `test/quantization/jit/test_quantize_jit.py` reports a bare
+        # `conv` -- no such aten op exists. Actual ops are
+        # `conv1d` / `conv2d` / `conv3d` / `_convolution` /
+        # `_convolution_mode`.
+        "conv",
+    }
+)
+
 _EXCLUDED_PYTHON_SCALAR_BUILTINS_EXTRA = frozenset(
     {
         # More Python / TorchScript scalar builtins routed through
@@ -601,9 +615,7 @@ NEVER_IN_INFERENCE_TRACE = {
     "`linalg_*_ex` paired-output variants + deprecated linalg wrappers": (
         _EXCLUDED_LINALG_EX_AND_LEGACY
     ),
-    "QAT `fake_quantize_*` training-only ops": (
-        _EXCLUDED_FAKE_QUANT_TRAINING
-    ),
+    "QAT `fake_quantize_*` training-only ops": (_EXCLUDED_FAKE_QUANT_TRAINING),
     "`slow_conv*` / `thnn_conv*` dispatcher-fallback kernels": (
         _EXCLUDED_SLOW_CONV_FALLBACK
     ),
@@ -615,6 +627,9 @@ NEVER_IN_INFERENCE_TRACE = {
     ),
     "Backward / dynamo-autograd internals": (
         _EXCLUDED_AUTOGRAD_TRAINING_INTERNALS
+    ),
+    "Regex-scrape artifacts (phantom names from f-strings)": (
+        _EXCLUDED_REGEX_SCRAPE_ARTIFACTS
     ),
 }
 

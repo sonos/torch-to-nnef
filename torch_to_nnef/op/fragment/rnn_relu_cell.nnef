@@ -1,0 +1,17 @@
+extension tract_registry tract_core;
+
+# Single-step Elman RNN cell with `relu` nonlinearity:
+#   h_new = relu(W_ih x + b_ih + W_hh h_prev + b_hh)
+# See `rnn_tanh_cell` for the bias convention.
+fragment rnn_relu_cell(
+    input: tensor<scalar>,        # (B, I)
+    h_prev: tensor<scalar>,       # (B, H)
+    W_ih: tensor<scalar>,         # (H, I)
+    W_hh: tensor<scalar>,         # (H, H)
+    b: tensor<scalar>             # (1, H) -- `b_ih + b_hh`
+) -> ( h_new: tensor<scalar> ) {
+    preact = matmul(input, W_ih, transposeB = true)
+           + matmul(h_prev, W_hh, transposeB = true)
+           + b;
+    h_new  = relu(preact);
+}

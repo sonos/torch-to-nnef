@@ -1,0 +1,41 @@
+extension tract_registry tract_core;
+
+# Single-step GRUCell. Same one-fragment-per-step shape as `lstm_cell`,
+# mirroring the multi-step `gru_scan_loop` math:
+#   r = sigmoid(W_ir x + b_ir + W_hr h + b_hr)
+#   z = sigmoid(W_iz x + b_iz + W_hz h + b_hz)
+#   n = tanh(W_in x + b_in + r * (W_hn h + b_hn))
+#   h_new = (1 - z) * n + z * h_prev
+# Note the asymmetric bias placement on `n`: torch keeps `b_in` and
+# `b_hh.n` separate (because of `r * (W_hn h + b_hn)`), so the emitter
+# passes `b_ih` and `b_hh` as two `(1, 3H)` tensors rather than a single
+# summed bias like `lstm_cell` can use.
+
+fragment gru_cell(
+    input: tensor<scalar>,        # (B, I)
+    h_prev: tensor<scalar>,       # (B, H)
+    W_ih: tensor<scalar>,         # (3H, I) -- combined [r; z; n] input weights
+    W_hh: tensor<scalar>,         # (3H, H) -- combined [r; z; n] hidden weights
+    b_ih: tensor<scalar>,         # (1, 3H) -- [b_ir, b_iz, b_in]
+    b_hh: tensor<scalar>,         # (1, 3H) -- [b_hr, b_hz, b_hn]
+    r_end: integer,               # = H
+    z_end: integer,               # = 2*H
+    n_end: integer                # = 3*H
+) -> ( h_new: tensor<scalar> ) {
+    preact_x = matmul(input, W_ih, transposeB = true) + b_ih;
+    preact_h = matmul(h_prev, W_hh, transposeB = true) + b_hh;
+
+    rx = slice(preact_x, axes = [1], begin = [0],     end = [r_end]);
+    zx = slice(preact_x, axes = [1], begin = [r_end], end = [z_end]);
+    nx = slice(preact_x, axes = [1], begin = [z_end], end = [n_end]);
+
+    rh = slice(preact_h, axes = [1], begin = [0],     end = [r_end]);
+    zh = slice(preact_h, axes = [1], begin = [r_end], end = [z_end]);
+    nh = slice(preact_h, axes = [1], begin = [z_end], end = [n_end]);
+
+    r = sigmoid(rx + rh);
+    z = sigmoid(zx + zh);
+    n = tanh(nx + r * nh);
+
+    h_new = (1.0 - z) * n + z * h_prev;
+}
