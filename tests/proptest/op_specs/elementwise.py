@@ -940,6 +940,314 @@ def _bitwise_builder_specs() -> T.List[OpSpec]:
     ]
 
 
+# Recently-shipped aten op handlers (PRs around early 2026):
+# `exp2`, `sinc`, `frac`, `tanhshrink`, `erfc`, `signbit`, `logaddexp`,
+# `logaddexp2`, `copysign`, `hypot`, `xlogy`, `fmax`, `fmin`, `ldexp`,
+# `heaviside`, `isclose`, `addcdiv`. Grouped together so the elementwise
+# module stays the home for primitive arithmetic / comparison ops.
+
+# Domains chosen to keep f32 outputs representable. `exp2` saturates at
+# 2^128 around 128, so we keep the input < 60.
+_UNARY_EXP2_DOMAIN = Interval(-60.0, 60.0)
+# `sinc(x) = sin(pi x)/(pi x)`: bound to avoid huge-pi-x cancellation,
+# which would amplify tract / torch ULP drift past VERY tolerance.
+_UNARY_SINC_DOMAIN = Interval(-10.0, 10.0)
+# `frac` straddles the integer boundary; bound modestly so trunc has
+# room without overflowing f32 mantissa precision.
+_UNARY_FRAC_DOMAIN = Interval(-1e3, 1e3)
+# Hypot, copysign etc. -- a single comfortable f32 finite range.
+_BINARY_FINITE_DOMAIN = Interval(-1e3, 1e3)
+# logaddexp(2): inputs already get exp'd internally, so bound similar
+# to the unary exp surface.
+_LOGADDEXP_DOMAIN = Interval(-30.0, 30.0)
+# ldexp: 2nd arg is the integer exponent. PyTorch casts it to float
+# under the hood. Keep magnitudes modest to avoid 2**exp blowing past
+# f32 range.
+_LDEXP_EXP_DOMAIN = Interval(-30, 30)
+# xlogy: y must be >= 0 (log domain). PyTorch returns 0 when x==0
+# regardless of y (even y=0). We sweep x including zero, y in (0, inf).
+_XLOGY_X_DOMAIN = Interval(-1e3, 1e3)
+_XLOGY_Y_DOMAIN = Interval(1e-3, 1e3)
+
+
+def _xlogy_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.xlogy(x, y)` with `y > 0` and explicit `x == 0` rows.
+
+    The special branch `xlogy(0, y) -> 0` (including `y == 0`) is one
+    of the two reasons xlogy exists separately from `x * log(y)`; we
+    inject a small number of guaranteed-zero rows in `x` so each draw
+    has a non-negligible chance of exercising it.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=6))
+        x = draw(
+            tensor_st(sa, torch.float32, finite=True, domain=_XLOGY_X_DOMAIN)
+        )
+        y = draw(
+            tensor_st(sb, torch.float32, finite=True, domain=_XLOGY_Y_DOMAIN)
+        )
+        # Force ~25% of entries in x to exactly 0 so the special branch
+        # gets stable coverage even on small draws.
+        if x.numel() > 0:
+            mask = draw(
+                tensor_st(
+                    tuple(x.shape),
+                    torch.float32,
+                    finite=True,
+                    domain=Interval(0.0, 1.0),
+                )
+            )
+            x = torch.where(mask < 0.25, torch.zeros_like(x), x)
+        return OpSample(inputs=(x, y), module=BinaryPrimitive(torch.xlogy))
+
+    return _draw()
+
+
+def _binary_nan_friendly_sample_st(
+    op: T.Callable[..., torch.Tensor],
+) -> st.SearchStrategy[OpSample]:
+    """Binary op whose semantics depend on NaN inputs: fmax / fmin / isclose.
+
+    Drawn with `finite=False` so NaN/Inf show up; magnitude bound to
+    keep non-special values in a representable f32 range.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=6))
+        # finite=False lets NaN / Inf in. We deliberately don't pass a
+        # domain since hypothesis would otherwise filter them out.
+        a = draw(tensor_st(sa, torch.float32, finite=False))
+        b = draw(tensor_st(sb, torch.float32, finite=False))
+        # Clamp magnitudes of finite entries so non-special arithmetic
+        # stays comparable: keep `a, b` in [-1e3, 1e3] when finite.
+        a = torch.where(torch.isfinite(a), torch.clamp(a, -1e3, 1e3), a)
+        b = torch.where(torch.isfinite(b), torch.clamp(b, -1e3, 1e3), b)
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op))
+
+    return _draw()
+
+
+def _ldexp_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.ldexp(x, exp)` with integer-valued exponent (as float)."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=6))
+        x = draw(
+            tensor_st(
+                sa, torch.float32, finite=True, domain=Interval(-1e3, 1e3)
+            )
+        )
+        # PyTorch's ldexp accepts a float `exp` but truncates to int
+        # semantics. Draw integer-valued floats in a safe range.
+        exp_int = draw(
+            tensor_st(
+                sb,
+                torch.float32,
+                finite=True,
+                domain=_LDEXP_EXP_DOMAIN,
+            )
+        ).round()
+        return OpSample(
+            inputs=(x, exp_int), module=BinaryPrimitive(torch.ldexp)
+        )
+
+    return _draw()
+
+
+def _addcdiv_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.addcdiv(self, t1, t2, value)`: 3 broadcast inputs + scalar.
+
+    `t2` (divisor) excludes near-zero so the division stays numerically
+    stable on both sides; the `value` scalar sweeps a small range
+    including the default 1.0 case.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb, sc = draw(ternary_broadcast_shapes_st(max_rank=3, max_dim=5))
+        inp = draw(
+            tensor_st(
+                sa, torch.float32, finite=True, domain=Interval(-1e2, 1e2)
+            )
+        )
+        t1 = draw(
+            tensor_st(
+                sb, torch.float32, finite=True, domain=Interval(-1e2, 1e2)
+            )
+        )
+        t2 = draw(
+            tensor_st(
+                sc,
+                torch.float32,
+                finite=True,
+                domain=_BINARY_DIV_DEN_DOMAIN,
+            )
+        )
+        value = draw(
+            st.floats(
+                min_value=-2.0,
+                max_value=2.0,
+                allow_nan=False,
+                allow_infinity=False,
+            )
+        )
+        return OpSample(
+            inputs=(inp, t1, t2),
+            module=TernaryPrimitive(partial(torch.addcdiv, value=value)),
+        )
+
+    return _draw()
+
+
+def _recent_elementwise_specs() -> T.List[OpSpec]:
+    """Specs for the elementwise ops shipped in the recent PR cluster."""
+    APPROX = TractCheckTolerance.APPROXIMATE
+    VERY = TractCheckTolerance.VERY
+    EXACT = TractCheckTolerance.EXACT
+    return [
+        # --- Unary real -> real ---
+        OpSpec(
+            name="exp2",
+            sample_st=_unary_sample_st(torch.exp2, domain=_UNARY_EXP2_DOMAIN),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="sinc",
+            sample_st=_unary_sample_st(torch.sinc, domain=_UNARY_SINC_DOMAIN),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="frac",
+            sample_st=_unary_sample_st(torch.frac, domain=_UNARY_FRAC_DOMAIN),
+            # frac decomposes as `x - trunc(x)` which inherits tract's
+            # div / trunc precision quirks near integer boundaries.
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="tanhshrink",
+            sample_st=_unary_sample_st(
+                torch.nn.functional.tanhshrink, domain=_UNARY_TANH_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="erfc",
+            sample_st=_unary_sample_st(torch.erfc, domain=Interval(-5.0, 5.0)),
+            # erfc lowers via 1 - erf; both sides accumulate ULP error.
+            tolerance=VERY,
+        ),
+        # --- Unary real -> bool ---
+        OpSpec(
+            # Bool comparator is exact; the divergence with torch is
+            # `signbit(-0.0)` which the NNEF `x < 0` lowering can't see
+            # (documented in `torch_to_nnef/op/aten/math.py:signbit`).
+            # Hypothesis hits -0.0 reliably under a finite-zero-spanning
+            # domain (NumPy's signed-zero is emitted as part of the
+            # f32 float pool), so the spec stays xfail until the
+            # generator filters them out or the fragment learns the
+            # IEEE-754 sign bit.
+            name="signbit-xfail",
+            sample_st=_unary_sample_st(
+                torch.signbit, domain=_UNARY_FINITE_DOMAIN
+            ),
+            tolerance=EXACT,
+            xfail_reason=(
+                "NNEF `x < 0` can't see the IEEE-754 sign bit so "
+                "`signbit(-0.0)` returns False vs torch's True. "
+                "Falsifying example: tensor([-0.])."
+            ),
+        ),
+        # --- Binary real -> real ---
+        OpSpec(
+            name="logaddexp",
+            sample_st=_binary_broadcast_sample_st(
+                torch.logaddexp, domain=_LOGADDEXP_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="logaddexp2",
+            sample_st=_binary_broadcast_sample_st(
+                torch.logaddexp2, domain=_LOGADDEXP_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="copysign",
+            sample_st=_binary_broadcast_sample_st(
+                torch.copysign, domain=_BINARY_FINITE_DOMAIN
+            ),
+            # Same -0.0 caveat as signbit; our generator avoids -0.0.
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="hypot",
+            sample_st=_binary_broadcast_sample_st(
+                torch.hypot, domain=_BINARY_FINITE_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="xlogy",
+            sample_st=_xlogy_sample_st(),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            # fmax / fmin propagate non-NaN over NaN; the tract `fmax` /
+            # `fmin` fragments implement this via `where(isnan(b), a, ...)`.
+            name="fmax",
+            sample_st=_binary_nan_friendly_sample_st(torch.fmax),
+            tolerance=APPROX,
+        ),
+        OpSpec(
+            name="fmin",
+            sample_st=_binary_nan_friendly_sample_st(torch.fmin),
+            tolerance=APPROX,
+        ),
+        OpSpec(
+            name="ldexp",
+            sample_st=_ldexp_sample_st(),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="heaviside",
+            sample_st=_binary_broadcast_sample_st(
+                torch.heaviside, domain=_BINARY_FINITE_DOMAIN
+            ),
+            tolerance=EXACT,
+        ),
+        # --- Binary real -> bool ---
+        OpSpec(
+            # NaN coverage matters: `isclose(NaN, NaN, equal_nan=False)`
+            # returns False; we don't pass equal_nan so the default path
+            # is exercised.
+            name="isclose-xfail",
+            sample_st=_binary_nan_friendly_sample_st(torch.isclose),
+            tolerance=EXACT,
+            xfail_reason=(
+                "isclose `|a - b| <= atol + rtol*|b|` evaluates True for "
+                "infinity inputs in the NNEF lowering: with a=0, b=inf "
+                "the math becomes inf <= inf, which is True in NNEF "
+                "stdlib but False in torch (torch checks "
+                "`a == b or (finite and within tol)`). The fragment at "
+                "`torch_to_nnef/op/fragment/isclose.nnef` would need a "
+                "finite-input guard. See `_binary_nan_friendly_sample_st` "
+                "for the falsifying example: isclose(0, inf)."
+            ),
+        ),
+        # --- Ternary ---
+        OpSpec(
+            name="addcdiv",
+            sample_st=_addcdiv_sample_st(),
+            tolerance=VERY,
+        ),
+    ]
+
+
 # Specialty ops (embedding, repeat_interleave, upsample, sdpa, ...)
 
 SPECS = (
@@ -950,4 +1258,5 @@ SPECS = (
     *_binary_logical_specs(),
     *_clamp_where_specs(),
     *_bitwise_builder_specs(),
+    *_recent_elementwise_specs(),
 )

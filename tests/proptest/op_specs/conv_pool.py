@@ -307,6 +307,44 @@ def _cumsum_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _logcumsumexp_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.logcumsumexp(x, dim)`: numerically-stable cumsum of exp.
+
+    Bound input magnitudes so the running `exp` stays in f32 range over
+    up to 5 steps along the chosen axis (the t2n lowering keeps a
+    running-max for stability, so wider domains would work too -- we
+    keep CLOSE because the scan accumulates ULP error like cumsum).
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=5),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(partial(torch.logcumsumexp, dim=dim)),
+        )
+
+    return _draw()
+
+
 def _cumprod_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.cumprod(input, dim)`.
 
@@ -436,6 +474,14 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             name="cumprod",
             sample_st=_cumprod_sample_st(),
             tolerance=APPROX,
+        ),
+        OpSpec(
+            # logcumsumexp uses the tract `tract_logcumsumexp` op
+            # (a two-state scan); the running-max stabiliser means
+            # CLOSE rather than APPROXIMATE is what we need.
+            name="logcumsumexp",
+            sample_st=_logcumsumexp_sample_st(),
+            tolerance=CLOSE,
         ),
         OpSpec(
             # Quadrants are now handled (the `atan2.nnef` fragment got

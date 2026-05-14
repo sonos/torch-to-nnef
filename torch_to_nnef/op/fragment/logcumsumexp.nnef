@@ -1,0 +1,53 @@
+extension tract_registry tract_core;
+
+
+# Numerically-stable cumulative log-sum-exp via a 2-state scan:
+# state = (running_max, running_sum_of_exp_shifted_by_running_max).
+# At each step:
+#   new_max = max(scan_input, acc_max)
+#   shift   = exp(acc_max - new_max)            # rescales prev sum
+#   incr    = exp(scan_input - new_max)
+#   new_sum = acc_sum * shift + incr
+#   out     = new_max + log(new_sum)
+# The scan emits `new_out` per step; `(new_max, new_sum)` stay
+# internal state.
+fragment scan_body_logsumexp(
+    scan_input: tensor<scalar>,
+    acc_max:    tensor<scalar>,
+    acc_sum:    tensor<scalar>
+) -> (
+    new_max: tensor<scalar>,
+    new_sum: tensor<scalar>,
+    new_out: tensor<scalar>
+)
+{
+    new_max = max(scan_input, acc_max);
+    shift   = exp(acc_max - new_max);
+    incr    = exp(scan_input - new_max);
+    new_sum = acc_sum * shift + incr;
+    new_out = new_max + log(new_sum);
+}
+
+
+fragment tract_logcumsumexp(
+    input:    tensor<scalar>,
+    init_max: tensor<scalar>,
+    init_sum: tensor<scalar>,
+    axis:     integer
+) -> ( output: tensor<scalar> )
+{
+    output = tract_core_scan(
+        body = "scan_body_logsumexp",
+        scan = [
+            ("scan_input", input, axis, 1)
+        ],
+        full = [],
+        state = [
+            ("acc_max", init_max, "new_max"),
+            ("acc_sum", init_sum, "new_sum")
+        ],
+        output = [("new_out", "full", axis, 1)],
+        skip = 0,
+        reset_every_turn = false
+    );
+}

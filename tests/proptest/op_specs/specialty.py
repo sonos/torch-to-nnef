@@ -12,6 +12,7 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 from ...wrapper import (
     BinaryPrimitive,
+    TernaryPrimitive,
     UnaryPrimitive,
 )
 from ..inputs import Interval, tensor_st
@@ -903,6 +904,182 @@ def _no_tract_change_specs() -> T.List[OpSpec]:
     ]
 
 
+# --- Recently-shipped ops (distance + fused matmul cluster) ---
+
+
+def _pdist_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.pdist(x, p)`: rank-2 input with static N (2..5).
+
+    The t2n emitter at `torch_to_nnef/op/aten/math.py:pdist` requires
+    a rank-2 input with a statically known N (the upper-triangular
+    gather indices are baked into the graph), and supports `p in {1, 2}`.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=2, max_value=5))
+        d = draw(st.integers(min_value=1, max_value=4))
+        p = draw(st.sampled_from([1.0, 2.0]))
+        x = draw(
+            tensor_st(
+                (n, d), torch.float32, finite=True, domain=Interval(-3.0, 3.0)
+            )
+        )
+        op_fn = (lambda pp: lambda t: torch.pdist(t, p=pp))(p)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _renorm_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.renorm(self, p, dim, maxnorm)`: rank-2-or-3 input.
+
+    Mix rows that exceed `maxnorm` (get scaled) with rows that don't
+    (stay untouched) so both branches of the fragment get exercised.
+
+    `p` restricted to {1, 2}: the `norm_pn` fragment branch (p != 1
+    and p != 2) currently fails tract type-resolution
+    (`No super type for F32 and TDim` on the `pow(input, ord)` call
+    inside `norm_pn`) -- the `ord` attribute reaches tract as a TDim
+    integer instead of a float scalar.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=2, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        p = draw(st.sampled_from([1.0, 2.0]))
+        # maxnorm spans values that some draws will exceed; keep finite
+        # input range so 'exceed' is the common case.
+        maxnorm = draw(
+            st.floats(
+                min_value=0.5,
+                max_value=5.0,
+                allow_nan=False,
+                allow_infinity=False,
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape, torch.float32, finite=True, domain=Interval(-3.0, 3.0)
+            )
+        )
+        op_fn = (
+            lambda pp, dd, mm: (
+                lambda t: torch.renorm(t, p=pp, dim=dd, maxnorm=mm)
+            )
+        )(p, dim, maxnorm)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _addbmm_sample_st() -> st.SearchStrategy[OpSample]:
+    """Shapes `(n, p) + (b, n, m) @ (b, m, p)` for `torch.addbmm`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        b = draw(st.integers(min_value=1, max_value=3))
+        n = draw(st.integers(min_value=1, max_value=4))
+        m = draw(st.integers(min_value=1, max_value=4))
+        p = draw(st.integers(min_value=1, max_value=4))
+        # Bound magnitudes so the b-fold inner sum stays within f32
+        # precision compared to PyTorch's accumulation.
+        dom = Interval(-2.0, 2.0)
+        self_t = draw(tensor_st((n, p), torch.float32, finite=True, domain=dom))
+        batch1 = draw(
+            tensor_st((b, n, m), torch.float32, finite=True, domain=dom)
+        )
+        batch2 = draw(
+            tensor_st((b, m, p), torch.float32, finite=True, domain=dom)
+        )
+        return OpSample(
+            inputs=(self_t, batch1, batch2),
+            module=TernaryPrimitive(torch.addbmm),
+        )
+
+    return _draw()
+
+
+def _addmv_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.addmv(self, mat, vec)`: `(m,) + (m, n) @ (n,) -> (m,)`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        m = draw(st.integers(min_value=1, max_value=5))
+        n = draw(st.integers(min_value=1, max_value=5))
+        dom = Interval(-2.0, 2.0)
+        self_t = draw(tensor_st((m,), torch.float32, finite=True, domain=dom))
+        mat = draw(tensor_st((m, n), torch.float32, finite=True, domain=dom))
+        vec = draw(tensor_st((n,), torch.float32, finite=True, domain=dom))
+        return OpSample(
+            inputs=(self_t, mat, vec),
+            module=TernaryPrimitive(torch.addmv),
+        )
+
+    return _draw()
+
+
+def _addr_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.addr(self, vec1, vec2)`: `(m, n) + outer(vec1, vec2)`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        m = draw(st.integers(min_value=1, max_value=5))
+        n = draw(st.integers(min_value=1, max_value=5))
+        dom = Interval(-2.0, 2.0)
+        self_t = draw(tensor_st((m, n), torch.float32, finite=True, domain=dom))
+        vec1 = draw(tensor_st((m,), torch.float32, finite=True, domain=dom))
+        vec2 = draw(tensor_st((n,), torch.float32, finite=True, domain=dom))
+        return OpSample(
+            inputs=(self_t, vec1, vec2),
+            module=TernaryPrimitive(torch.addr),
+        )
+
+    return _draw()
+
+
+def _recent_distance_matmul_specs() -> T.List[OpSpec]:
+    """`pdist` / `renorm` + the `addbmm` / `addmv` / `addr` cluster."""
+    CLOSE = TractCheckTolerance.CLOSE
+    return [
+        OpSpec(
+            name="pdist",
+            sample_st=_pdist_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            name="renorm",
+            sample_st=_renorm_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            name="addbmm",
+            sample_st=_addbmm_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            name="addmv",
+            sample_st=_addmv_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            name="addr",
+            sample_st=_addr_sample_st(),
+            tolerance=CLOSE,
+        ),
+    ]
+
+
 # Constructors (input-less in PyTorch, wrapped with a shape-coupled input)
 # + advanced index + SDPA
 
@@ -912,4 +1089,5 @@ SPECS = (
     *_max_pool_dropout_specs(),
     *_distance_specs(),
     *_no_tract_change_specs(),
+    *_recent_distance_matmul_specs(),
 )

@@ -780,3 +780,51 @@ def _weight_norm(g, node, name_to_tensor, inference_target, **kwargs):
             attrs={"to": "f16"},
         )
     return custom_fragments
+
+
+@OP_REGISTRY.register()
+def renorm(node, op_helper, **kwargs):
+    """Map PyTorch: `aten::renorm(self, p, dim, maxnorm)`.
+
+    Compute the p-norm of each slice along `dim` (reduce over every
+    other axis with keepdim=True), then call the `renorm` fragment
+    which builds `scale = min(1, maxnorm / (norm + eps))` and
+    multiplies.
+    """
+    input_node, p_node, dim_node, maxnorm_node = node.inputs
+    p = p_node.data
+    dim = pick_axis(input_node, dim_node.data)
+    maxnorm = float(maxnorm_node.data)
+
+    other_axes = [i for i in range(input_node.rank) if i != dim]
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    if p == 2:
+        norm_frag = "norm_p2"
+        norm_attrs = {"axes": other_axes}
+        norm_deps = ["norm_p2"]
+    elif p == 1:
+        norm_frag = "norm_p1"
+        norm_attrs = {"axes": other_axes}
+        norm_deps = ["norm_p1"]
+    else:
+        norm_frag = "norm_pn"
+        norm_attrs = {"axes": other_axes, "ord": int(p)}
+        norm_deps = ["norm_pn"]
+
+    norm_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        norm_frag,
+        inputs=[inp],
+        attrs=norm_attrs,
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="_renorm_norm",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "renorm",
+        inputs=[inp, norm_ref],
+        attrs={"maxnorm": maxnorm},
+        force_consistent_inputs_shapes=False,
+    )
+    return norm_deps + ["renorm"]
