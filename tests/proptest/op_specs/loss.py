@@ -119,7 +119,7 @@ def _margin_ranking_sample_st() -> st.SearchStrategy[OpSample]:
                 shape, torch.float32, finite=True, domain=Interval(-3.0, 3.0)
             )
         )
-        # Target as ±1 — generate as ints {0, 1} mapped to {-1, +1}.
+        # Target as +/-1: generate as ints {0, 1} mapped to {-1, +1}.
         sign = draw(
             tensor_st(shape, torch.int64, finite=True, domain=Interval(0, 1))
         )
