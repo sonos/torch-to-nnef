@@ -1448,6 +1448,256 @@ def _diagonal_einsum_expr(rank: int) -> str:
     return f"{leading}ii->{leading}i"
 
 
+def _emit_eye(op_helper, node, n: int, m: int, dtype, suffix: str):
+    """Emit a NNEF `eye(n, m)` fragment call and return its tensor ref."""
+    return op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "eye",
+        inputs=[],
+        attrs={
+            "n": int(n),
+            "m": int(m),
+            "to": TORCH_DTYPE_TO_TRACT_STR[dtype],
+        },
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix=suffix,
+    )
+
+
+@OP_REGISTRY.register()
+def diag(node, op_helper, inference_target, **kwargs):
+    """Map `aten::diag(input, offset)` to NNEF (offset=0 only).
+
+    - 1-D `(N,)` input: build `(N, N)` matrix with `input` on the
+      diagonal: `input.unsqueeze(1) * eye(N, N)`.
+    - 2-D square `(N, N)` input: extract the diagonal by
+      `sum_reduce(input * eye(N, N), axes=[1])` then squeeze. Returns
+      `(N,)`. Non-square 2-D extraction would need a strided slice on
+      the flattened layout; raise for now.
+
+    `offset != 0` is rejected; the existing `aten::diagonal` handler
+    covers the off-diagonal case for 2-D inputs.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "diag requires `tract_core_range` via the `eye` fragment "
+            "(TractNNEF target)"
+        )
+    input_node, offset_node = node.inputs[:2]
+    offset = int(getattr(offset_node, "data", 0) or 0)
+    if offset != 0:
+        raise T2NErrorNotImplemented(
+            f"diag: offset != 0 not supported (got {offset}); use "
+            "`torch.diagonal` for non-zero offsets on 2-D inputs."
+        )
+    if input_node.rank == 1:
+        n = input_node.shape[0]
+        if not isinstance(n, int):
+            raise T2NErrorNotImplemented(
+                f"diag (1-D -> 2-D): dynamic length not supported (got {n})"
+            )
+        inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+        unsq = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=inp,
+            attrs={"axes": [1]},
+            output_tensor_name_suffix="_diag_unsq",
+        )
+        eye_t = _emit_eye(
+            op_helper,
+            node,
+            n,
+            n,
+            input_node.dtype or torch.float32,
+            "_diag_eye",
+        )
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "mul",
+            inputs=[unsq, eye_t],
+            force_consistent_inputs_shapes=False,
+        )
+        return ["eye"]
+    if input_node.rank == 2:
+        m, n = input_node.shape
+        if not (isinstance(m, int) and isinstance(n, int)):
+            raise T2NErrorNotImplemented(
+                "diag (2-D -> 1-D): dynamic shapes not supported "
+                f"(got {input_node.shape})"
+            )
+        if m != n:
+            raise T2NErrorNotImplemented(
+                f"diag (2-D -> 1-D): non-square inputs not supported "
+                f"(got {m}x{n}); the strided-slice path is left as a "
+                "follow-up."
+            )
+        inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+        eye_t = _emit_eye(
+            op_helper,
+            node,
+            m,
+            n,
+            input_node.dtype or torch.float32,
+            "_diag_eye",
+        )
+        masked = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "mul",
+            inputs=[inp, eye_t],
+            output_tensor_name_suffix="_diag_mask",
+            force_consistent_inputs_shapes=False,
+        )
+        reduced = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "sum_reduce",
+            inputs=masked,
+            attrs={"axes": [1]},
+            output_tensor_name_suffix="_diag_reduce",
+        )
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node, "squeeze", inputs=reduced, attrs={"axes": [1]}
+        )
+        return ["eye"]
+    raise T2NErrorNotImplemented(
+        f"diag: only rank 1 or rank 2 supported (got rank {input_node.rank})"
+    )
+
+
+@OP_REGISTRY.register()
+def diagflat(node, op_helper, inference_target, **kwargs):
+    """Map `aten::diagflat(input, offset)` to NNEF.
+
+    Flatten `input` to 1-D then build the square diagonal matrix:
+    `diagflat(x) = diag(x.flatten())`. Reuses the `diag` 1-D->2-D path
+    (eye + unsqueeze + mul). `offset != 0` is rejected.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "diagflat requires the `eye` fragment (TractNNEF target)"
+        )
+    input_node, offset_node = node.inputs[:2]
+    offset = int(getattr(offset_node, "data", 0) or 0)
+    if offset != 0:
+        raise T2NErrorNotImplemented(
+            f"diagflat: offset != 0 not supported (got {offset})"
+        )
+    if not all(isinstance(d, int) for d in input_node.shape):
+        raise T2NErrorNotImplemented(
+            f"diagflat: dynamic shape not supported (got {input_node.shape})"
+        )
+    n = 1
+    for d in input_node.shape:
+        n *= int(d)
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    flat = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=inp,
+        attrs={
+            "dtype": node.outputs[0].np_dtype,
+            "shape": [n, 1],
+        },
+        output_tensor_name_suffix="_diagflat_flat",
+    )
+    eye_t = _emit_eye(
+        op_helper,
+        node,
+        n,
+        n,
+        input_node.dtype or torch.float32,
+        "_diagflat_eye",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=[flat, eye_t],
+        force_consistent_inputs_shapes=False,
+    )
+    return ["eye"]
+
+
+@OP_REGISTRY.register()
+def diag_embed(node, op_helper, inference_target, **kwargs):
+    """Map `aten::diag_embed(input, offset, dim1, dim2)` to NNEF.
+
+    For input shape `(..., D)` and the default `dim1=-2`, `dim2=-1`:
+    produce `(..., D, D)` with each leading slice on the diagonal of
+    the trailing 2x2 block. `offset != 0` or non-default `dim1`/`dim2`
+    are rejected.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "diag_embed requires the `eye` fragment (TractNNEF target)"
+        )
+    input_node, offset_node, dim1_node, dim2_node = node.inputs[:4]
+    offset = int(getattr(offset_node, "data", 0) or 0)
+    if offset != 0:
+        raise T2NErrorNotImplemented(
+            f"diag_embed: offset != 0 not supported (got {offset})"
+        )
+    rank = input_node.rank
+    # `dim1` / `dim2` index the OUTPUT (rank + 1) axes, not the input.
+    # The default (-2, -1) refers to the trailing 2x2 block of the
+    # output. Reject anything other than the default layout for now.
+    raw_d1 = dim1_node.data if dim1_node.data is not None else -2
+    raw_d2 = dim2_node.data if dim2_node.data is not None else -1
+    out_rank = rank + 1
+    d1 = raw_d1 + out_rank if raw_d1 < 0 else raw_d1
+    d2 = raw_d2 + out_rank if raw_d2 < 0 else raw_d2
+    if (d1, d2) != (out_rank - 2, out_rank - 1):
+        raise T2NErrorNotImplemented(
+            "diag_embed: only the default (dim1=-2, dim2=-1) layout "
+            f"is supported; got dim1={raw_d1}, dim2={raw_d2}"
+        )
+    d = input_node.shape[-1]
+    if not isinstance(d, int):
+        raise T2NErrorNotImplemented(
+            f"diag_embed: dynamic last-dim size not supported (got {d})"
+        )
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    unsq = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=inp,
+        attrs={"axes": [rank]},
+        output_tensor_name_suffix="_diag_embed_unsq",
+    )
+    eye_t = _emit_eye(
+        op_helper,
+        node,
+        d,
+        d,
+        input_node.dtype or torch.float32,
+        "_diag_embed_eye",
+    )
+    # Eye is (D, D); the unsqueezed input is (..., D, 1). Prepend
+    # leading singletons so eye sits at the same rank as the unsqueezed
+    # input, then broadcast-mul over the leading dims.
+    leading = rank - 1
+    if leading > 0:
+        eye_t = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=eye_t,
+            attrs={"axes": list(range(leading))},
+            output_tensor_name_suffix="_diag_embed_eye_unsq",
+        )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=[unsq, eye_t],
+        force_consistent_inputs_shapes=False,
+    )
+    return ["eye"]
+
+
+@OP_REGISTRY.register(torch_op_ids=["linalg_diagonal"])
+def linalg_diagonal(node, op_helper, inference_target, **kwargs):
+    """`aten::linalg_diagonal` is the alternate spelling of `diagonal`."""
+    return diagonal(node, op_helper, inference_target, **kwargs)
+
+
 @OP_REGISTRY.register()
 def diagonal(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:diagonal' to NNEF (tract path).

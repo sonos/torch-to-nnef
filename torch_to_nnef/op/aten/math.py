@@ -1106,6 +1106,202 @@ def cross(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def special_entr(node, op_helper, **kwargs):
+    """aten::special_entr -> `-x * log(x)` (0 at x=0).
+
+    See `special_entr.nnef` for the eps-clamped formulation that keeps
+    `log(0)` from poisoning the discarded `select` branch.
+    """
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "special_entr", inputs=inp
+    )
+    return ["special_entr"]
+
+
+@OP_REGISTRY.register()
+def special_xlog1py(node, op_helper, **kwargs):
+    """aten::special_xlog1py -> `x * log(1 + y)` (0 at x=0).
+
+    See `special_xlog1py.nnef` for the eps-clamped log argument.
+    """
+    a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "special_xlog1py",
+        inputs=[a, b],
+        force_consistent_inputs_shapes=False,
+    )
+    return ["special_xlog1py"]
+
+
+@OP_REGISTRY.register(torch_op_ids=["trapezoid", "trapz"])
+def trapezoid(node, op_helper, **kwargs):
+    """Map `aten::trapezoid(y, dx_or_x, dim)` (alias `trapz`) to NNEF.
+
+    Uniform-`dx` case only: the second arg must be a scalar float
+    constant (the `dx` overload). The tensor-`x` overload is rejected
+    for now (would need a `(x[1:] - x[:-1])` multiply that broadcasts
+    against `y[1:] + y[:-1]`).
+    """
+    y_node = node.inputs[0]
+    dx_node = node.inputs[1] if len(node.inputs) >= 2 else None
+    dim_node = node.inputs[2] if len(node.inputs) >= 3 else None
+
+    if (
+        dx_node is None
+        or not isinstance(dx_node, PythonConstant)
+        or not isinstance(dx_node.data, (int, float))
+    ):
+        raise T2NErrorNotImplemented(
+            "trapezoid: only the uniform-dx overload is supported "
+            "(tensor x would need extra broadcasting)"
+        )
+    dx = float(dx_node.data)
+    raw_dim = (
+        dim_node.data
+        if dim_node is not None and dim_node.data is not None
+        else -1
+    )
+    axis = pick_axis(y_node, raw_dim)
+    size = y_node.shape[axis]
+    if not isinstance(size, int) or size < 2:
+        raise T2NErrorNotImplemented(
+            f"trapezoid: axis {axis} needs static size >= 2 (got {size})"
+        )
+    y = op_helper.get_or_add_tensor_variable_in_nnef(y_node)
+    left = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "slice",
+        inputs=y,
+        attrs={
+            "axes": [axis],
+            "begin": [0],
+            "end": [size - 1],
+            "stride": [1],
+        },
+        output_tensor_name_suffix="_trapz_left",
+    )
+    right = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "slice",
+        inputs=y,
+        attrs={
+            "axes": [axis],
+            "begin": [1],
+            "end": [size],
+            "stride": [1],
+        },
+        output_tensor_name_suffix="_trapz_right",
+    )
+    summed = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "add",
+        inputs=[left, right],
+        output_tensor_name_suffix="_trapz_sum",
+    )
+    scaled = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=summed,
+        attrs={"y": 0.5 * dx},
+        output_tensor_name_suffix="_trapz_scaled",
+    )
+    reduced = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "sum_reduce",
+        inputs=scaled,
+        attrs={"axes": [axis]},
+        output_tensor_name_suffix="_trapz_reduce",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "squeeze", inputs=reduced, attrs={"axes": [axis]}
+    )
+
+
+@OP_REGISTRY.register()
+def diff(node, op_helper, **kwargs):
+    """Map `aten::diff(input, n, dim, prepend?, append?)` to NNEF.
+
+    n-th order finite differences along `dim`: each step replaces
+    `x` with `x[1:] - x[:-1]` along `dim`. `prepend` / `append` are
+    not supported (raise `T2NErrorNotImplemented`).
+    """
+    input_node = node.inputs[0]
+    n_node = node.inputs[1] if len(node.inputs) >= 2 else None
+    dim_node = node.inputs[2] if len(node.inputs) >= 3 else None
+    prepend_node = node.inputs[3] if len(node.inputs) >= 4 else None
+    append_node = node.inputs[4] if len(node.inputs) >= 5 else None
+
+    has_n = n_node is not None and n_node.data is not None
+    n = int(n_node.data) if has_n else 1
+    if n < 1:
+        raise T2NErrorNotImplemented(f"diff: n must be >= 1, got {n}")
+    raw_dim = (
+        dim_node.data
+        if dim_node is not None and dim_node.data is not None
+        else -1
+    )
+    axis = pick_axis(input_node, raw_dim)
+    for opt_node, label in (
+        (prepend_node, "prepend"),
+        (append_node, "append"),
+    ):
+        if opt_node is not None and getattr(opt_node, "data", None) is not None:
+            raise T2NErrorNotImplemented(f"diff: {label} != None not supported")
+
+    size = input_node.shape[axis]
+    if not isinstance(size, int):
+        raise T2NErrorNotImplemented(
+            f"diff: dynamic size on axis {axis} not supported"
+        )
+    if n >= size:
+        raise T2NErrorNotImplemented(
+            f"diff: n={n} >= axis-{axis} size {size}; "
+            "would produce an empty tensor"
+        )
+
+    acc = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    cur_size = size
+    for step in range(n):
+        is_final = step == n - 1
+        suffix_left = "" if is_final else f"_diff_step_{step}_left"
+        left = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "slice",
+            inputs=acc,
+            attrs={
+                "axes": [axis],
+                "begin": [0],
+                "end": [cur_size - 1],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"_diff_step_{step}_left",
+        )
+        right = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "slice",
+            inputs=acc,
+            attrs={
+                "axes": [axis],
+                "begin": [1],
+                "end": [cur_size],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"_diff_step_{step}_right",
+        )
+        del suffix_left
+        acc = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "sub",
+            inputs=[right, left],
+            output_tensor_name_suffix="" if is_final else f"_diff_step_{step}",
+        )
+        cur_size -= 1
+
+
+@OP_REGISTRY.register()
 def cumsum(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:cumsum' to NNEF using a scan fragment (Tract).
 

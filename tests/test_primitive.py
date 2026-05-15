@@ -71,6 +71,10 @@ for op in [
     torch.asinh,
     torch.acosh,
     torch.atanh,
+    torch.positive,
+    torch.ravel,
+    torch.deg2rad,
+    torch.rad2deg,
     torch.zeros_like,
     torch.ones_like,
     partial(torch.full_like, fill_value=2.0),
@@ -1377,6 +1381,236 @@ class BartlettWindowMod(nn.Module):
 
 test_suite.add((torch.arange(8.0),), BartlettWindowMod(8))
 test_suite.add((torch.arange(8.0),), BartlettWindowMod(8, periodic=False))
+
+
+class FloatPowerMod(nn.Module):
+    """`torch.float_power(x, y)` equivalent to `pow` at f32 export."""
+
+    def forward(self, x, y):
+        return torch.float_power(x, y)
+
+
+test_suite.add(
+    (torch.tensor([1.0, 2.0, 3.0]), torch.tensor([2.0, 3.0, 0.5])),
+    FloatPowerMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class DiffMod(nn.Module):
+    """`torch.diff(x, n, dim)` -- n-th order finite differences."""
+
+    def __init__(self, n=1, dim=-1):
+        super().__init__()
+        self.n = n
+        self.dim = dim
+
+    def forward(self, x):
+        return torch.diff(x, n=self.n, dim=self.dim)
+
+
+test_suite.add((torch.tensor([1.0, 4.0, 9.0, 16.0, 25.0]),), DiffMod())
+test_suite.add((torch.tensor([1.0, 4.0, 9.0, 16.0, 25.0]),), DiffMod(n=2))
+test_suite.add(
+    (torch.tensor([[1.0, 2.0, 4.0], [3.0, 1.0, -1.0]]),), DiffMod(dim=0)
+)
+test_suite.add(
+    (torch.tensor([[1.0, 2.0, 4.0], [3.0, 1.0, -1.0]]),), DiffMod(dim=1)
+)
+
+
+class TrapezoidMod(nn.Module):
+    """`torch.trapezoid(y, dx=, dim=)` -- uniform-spacing integration."""
+
+    def __init__(self, dx=1.0, dim=-1, use_trapz=False):
+        super().__init__()
+        self.dx = dx
+        self.dim = dim
+        self.use_trapz = use_trapz
+
+    def forward(self, x):
+        fn = torch.trapz if self.use_trapz else torch.trapezoid
+        return fn(x, dx=self.dx, dim=self.dim)
+
+
+test_suite.add((torch.tensor([1.0, 2.0, 4.0, 8.0]),), TrapezoidMod())
+test_suite.add((torch.tensor([1.0, 2.0, 4.0, 8.0]),), TrapezoidMod(dx=0.5))
+test_suite.add(
+    (torch.tensor([[1.0, 2.0, 4.0], [3.0, 1.0, -1.0]]),),
+    TrapezoidMod(dim=0),
+)
+test_suite.add(
+    (torch.tensor([1.0, 2.0, 4.0, 8.0]),), TrapezoidMod(use_trapz=True)
+)
+
+
+class InnerMod(nn.Module):
+    """`torch.inner(a, b)` -- inner product along trailing axis."""
+
+    def forward(self, a, b):
+        return torch.inner(a, b)
+
+
+test_suite.add(
+    (torch.randn(3, 5), torch.randn(2, 5)),
+    InnerMod(),
+)
+test_suite.add(
+    (torch.randn(5, 7), torch.randn(3, 7)),
+    InnerMod(),
+)
+
+
+class VdotMod(nn.Module):
+    """`torch.vdot(a, b)` -- 1-D dot product."""
+
+    def forward(self, a, b):
+        return torch.vdot(a, b)
+
+
+test_suite.add(
+    (torch.tensor([1.0, 2.0, 3.0]), torch.tensor([4.0, 5.0, 6.0])),
+    VdotMod(),
+)
+
+
+class EntrMod(nn.Module):
+    """`torch.special.entr(x)` -- entropy term -x*log(x)."""
+
+    def forward(self, x):
+        return torch.special.entr(x)
+
+
+test_suite.add(
+    (torch.tensor([0.0, 0.1, 0.5, 1.0, 2.5]),),
+    EntrMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class Xlog1pyMod(nn.Module):
+    """`torch.special.xlog1py(x, y)` -- x * log(1 + y), 0 at x=0."""
+
+    def forward(self, x, y):
+        return torch.special.xlog1py(x, y)
+
+
+test_suite.add(
+    (
+        torch.tensor([0.0, 0.5, 1.0, 2.0, 0.0]),
+        torch.tensor([0.5, 1.0, 0.1, -0.5, -0.99]),
+    ),
+    Xlog1pyMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class KronMod(nn.Module):
+    """`torch.kron(a, b)` -- 2-D Kronecker product."""
+
+    def forward(self, a, b):
+        return torch.kron(a, b)
+
+
+test_suite.add(
+    (torch.randn(2, 3), torch.randn(3, 2)),
+    KronMod(),
+)
+test_suite.add(
+    (torch.randn(2, 2), torch.randn(2, 2)),
+    KronMod(),
+)
+
+
+class BlockDiagMod(nn.Module):
+    """`torch.block_diag(*mats)` -- rank-2 blocks only."""
+
+    def forward(self, a, b, c):
+        return torch.block_diag(a, b, c)
+
+
+test_suite.add(
+    (torch.randn(2, 2), torch.randn(3, 3), torch.randn(1, 2)),
+    BlockDiagMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class CartesianProdMod(nn.Module):
+    """`torch.cartesian_prod(*tensors)` -- 1-D inputs only."""
+
+    def __init__(self, k=2):
+        super().__init__()
+        self.k = k
+
+    def forward(self, *xs):
+        return torch.cartesian_prod(*xs)
+
+
+test_suite.add(
+    (torch.tensor([1.0, 2.0]), torch.tensor([3.0, 4.0, 5.0])),
+    CartesianProdMod(k=2),
+)
+test_suite.add(
+    (
+        torch.tensor([1.0, 2.0]),
+        torch.tensor([3.0, 4.0]),
+        torch.tensor([5.0, 6.0]),
+    ),
+    CartesianProdMod(k=3),
+)
+
+
+class DiagMod(nn.Module):
+    """`torch.diag(x)` -- offset 0 only."""
+
+    def forward(self, x):
+        return torch.diag(x)
+
+
+test_suite.add(
+    (torch.tensor([1.0, 2.0, 3.0, 4.0]),),
+    DiagMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.randn(3, 3),),
+    DiagMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class DiagflatMod(nn.Module):
+    """`torch.diagflat(x)` -- flatten + diag, offset 0 only."""
+
+    def forward(self, x):
+        return torch.diagflat(x)
+
+
+test_suite.add(
+    (torch.randn(2, 3),),
+    DiagflatMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class DiagEmbedMod(nn.Module):
+    """`torch.diag_embed(x)` -- embed last axis as diagonal."""
+
+    def forward(self, x):
+        return torch.diag_embed(x)
+
+
+test_suite.add(
+    (torch.randn(2, 4),),
+    DiagEmbedMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.randn(3, 2, 4),),
+    DiagEmbedMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 
 class BilinearMod(nn.Module):

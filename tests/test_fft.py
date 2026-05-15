@@ -225,6 +225,20 @@ class MyConjPhysical(nn.Module):
         return torch.view_as_real(torch.conj_physical(c))
 
 
+class MyReal(nn.Module):
+    """`torch.real(complex)` -> real-part tensor."""
+
+    def forward(self, x):
+        return torch.real(torch.view_as_complex(x))
+
+
+class MyImag(nn.Module):
+    """`torch.imag(complex)` -> imag-part tensor."""
+
+    def forward(self, x):
+        return torch.imag(torch.view_as_complex(x))
+
+
 add_test(
     (
         torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
@@ -239,6 +253,14 @@ add_test(
 add_test(
     torch.tensor([[[1.0, 2.0], [3.0, -1.5]], [[-0.5, 0.7], [2.0, -2.0]]]),
     MyConjPhysical(),
+)
+add_test(
+    torch.tensor([[[1.0, 2.0], [3.0, -1.5]], [[-0.5, 0.7], [2.0, -2.0]]]),
+    MyReal(),
+)
+add_test(
+    torch.tensor([[[1.0, 2.0], [3.0, -1.5]], [[-0.5, 0.7], [2.0, -2.0]]]),
+    MyImag(),
 )
 add_test(
     torch.arange(12).float(),

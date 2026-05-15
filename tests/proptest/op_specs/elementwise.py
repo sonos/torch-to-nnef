@@ -188,6 +188,25 @@ def _unary_specs() -> T.List[OpSpec]:
         ("cosh", torch.cosh, TractCheckTolerance.VERY, _UNARY_HYP_DOMAIN),
         ("acosh", torch.acosh, TractCheckTolerance.VERY, _UNARY_ACOSH_DOMAIN),
         ("atanh", torch.atanh, TractCheckTolerance.VERY, _UNARY_ATANH_DOMAIN),
+        # Tier-A2 trivial unaries.
+        (
+            "positive",
+            torch.positive,
+            TractCheckTolerance.EXACT,
+            _UNARY_FINITE_DOMAIN,
+        ),
+        (
+            "deg2rad",
+            torch.deg2rad,
+            TractCheckTolerance.VERY,
+            _UNARY_FINITE_DOMAIN,
+        ),
+        (
+            "rad2deg",
+            torch.rad2deg,
+            TractCheckTolerance.VERY,
+            _UNARY_FINITE_DOMAIN,
+        ),
     ]
     return [
         OpSpec(
@@ -1323,6 +1342,185 @@ def _special_function_specs() -> T.List[OpSpec]:
             ),
             tolerance=VERY,
         ),
+        # `special_entr(x) = -x * log(x)`. Sample non-negative so torch's
+        # reference stays finite (negative inputs return -inf which our
+        # eps-clamped fragment doesn't try to match exactly).
+        OpSpec(
+            name="special_entr",
+            sample_st=_unary_sample_st(
+                torch.special.entr, domain=Interval(0.0, 100.0)
+            ),
+            tolerance=VERY,
+        ),
+    ]
+
+
+def _xlog1py_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.special.xlog1py(x, y)` -- domain `y > -1`.
+
+    Shapes are kept equal-rank so the broadcast goes through tract's
+    pointwise binary path (rank-mismatch broadcast hits an unrelated
+    `pow` limitation in t2n).
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=4))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        # `y > -1` to keep `log(1 + y)` finite in torch's reference.
+        y = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-0.99, 100.0),
+            )
+        )
+        return OpSample(
+            inputs=(x, y),
+            module=BinaryPrimitive(torch.special.xlog1py),
+        )
+
+    return _draw()
+
+
+def _ravel_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=4))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-1e3, 1e3),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.ravel))
+
+    return _draw()
+
+
+def _diff_sample_st(n: int) -> st.SearchStrategy[OpSample]:
+    """`torch.diff(x, n=n, dim=-1)` with input axis size > n."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        # Trailing axis must be larger than `n` so the result is non-empty.
+        sizes = draw(
+            st.lists(
+                st.integers(min_value=1, max_value=4),
+                min_size=rank,
+                max_size=rank,
+            )
+        )
+        sizes[-1] = draw(st.integers(min_value=n + 1, max_value=n + 5))
+        x = draw(
+            tensor_st(
+                tuple(sizes),
+                torch.float32,
+                finite=True,
+                domain=Interval(-100.0, 100.0),
+            )
+        )
+        op_fn = (lambda nn: lambda t: torch.diff(t, n=nn, dim=-1))(n)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _float_power_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.float_power(x, y)` with positive base + small exponent.
+
+    Equal-rank shapes only: rank-mismatch broadcast trips t2n's `pow`
+    handler (unrelated to float_power).
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=4))
+        base = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(0.1, 100.0),
+            )
+        )
+        exp_t = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(
+            inputs=(base, exp_t),
+            module=BinaryPrimitive(torch.float_power),
+        )
+
+    return _draw()
+
+
+def _trapezoid_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.trapezoid(y, dx=, dim=-1)` with static dx."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        sizes = draw(
+            st.lists(
+                st.integers(min_value=2, max_value=5),
+                min_size=rank,
+                max_size=rank,
+            )
+        )
+        dx = draw(st.sampled_from([1.0, 0.5, 2.0]))
+        y = draw(
+            tensor_st(
+                tuple(sizes),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (lambda d: lambda t: torch.trapezoid(t, dx=d, dim=-1))(dx)
+        return OpSample(inputs=(y,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _tier_a2_specs() -> T.List[OpSpec]:
+    APPROX = TractCheckTolerance.APPROXIMATE
+    VERY = TractCheckTolerance.VERY
+    return [
+        OpSpec(name="ravel", sample_st=_ravel_sample_st(), tolerance=APPROX),
+        OpSpec(
+            name="float_power",
+            sample_st=_float_power_sample_st(),
+            tolerance=VERY,
+        ),
+        OpSpec(name="diff_n1", sample_st=_diff_sample_st(1), tolerance=VERY),
+        OpSpec(name="diff_n2", sample_st=_diff_sample_st(2), tolerance=VERY),
+        OpSpec(
+            name="trapezoid",
+            sample_st=_trapezoid_sample_st(),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="special_xlog1py",
+            sample_st=_xlog1py_sample_st(),
+            tolerance=VERY,
+        ),
     ]
 
 
@@ -1338,4 +1536,5 @@ SPECS = (
     *_bitwise_builder_specs(),
     *_recent_elementwise_specs(),
     *_special_function_specs(),
+    *_tier_a2_specs(),
 )
