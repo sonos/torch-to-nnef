@@ -1086,6 +1086,172 @@ def _addr_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _inner_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.inner(a, b)` -- rank-2 inputs, matching trailing dim."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        m = draw(st.integers(min_value=1, max_value=4))
+        n = draw(st.integers(min_value=1, max_value=4))
+        k = draw(st.integers(min_value=1, max_value=5))
+        dom = Interval(-3.0, 3.0)
+        a = draw(tensor_st((m, k), torch.float32, finite=True, domain=dom))
+        b = draw(tensor_st((n, k), torch.float32, finite=True, domain=dom))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(torch.inner))
+
+    return _draw()
+
+
+def _vdot_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.vdot(a, b)` -- 1-D real inputs of equal length."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=6))
+        dom = Interval(-3.0, 3.0)
+        a = draw(tensor_st((n,), torch.float32, finite=True, domain=dom))
+        b = draw(tensor_st((n,), torch.float32, finite=True, domain=dom))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(torch.vdot))
+
+    return _draw()
+
+
+def _kron_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.kron(a, b)` -- rank-2 inputs."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        m = draw(st.integers(min_value=1, max_value=3))
+        n = draw(st.integers(min_value=1, max_value=3))
+        p = draw(st.integers(min_value=1, max_value=3))
+        q = draw(st.integers(min_value=1, max_value=3))
+        dom = Interval(-3.0, 3.0)
+        a = draw(tensor_st((m, n), torch.float32, finite=True, domain=dom))
+        b = draw(tensor_st((p, q), torch.float32, finite=True, domain=dom))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(torch.kron))
+
+    return _draw()
+
+
+def _diag_1d_to_2d_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.diag(x)` with 1-D input -- build a square diag matrix."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=5))
+        x = draw(
+            tensor_st(
+                (n,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-3.0, 3.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.diag))
+
+    return _draw()
+
+
+def _diag_2d_to_1d_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.diag(x)` with square 2-D input -- extract diagonal."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=5))
+        x = draw(
+            tensor_st(
+                (n, n),
+                torch.float32,
+                finite=True,
+                domain=Interval(-3.0, 3.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.diag))
+
+    return _draw()
+
+
+def _diagflat_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.diagflat(x)` -- flatten + diag."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        sizes = draw(
+            st.lists(
+                st.integers(min_value=1, max_value=3),
+                min_size=rank,
+                max_size=rank,
+            )
+        )
+        x = draw(
+            tensor_st(
+                tuple(sizes),
+                torch.float32,
+                finite=True,
+                domain=Interval(-3.0, 3.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.diagflat))
+
+    return _draw()
+
+
+def _diag_embed_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.diag_embed(x)` with default `(dim1=-2, dim2=-1)`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        sizes = draw(
+            st.lists(
+                st.integers(min_value=1, max_value=4),
+                min_size=rank,
+                max_size=rank,
+            )
+        )
+        x = draw(
+            tensor_st(
+                tuple(sizes),
+                torch.float32,
+                finite=True,
+                domain=Interval(-3.0, 3.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.diag_embed))
+
+    return _draw()
+
+
+def _tier_a2_linalg_specs() -> T.List[OpSpec]:
+    CLOSE = TractCheckTolerance.CLOSE
+    return [
+        OpSpec(name="inner", sample_st=_inner_sample_st(), tolerance=CLOSE),
+        OpSpec(name="vdot", sample_st=_vdot_sample_st(), tolerance=CLOSE),
+        OpSpec(name="kron", sample_st=_kron_sample_st(), tolerance=CLOSE),
+        OpSpec(
+            name="diag_1d_to_2d",
+            sample_st=_diag_1d_to_2d_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            name="diag_2d_to_1d",
+            sample_st=_diag_2d_to_1d_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            name="diagflat",
+            sample_st=_diagflat_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            name="diag_embed",
+            sample_st=_diag_embed_sample_st(),
+            tolerance=CLOSE,
+        ),
+    ]
+
+
 def _recent_distance_matmul_specs() -> T.List[OpSpec]:
     """`pdist` / `renorm` + the `addbmm` / `addmv` / `addr` cluster."""
     CLOSE = TractCheckTolerance.CLOSE
@@ -1128,4 +1294,5 @@ SPECS = (
     *_distance_specs(),
     *_no_tract_change_specs(),
     *_recent_distance_matmul_specs(),
+    *_tier_a2_linalg_specs(),
 )
