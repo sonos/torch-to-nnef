@@ -1687,6 +1687,72 @@ def special_i1e(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def mvlgamma(node, op_helper, **kwargs):
+    """aten::mvlgamma -> multivariate log-Gamma.
+
+    `mvlgamma(x, p) = (p*(p-1)/4) * log(pi)
+                    + sum_{i=1..p} lgamma(x + (1-i)/2)`.
+
+    `p` is a static int from the trace; we unroll the sum into `p`
+    `lgamma` fragment calls plus a single constant offset. Inherits
+    `lgamma`'s domain restriction (each shifted argument must stay
+    `> 0.5`).
+    """
+    input_node, p_node = node.inputs
+    if not (
+        isinstance(p_node, PythonConstant) and isinstance(p_node.data, int)
+    ):
+        raise T2NErrorNotImplemented("mvlgamma: dynamic p not supported")
+    p = int(p_node.data)
+    if p < 1:
+        raise T2NErrorNotImplemented(f"mvlgamma: p must be >= 1, got {p}")
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    terms = []
+    for i in range(1, p + 1):
+        offset = -0.5 * (i - 1)
+        if offset == 0.0:
+            shifted = inp
+        else:
+            shifted = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "add",
+                inputs=inp,
+                attrs={"y": offset},
+                output_tensor_name_suffix=f"_mvlg_shift_{i}",
+            )
+        term = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "lgamma",
+            inputs=shifted,
+            output_tensor_name_suffix=f"_mvlg_term_{i}",
+        )
+        terms.append(term)
+    summed = terms[0]
+    for idx, t in enumerate(terms[1:], start=2):
+        is_final = idx == len(terms)
+        summed = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "add",
+            inputs=[summed, t],
+            output_tensor_name_suffix=""
+            if (is_final and p > 1)
+            else f"_mvlg_acc_{idx}",
+        )
+    const = (p * (p - 1) / 4.0) * math.log(math.pi)
+    if const != 0.0 or p == 1:
+        # `p == 1` collapses the sum to a single lgamma call; we still
+        # need to land the result in node.outputs[0] (the inner term
+        # currently sits in an intermediate without a final-name slot).
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "add",
+            inputs=summed,
+            attrs={"y": const},
+        )
+    return ["lgamma"]
+
+
+@OP_REGISTRY.register()
 def addcdiv(node, op_helper, **kwargs):
     """aten::addcdiv -> `self + value * (t1 / t2)`."""
     input_node, a_node, b_node, *opt = node.inputs
