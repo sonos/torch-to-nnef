@@ -1226,28 +1226,55 @@ def _diag_embed_sample_st() -> st.SearchStrategy[OpSample]:
 def _tier_a2_linalg_specs() -> T.List[OpSpec]:
     CLOSE = TractCheckTolerance.CLOSE
     return [
-        OpSpec(name="inner", sample_st=_inner_sample_st(), tolerance=CLOSE),
-        OpSpec(name="vdot", sample_st=_vdot_sample_st(), tolerance=CLOSE),
-        OpSpec(name="kron", sample_st=_kron_sample_st(), tolerance=CLOSE),
+        OpSpec(
+            name="inner",
+            sample_st=_inner_sample_st(),
+            tolerance=CLOSE,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="vdot",
+            sample_st=_vdot_sample_st(),
+            tolerance=CLOSE,
+            dynamic_axes_compatible=True,
+        ),
+        # `kron`: emits a static `[m*p, n*q]` reshape, so axis 0 of the
+        # input has to be statically known.
+        OpSpec(
+            name="kron",
+            sample_st=_kron_sample_st(),
+            tolerance=CLOSE,
+            dynamic_axes_skip_reason=(
+                "kron emits a `[m*p, n*q]` reshape; static shapes only."
+            ),
+        ),
         OpSpec(
             name="diag_1d_to_2d",
             sample_st=_diag_1d_to_2d_sample_st(),
             tolerance=CLOSE,
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="diag_2d_to_1d",
             sample_st=_diag_2d_to_1d_sample_st(),
             tolerance=CLOSE,
+            dynamic_axes_compatible=True,
         ),
+        # `diagflat`: total flat size is baked into the reshape; the
+        # eye(N, N) constant also needs static N.
         OpSpec(
             name="diagflat",
             sample_st=_diagflat_sample_st(),
             tolerance=CLOSE,
+            dynamic_axes_skip_reason=(
+                "diagflat bakes a static flat size into the reshape."
+            ),
         ),
         OpSpec(
             name="diag_embed",
             sample_st=_diag_embed_sample_st(),
             tolerance=CLOSE,
+            dynamic_axes_compatible=True,
         ),
     ]
 
