@@ -1,0 +1,19 @@
+# Element-wise Shannon entropy term:
+#   entr(x) = -x * log(x)    for x > 0
+#           = 0               for x = 0
+#           = -inf            for x < 0
+#
+# Standard `select(eq(x, 0), 0, -x * log(x))` would still propagate
+# NaN through the unselected `log(0)` branch (tract evaluates both
+# arms eagerly), so we clamp `x` to `eps` for the log call and let
+# the `select` recover the zero answer at `x == 0`. Negative `x`
+# falls through to whatever `log(negative)` produces in tract; torch
+# returns `-inf` there, which we don't try to match exactly.
+fragment special_entr(input: tensor<scalar>) -> ( output: tensor<scalar> )
+{
+    is_zero = eq(input, 0.0);
+    safe    = max(input, 1.0e-30);
+    val     = sub(0.0, mul(input, log(safe)));
+    zero_t  = mul(input, 0.0);
+    output  = select(is_zero, zero_t, val);
+}

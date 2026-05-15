@@ -547,6 +547,303 @@ def matmul(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
+def cartesian_prod(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map `aten::cartesian_prod(tensors)` to NNEF.
+
+    Inputs are 1-D tensors of sizes `n_0..n_{K-1}`; the result is a
+    `(prod_k n_k, K)` matrix whose rows enumerate every tuple in
+    lexicographic order over the first axis.
+
+    Each input column `k` is built by `unsqueeze` + `tile` over all
+    other dims, then `reshape` to `(prod, 1)`. The K columns are
+    concatenated along axis 1. Static sizes only.
+    """
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.torch_graph import FixedTensorList
+
+    (tensors_node,) = node.inputs
+    if not isinstance(tensors_node, FixedTensorList):
+        raise T2NErrorNotImplemented(
+            f"cartesian_prod expects a FixedTensorList; got {tensors_node!r}"
+        )
+    items = list(tensors_node.data)
+    if not items:
+        raise T2NErrorNotImplemented(
+            "cartesian_prod with an empty list is not supported"
+        )
+    for t in items:
+        if t.rank != 1:
+            raise T2NErrorNotImplemented(
+                f"cartesian_prod: only 1-D inputs supported, got rank {t.rank}"
+            )
+        if not isinstance(t.shape[0], int):
+            raise T2NErrorNotImplemented(
+                f"cartesian_prod: dynamic size not supported (got {t.shape})"
+            )
+    sizes = [int(t.shape[0]) for t in items]
+    total = 1
+    for s in sizes:
+        total *= s
+    k = len(items)
+    columns = []
+    for idx, t in enumerate(items):
+        ref = get_or_add_tensor_variable_in_nnef(g, t, name_to_tensor)
+        # Insert (K - 1) trailing/leading singleton axes so the value
+        # axis lands at position `idx` in a rank-K view, then `tile`
+        # over the other dims.
+        axes_to_unsqueeze = [j for j in range(k) if j != idx]
+        unsq = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=ref,
+            attrs={"axes": axes_to_unsqueeze},
+            output_tensor_name_suffix=f"_cprod_unsq_{idx}",
+        )
+        repeats = list(sizes)
+        repeats[idx] = 1
+        tiled = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tile",
+            inputs=unsq,
+            attrs={"repeats": repeats},
+            output_tensor_name_suffix=f"_cprod_tile_{idx}",
+        )
+        flat = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "reshape",
+            inputs=tiled,
+            attrs={
+                "dtype": node.outputs[0].np_dtype,
+                "shape": [total, 1],
+            },
+            output_tensor_name_suffix=f"_cprod_flat_{idx}",
+        )
+        columns.append(flat)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "concat",
+        inputs=columns,
+        attrs={"axis": 1},
+        ensure_tuple=False,
+    )
+
+
+@OP_REGISTRY.register()
+def block_diag(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map `aten::block_diag(tensors)` to NNEF (rank-2 blocks only).
+
+    Builds an `(M, N)` matrix where `M = sum m_i`, `N = sum n_i` and
+    each block `i` (shape `(m_i, n_i)`) sits at row offset
+    `sum_{j<i} m_j` and col offset `sum_{j<i} n_j`; off-diagonal
+    blocks are zero.
+
+    Each block is `pad`-extended to full width `(m_i, N)` then all
+    are `concat`-stacked along axis 0. Static shapes only.
+    """
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.torch_graph import FixedTensorList
+
+    (mats_node,) = node.inputs
+    if not isinstance(mats_node, FixedTensorList):
+        raise T2NErrorNotImplemented(
+            f"block_diag expects a FixedTensorList; got {mats_node!r}"
+        )
+    blocks = list(mats_node.data)
+    if not blocks:
+        raise T2NErrorNotImplemented(
+            "block_diag with an empty list is not supported"
+        )
+    for blk in blocks:
+        if blk.rank != 2:
+            raise T2NErrorNotImplemented(
+                f"block_diag: only rank-2 blocks supported; got rank "
+                f"{blk.rank}. (PyTorch promotes 0-D / 1-D to (1, 1) / "
+                "(1, n); add a pre-unsqueeze pass if needed.)"
+            )
+        if not all(isinstance(d, int) for d in blk.shape):
+            raise T2NErrorNotImplemented(
+                "block_diag: dynamic block shapes not supported "
+                f"(got {blk.shape})."
+            )
+    row_sizes = [int(b.shape[0]) for b in blocks]
+    col_sizes = [int(b.shape[1]) for b in blocks]
+    total_cols = sum(col_sizes)
+    padded_refs = []
+    col_offsets = [0]
+    for n_i in col_sizes[:-1]:
+        col_offsets.append(col_offsets[-1] + n_i)
+    right_pads = [
+        total_cols - off - n_i
+        for off, n_i in zip(col_offsets, col_sizes, strict=True)
+    ]
+    for idx, (blk, left_pad, right_pad) in enumerate(
+        zip(blocks, col_offsets, right_pads, strict=True)
+    ):
+        blk_ref = get_or_add_tensor_variable_in_nnef(g, blk, name_to_tensor)
+        if left_pad == 0 and right_pad == 0:
+            padded_refs.append(blk_ref)
+            continue
+        padded_refs.append(
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "pad",
+                inputs=blk_ref,
+                attrs={
+                    "padding": [(0, 0), (int(left_pad), int(right_pad))],
+                    "border": "constant",
+                    "value": 0.0,
+                },
+                output_tensor_name_suffix=f"_blkdiag_pad_{idx}",
+            )
+        )
+    del row_sizes
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "concat",
+        inputs=padded_refs,
+        attrs={"axis": 0},
+        ensure_tuple=False,
+    )
+
+
+@OP_REGISTRY.register()
+def kron(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map `aten::kron(a, b)` to NNEF (rank-2 inputs only).
+
+    Kronecker product:
+    `kron(a, b)[i*p+k, j*q+l] = a[i, j] * b[k, l]` for `a` `(m, n)`
+    and `b` `(p, q)`, producing `(m*p, n*q)`.
+
+    Lowered via interleaved unsqueeze + broadcast-mul + reshape:
+        `a_e = a.unsqueeze(1).unsqueeze(3)`  -> `(m, 1, n, 1)`
+        `b_e = b.unsqueeze(0).unsqueeze(2)`  -> `(1, p, 1, q)`
+        `prod = a_e * b_e`                   -> `(m, p, n, q)`
+        `out = prod.reshape(m*p, n*q)`
+
+    Higher-rank inputs would need the same interleaved pattern at
+    every dim, plus shape resolution per axis; raise for now.
+    """
+    a_node, b_node = node.inputs[:2]
+    if a_node.rank != 2 or b_node.rank != 2:
+        raise T2NErrorNotImplemented(
+            "kron: only rank-2 inputs supported. Higher-rank kron "
+            "requires interleaved unsqueeze on every axis. "
+            f"Got a.rank={a_node.rank}, b.rank={b_node.rank}."
+        )
+    m_dim, n_dim = a_node.shape
+    p_dim, q_dim = b_node.shape
+    if not all(isinstance(d, int) for d in (m_dim, n_dim, p_dim, q_dim)):
+        raise T2NErrorNotImplemented(
+            "kron: dynamic input shapes not supported "
+            f"(got a.shape={a_node.shape}, b.shape={b_node.shape})."
+        )
+    a_ref = get_or_add_tensor_variable_in_nnef(g, a_node, name_to_tensor)
+    b_ref = get_or_add_tensor_variable_in_nnef(g, b_node, name_to_tensor)
+    a_unsq = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=a_ref,
+        attrs={"axes": [1, 3]},
+        output_tensor_name_suffix="_kron_a_unsq",
+    )
+    b_unsq = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=b_ref,
+        attrs={"axes": [0, 2]},
+        output_tensor_name_suffix="_kron_b_unsq",
+    )
+    prod = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=[a_unsq, b_unsq],
+        output_tensor_name_suffix="_kron_prod",
+        force_consistent_inputs_shapes=False,
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=prod,
+        attrs={
+            "dtype": node.outputs[0].np_dtype,
+            "shape": [m_dim * p_dim, n_dim * q_dim],
+        },
+    )
+
+
+@OP_REGISTRY.register()
+def inner(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map `aten::inner(input, other)` to NNEF.
+
+    `inner(a, b)[..., i, ..., j, ...] = sum(a[..., i, :] * b[..., j, :])`,
+    i.e. a matmul of `a` against `b.transpose(-1, -2)`. Works for any
+    rank: the trailing axis is reduced and the leading dims of `a` /
+    `b` stack as independent index dims.
+
+    For 1D inputs the trace materializes torch's "0-D scalar" output;
+    NNEF doesn't have a 0-D tensor type, so for the 1D case we let the
+    standard matmul emit a `(1, 1)` result and rely on torch's trace
+    having squeezed it upstream (it does -- `aten::inner` with 1D
+    inputs is the dot-product overload that returns a 0-D real).
+    """
+    a_node, b_node = node.inputs[:2]
+    if a_node.rank != 2 or b_node.rank != 2:
+        raise T2NErrorNotImplemented(
+            "inner: only rank-2 inputs supported. Higher-rank "
+            "`torch.inner` does a Cartesian product over the leading "
+            "dims (shape `(*a_dims, *b_dims)`) rather than a batched "
+            "matmul; that would need leading-dim flatten + reshape. "
+            f"Got a.rank={a_node.rank}, b.rank={b_node.rank}."
+        )
+    a_ref = get_or_add_tensor_variable_in_nnef(g, a_node, name_to_tensor)
+    b_ref = get_or_add_tensor_variable_in_nnef(g, b_node, name_to_tensor)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "matmul",
+        inputs=[a_ref, b_ref],
+        attrs={"transposeA": False, "transposeB": True},
+        force_consistent_inputs_shapes=False,
+    )
+
+
+@OP_REGISTRY.register()
+def vdot(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map `aten::vdot(a, b)` to NNEF.
+
+    1-D dot product `sum(a * b)`. Complex inputs would need a conjugate
+    on `a`; raise for now (real-only).
+    """
+    a_node, b_node = node.inputs[:2]
+    if a_node.dtype in (torch.complex64, torch.complex128) or b_node.dtype in (
+        torch.complex64,
+        torch.complex128,
+    ):
+        raise T2NErrorNotImplemented(
+            "vdot: complex inputs not supported (needs conjugate of `a`)"
+        )
+    if a_node.rank != 1 or b_node.rank != 1:
+        raise T2NErrorNotImplemented("vdot: only 1-D inputs supported")
+    a_ref = get_or_add_tensor_variable_in_nnef(g, a_node, name_to_tensor)
+    b_ref = get_or_add_tensor_variable_in_nnef(g, b_node, name_to_tensor)
+    prod = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=[a_ref, b_ref],
+        output_tensor_name_suffix="_vdot_mul",
+    )
+    reduced = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "sum_reduce",
+        inputs=prod,
+        attrs={"axes": [0]},
+        output_tensor_name_suffix="_vdot_reduce",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "squeeze", inputs=reduced, attrs={"axes": [0]}
+    )
+
+
+@OP_REGISTRY.register()
 def bilinear(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
     """Map `aten::bilinear(input1, input2, weight, bias)` to NNEF.
 

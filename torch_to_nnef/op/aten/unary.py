@@ -1,3 +1,5 @@
+import math
+
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op import helper
 
@@ -92,4 +94,74 @@ def generic_unary(aten_op_id, node, op_helper, **kwargs):
     return op_helper.unary_output_op_without_attr(
         nnef_op_type=aten_op_id,
         node=node,
+    )
+
+
+@OP_REGISTRY.register()
+def positive(node, op_helper, **kwargs):
+    """Map `aten::positive` to NNEF.
+
+    `torch.positive(x)` is a no-op identity (parity counterpart of
+    `torch.negative`); emit `mul(x, 1.0)` since NNEF's stdlib `copy`
+    is not in tract's op set.
+    """
+    _emit_scalar_mul(node, op_helper, 1.0)
+
+
+@OP_REGISTRY.register()
+def ravel(node, op_helper, **kwargs):
+    """Map `aten::ravel(x)` to NNEF: flatten to 1D.
+
+    Equivalent to `flatten(x, 0, -1)`; emit a `reshape` to `[-1]`.
+    """
+    (input_node,) = node.inputs
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+        attrs={
+            "dtype": node.outputs[0].np_dtype,
+            "shape": [-1],
+            "axis_start": 0,
+            "axis_count": -1,
+        },
+    )
+
+
+def _emit_scalar_mul(node, op_helper, factor: float):
+    """Helper: emit `mul(x, factor)` lifting `factor` to a tensor."""
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=inp,
+        attrs={"y": factor},
+    )
+
+
+@OP_REGISTRY.register()
+def deg2rad(node, op_helper, **kwargs):
+    """Map `aten::deg2rad(x)` to NNEF: `x * (pi / 180)`."""
+    _emit_scalar_mul(node, op_helper, math.pi / 180.0)
+
+
+@OP_REGISTRY.register()
+def rad2deg(node, op_helper, **kwargs):
+    """Map `aten::rad2deg(x)` to NNEF: `x * (180 / pi)`."""
+    _emit_scalar_mul(node, op_helper, 180.0 / math.pi)
+
+
+@OP_REGISTRY.register()
+def float_power(node, op_helper, **kwargs):
+    """Map `aten::float_power(x, y)` to NNEF as `pow(x, y)`.
+
+    `torch.float_power` widens to f64 internally for accuracy; the
+    `pow` we emit keeps the trace dtype (f32 in the common case) and
+    matches `torch.pow` within tract's normal tolerance.
+    """
+    a_node, b_node = node.inputs[:2]
+    a_ref = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    b_ref = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "pow", inputs=[a_ref, b_ref]
     )

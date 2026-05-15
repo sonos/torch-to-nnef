@@ -1,0 +1,20 @@
+# Element-wise `x * log(1 + y)`:
+#   xlog1py(x, y) = x * log(1 + y)   for x != 0
+#                 = 0                  for x == 0 (any y, even -1)
+#
+# Standard `select(eq(x, 0), 0, x * log(1 + y))` would still
+# propagate NaN through the `log(1 + (-1)) = log(0)` branch (tract
+# evaluates both `select` arms eagerly), so we clamp `1 + y` to a
+# small positive epsilon before the log and rely on the `select` to
+# recover the zero answer when `x == 0`.
+fragment special_xlog1py(
+    x: tensor<scalar>,
+    y: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    is_zero = eq(x, 0.0);
+    safe    = max(add(1.0, y), 1.0e-30);
+    val     = mul(x, log(safe));
+    zero_t  = mul(x, 0.0);
+    output  = select(is_zero, zero_t, val);
+}

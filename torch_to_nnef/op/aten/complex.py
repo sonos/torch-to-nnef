@@ -142,6 +142,57 @@ def _emit_conjugate(node, op_helper, inference_target, torch_graph, op_label):
     return ["conjugate"]
 
 
+def _emit_complex_part(node, op_helper, inference_target, *, begin: int):
+    """Shared body for `aten::real` / `aten::imag`.
+
+    Slice the trailing-2 complex axis at `begin..begin+1` and squeeze
+    it out, producing a real tensor with the input's rank-1 shape. For
+    a real input both `real` and `imag` are degenerate (PyTorch gives
+    `x` and `zeros_like(x)`); we only handle the complex case here and
+    leave the real case to the upstream IR-level `remap` (PyTorch
+    folds the alias for real dtypes before the trace).
+    """
+    if tract_complex_support(inference_target):
+        raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
+    (input_node,) = node.inputs
+    if input_node.dtype not in (torch.complex64, torch.complex128):
+        raise T2NErrorNotImplemented(
+            f"real/imag: only complex inputs supported (got {input_node.dtype})"
+        )
+    axis = input_node.rank - 1
+    sliced = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "slice",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+        attrs={
+            "axes": [axis],
+            "begin": [begin],
+            "end": [begin + 1],
+            "stride": [1],
+        },
+        output_tensor_name_suffix="_complex_part_slice",
+    )
+    node.outputs[0].dtype = torch.float32
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "squeeze",
+        inputs=sliced,
+        attrs={"axes": [axis]},
+    )
+
+
+@OP_REGISTRY.register()
+def real(node, op_helper, inference_target, **kwargs):
+    """Map `aten::real(complex)` to NNEF: real part of a complex tensor."""
+    _emit_complex_part(node, op_helper, inference_target, begin=0)
+
+
+@OP_REGISTRY.register()
+def imag(node, op_helper, inference_target, **kwargs):
+    """Map `aten::imag(complex)` to NNEF: imag part of a complex tensor."""
+    _emit_complex_part(node, op_helper, inference_target, begin=1)
+
+
 @OP_REGISTRY.register(["conj", "_conj"])
 def conj(node, op_helper, inference_target, torch_graph, **kwargs):
     """Map PyTorch: 'aten:conj' / 'aten::_conj' to NNEF.
