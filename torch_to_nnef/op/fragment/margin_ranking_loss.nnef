@@ -1,0 +1,16 @@
+# Pointwise margin ranking loss:
+#   loss = max(0, -target * (input1 - input2) + margin)
+# target is +1 or -1 per sample. Reduction (mean / sum / none) is
+# applied by the emitter.
+fragment margin_ranking_loss(
+    input1: tensor<scalar>,
+    input2: tensor<scalar>,
+    target: tensor<scalar>,
+    margin: scalar = 0.0
+) -> ( output: tensor<scalar> )
+{
+    neg_t  = sub(0.0, target);
+    diff   = sub(input1, input2);
+    inner  = mul(neg_t, diff) + margin;
+    output = max(inner, 0.0);
+}

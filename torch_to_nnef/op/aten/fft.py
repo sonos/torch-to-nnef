@@ -8,6 +8,7 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
+    add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
     pick_axis,
 )
@@ -745,3 +746,51 @@ def fft_ifftn(g, node, name_to_tensor, inference_target, **kwargs):
         inverse=True,
         suffix_prefix="ifftn",
     )
+
+
+def _freq_handler(op_name, torch_fn, g, node, name_to_tensor):
+    """Shared body for `fft_fftfreq` / `fft_rfftfreq`.
+
+    Signature: `(n, d, dtype, layout, device, pin_memory)`. The result
+    is fully determined by `n` and `d` at trace time, so bake the
+    vector via `torch_fn` and register it as a NNEF constant.
+    """
+    n_node = node.inputs[0]
+    d_node = node.inputs[1] if len(node.inputs) >= 2 else None
+    if not (
+        isinstance(n_node, PythonConstant) and isinstance(n_node.data, int)
+    ):
+        raise T2NErrorNotImplemented(
+            f"aten::{op_name}: dynamic n not supported"
+        )
+    d_val = 1.0
+    if (
+        d_node is not None
+        and isinstance(d_node, PythonConstant)
+        and isinstance(d_node.data, (int, float))
+    ):
+        d_val = float(d_node.data)
+    onode = node.outputs[0]
+    out_dtype = onode.dtype or torch.float32
+    onode.set_data(
+        torch_fn(n_node.data, d=d_val, dtype=out_dtype),
+        force_dtype=True,
+        force_shape=True,
+    )
+    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
+
+
+@OP_REGISTRY.register()
+def fft_fftfreq(g, node, name_to_tensor, **kwargs):
+    """Map `aten::fft_fftfreq(n, d, ...)` to a NNEF constant.
+
+    `torch.fft.fftfreq(n, d)` is fully determined by `n` and `d`; the
+    common trace-time path already sees both as Python constants.
+    """
+    _freq_handler("fft_fftfreq", torch.fft.fftfreq, g, node, name_to_tensor)
+
+
+@OP_REGISTRY.register()
+def fft_rfftfreq(g, node, name_to_tensor, **kwargs):
+    """Map `aten::fft_rfftfreq(n, d, ...)` to a NNEF constant."""
+    _freq_handler("fft_rfftfreq", torch.fft.rfftfreq, g, node, name_to_tensor)

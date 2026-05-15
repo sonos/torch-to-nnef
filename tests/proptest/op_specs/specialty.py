@@ -639,6 +639,38 @@ def _tensordot_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _dist_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.dist(a, b, p)` scalar p-norm, rank-1..3 broadcastable inputs."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        p = draw(st.sampled_from([1.0, 2.0, 3.0]))
+        a = draw(
+            tensor_st(
+                shape, torch.float32, finite=True, domain=Interval(-3.0, 3.0)
+            )
+        )
+        b = draw(
+            tensor_st(
+                shape, torch.float32, finite=True, domain=Interval(-3.0, 3.0)
+            )
+        )
+        op_fn = (lambda pp: lambda x, y: torch.dist(x, y, p=pp))(p)
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op_fn))
+
+    return _draw()
+
+
 def _cdist_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.cdist(a, b, p)` for rank-2 / rank-3 batched inputs."""
 
@@ -698,6 +730,12 @@ def _distance_specs() -> T.List[OpSpec]:
         OpSpec(
             name="cdist",
             sample_st=_cdist_sample_st(),
+            tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="dist",
+            sample_st=_dist_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_compatible=True,
         ),

@@ -1,0 +1,40 @@
+# Digamma function `psi(x) = d/dx ln(Gamma(x))` for `x > 0`.
+#
+# Strategy:
+# 1. Shift `x` up by 6 via the recurrence `psi(x+1) = psi(x) + 1/x`
+#    so the asymptotic series below is evaluated at `x + 6 >= 6`
+#    (where it converges to ~1e-7 absolute in f32).
+# 2. Subtract the 6 correction terms `1/(x+k)` for `k = 0..5`.
+# Negative `x` would require the reflection formula
+# `psi(1-x) = psi(x) + pi * cot(pi*x)`, which is left as a follow-up;
+# real inference traces hit digamma on positive shape / count
+# parameters where the shifted-asymptotic branch alone suffices.
+fragment digamma(input: tensor<scalar>) -> (output: tensor<scalar>)
+{
+    x1 = input;
+    x2 = input + 1.0;
+    x3 = input + 2.0;
+    x4 = input + 3.0;
+    x5 = input + 4.0;
+    x6 = input + 5.0;
+    z  = input + 6.0;
+
+    # Asymptotic series for psi(z), z >= 6:
+    #   psi(z) ~ log(z) - 1/(2z) - 1/(12 z^2) + 1/(120 z^4)
+    #          - 1/(252 z^6) + 1/(240 z^8)
+    z2  = sqr(z);
+    z4  = sqr(z2);
+    z6  = z2 * z4;
+    z8  = sqr(z4);
+    psi_z = log(z)
+          - 0.5 / z
+          - 0.08333333333333333 / z2
+          + 0.008333333333333333 / z4
+          - 0.003968253968253968 / z6
+          + 0.004166666666666667 / z8;
+
+    correction = 1.0 / x1 + 1.0 / x2 + 1.0 / x3
+               + 1.0 / x4 + 1.0 / x5 + 1.0 / x6;
+
+    output = psi_z - correction;
+}

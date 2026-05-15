@@ -924,6 +924,55 @@ def tensordot(node, op_helper, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
+def frexp(node, op_helper, inference_target, **kwargs):
+    """Map `aten::frexp(input) -> (mantissa, exponent)` to NNEF.
+
+    The exponent output is `int32`; the fragment uses `tract_core_cast`
+    so this handler is tract-only.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "frexp requires `tract_core_cast` (TractNNEF target)"
+        )
+    input_node = node.inputs[0]
+    assert len(node.outputs) == 2
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    op_helper.add_multi_output_op_from_nnef_tensors(node, "frexp", inputs=[inp])
+    return ["frexp"]
+
+
+@OP_REGISTRY.register()
+def dist(node, op_helper, **kwargs):
+    """Map PyTorch: `aten::dist(input, other, p)` to NNEF via fragment.
+
+    Scalar `(sum_{all axes} |a - b|^p)^(1/p)` between two broadcastable
+    tensors. p must be finite and > 0; the inf / -inf / 0 norms would
+    need `max_reduce` / `min_reduce` / `count_nonzero` branches (raise
+    `T2NErrorNotImplemented` for those).
+    """
+    a_node, b_node, p_node = node.inputs[:3]
+    p_val = float(p_node.data) if p_node.data is not None else 2.0
+    if p_val <= 0 or not math.isfinite(p_val):
+        raise T2NErrorNotImplemented(
+            f"dist with p={p_val} not supported (require finite p > 0)"
+        )
+    rank = max(a_node.rank, b_node.rank)
+    if rank == 0:
+        raise T2NErrorNotImplemented("dist: scalar inputs not supported")
+    axes = list(range(rank))
+    a_ref = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    b_ref = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "dist",
+        inputs=[a_ref, b_ref],
+        attrs={"axes": axes, "p": p_val},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["dist"]
+
+
+@OP_REGISTRY.register()
 def cdist(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:cdist' to NNEF via a fragment.
 
@@ -1595,6 +1644,46 @@ def lgamma(node, op_helper, **kwargs):
     inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     op_helper.add_single_output_op_from_nnef_tensors(node, "lgamma", inputs=inp)
     return ["lgamma"]
+
+
+@OP_REGISTRY.register(torch_op_ids=["digamma", "special_digamma"])
+def digamma(node, op_helper, **kwargs):
+    """aten::digamma -> `psi(x) = (d/dx) log(Gamma(x))`.
+
+    Asymptotic series after shifting `x` up by 6 via the recurrence
+    `psi(x+1) = psi(x) + 1/x`. Valid for `x > 0`; negative inputs would
+    need the reflection formula (left as a follow-up).
+    """
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "digamma", inputs=inp
+    )
+    return ["digamma"]
+
+
+@OP_REGISTRY.register(torch_op_ids=["i1", "special_i1"])
+def i1(node, op_helper, **kwargs):
+    """aten::i1 / aten::special_i1 -> Bessel `I_1(x)`.
+
+    Abramowitz & Stegun 9.8.3 / 9.8.4 polynomial branches; same
+    structure as `i0` with the sign carried explicitly so the function
+    remains odd.
+    """
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "i1", inputs=inp)
+    return ["i1"]
+
+
+@OP_REGISTRY.register(torch_op_ids=["special_i1e"])
+def special_i1e(node, op_helper, **kwargs):
+    """aten::special_i1e -> `exp(-|x|) * I_1(x)`.
+
+    Same polynomial branches as `i1`; the large-|x| branch drops
+    `exp(|x|)` so the result stays finite for arbitrarily large `|x|`.
+    """
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "i1e", inputs=inp)
+    return ["i1e"]
 
 
 @OP_REGISTRY.register()

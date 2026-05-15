@@ -1,0 +1,20 @@
+# Per-sample cosine-embedding loss:
+#   loss[i] = 1 - cos_sim(x1[i], x2[i])             if target[i] == 1
+#           = max(0, cos_sim(x1[i], x2[i]) - margin) if target[i] == -1
+# target is (B,) with values +1 / -1; both inputs are (B, D). The
+# split is selected by `ge(target, 0.0)` -- only ±1 values are
+# expected. Reduction (mean / sum / none) is applied by the emitter.
+fragment cosine_embedding_loss(
+    input1: tensor<scalar>,
+    input2: tensor<scalar>,
+    target: tensor<scalar>,
+    margin: scalar = 0.0,
+    feature_axis: integer
+) -> ( output: tensor<scalar> )
+{
+    cos_sim  = cosine_similarity(input1, input2, axis = feature_axis);
+    pos_mask = ge(target, 0.0);
+    pos_loss = sub(1.0, cos_sim);
+    neg_loss = max(sub(cos_sim, margin), 0.0);
+    output   = select(pos_mask, pos_loss, neg_loss);
+}
