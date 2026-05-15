@@ -1,0 +1,15 @@
+# Pointwise hinge-embedding loss:
+#   loss[i] = input[i]                 if target[i] == 1
+#           = max(0, margin - input[i]) if target[i] == -1
+# target is ±1 per element; the split is selected by `ge(target, 0.0)`.
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment hinge_embedding_loss(
+    input: tensor<scalar>,
+    target: tensor<scalar>,
+    margin: scalar = 1.0
+) -> ( output: tensor<scalar> )
+{
+    pos_mask = ge(target, 0.0);
+    neg_loss = max(sub(margin, input), 0.0);
+    output   = select(pos_mask, input, neg_loss);
+}

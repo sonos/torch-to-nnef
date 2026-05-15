@@ -193,6 +193,86 @@ def smooth_l1_loss(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def hinge_embedding_loss(node, op_helper, **kwargs):
+    """Map `aten::hinge_embedding_loss(input, target, margin, reduction)`.
+
+    Pointwise `input if target==1 else max(0, margin - input)`.
+    """
+    input_node, target_node, margin_node, reduction_node = node.inputs
+    margin = float(margin_node.data) if margin_node.data is not None else 1.0
+    reduction = _reduction_value(reduction_node, "hinge_embedding_loss")
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
+    return _emit_pointwise_loss(
+        op_helper,
+        node,
+        "hinge_embedding_loss",
+        [inp, tgt],
+        reduction,
+        input_node.rank,
+        attrs={"margin": margin},
+    )
+
+
+@OP_REGISTRY.register()
+def triplet_margin_loss(node, op_helper, **kwargs):
+    """Map `aten::triplet_margin_loss` to NNEF.
+
+    Signature: `(anchor, positive, negative, margin, p, eps, swap,
+    reduction)`. Per-sample distance along the trailing feature axis;
+    swap=True picks `min(||a-n||, ||p-n||)` and is emitted via a
+    second fragment call + `min` (lets the main fragment stay focused).
+    """
+    (
+        anchor_node,
+        positive_node,
+        negative_node,
+        margin_node,
+        p_node,
+        eps_node,
+        swap_node,
+        reduction_node,
+    ) = node.inputs
+    margin = float(margin_node.data) if margin_node.data is not None else 1.0
+    p_val = float(p_node.data) if p_node.data is not None else 2.0
+    eps = float(eps_node.data) if eps_node.data is not None else 1e-6
+    swap = bool(getattr(swap_node, "data", False))
+    reduction = _reduction_value(reduction_node, "triplet_margin_loss")
+    if p_val <= 0:
+        raise T2NErrorNotImplemented(
+            f"triplet_margin_loss: p={p_val} not supported (require p > 0)"
+        )
+    if anchor_node.rank < 2:
+        raise T2NErrorNotImplemented(
+            "triplet_margin_loss expects rank-2 inputs (B, D); got "
+            f"rank={anchor_node.rank}"
+        )
+    feature_axis = anchor_node.rank - 1
+    anchor = op_helper.get_or_add_tensor_variable_in_nnef(anchor_node)
+    positive = op_helper.get_or_add_tensor_variable_in_nnef(positive_node)
+    negative = op_helper.get_or_add_tensor_variable_in_nnef(negative_node)
+    if swap:
+        raise T2NErrorNotImplemented(
+            "triplet_margin_loss: swap=True not yet supported "
+            "(needs a second fragment call + min reduction)"
+        )
+    return _emit_pointwise_loss(
+        op_helper,
+        node,
+        "triplet_margin_loss",
+        [anchor, positive, negative],
+        reduction,
+        anchor_node.rank - 1,
+        attrs={
+            "feature_axis": feature_axis,
+            "margin": margin,
+            "p": p_val,
+            "eps": eps,
+        },
+    )
+
+
+@OP_REGISTRY.register()
 def binary_cross_entropy_with_logits(node, op_helper, **kwargs):
     """Map `aten::binary_cross_entropy_with_logits` to NNEF.
 

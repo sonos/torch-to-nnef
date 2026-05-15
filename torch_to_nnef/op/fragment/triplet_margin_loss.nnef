@@ -1,0 +1,33 @@
+# Per-sample triplet margin loss (the swap=False variant):
+#   loss = max(0, ||a - p||_pn - ||a - n||_pn + margin)
+# where `pn` is the p-norm (default p=2) along the feature axis and a
+# tiny `eps` is added under the root so the gradient at distance 0 is
+# defined. The swap=True branch (replace `||a - n||` with
+# `min(||a - n||, ||p - n||)`) is implemented in the emitter via a
+# second fragment call + `min` to keep this fragment focused.
+#
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment triplet_margin_loss(
+    anchor: tensor<scalar>,
+    positive: tensor<scalar>,
+    negative: tensor<scalar>,
+    feature_axis: integer,
+    margin: scalar = 1.0,
+    p: scalar = 2.0,
+    eps: scalar = 1e-6
+) -> ( output: tensor<scalar> )
+{
+    diff_ap = sub(anchor, positive);
+    diff_an = sub(anchor, negative);
+    abs_ap  = abs(diff_ap);
+    abs_an  = abs(diff_an);
+    pow_ap  = pow(abs_ap, p);
+    pow_an  = pow(abs_an, p);
+    sum_ap  = sum_reduce(pow_ap, axes = [feature_axis]);
+    sum_an  = sum_reduce(pow_an, axes = [feature_axis]);
+    inv_p   = div(1.0, p);
+    d_ap    = squeeze(pow(add(sum_ap, eps), inv_p), axes = [feature_axis]);
+    d_an    = squeeze(pow(add(sum_an, eps), inv_p), axes = [feature_axis]);
+    inner   = sub(d_ap, d_an) + margin;
+    output  = max(inner, 0.0);
+}

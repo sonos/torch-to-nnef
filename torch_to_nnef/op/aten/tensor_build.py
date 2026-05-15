@@ -802,6 +802,68 @@ def eye(g, node, name_to_tensor, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def vander(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map `aten::vander(self, N, increasing)` to NNEF.
+
+    Vandermonde matrix: `out[i, j] = self[i]^exponent[j]` where
+    `exponent = arange(N)` if `increasing` else `arange(N-1, -1, -1)`.
+    `N` is the number of columns (defaults to `len(self)` if `None`).
+    Bake `exponent` as a constant; the per-element pow is a runtime
+    broadcast.
+    """
+    input_node, n_node, inc_node = node.inputs[:3]
+    if input_node.rank != 1:
+        raise T2NErrorNotImplemented(
+            f"aten::vander: 1-D input required, got rank {input_node.rank}"
+        )
+    n_in = input_node.shape[0]
+    if isinstance(n_node, PythonConstant) and isinstance(n_node.data, int):
+        n_cols = int(n_node.data)
+    elif (
+        isinstance(n_node, PythonConstant)
+        and n_node.data is None
+        and isinstance(n_in, int)
+    ):
+        n_cols = n_in
+    else:
+        raise T2NErrorNotImplemented(
+            "aten::vander: dynamic N (None with non-static input length) "
+            "not supported"
+        )
+    increasing = bool(getattr(inc_node, "data", False))
+    if increasing:
+        exponents = torch.arange(n_cols, dtype=torch.float32)
+    else:
+        exponents = torch.arange(n_cols - 1, -1, -1, dtype=torch.float32)
+
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    inp_2d = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=inp,
+        attrs={"axes": [1]},
+        output_tensor_name_suffix="_vander_unsq",
+    )
+
+    base_name = node.outputs[0].export_name
+    exp_const = PythonConstant(name=f"{base_name}_vander_exp", data=exponents)
+    exp_ref = op_helper.get_or_add_tensor_variable_in_nnef(exp_const)
+    exp_2d = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=exp_ref,
+        attrs={"axes": [0]},
+        output_tensor_name_suffix="_vander_exp_unsq",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "pow",
+        inputs=[inp_2d, exp_2d],
+        force_consistent_inputs_shapes=False,
+    )
+
+
+@OP_REGISTRY.register()
 def linspace(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:linspace' to a NNEF constant tensor.
 
@@ -825,6 +887,89 @@ def linspace(g, node, name_to_tensor, **kwargs):
             start_node.data,
             end_node.data,
             int(steps_node.data),
+            dtype=out_dtype,
+        ),
+        force_dtype=True,
+        force_shape=True,
+    )
+    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
+
+
+def _emit_trilu_indices(g, node, name_to_tensor, torch_fn, op_name: str):
+    """Shared body for aten::tril_indices / aten::triu_indices.
+
+    Signature: `(row, col, offset, dtype, layout, device, pin_memory)`.
+    Output is `(2, N)` Long where N is the number of (row, col) pairs
+    in the (lower / upper) triangle of a `(row, col)` matrix at the
+    given offset.
+    """
+    row_node, col_node, offset_node = node.inputs[:3]
+    for n, name in ((row_node, "row"), (col_node, "col")):
+        if not (isinstance(n, PythonConstant) and isinstance(n.data, int)):
+            raise T2NErrorNotImplemented(
+                f"aten::{op_name}: dynamic {name} not supported"
+            )
+    offset = 0
+    if isinstance(offset_node, PythonConstant) and isinstance(
+        offset_node.data, int
+    ):
+        offset = int(offset_node.data)
+    onode = node.outputs[0]
+    out_dtype = onode.dtype or torch.int64
+    onode.set_data(
+        torch_fn(
+            int(row_node.data),
+            int(col_node.data),
+            offset=offset,
+            dtype=out_dtype,
+        ),
+        force_dtype=True,
+        force_shape=True,
+    )
+    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
+
+
+@OP_REGISTRY.register()
+def tril_indices(g, node, name_to_tensor, **kwargs):
+    """Map `aten::tril_indices(row, col, offset, ...)` to a NNEF constant."""
+    _emit_trilu_indices(
+        g, node, name_to_tensor, torch.tril_indices, "tril_indices"
+    )
+
+
+@OP_REGISTRY.register()
+def triu_indices(g, node, name_to_tensor, **kwargs):
+    """Map `aten::triu_indices(row, col, offset, ...)` to a NNEF constant."""
+    _emit_trilu_indices(
+        g, node, name_to_tensor, torch.triu_indices, "triu_indices"
+    )
+
+
+@OP_REGISTRY.register()
+def logspace(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:logspace' to a NNEF constant tensor.
+
+    `aten::logspace(start, end, steps, base, dtype, layout, device,
+    pin_memory)`: `base ** linspace(start, end, steps)`. Bake at trace
+    time when `start`, `end`, `steps`, and `base` are Python constants
+    (the common case).
+    """
+    start_node, end_node, steps_node, base_node = node.inputs[:4]
+    if not all(
+        isinstance(n, PythonConstant) and isinstance(n.data, (int, float))
+        for n in (start_node, end_node, steps_node, base_node)
+    ):
+        raise T2NErrorNotImplemented(
+            "aten::logspace with dynamic start/end/steps/base not yet supported"
+        )
+    onode = node.outputs[0]
+    out_dtype = onode.dtype or torch.float32
+    onode.set_data(
+        torch.logspace(
+            start_node.data,
+            end_node.data,
+            int(steps_node.data),
+            base=float(base_node.data),
             dtype=out_dtype,
         ),
         force_dtype=True,
@@ -892,6 +1037,14 @@ def blackman_window(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:blackman_window' to a NNEF constant tensor."""
     _emit_window_constant(
         g, node, name_to_tensor, torch.blackman_window, "blackman_window"
+    )
+
+
+@OP_REGISTRY.register()
+def bartlett_window(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:bartlett_window' to a NNEF constant tensor."""
+    _emit_window_constant(
+        g, node, name_to_tensor, torch.bartlett_window, "bartlett_window"
     )
 
 

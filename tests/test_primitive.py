@@ -1233,6 +1233,240 @@ test_suite.add(
     UnaryPrimitive(torch.lgamma),
     inference_conditions=skip_khronos_interpreter,
 )
+
+
+class MvlgammaMod(nn.Module):
+    """`torch.mvlgamma(x, p)` -- multivariate log-Gamma.
+
+    Each shifted argument `x + (1 - i)/2` must stay > 0.5 (lgamma's
+    domain), so the test feeds large enough x values.
+    """
+
+    def __init__(self, p):
+        super().__init__()
+        self.p = p
+
+    def forward(self, x):
+        return torch.mvlgamma(x, p=self.p)
+
+
+test_suite.add(
+    (torch.tensor([3.0, 5.5, 10.0, 25.0]),),
+    MvlgammaMod(p=1),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([3.0, 5.5, 10.0, 25.0]),),
+    MvlgammaMod(p=2),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([3.0, 5.5, 10.0, 25.0]),),
+    MvlgammaMod(p=4),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class VanderMod(nn.Module):
+    """`torch.vander(x, N, increasing)`."""
+
+    def __init__(self, N=None, increasing=False):
+        super().__init__()
+        self.N = N
+        self.increasing = increasing
+
+    def forward(self, x):
+        return torch.vander(x, N=self.N, increasing=self.increasing)
+
+
+test_suite.add((torch.tensor([1.0, 2.0, 3.0]),), VanderMod(N=4))
+test_suite.add(
+    (torch.tensor([1.0, 2.0, 3.0]),), VanderMod(N=4, increasing=True)
+)
+test_suite.add((torch.tensor([1.5, 2.5, 3.5, 4.5]),), VanderMod())
+
+
+class LogspaceMod(nn.Module):
+    """`torch.logspace(start, end, steps, base)` baked at trace time."""
+
+    def __init__(self, start, end, steps, base=10.0):
+        super().__init__()
+        self.start = start
+        self.end = end
+        self.steps = steps
+        self.base = base
+
+    def forward(self, x):
+        return x + torch.logspace(
+            self.start, self.end, self.steps, base=self.base, dtype=x.dtype
+        )
+
+
+test_suite.add((torch.zeros(5),), LogspaceMod(0.0, 2.0, 5))
+test_suite.add((torch.zeros(4),), LogspaceMod(-1.0, 1.0, 4, base=2.0))
+
+
+class ChainMatmulMod(nn.Module):
+    """`torch.chain_matmul(*mats)` -- sequential matmul fold."""
+
+    def forward(self, a, b, c, d):
+        return torch.chain_matmul(a, b, c, d)
+
+
+test_suite.add(
+    (
+        torch.randn(2, 3),
+        torch.randn(3, 4),
+        torch.randn(4, 5),
+        torch.randn(5, 6),
+    ),
+    ChainMatmulMod(),
+)
+
+
+class TrilTriuIndicesMod(nn.Module):
+    """`torch.tril_indices` / `torch.triu_indices` as a constant."""
+
+    def __init__(self, kind, row, col, offset=0):
+        super().__init__()
+        self.kind = kind
+        self.row = row
+        self.col = col
+        self.offset = offset
+
+    def forward(self, x):
+        if self.kind == "tril":
+            idx = torch.tril_indices(self.row, self.col, offset=self.offset)
+        else:
+            idx = torch.triu_indices(self.row, self.col, offset=self.offset)
+        return x + idx.to(x.dtype).sum()
+
+
+# Test wrapper casts Long indices to float via `.to(x.dtype)`, which
+# the Khronos NNEF reference path doesn't lower; restrict to tract.
+test_suite.add(
+    (torch.zeros(1),),
+    TrilTriuIndicesMod("tril", 3, 3),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.zeros(1),),
+    TrilTriuIndicesMod("triu", 4, 3, offset=1),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.zeros(1),),
+    TrilTriuIndicesMod("tril", 5, 4, offset=-1),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class BartlettWindowMod(nn.Module):
+    """`torch.bartlett_window(L)` as a constant inside forward."""
+
+    def __init__(self, length, periodic=True):
+        super().__init__()
+        self.length = length
+        self.periodic = periodic
+
+    def forward(self, x):
+        return x * torch.bartlett_window(
+            self.length, periodic=self.periodic, dtype=x.dtype
+        )
+
+
+test_suite.add((torch.arange(8.0),), BartlettWindowMod(8))
+test_suite.add((torch.arange(8.0),), BartlettWindowMod(8, periodic=False))
+
+
+class BilinearMod(nn.Module):
+    """`F.bilinear(x1, x2, weight, bias)` -- rank-2 inputs."""
+
+    def __init__(self, in1, in2, out, bias=True):
+        super().__init__()
+        self.bilinear = nn.Bilinear(in1, in2, out, bias=bias)
+
+    def forward(self, x1, x2):
+        return self.bilinear(x1, x2)
+
+
+test_suite.add(
+    (torch.randn(3, 4), torch.randn(3, 5)),
+    BilinearMod(4, 5, 6),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.randn(2, 3), torch.randn(2, 4)),
+    BilinearMod(3, 4, 5, bias=False),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class HingeEmbeddingLossMod(nn.Module):
+    def __init__(self, margin=1.0, reduction="mean"):
+        super().__init__()
+        self.margin = margin
+        self.reduction = reduction
+
+    def forward(self, input, target):
+        return torch.nn.functional.hinge_embedding_loss(
+            input, target, margin=self.margin, reduction=self.reduction
+        )
+
+
+test_suite.add(
+    (torch.tensor([0.2, -0.5, 1.0, 1.5]), torch.tensor([1.0, -1.0, 1.0, -1.0])),
+    HingeEmbeddingLossMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([0.2, -0.5, 1.0]), torch.tensor([1.0, -1.0, 1.0])),
+    HingeEmbeddingLossMod(margin=0.5, reduction="sum"),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([0.2, -0.5, 1.0]), torch.tensor([1.0, -1.0, 1.0])),
+    HingeEmbeddingLossMod(reduction="none"),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class TripletMarginLossMod(nn.Module):
+    def __init__(self, margin=1.0, p=2.0, reduction="mean"):
+        super().__init__()
+        self.margin = margin
+        self.p = p
+        self.reduction = reduction
+
+    def forward(self, a, p_, n):
+        return torch.nn.functional.triplet_margin_loss(
+            a,
+            p_,
+            n,
+            margin=self.margin,
+            p=self.p,
+            reduction=self.reduction,
+        )
+
+
+_anc = torch.randn(3, 5)
+_pos = _anc + 0.1 * torch.randn(3, 5)
+_neg = torch.randn(3, 5) + 2.0
+test_suite.add(
+    (_anc, _pos, _neg),
+    TripletMarginLossMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_anc, _pos, _neg),
+    TripletMarginLossMod(margin=0.5, p=1.0, reduction="sum"),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_anc, _pos, _neg),
+    TripletMarginLossMod(reduction="none"),
+    inference_conditions=skip_khronos_interpreter,
+)
 # frac, signbit, erfc, tanhshrink: simple decompositions.
 test_suite.add(
     (torch.tensor([-2.7, -0.5, 0.0, 0.5, 1.7, 3.25]),),
