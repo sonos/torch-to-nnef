@@ -50,6 +50,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ALIAS,
     ATEN_ARANGE,
     ATEN_BADDMM,
+    ATEN_BARTLETT_WINDOW,
     ATEN_CLONE,
     ATEN_CONV1D,
     ATEN_CONV2D,
@@ -70,6 +71,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_LINALG_NORM,
     ATEN_LINALG_VECTOR_NORM,
     ATEN_LINEAR,
+    ATEN_LOGSPACE,
     ATEN_MASKED_FILL,
     ATEN_MASKED_FILL_,
     ATEN_MATMUL,
@@ -87,6 +89,9 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_SUB_,
     ATEN_TO,
     ATEN_TO_COPY,
+    ATEN_TRIL_INDICES,
+    ATEN_TRIU_INDICES,
+    ATEN_VANDER,
     ATEN_VIEW_KIND,
     ATEN_WHERE,
     ATEN_ZERO_LIKE,
@@ -116,6 +121,7 @@ class InputsAlignBetweenAtenAndTorch:
         map_align = {
             ATEN_ARANGE: cls.aten_arange,
             ATEN_BADDMM: cls.aten_baddmm,
+            ATEN_BARTLETT_WINDOW: cls.aten_window_constant,
             ATEN_CUMSUM: cls.aten_cumsum,
             ATEN_EINSUM: cls.aten_einsum,
             ATEN_EMPTY: cls.aten_zero,
@@ -126,6 +132,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_GELU: cls.aten_gelu,
             ATEN_LINALG_NORM: cls.aten_linalg_norm,
             ATEN_LINALG_VECTOR_NORM: cls.aten_linalg_norm,
+            ATEN_LOGSPACE: cls.aten_logspace,
             ATEN_MASKED_FILL: cls.aten_masked_fill,
             ATEN_MASKED_FILL_: cls.aten_masked_fill,
             ATEN_NEW_ONES: cls.aten_new_ones,
@@ -136,6 +143,9 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,  # noqa: E501
             ATEN_TO: cls.aten_to,
             ATEN_TO_COPY: cls.aten_to_copy,
+            ATEN_TRIL_INDICES: cls.aten_trilu_indices,
+            ATEN_TRIU_INDICES: cls.aten_trilu_indices,
+            ATEN_VANDER: cls.aten_vander,
             ATEN_WHERE: cls.aten_where,
             ATEN_NEW_ZEROS: cls.aten_new_zero,
             ATEN_ZEROS: cls.aten_zero,
@@ -215,6 +225,58 @@ class InputsAlignBetweenAtenAndTorch:
     def aten_gelu(args, kwargs):
         args = args[:1]  # skip the 'none' param starting torch 1.12.0
         return args, kwargs
+
+    @staticmethod
+    def aten_trilu_indices(args, kwargs):
+        """`aten::{tril,triu}_indices(row, col, offset, *, dtype, ...)`.
+
+        Only `row` / `col` / `offset` are positional; the rest are
+        keyword-only on the aten op. Trim the tail and lift `dtype`
+        (kept; layout / device / pin_memory are dropped since trace-
+        time evaluation doesn't need them).
+        """
+        kept = list(args[:3])
+        if len(args) >= 4:
+            kwargs["dtype"] = args[3]
+        return kept, kwargs
+
+    @staticmethod
+    def aten_vander(args, kwargs):
+        """`aten::vander(self, N, increasing)`.
+
+        `N` may be `None` for the default (= len(self)); torch's
+        signature accepts `None` directly so we forward as-is.
+        """
+        return list(args[:3]), kwargs
+
+    @staticmethod
+    def aten_logspace(args, kwargs):
+        """`aten::logspace(start, end, steps, base, *, dtype, ...)`.
+
+        First four are positional; the rest are keyword-only on the
+        aten op.
+        """
+        kept = list(args[:4])
+        if len(args) >= 5:
+            kwargs["dtype"] = args[4]
+        return kept, kwargs
+
+    @staticmethod
+    def aten_window_constant(args, kwargs):
+        """`aten::{bartlett,hann,hamming,blackman,kaiser}_window`.
+
+        Positional: `window_length` (+ `periodic` for the non-Bartlett
+        variants); rest is keyword-only on the aten op.
+        """
+        if len(args) >= 2 and isinstance(args[1], bool):
+            kept = list(args[:2])
+            tail_start = 2
+        else:
+            kept = list(args[:1])
+            tail_start = 1
+        if len(args) > tail_start:
+            kwargs["dtype"] = args[tail_start]
+        return kept, kwargs
 
     @staticmethod
     def aten_arange(args, kwargs):

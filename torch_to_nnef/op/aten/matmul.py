@@ -546,6 +546,118 @@ def matmul(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
+def bilinear(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map `aten::bilinear(input1, input2, weight, bias)` to NNEF.
+
+    `bilinear(x1, x2, W, b)[..., k] = sum_{i, j} x1[..., i] * W[k, i, j]
+                                                    * x2[..., j] + b[k]`.
+
+    Lowered via `tract_core_einsum` with the three-operand expression
+    `bi, kij, bj -> bk`. tract's `einsum` doesn't accept ellipsis, so
+    only rank-2 `x1` / `x2` are supported here.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "bilinear requires `tract_core_einsum` (TractNNEF target)"
+        )
+    input1_node, input2_node, weight_node, bias_node = node.inputs
+    if input1_node.rank != 2 or input2_node.rank != 2:
+        raise T2NErrorNotImplemented(
+            "bilinear: only rank-2 inputs supported "
+            f"(got {input1_node.rank} / {input2_node.rank}); leading "
+            "batch dims need a different einsum expr."
+        )
+    if weight_node.rank != 3:
+        raise T2NErrorNotImplemented(
+            f"bilinear: weight must be rank 3, got {weight_node.rank}"
+        )
+    has_bias = (
+        bias_node is not None and getattr(bias_node, "data", None) is not None
+    )
+    inp1 = get_or_add_tensor_variable_in_nnef(g, input1_node, name_to_tensor)
+    inp2 = get_or_add_tensor_variable_in_nnef(g, input2_node, name_to_tensor)
+    weight = get_or_add_tensor_variable_in_nnef(g, weight_node, name_to_tensor)
+    suffix = "_bilinear_einsum" if has_bias else ""
+    intermed = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_einsum",
+        inputs=[inp1, weight, inp2],
+        attrs={"expr": "bi,kij,bj->bk", "acc": "f32", "output": ""},
+        ensure_tuple=False,
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix=suffix,
+    )
+    if has_bias:
+        bias = get_or_add_tensor_variable_in_nnef(g, bias_node, name_to_tensor)
+        # Bias is (out,); add to (B, out) intermed. Unsqueeze to (1, out)
+        # so tract's broadcasting matches torch's (which broadcasts the
+        # trailing axis) rather than the leading-axis alignment that
+        # tript-IR's auto-rank pass falls back on.
+        bias_2d = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "unsqueeze",
+            inputs=bias,
+            attrs={"axes": [0]},
+            output_tensor_name_suffix="_bilinear_bias_2d",
+        )
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "add",
+            inputs=[intermed, bias_2d],
+            force_consistent_inputs_shapes=False,
+        )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def chain_matmul(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map `aten::chain_matmul(matrices)` to a chain of `matmul` ops.
+
+    `matrices` is a `FixedTensorList` of `>=2` 2-D tensors. The chain
+    is reduced left-to-right; this matches torch's deprecation note
+    that recommends `linalg.multi_dot` (which picks a parenthesization
+    by cost). For inference graphs the per-matrix shapes are fixed and
+    constant-folding handles the planning, so the naive left-fold is
+    enough.
+    """
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.torch_graph import FixedTensorList
+
+    (matrices_node,) = node.inputs
+    if not isinstance(matrices_node, FixedTensorList):
+        raise T2NErrorNotImplemented(
+            "aten::chain_matmul expects a FixedTensorList; got "
+            f"{matrices_node!r}"
+        )
+    mats = list(matrices_node.data)
+    if len(mats) < 2:
+        raise T2NErrorNotImplemented(
+            f"aten::chain_matmul expects >= 2 matrices, got {len(mats)}"
+        )
+    refs = [
+        get_or_add_tensor_variable_in_nnef(g, m, name_to_tensor) for m in mats
+    ]
+    acc = refs[0]
+    for idx, rhs in enumerate(refs[1:], start=1):
+        is_final = idx == len(refs) - 1
+        acc = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "matmul",
+            inputs=[acc, rhs],
+            attrs={"transposeA": False, "transposeB": False},
+            output_tensor_name_suffix=""
+            if is_final
+            else f"_chain_matmul_{idx}",
+        )
+
+
 @OP_REGISTRY.register(["baddbmm", "addmm", "bias_addmm"])
 def baddbmm(g, node, name_to_tensor, inference_target, **kwargs):
     """Map PyTorch: 'aten:baddbmm', 'aten:addmm', 'aten:bias_addmm'.
