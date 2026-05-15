@@ -1351,6 +1351,7 @@ def _special_function_specs() -> T.List[OpSpec]:
                 torch.special.entr, domain=Interval(0.0, 100.0)
             ),
             tolerance=VERY,
+            dynamic_axes_compatible=True,
         ),
     ]
 
@@ -1502,24 +1503,45 @@ def _trapezoid_sample_st() -> st.SearchStrategy[OpSample]:
 def _tier_a2_specs() -> T.List[OpSpec]:
     APPROX = TractCheckTolerance.APPROXIMATE
     VERY = TractCheckTolerance.VERY
+    # All of these emit pure pointwise / slice-shape primitives whose
+    # axis arguments stay independent of the dynamic axis 0, so the
+    # dyn-axes proptest passes.
     return [
-        OpSpec(name="ravel", sample_st=_ravel_sample_st(), tolerance=APPROX),
+        OpSpec(
+            name="ravel",
+            sample_st=_ravel_sample_st(),
+            tolerance=APPROX,
+            dynamic_axes_compatible=True,
+        ),
         OpSpec(
             name="float_power",
             sample_st=_float_power_sample_st(),
             tolerance=VERY,
+            dynamic_axes_compatible=True,
         ),
-        OpSpec(name="diff_n1", sample_st=_diff_sample_st(1), tolerance=VERY),
-        OpSpec(name="diff_n2", sample_st=_diff_sample_st(2), tolerance=VERY),
+        OpSpec(
+            name="diff_n1",
+            sample_st=_diff_sample_st(1),
+            tolerance=VERY,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="diff_n2",
+            sample_st=_diff_sample_st(2),
+            tolerance=VERY,
+            dynamic_axes_compatible=True,
+        ),
         OpSpec(
             name="trapezoid",
             sample_st=_trapezoid_sample_st(),
             tolerance=VERY,
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="special_xlog1py",
             sample_st=_xlog1py_sample_st(),
             tolerance=VERY,
+            dynamic_axes_compatible=True,
         ),
     ]
 
