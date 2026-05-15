@@ -1286,6 +1286,43 @@ def _special_function_specs() -> T.List[OpSpec]:
             ),
             tolerance=VERY,
         ),
+        # `frexp`: returns (mantissa in [0.5, 1.0), exponent: int32).
+        # Sample range stays in the normal-float regime (well clear of
+        # FLT_MIN ~= 1.18e-38); subnormals lose an exponent bit through
+        # tract's `log2` and are documented as out-of-domain in the
+        # fragment.
+        OpSpec(
+            name="frexp",
+            sample_st=_unary_sample_st(
+                torch.frexp, domain=Interval(-1e30, 1e30)
+            ),
+            tolerance=VERY,
+        ),
+        # `special_i1` / `special_i1e`: same polynomial branches as
+        # `i0` / `i0e` (A&S 9.8.3 / 9.8.4).
+        OpSpec(
+            name="special_i1",
+            sample_st=_unary_sample_st(
+                torch.special.i1, domain=_UNARY_I0_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="special_i1e",
+            sample_st=_unary_sample_st(
+                torch.special.i1e, domain=_UNARY_I0_DOMAIN
+            ),
+            tolerance=VERY,
+        ),
+        # `digamma`: asymptotic series after a fixed 6-shift; valid for
+        # `x > 0`. Sample above 0.1 to keep the leading `1/x` finite.
+        OpSpec(
+            name="digamma",
+            sample_st=_unary_sample_st(
+                torch.digamma, domain=Interval(0.1, 50.0)
+            ),
+            tolerance=VERY,
+        ),
     ]
 
 

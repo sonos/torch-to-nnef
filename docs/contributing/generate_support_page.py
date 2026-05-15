@@ -528,6 +528,10 @@ _EXCLUDED_PYTHON_SCALAR_BUILTINS_EXTRA = frozenset(
         "len",
         "list",
         "list_with_default",
+        # `aten::modf(float a) -> (float, float)` is a scalar-only
+        # TorchScript builtin (binds `math.modf`); there is no tensor
+        # `aten::modf`. `torch.frac` covers the tensor case.
+        "modf",
         "neq",
         "pop",
         "radians",

@@ -1,0 +1,23 @@
+# Scalar p-norm distance between two broadcastable tensors:
+#   dist(a, b, p) = (sum_{all axes} |a - b|^p)^(1/p)
+# `axes` lists every axis of the broadcast diff (sum-reduce them all),
+# and we squeeze the resulting (1, ..., 1) singleton down to a 0-D
+# scalar to match torch's `aten::dist` output rank.
+#
+# Like `cdist`, the `abs(diff)` step is required because tract's `pow`
+# is undefined on negative bases for fractional exponents.
+fragment dist(
+    a: tensor<scalar>,
+    b: tensor<scalar>,
+    axes: integer[],
+    p: scalar = 2.0
+) -> ( y: tensor<scalar> )
+{
+    diff   = sub(a, b);
+    abs_d  = abs(diff);
+    pwr    = pow(abs_d, p);
+    sum_p  = sum_reduce(pwr, axes = axes);
+    inv_p  = div(1.0, p);
+    norm   = pow(sum_p, inv_p);
+    y      = squeeze(norm, axes = axes);
+}

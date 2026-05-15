@@ -1,0 +1,41 @@
+extension tract_registry tract_core;
+
+# IEEE-754 frexp: split `input` into `(mantissa, exponent)` such that
+#   input = mantissa * 2^exponent
+# with `|mantissa| in [0.5, 1.0)` and integer `exponent`. Zero is
+# special-cased to `(0.0, 0)`.
+#
+# Decomposition:
+#   exponent = floor(log2(|input|)) + 1
+#   mantissa = input / 2^exponent
+#
+# Caveats:
+# - Subnormal inputs (|x| < FLT_MIN ~= 1.18e-38) round to an off-by-one
+#   exponent because the clamp below replaces them with FLT_MIN. Real
+#   `frexp` reports the IEEE exponent down to -149; we stop at -126.
+# - `safe_abs = max(|input|, FLT_MIN)` keeps `log2(safe_abs)` finite on
+#   the discarded zero branch (tract evaluates both `select` arms). The
+#   clamp threshold is FLT_MIN so every normal-range input passes
+#   through unmodified.
+fragment frexp(
+    input: tensor<scalar>
+) -> ( mantissa: tensor<scalar>, exponent: tensor<integer> )
+{
+    is_zero  = eq(input, 0.0);
+    abs_x    = abs(input);
+    safe_abs = max(abs_x, 1.17549435e-38);
+    log2_x   = log2(safe_abs);
+    e_raw    = floor(log2_x) + 1.0;
+    # `pow(2, e_raw)` keeps the exponent computation in base-2. Lift
+    # `2.0` to a tensor (`mul(e_raw, 0.0) + 2.0`) so tract reads the
+    # binary pow op rather than the scalar-literal form, which can
+    # collapse to imprecise `exp(log(2)*e)` internally.
+    two      = mul(e_raw, 0.0) + 2.0;
+    pow2_e   = pow(two, e_raw);
+    m_raw    = input / pow2_e;
+    zero_t   = mul(input, 0.0);
+
+    mantissa = select(is_zero, zero_t, m_raw);
+    e_safe   = select(is_zero, zero_t, e_raw);
+    exponent = tract_core_cast(e_safe, to = "i32");
+}

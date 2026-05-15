@@ -1,0 +1,17 @@
+# Pointwise BCE on probabilities (input already in [0, 1]):
+#   bce = -(target * log(input) + (1 - target) * log(1 - input))
+# Caller is responsible for keeping `input` in (0, 1); we don't clamp
+# here. For the logit-input variant use
+# `binary_cross_entropy_with_logits` (numerically stable via softplus).
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment binary_cross_entropy(
+    input: tensor<scalar>,
+    target: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    one_minus_t = sub(1.0, target);
+    one_minus_x = sub(1.0, input);
+    a           = mul(target, log(input));
+    b           = mul(one_minus_t, log(one_minus_x));
+    output      = sub(0.0, add(a, b));
+}

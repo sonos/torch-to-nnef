@@ -193,6 +193,116 @@ def smooth_l1_loss(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def margin_ranking_loss(node, op_helper, **kwargs):
+    """Map `aten::margin_ranking_loss` to NNEF.
+
+    Signature: `(input1, input2, target, margin, reduction)`. Pointwise
+    `max(0, -target * (input1 - input2) + margin)`. Inputs are
+    same-shape (broadcast handled upstream); reduction is applied by
+    the emitter.
+    """
+    input1_node, input2_node, target_node, margin_node, reduction_node = (
+        node.inputs
+    )
+    margin = float(margin_node.data) if margin_node.data is not None else 0.0
+    reduction = _reduction_value(reduction_node, "margin_ranking_loss")
+    inp1 = op_helper.get_or_add_tensor_variable_in_nnef(input1_node)
+    inp2 = op_helper.get_or_add_tensor_variable_in_nnef(input2_node)
+    tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
+    return _emit_pointwise_loss(
+        op_helper,
+        node,
+        "margin_ranking_loss",
+        [inp1, inp2, tgt],
+        reduction,
+        input1_node.rank,
+        attrs={"margin": margin},
+    )
+
+
+@OP_REGISTRY.register()
+def soft_margin_loss(node, op_helper, **kwargs):
+    """Map `aten::soft_margin_loss(input, target, reduction)`.
+
+    Pointwise `log(1 + exp(-target * input))` via the
+    numerically-stable softplus reformulation in the fragment.
+    """
+    input_node, target_node, reduction_node = node.inputs
+    reduction = _reduction_value(reduction_node, "soft_margin_loss")
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
+    return _emit_pointwise_loss(
+        op_helper,
+        node,
+        "soft_margin_loss",
+        [inp, tgt],
+        reduction,
+        input_node.rank,
+    )
+
+
+@OP_REGISTRY.register()
+def cosine_embedding_loss(node, op_helper, **kwargs):
+    """Map `aten::cosine_embedding_loss` to NNEF.
+
+    Signature: `(input1, input2, target, margin, reduction)`. Per-sample
+    cosine similarity along the feature axis (last axis of rank-2
+    inputs), then the +1 / -1 target split picks `1 - cos_sim` or
+    `max(0, cos_sim - margin)`.
+    """
+    input1_node, input2_node, target_node, margin_node, reduction_node = (
+        node.inputs
+    )
+    margin = float(margin_node.data) if margin_node.data is not None else 0.0
+    reduction = _reduction_value(reduction_node, "cosine_embedding_loss")
+    if input1_node.rank != 2:
+        raise T2NErrorNotImplemented(
+            f"cosine_embedding_loss expects rank-2 inputs; got rank="
+            f"{input1_node.rank}"
+        )
+    feature_axis = input1_node.rank - 1
+    inp1 = op_helper.get_or_add_tensor_variable_in_nnef(input1_node)
+    inp2 = op_helper.get_or_add_tensor_variable_in_nnef(input2_node)
+    tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
+    used = _emit_pointwise_loss(
+        op_helper,
+        node,
+        "cosine_embedding_loss",
+        [inp1, inp2, tgt],
+        reduction,
+        target_node.rank,
+        attrs={"margin": margin, "feature_axis": feature_axis},
+    )
+    return used + ["cosine_similarity"]
+
+
+@OP_REGISTRY.register()
+def binary_cross_entropy(node, op_helper, **kwargs):
+    """Map `aten::binary_cross_entropy(input, target, weight, reduction)`.
+
+    Pointwise `-(t*log(x) + (1-t)*log(1-x))` via the
+    `binary_cross_entropy` fragment. `weight` is not currently
+    supported (training-side per-sample reweighting).
+    """
+    input_node, target_node, weight_node, reduction_node = node.inputs
+    if hasattr(weight_node, "data") and weight_node.data is not None:
+        raise T2NErrorNotImplemented(
+            "binary_cross_entropy: weight != None not supported"
+        )
+    reduction = _reduction_value(reduction_node, "binary_cross_entropy")
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
+    return _emit_pointwise_loss(
+        op_helper,
+        node,
+        "binary_cross_entropy",
+        [inp, tgt],
+        reduction,
+        input_node.rank,
+    )
+
+
+@OP_REGISTRY.register()
 def binary_cross_entropy_with_logits(node, op_helper, **kwargs):
     """Map `aten::binary_cross_entropy_with_logits` to NNEF.
 

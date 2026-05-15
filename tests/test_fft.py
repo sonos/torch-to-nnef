@@ -102,6 +102,26 @@ class MyHammingWindowScaled(nn.Module):
         return x * w
 
 
+class MyFFTFreq(nn.Module):
+    """`fft.fftfreq` / `fft.rfftfreq` inside `forward`.
+
+    Trace materializes the op as a constant freq vector at export.
+    """
+
+    def __init__(self, n, d=1.0, kind="fft"):
+        super().__init__()
+        self.n = n
+        self.d = d
+        self.kind = kind
+
+    def forward(self, x):
+        if self.kind == "fft":
+            freq = torch.fft.fftfreq(self.n, d=self.d, dtype=x.dtype)
+        else:
+            freq = torch.fft.rfftfreq(self.n, d=self.d, dtype=x.dtype)
+        return x + freq
+
+
 class MySTFT(nn.Module):
     def __init__(
         self,
@@ -175,6 +195,11 @@ add_test(torch.arange(24.0).reshape(2, 3, 4), MyIFFTN(dims=[1, 2]))
 add_test(torch.arange(8.0), MyHammingWindowScaled(8, "hamming"))
 add_test(torch.arange(8.0), MyHammingWindowScaled(8, "blackman"))
 add_test(torch.arange(8.0), MyHammingWindowScaled(8, "kaiser"))
+add_test(torch.arange(8.0), MyFFTFreq(n=8, d=1.0, kind="fft"))
+add_test(torch.arange(8.0), MyFFTFreq(n=8, d=0.5, kind="fft"))
+# rfftfreq returns n//2 + 1 elements.
+add_test(torch.arange(5.0), MyFFTFreq(n=8, d=1.0, kind="rfft"))
+add_test(torch.arange(5.0), MyFFTFreq(n=8, d=0.25, kind="rfft"))
 
 
 class MyComplex(nn.Module):

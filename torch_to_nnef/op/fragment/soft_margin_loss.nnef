@@ -1,0 +1,18 @@
+# Pointwise soft-margin loss (a.k.a. logistic regression loss):
+#   loss = log(1 + exp(-target * input))
+# Reformulated for numerical stability via the standard softplus trick
+# (see binary_cross_entropy_with_logits.nnef):
+#   log(1 + exp(-z))  =  log(1 + exp(-|z|)) + max(-z, 0)
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment soft_margin_loss(
+    input: tensor<scalar>,
+    target: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    z          = mul(target, input);
+    neg_z      = sub(0.0, z);
+    abs_z      = abs(z);
+    softplus_z = log(add(1.0, exp(sub(0.0, abs_z))));
+    bias       = max(neg_z, 0.0);
+    output     = add(softplus_z, bias);
+}
