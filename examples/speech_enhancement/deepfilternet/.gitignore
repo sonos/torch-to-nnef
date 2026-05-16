@@ -1,0 +1,11 @@
+.venv/
+_torchDF_clone/
+_nnef_*/
+_official_onnx/
+bench_work/
+*.nnef.tgz
+*.onnx
+debug_*/
+debug_*.tgz
+*.log
+__pycache__/
