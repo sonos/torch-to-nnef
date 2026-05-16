@@ -234,6 +234,27 @@ for op in [
         BinaryPrimitive(op),
     )
 
+# Rank-1 matmul forms exercised by RNN/STFT-class graphs. PyTorch's
+# `aten::matmul` accepts vector operands and broadcasts them into the
+# matrix multiply (see torch.matmul docstring); the shape inferrer in
+# `torch_to_nnef.torch_graph.ir_op._infer_trace_result_matmul` must
+# follow the same rules. Three forms below:
+#   (K,) @ (K, N)   -> (N,)        vector @ matrix
+#   (M, K) @ (K,)   -> (M,)        matrix @ vector
+#   (B, M, K) @ (K,) -> (B, M)     batched matrix @ vector
+test_suite.add(
+    (torch.arange(4).float(), torch.arange(12).reshape(4, 3).float()),
+    BinaryPrimitive(torch.matmul),
+)
+test_suite.add(
+    (torch.arange(12).reshape(3, 4).float(), torch.arange(4).float()),
+    BinaryPrimitive(torch.matmul),
+)
+test_suite.add(
+    (torch.arange(24).reshape(2, 3, 4).float(), torch.arange(4).float()),
+    BinaryPrimitive(torch.matmul),
+)
+
 test_suite.add(
     torch.tensor([True, False, True]),
     UnaryPrimitive(torch.bitwise_not),
