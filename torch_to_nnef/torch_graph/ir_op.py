@@ -60,6 +60,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_CONVOLUTION_MODE,
     ATEN_CUMSUM,
     ATEN_DIV,
+    ATEN_DIV_,
     ATEN_EINSUM,
     ATEN_EMBEDDING,
     ATEN_EMPTY,
@@ -75,6 +76,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_MASKED_FILL,
     ATEN_MASKED_FILL_,
     ATEN_MATMUL,
+    ATEN_MUL_,
     ATEN_NEW_EMPTY,
     ATEN_NEW_ONES,
     ATEN_NEW_ZEROS,
@@ -622,7 +624,7 @@ class TorchOp:
     def update_call_op_arg_kwargs(self, args):
         """Custom adaptation to call aten fn with torch exposed py fn."""
         kwargs = {}
-        if self.kind == ATEN_DIV and len(args) >= 3:
+        if self.kind in (ATEN_DIV, ATEN_DIV_) and len(args) >= 3:
             kwargs["rounding_mode"] = args[2]
             args = args[:-1]
             self.op_ref = torch.div
@@ -643,6 +645,18 @@ class TorchOp:
             self.op_ref = (
                 torch.add if self.kind in (ATEN_ADD, ATEN_ADD_) else torch.sub
             )
+        # `aten::mul_` / `aten::div_` mutate their first input in place.
+        # During IR construction we re-execute each op via `call_op` to
+        # recover output shape/dtype, but the input tensor's
+        # `_traced_data` may be shared with other IR nodes (e.g. the
+        # einops shape-product chain reuses the same scalar tensor
+        # across `mul_` calls). Routing through the out-of-place op
+        # gives the same result without mutating the input. The
+        # in-place semantics aren't needed at trace time.
+        if self.kind == ATEN_MUL_:
+            self.op_ref = torch.mul
+        if self.kind == ATEN_DIV_ and self.op_ref is not torch.div:
+            self.op_ref = torch.div
         # }
         args, kwargs = InputsAlignBetweenAtenAndTorch.align_inputs(
             self.kind, args, kwargs
