@@ -23,6 +23,7 @@ README.
 | [`image_gen/`](image_gen/) | SD 1.5 + Flux-Schnell + Sana (DiT, mini configs); SDXL / SD3 placeholders | (exploration, no tutorial yet) | -- |
 | [`tts/pocket_tts/`](tts/pocket_tts/) | Kyutai Pocket-TTS end-to-end (FlowLM + Mimi) via tract; pulse-mode streaming + fp16 export, RTFx 9.88× on M4 Pro | (no tutorial yet) | -- |
 | [`speech_enhancement/deepfilternet/`](speech_enhancement/deepfilternet/) | DeepFilterNet 3 per-frame streaming model (matches grazder's ONNX deploy shape) via [grazder's pure-torch port](https://github.com/grazder/DeepFilterNet); 12 state tensors threaded by the caller, tract round-trip passes end-to-end | (no tutorial yet) | -- |
+| [`speech_enhancement/dpdfnet/`](speech_enhancement/dpdfnet/) | [CEVA's DPDFNet 2](https://github.com/ceva-ip/DPDFNet) (DPRNN-augmented DFN2) at 16 kHz, in-graph STFT/iFFT, **single NNEF artifact**, plus a minimal Rust `wav-cleaner` binary (tract-nnef) that takes WAV in / clean WAV out -- 4.44x real-time end-to-end on M4 Pro | (no tutorial yet) | -- |
 
 ## Bootstrap helpers
 

@@ -1,0 +1,11 @@
+.venv/
+_dpdfnet_clone/
+_checkpoints/
+bench_work/
+*.nnef.tgz
+*.onnx
+*.wav
+*.log
+__pycache__/
+wav-cleaner-rs/target/
+wav-cleaner-rs/Cargo.lock
