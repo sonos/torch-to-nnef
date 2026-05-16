@@ -362,19 +362,30 @@ def _infer_shape_embedding_output(
 
 
 def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
-    """Infer output tensor shape of matmul without executing it."""
+    """Infer output tensor shape of `aten::matmul` without executing it.
+
+    Implements PyTorch's documented matmul rules, including the rank-1
+    forms (vector dot product, vector @ matrix, matrix @ vector). See
+    https://pytorch.org/docs/stable/generated/torch.matmul.html.
+    """
     ax = list(a.shape)
     bx = list(b.shape)
-    # Basic rank check (matmul requires at least 2D tensors here)
-    assert len(ax) >= 2 and len(bx) >= 2, "Expected tensors with rank >= 2"
-    # Inner dimension compatibility: (..., M, K) @ (..., K, N)
+    if len(ax) == 1 and len(bx) == 1:
+        # (K,) @ (K,) -> scalar
+        assert ax[0] == bx[0], "Incompatible matmul inner dimensions"
+        return torch.Size([])
+    if len(ax) == 1:
+        # (K,) @ (..., K, N) -> (..., N): prepend 1 to a, drop it from out.
+        assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
+        return torch.Size(list(bx[:-2]) + [bx[-1]])
+    if len(bx) == 1:
+        # (..., M, K) @ (K,) -> (..., M)
+        assert ax[-1] == bx[-1], "Incompatible matmul inner dimensions"
+        return torch.Size(list(ax[:-1]))
+    # Both rank-2+: standard batched matmul.
     assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
-    # Explicit batch broadcasting resolution
     batch_shape = torch.broadcast_shapes(ax[:-2], bx[:-2])
-    # Output shape: (..., M, N)
-    cx = list(batch_shape) + [ax[-2], bx[-1]]
-    # Simulated output tensor
-    return torch.Size(cx)
+    return torch.Size(list(batch_shape) + [ax[-2], bx[-1]])
 
 
 def _infer_shape_linear_output(x, w) -> torch.Size:
