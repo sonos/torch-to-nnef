@@ -89,6 +89,7 @@ class _RNNMixin:
         name_to_tensor,
         nnef_fragment_name,
         argument_names_order,
+        inference_target=None,
         **tensor_params_kwargs,
     ):
         """Delegate the per-layer loop to the canonical fragment emitter.
@@ -107,6 +108,7 @@ class _RNNMixin:
             nnef_fragment_name=nnef_fragment_name,
             argument_names_order=argument_names_order,
             tensor_params_fn=self._tensor_params_fn(),
+            inference_target=inference_target,
             **tensor_params_kwargs,
         )
 
@@ -209,6 +211,7 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
             name_to_tensor=name_to_tensor,
             nnef_fragment_name=nnef_fragment_selected,
             argument_names_order=argument_names_order,
+            inference_target=inference_target,
             **tensor_params_kwargs,
         )
 
@@ -286,6 +289,7 @@ class GRUExtractor(_RNNMixin, ModuleInfoExtractor):
                 "b_in",
                 "b_hn",
             ],
+            inference_target=inference_target,
             **tensor_params_kwargs,
         )
 
@@ -349,6 +353,7 @@ class RNNExtractor(_RNNMixin, ModuleInfoExtractor):
                 # -----
                 "b_ih_hh",
             ],
+            inference_target=inference_target,
             **tensor_params_kwargs,
         )
 
