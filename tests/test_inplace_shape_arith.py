@@ -26,8 +26,15 @@ the rerouting is caught immediately.
 
 from __future__ import annotations
 
-import einops
 import pytest
+
+einops = pytest.importorskip(
+    "einops",
+    reason=(
+        "einops needed to reproduce the in-place mul_ chain shape-arith "
+        "pattern; install with `pip install einops`."
+    ),
+)
 import torch
 
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test

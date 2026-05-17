@@ -47,6 +47,7 @@ sys.path.insert(0, str(_TORCH_DF_PATH))
 
 
 def _patch_torchaudio_audio_meta_data() -> None:
+    # pylint: disable=import-outside-toplevel
     import torchaudio
 
     if "AudioMetaData" in dir(torchaudio):
@@ -83,6 +84,7 @@ def make_input_bundle(out_dir: Path) -> Path:
     bundle_path = out_dir / "inputs.npz"
     if bundle_path.exists():
         return bundle_path
+    # pylint: disable-next=import-outside-toplevel
     from torch_df_streaming_minimal import (
         TorchDFMinimalPipeline,  # noqa: PLC0415
     )
@@ -135,6 +137,7 @@ def prepare_official_onnx(
     every symbolic dim down to the trace-time value. Returns a dict
     `{component: (simplified_onnx_path, input_bundle_path)}`.
     """
+    # pylint: disable=import-outside-toplevel
     import onnx  # noqa: PLC0415
     import onnxsim  # noqa: PLC0415
 
@@ -279,7 +282,7 @@ def _split_nn_dsp(stats: dict) -> tuple[float, float, list, list]:
     )
 
 
-def main() -> None:
+def main() -> None:  # pylint: disable=too-many-statements
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--nnef-a", type=Path, default=None, help="variant A NNEF (matmul-iFFT)"
@@ -320,6 +323,7 @@ def main() -> None:
             "specify at least one of --nnef-a / --nnef-b / --onnx-official-dir"
         )
 
+    # pylint: disable-next=import-outside-toplevel
     from torch_to_nnef.utils import SemanticVersion
 
     latest = TractNNEF.latest_version()
@@ -426,9 +430,7 @@ def main() -> None:
         median_ms = stats["median_total_s"] * 1000
         rtfx = 10.0 / median_ms if median_ms > 0 else float("inf")
         dsp_ms = stats["dsp_total_s"] * 1000
-        suffix = (
-            f"  (DSP excluded: {dsp_ms:.3f}ms / {stats['n_dsp_ops']} ops)"
-        )
+        suffix = f"  (DSP excluded: {dsp_ms:.3f}ms / {stats['n_dsp_ops']} ops)"
         print(
             f"{label:<40} {median_ms:>7.3f}ms {'-':>9} {'-':>9} "
             f"{stats['n_ops']:>6} {rtfx:>6.2f}x{suffix}"

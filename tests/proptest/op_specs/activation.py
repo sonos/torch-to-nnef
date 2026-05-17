@@ -33,7 +33,6 @@ _ACT_DOMAIN = Interval(-30.0, 30.0)
 
 
 def _activation_specs() -> T.List[OpSpec]:
-
     EXACT = TractCheckTolerance.EXACT
     VERY = TractCheckTolerance.VERY
     SUPER = TractCheckTolerance.SUPER

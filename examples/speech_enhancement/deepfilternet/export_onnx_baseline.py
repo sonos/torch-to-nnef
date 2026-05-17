@@ -30,6 +30,7 @@ sys.path.insert(0, str(_TORCH_DF_PATH))
 
 def _patch_torchaudio_audio_meta_data() -> None:
     """Stub `torchaudio.backend.common.AudioMetaData` for modern torchaudio."""
+    # pylint: disable-next=import-outside-toplevel
     import torchaudio
 
     if "AudioMetaData" in dir(torchaudio):
@@ -56,6 +57,11 @@ from torch_df_streaming_minimal import TorchDFMinimalPipeline  # noqa: E402
 OPSET_VERSION = 17
 
 
+# pylint: disable=invalid-name
+# `X` argument names match `torch.onnx.symbolic_helper`'s convention; the
+# `parse_args` decorator inspects positional args by index, not by name,
+# but renaming would diverge gratuitously from the upstream ONNX symbolic
+# style. Local disable scoped to these two shims.
 @symbolic_helper.parse_args("v", "i", "i", "s")
 def _onnx_custom_rfft(g, X, n, dim, norm):
     """Symbolic for `aten::fft_rfft` -- mirror grazder's `custom_rfft`.
@@ -71,6 +77,9 @@ def _onnx_custom_rfft(g, X, n, dim, norm):
 def _onnx_custom_identity(g, X):
     """Symbolic for `aten::view_as_real` -- pass-through."""
     return X
+
+
+# pylint: enable=invalid-name
 
 
 def main() -> None:

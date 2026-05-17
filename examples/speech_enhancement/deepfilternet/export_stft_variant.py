@@ -40,6 +40,7 @@ sys.path.insert(0, str(_TORCH_DF_PATH))
 
 def _patch_torchaudio_audio_meta_data() -> None:
     """See export.py for context: stubs the removed AudioMetaData class."""
+    # pylint: disable=import-outside-toplevel
     import types
 
     import torchaudio
@@ -121,6 +122,7 @@ def build_streaming_model_b():
     """
     pipeline = TorchDFMinimalPipeline().eval()
     inner = pipeline.torch_streaming_model
+    # pylint: disable-next=no-value-for-parameter
     bound = _native_irfft_frame_synthesis.__get__(inner, inner.__class__)
     inner.frame_synthesis = bound  # type: ignore[method-assign]
     states = tuple(s.detach().clone() for s in pipeline.states)

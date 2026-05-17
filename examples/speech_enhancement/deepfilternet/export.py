@@ -46,6 +46,7 @@ def _patch_torchaudio_audio_meta_data() -> None:
     function we never call (the example feeds dummy in-memory waveforms).
     A no-op stub is enough to keep the chain importable.
     """
+    # pylint: disable=import-outside-toplevel
     import types
 
     import torchaudio
