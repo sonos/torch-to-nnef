@@ -57,13 +57,12 @@ from torch_df_streaming_minimal import TorchDFMinimalPipeline  # noqa: E402
 OPSET_VERSION = 17
 
 
-# pylint: disable=invalid-name
-# `X` argument names match `torch.onnx.symbolic_helper`'s convention; the
-# `parse_args` decorator inspects positional args by index, not by name,
-# but renaming would diverge gratuitously from the upstream ONNX symbolic
-# style. Local disable scoped to these two shims.
+# `X` argument names below match `torch.onnx.symbolic_helper`'s convention;
+# the `parse_args` decorator inspects positional args by index, not by
+# name, but renaming would diverge gratuitously from the upstream ONNX
+# symbolic style. Local noqa on each shim.
 @symbolic_helper.parse_args("v", "i", "i", "s")
-def _onnx_custom_rfft(g, X, n, dim, norm):
+def _onnx_custom_rfft(g, X, n, dim, norm):  # noqa: N803
     """Symbolic for `aten::fft_rfft` -- mirror grazder's `custom_rfft`.
 
     DFN3's streaming model only ever calls `fft_rfft` on a rank-1 buffer
@@ -74,12 +73,9 @@ def _onnx_custom_rfft(g, X, n, dim, norm):
     return g.op("DFT", X, axis_i=0, onesided_i=1)
 
 
-def _onnx_custom_identity(g, X):
+def _onnx_custom_identity(g, X):  # noqa: N803
     """Symbolic for `aten::view_as_real` -- pass-through."""
     return X
-
-
-# pylint: enable=invalid-name
 
 
 def main() -> None:

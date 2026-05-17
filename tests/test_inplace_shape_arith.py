@@ -35,9 +35,12 @@ einops = pytest.importorskip(
         "pattern; install with `pip install einops`."
     ),
 )
-import torch
+import torch  # noqa: E402
 
-from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
+from .utils import (  # noqa: E402
+    TRACT_INFERENCES_TO_TESTS_APPROX,
+    check_model_io_test,
+)
 
 
 class _DprnnLikeBlock(torch.nn.Module):
