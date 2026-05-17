@@ -71,19 +71,6 @@ real-time**, **2.24 ms per frame**. The small overhead vs tract's
 internal profiler (2.13 ms) is wrapper-side tensor construction and
 WAV I/O.
 
-## t2n bugs surfaced
-
-DPDFNet's `DPRNNBlock` uses `einops.rearrange("b c t f -> (b f t) c")`
-to collapse three axes for the inter-chunk RNN. einops builds the
-target shape via a chain of in-place `aten::mul_` calls on a running
-scalar tensor. t2n's IR `call_op` shape-inference replay was running
-the in-place op directly, so every node in the chain aliased the same
-storage and read back the final mutated value. Fixed in the same
-branch by rerouting `aten::mul_` / `aten::div_` to their out-of-place
-equivalents (`fix(torch_graph): route in-place mul_/div_ through
-out-of-place ops`), with a regression test in
-`tests/test_inplace_shape_arith.py`.
-
 ## Run
 
 ```bash
