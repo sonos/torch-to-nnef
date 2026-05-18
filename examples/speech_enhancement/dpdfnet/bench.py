@@ -23,25 +23,51 @@ from torch_to_nnef.inference_target.tract import TractCli, TractNNEF
 from torch_to_nnef.utils import SemanticVersion
 
 HERE = Path(__file__).resolve().parent
-HOP_SIZE = 160
-N_FFT = 320
-NN_STATE_SIZE = 45_424
 NN_PREFIXES = ("inner__enc__", "inner__erb_dec__", "inner__df_dec__")
 
 
-def make_input_bundle(out_dir: Path) -> Path:
+def load_manifest(nnef_path: Path) -> dict:
+    """Read the sidecar JSON manifest written by `export.py`.
+
+    The manifest carries the per-variant audio params (sample_rate,
+    n_fft, hop_size, state_size) so this script doesn't have to
+    hard-code shapes per checkpoint. Looks for a `.json` next to
+    `nnef_path` with the multi-suffix stem stripped (e.g.
+    `dpdfnet2.nnef.tgz` -> `dpdfnet2.json`), then for plain stem
+    fallbacks.
+    """
+    stem = nnef_path.name
+    for suffix in (".tgz", ".nnef", ".json"):
+        if stem.endswith(suffix):
+            stem = stem[: -len(suffix)]
+    candidates = [
+        nnef_path.parent / f"{stem}.json",
+        nnef_path.parent / (nnef_path.name + ".json"),
+        nnef_path.with_suffix(".json"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return json.loads(c.read_text())
+    raise SystemExit(
+        f"missing manifest next to {nnef_path}; expected one of {candidates}"
+    )
+
+
+def make_input_bundle(out_dir: Path, manifest: dict) -> Path:
     """Build an NPZ bundle matching the per-frame NNEF export's 4 inputs."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    bundle_path = out_dir / "inputs.npz"
+    bundle_path = out_dir / f"{manifest['variant']}_inputs.npz"
     if bundle_path.exists():
         return bundle_path
     rng = np.random.default_rng(0)
+    hop_size = manifest["hop_size"]
+    n_fft = manifest["n_fft"]
     np.savez(
         bundle_path,
-        audio_frame=(rng.standard_normal(HOP_SIZE, dtype=np.float32) * 0.05),
-        stft_buf=np.zeros(N_FFT, dtype=np.float32),
-        nn_state=np.zeros(NN_STATE_SIZE, dtype=np.float32),
-        ola_buf=np.zeros(N_FFT, dtype=np.float32),
+        audio_frame=(rng.standard_normal(hop_size, dtype=np.float32) * 0.05),
+        stft_buf=np.zeros(n_fft, dtype=np.float32),
+        nn_state=np.zeros(manifest["state_size"], dtype=np.float32),
+        ola_buf=np.zeros(n_fft, dtype=np.float32),
     )
     return bundle_path
 
@@ -150,8 +176,19 @@ def main() -> None:
     tract_cli = TractCli.download(tract_version)
     print(f"tract: {tract_cli.tract_path} (v{tract_cli.version})")
 
-    bundle = make_input_bundle(args.work_dir)
-    print("per-frame budget: 10.00ms (160 samples @ 16 kHz)")
+    manifest = load_manifest(args.nnef)
+    bundle = make_input_bundle(args.work_dir, manifest)
+    budget_ms = 1000.0 * manifest["hop_size"] / manifest["sample_rate"]
+    print(
+        f"variant {manifest['variant']}: {manifest['sample_rate']} Hz, "
+        f"hop={manifest['hop_size']}, n_fft={manifest['n_fft']}, "
+        f"state_size={manifest['state_size']}"
+    )
+    print(
+        f"per-frame budget: {budget_ms:.2f} ms "
+        f"({manifest['hop_size']} samples @ "
+        f"{manifest['sample_rate'] // 1000} kHz)"
+    )
     print(f"profiling {args.nnef.name} ...")
     stats = profile_one(tract_cli, args.nnef, bundle, args.n_trials)
     nn_secs, dsp_secs, nn_ops, dsp_ops = split_nn_dsp(stats)
@@ -159,7 +196,7 @@ def main() -> None:
     median_ms = stats["median_total_s"] * 1000
     min_ms = stats["min_total_s"] * 1000
     p90_ms = stats["p90_total_s"] * 1000
-    rtfx = 10.0 / median_ms if median_ms > 0 else float("inf")
+    rtfx = budget_ms / median_ms if median_ms > 0 else float("inf")
     nn_ms = nn_secs * 1000
     dsp_ms = dsp_secs * 1000
     print()

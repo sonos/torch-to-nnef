@@ -1,13 +1,13 @@
 <!-- markdownlint-disable-file MD013 MD024 -->
-# DPDFNet 2 (16 kHz) export + Rust WAV cleaner
+# DPDFNet export + Rust WAV cleaner
 
-Export [CEVA's DPDFNet](https://github.com/ceva-ip/DPDFNet) (a modern
-DeepFilterNet 2 successor with dual-path RNN blocks for stronger
-cross-band modelling) to a **single** NNEF artifact and run it on
-tract through a minimal Rust wrapper that takes a WAV in and writes a
-cleaned WAV out.
+Export any [CEVA DPDFNet](https://github.com/ceva-ip/DPDFNet) variant
+(a modern DeepFilterNet 2 successor with dual-path RNN blocks for
+stronger cross-band modelling) to a **single** NNEF artifact, and run
+it on tract through a minimal Rust wrapper that takes a WAV in and
+writes a cleaned WAV out.
 
-The end-to-end deploy is:
+End-to-end deploy:
 
 ```
             +-------------------------------------------+
@@ -15,61 +15,91 @@ noisy.wav --|  wav-cleaner  (1 binary, 1 NNEF artifact) |--> clean.wav
             +-------------------------------------------+
                             ^
                             |
-                +-----------+-----------+
-                | dpdfnet2.nnef.tgz     |  STFT + DPDFNet + iFFT in-graph
-                +-----------------------+
+              +-------------+--------------+
+              | <variant>.nnef.tgz         |  STFT + DPDFNet + iFFT in-graph
+              | <variant>.json (manifest)  |
+              +----------------------------+
 ```
 
 No DSP companion library, no Python in the hot path. The NNEF artifact
 bundles rolling-STFT analysis, the DPDFNet NN, iFFT synthesis, and
-overlap-add, all in one tract-executable graph.
+overlap-add, all in one tract-executable graph. A sidecar JSON manifest
+next to the artifact carries the audio params (`sample_rate`, `n_fft`,
+`hop_size`, `state_size`) so the bench script and the Rust wrapper
+adapt to any variant without hard-coding shapes.
 
 ## Why DPDFNet over DFN3
 
-DPDFNet2 (paper 2024, repo 2025) extends DeepFilterNet 2 with **dual-path
+DPDFNet (paper 2024, repo 2025) extends DeepFilterNet 2 with **dual-path
 RNN blocks** between the ERB encoder and ERB/DF decoders. CEVA reports
 quality wins across PESQ / STOI / SI-SNR on standard SE benchmarks. The
 inner per-frame model exports cleanly to t2n NNEF; the outer streaming
 pipeline (STFT / iFFT / overlap-add) is wrapped by us in `export.py`
 the same way as DFN3 variant B.
 
+## Supported variants
+
+All six checkpoints CEVA ships on HuggingFace are exportable from the
+same `export.py` via `--variant`:
+
+| Variant              | Sample rate | hop | n_fft | DPRNN blocks |
+| -------------------- | ----------- | --- | ----- | ------------ |
+| `baseline`           | 16 kHz      | 160 | 320   | 0            |
+| `dpdfnet2`           | 16 kHz      | 160 | 320   | 2            |
+| `dpdfnet4`           | 16 kHz      | 160 | 320   | 4            |
+| `dpdfnet8`           | 16 kHz      | 160 | 320   | 8            |
+| `dpdfnet2_48khz_hr`  | 48 kHz      | 480 | 960   | 2            |
+| `dpdfnet8_48khz_hr`  | 48 kHz      | 480 | 960   | 8            |
+
+The 48 kHz HR variants need an extra fixup at load time: the upstream
+`MagNorm48` / `SpecNorm48` register their `var0` / `s0` buffers via
+`torch.full(shape, int)` which infers `int64`, and the forward then
+divides a float32 tensor by the buffer (tract rejects "no super type
+for F32 and I64"). `export.py` recasts those buffers to float32 before
+export.
+
 ## Inputs / outputs (per frame)
 
 ```text
-in :  audio_frame[160]            float32  (16 kHz, 10 ms hop)
-   +  stft_buf[320]               float32  (rolling input window)
-   +  nn_state[45424]             float32  (flat DPDFNet state)
-   +  ola_buf[320]                float32  (overlap-add buffer)
+in :  audio_frame[hop_size]       float32
+   +  stft_buf[n_fft]             float32  (rolling input window)
+   +  nn_state[state_size]        float32  (flat DPDFNet state)
+   +  ola_buf[n_fft]              float32  (overlap-add buffer)
 
-out:  enhanced_frame[160]         float32
-   +  stft_buf'[320]
-   +  nn_state'[45424]
-   +  ola_buf'[320]
+out:  enhanced_frame[hop_size]    float32
+   +  stft_buf'[n_fft]
+   +  nn_state'[state_size]
+   +  ola_buf'[n_fft]
 ```
 
-Initial state is zeros for all three state tensors (the upstream DPDFNet
-initialises its norm-state internally, no metadata-baking needed for
-this 16 kHz checkpoint).
+Initial state is zeros for all three state tensors; the upstream
+DPDFNet initialises its norm-state internally.
 
 ## Bench (M4 Pro CPU, tract 0.22.1)
 
-Per-frame budget at 16 kHz with hop=160 is **10 ms**.
+Per-frame budget at the model's sample rate is `hop_size /
+sample_rate` (10 ms for every variant CEVA ships).
 
-| Path | Median | NN ops | DSP ops | RTFx |
-| ---- | ------ | ------ | ------- | ---- |
-| `dpdfnet2.nnef.tgz` (NN + STFT + iFFT in-graph) | **2.128 ms** | 666 (2.035 ms) | 129 (0.076 ms) | **4.70x** |
-| ` ` -> NN-only portion | 2.035 ms | 666 | -- | 4.91x |
-| ` ` -> DSP-only portion | 0.076 ms | -- | 129 | -- |
+| Variant              | Median   | NN ops          | DSP ops         | RTFx     |
+| -------------------- | -------- | --------------- | --------------- | -------- |
+| `dpdfnet2`           | 2.13 ms  | 666 (2.04 ms)   | 129 (0.08 ms)   | **4.70x** |
+| `dpdfnet2_48khz_hr`  | 3.40 ms  | 691 (3.25 ms)   | 132 (0.12 ms)   | **2.94x** |
 
-Hottest NN ops are the **DPRNN** bidirectional GRUs in the encoder
-(four `OptMatMul` calls at ~42 us each, plus a `Scan` at 35 us). The
-in-graph DSP costs 76 us / 3.6 % of the total -- well within the
+Hottest NN ops are the **DPRNN** bidirectional GRUs in the encoder; the
+48 kHz HR additionally hits a heavier `ConvTranspose` in `erb_dec` and
+its rfft / irfft cost is 2-3x the 16 kHz one (960-point vs 320-point).
+In-graph DSP costs <4 % of the total in both cases, well within the
 "single artifact, no DSP companion" budget.
 
-End-to-end on the Rust wrapper (3 seconds of audio): **4.44x
-real-time**, **2.24 ms per frame**. The small overhead vs tract's
-internal profiler (2.13 ms) is wrapper-side tensor construction and
-WAV I/O.
+End-to-end on the Rust wrapper, 3 seconds of synthetic noisy audio:
+
+| Variant              | Per-frame | RTFx     |
+| -------------------- | --------- | -------- |
+| `dpdfnet2`           | 2.18 ms   | **4.55x** |
+| `dpdfnet2_48khz_hr`  | 3.38 ms   | **2.94x** |
+
+(Wrapper-side overhead vs tract's internal profiler is tensor
+construction + WAV I/O.)
 
 ## Run
 
@@ -77,36 +107,45 @@ WAV I/O.
 # from the repo root
 cd examples/speech_enhancement/dpdfnet
 
-# 1. install pip deps (in-repo torch-to-nnef + einops for the model + soundfile)
+# 1. install pip deps (in-repo torch-to-nnef + einops + soundfile)
 pip install -r requirements.txt
 
-# 2. clone CEVA's repo + fetch the dpdfnet2 checkpoint from HuggingFace
+# 2. clone CEVA's repo + fetch a checkpoint from HuggingFace
+#    Pass the variant name; defaults to dpdfnet2 (16 kHz).
 ./bootstrap.sh dpdfnet2
+./bootstrap.sh dpdfnet2_48khz_hr   # or any other variant
 
-# 3. export the streaming NNEF artifact (passes through check_io=True against tract)
-python export.py --out dpdfnet2.nnef.tgz
+# 3. export the streaming NNEF artifact (check_io=True against tract).
+#    Default --variant is dpdfnet2; output goes to <variant>.nnef.tgz
+#    next to a <variant>.json manifest with the audio params.
+python export.py --variant dpdfnet2
+python export.py --variant dpdfnet2_48khz_hr
 
-# 4. profile on tract (per-op latencies, NN vs DSP split)
-python bench.py
+# 4. profile on tract (reads the sidecar manifest)
+python bench.py --nnef dpdfnet2.nnef.tgz
 
-# 5. build the Rust wav-cleaner and run it
+# 5. build the Rust wav-cleaner once, then point it at any variant
 cd wav-cleaner-rs
 cargo build --release
-./target/release/wav-cleaner --model ../dpdfnet2.nnef.tgz --in noisy.wav --out clean.wav
+./target/release/wav-cleaner \
+    --model ../dpdfnet2.nnef.tgz \
+    --in noisy_16k.wav \
+    --out clean_16k.wav
+./target/release/wav-cleaner \
+    --model ../dpdfnet2_48khz_hr.nnef.tgz \
+    --in noisy_48k.wav \
+    --out clean_48k.wav
 ```
 
-The Rust wrapper expects 16 kHz mono WAV input (PCM 16-bit or float32);
-it writes 16-bit PCM. State is threaded automatically; an extra 2 frames
-of silence are appended at the tail so the overlap-add buffer flushes
-the last samples.
+The Rust wrapper reads the variant manifest to pick up the sample rate,
+hop, n_fft, and state size, so the same binary handles every variant.
+Input WAV must match the variant's sample rate, mono int16 or float32;
+output is 16-bit PCM. State is threaded automatically; an extra two
+frames of silence are appended at the tail so the overlap-add buffer
+flushes the last samples.
 
 ## Known limits
 
-- **16 kHz only** in this example. The CEVA repo also ships
-  `dpdfnet2_48khz_hr` / `dpdfnet8_48khz_hr` (960 hop, 320 window
-  variant). The same `export.py` shape would work; just swap the
-  `_build_dpdfnet2` factory for `dpdfnet_48khz_hr.py`'s and adjust
-  `HOP_SIZE` / `N_FFT`. Not done here to keep the example focused.
 - **Static batch size = 1**. DPDFNet is a per-frame streaming model;
   batched inference is unusual. The export uses static axes.
 - **No tract pulse-mode**. The artifact is per-frame with explicit
@@ -121,11 +160,12 @@ the last samples.
 ```
 examples/speech_enhancement/dpdfnet/
   bootstrap.sh         clone DPDFNet repo + download HF checkpoint
-  export.py            wrap DPDFNet + STFT + iFFT, export to NNEF
-  bench.py             tract per-op profile + NN/DSP split
+  export.py            wrap any DPDFNet variant + STFT + iFFT, export to NNEF
+  bench.py             tract per-op profile + NN/DSP split (manifest-aware)
   requirements.txt     pip deps (einops, soundfile, in-repo t2n)
   README.md            this file
-  wav-cleaner-rs/      minimal tract-nnef Rust binary, WAV in / WAV out
+  wav-cleaner-rs/      minimal tract-nnef Rust binary, WAV in / WAV out;
+                       reads the sidecar manifest so it handles every variant
     Cargo.toml
     src/main.rs
 ```

@@ -1,28 +1,35 @@
 //! Minimal WAV cleaner: load NNEF, stream frames through DPDFNet, write a
-//! cleaned WAV.
+//! cleaned WAV. Reads the sidecar JSON manifest written by `export.py`
+//! so it works for any DPDFNet variant (16 kHz or 48 kHz HR) without
+//! recompiling.
 //!
-//! The NNEF artifact (`dpdfnet2.nnef.tgz`) contains the full pipeline:
-//! rolling-STFT, DPDFNet inference, iFFT + overlap-add. We thread the four
-//! state tensors across frames; everything else lives in the graph.
+//! The NNEF artifact contains the full pipeline: rolling-STFT, DPDFNet
+//! inference, iFFT + overlap-add. We thread the four state tensors
+//! across frames; everything else lives in the graph.
 //!
 //! Usage:
 //!     cargo run --release -- --model dpdfnet2.nnef.tgz --in noisy.wav --out clean.wav
 //!
-//! Input WAV must be 16 kHz mono int16. We read frames of `HOP_SIZE` samples,
-//! feed them with the four state tensors, and write the model's per-frame
-//! output back into a WAV of the same format. After the input ends we feed
-//! `--tail-frames` of silence so the OLA buffer flushes the last samples.
+//! Input WAV must match the variant's sample rate (16 kHz for the
+//! `dpdfnet*` variants, 48 kHz for the `*_48khz_hr` ones), mono int16 or
+//! float32. After the input ends we feed `--tail-frames` of silence so
+//! the OLA buffer flushes the last samples.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
+use serde::Deserialize;
 use tract_nnef::prelude::*;
 
-const SAMPLE_RATE: u32 = 16_000;
-const HOP_SIZE: usize = 160;
-const N_FFT: usize = 320;
-const NN_STATE_SIZE: usize = 45_424;
+#[derive(Debug, Deserialize)]
+struct Manifest {
+    variant: String,
+    sample_rate: u32,
+    n_fft: usize,
+    hop_size: usize,
+    state_size: usize,
+}
 
 fn print_usage_and_exit() -> ! {
     eprintln!(
@@ -43,7 +50,6 @@ fn parse_args() -> Args {
     let mut model: Option<PathBuf> = None;
     let mut input: Option<PathBuf> = None;
     let mut output: Option<PathBuf> = None;
-    // Tail = win_len / hop_size = 2 frames is enough to flush the OLA buffer.
     let mut tail_frames: usize = 2;
     while let Some(flag) = argv.next() {
         let val = match flag.as_str() {
@@ -68,7 +74,47 @@ fn parse_args() -> Args {
     }
 }
 
-fn load_model(path: &PathBuf) -> TractResult<TypedSimplePlan<TypedModel>> {
+/// Locate the sidecar manifest next to `nnef_path`.
+///
+/// `export.py` writes `<variant>.json` next to the artifact; for
+/// `dpdfnet2.nnef.tgz` that's `dpdfnet2.json`. We strip the multi-suffix
+/// extensions and try the bare-stem path first, then a couple of
+/// fallbacks (e.g. the user staged everything with the full suffix
+/// chain preserved).
+fn manifest_path_candidates(nnef_path: &Path) -> Vec<PathBuf> {
+    let parent = nnef_path.parent().unwrap_or_else(|| Path::new("."));
+    let name = nnef_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let mut stem = name.to_string();
+    for suffix in [".tgz", ".nnef", ".json"] {
+        if stem.ends_with(suffix) {
+            stem.truncate(stem.len() - suffix.len());
+        }
+    }
+    vec![
+        parent.join(format!("{stem}.json")),
+        parent.join(format!("{name}.json")),
+    ]
+}
+
+fn load_manifest(nnef_path: &Path) -> Result<Manifest, Box<dyn std::error::Error>> {
+    for cand in manifest_path_candidates(nnef_path) {
+        if cand.is_file() {
+            let bytes = std::fs::read(&cand)?;
+            return Ok(serde_json::from_slice(&bytes)?);
+        }
+    }
+    Err(format!(
+        "no manifest next to {} (looked at {:?})",
+        nnef_path.display(),
+        manifest_path_candidates(nnef_path)
+    )
+    .into())
+}
+
+fn load_model(path: &Path) -> TractResult<TypedSimplePlan<TypedModel>> {
     let mut nnef = tract_nnef::nnef();
     nnef.enable_tract_core();
     let model = nnef
@@ -78,7 +124,10 @@ fn load_model(path: &PathBuf) -> TractResult<TypedSimplePlan<TypedModel>> {
     Ok(model)
 }
 
-fn read_wav_mono_f32(path: &PathBuf) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+fn read_wav_mono_f32(
+    path: &Path,
+    expected_sr: u32,
+) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
     let mut reader = WavReader::open(path)?;
     let spec = reader.spec();
     if spec.channels != 1 {
@@ -88,10 +137,10 @@ fn read_wav_mono_f32(path: &PathBuf) -> Result<Vec<f32>, Box<dyn std::error::Err
         )
         .into());
     }
-    if spec.sample_rate != SAMPLE_RATE {
+    if spec.sample_rate != expected_sr {
         return Err(format!(
-            "expected {} Hz input WAV, got {} Hz",
-            SAMPLE_RATE, spec.sample_rate
+            "expected {} Hz input WAV (matches model variant), got {} Hz",
+            expected_sr, spec.sample_rate
         )
         .into());
     }
@@ -113,12 +162,13 @@ fn read_wav_mono_f32(path: &PathBuf) -> Result<Vec<f32>, Box<dyn std::error::Err
 }
 
 fn write_wav_mono_int16(
-    path: &PathBuf,
+    path: &Path,
     samples: &[f32],
+    sample_rate: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let spec = WavSpec {
         channels: 1,
-        sample_rate: SAMPLE_RATE,
+        sample_rate,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
@@ -151,27 +201,37 @@ fn make_input(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args();
+    println!("[wav-cleaner] loading manifest for {}", args.model.display());
+    let manifest = load_manifest(&args.model)?;
+    println!(
+        "[wav-cleaner]   variant={} sr={}Hz hop={} n_fft={} state={}",
+        manifest.variant,
+        manifest.sample_rate,
+        manifest.hop_size,
+        manifest.n_fft,
+        manifest.state_size
+    );
+
     println!("[wav-cleaner] loading {}", args.model.display());
     let model = load_model(&args.model)?;
 
     println!("[wav-cleaner] reading {}", args.input.display());
-    let mut samples = read_wav_mono_f32(&args.input)?;
+    let mut samples = read_wav_mono_f32(&args.input, manifest.sample_rate)?;
     let original_len = samples.len();
-    // Right-pad with `tail_frames * HOP_SIZE` zeros so the OLA flushes.
-    samples.resize(original_len + args.tail_frames * HOP_SIZE, 0.0);
+    samples.resize(original_len + args.tail_frames * manifest.hop_size, 0.0);
 
-    let mut stft_buf = vec![0.0f32; N_FFT];
-    let mut nn_state = vec![0.0f32; NN_STATE_SIZE];
-    let mut ola_buf = vec![0.0f32; N_FFT];
+    let mut stft_buf = vec![0.0f32; manifest.n_fft];
+    let mut nn_state = vec![0.0f32; manifest.state_size];
+    let mut ola_buf = vec![0.0f32; manifest.n_fft];
 
-    let n_frames = samples.len() / HOP_SIZE;
-    let mut out_samples: Vec<f32> = Vec::with_capacity(n_frames * HOP_SIZE);
+    let n_frames = samples.len() / manifest.hop_size;
+    let mut out_samples: Vec<f32> = Vec::with_capacity(n_frames * manifest.hop_size);
 
     let start = Instant::now();
-    let mut frame_buf = vec![0.0f32; HOP_SIZE];
+    let mut frame_buf = vec![0.0f32; manifest.hop_size];
     for f in 0..n_frames {
-        let begin = f * HOP_SIZE;
-        frame_buf.copy_from_slice(&samples[begin..begin + HOP_SIZE]);
+        let begin = f * manifest.hop_size;
+        frame_buf.copy_from_slice(&samples[begin..begin + manifest.hop_size]);
         let inputs = make_input(&frame_buf, &stft_buf, &nn_state, &ola_buf)?;
         let outputs = model.run(inputs)?;
         let enhanced = outputs[0].as_slice::<f32>()?;
@@ -181,13 +241,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ola_buf.copy_from_slice(outputs[3].as_slice::<f32>()?);
     }
     let elapsed = start.elapsed();
-
-    // Drop the leading frames of OLA warm-up (one frame of zeros lag).
-    // We keep `original_len` samples starting at offset 0; tail samples
-    // beyond `original_len` are the flush region from the right padding.
     out_samples.truncate(original_len);
 
-    let audio_seconds = original_len as f64 / SAMPLE_RATE as f64;
+    let audio_seconds = original_len as f64 / manifest.sample_rate as f64;
     let elapsed_seconds = elapsed.as_secs_f64();
     let rtfx = audio_seconds / elapsed_seconds.max(1e-9);
     let per_frame_ms = elapsed_seconds * 1000.0 / n_frames as f64;
@@ -197,6 +253,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     println!("[wav-cleaner] writing {}", args.output.display());
-    write_wav_mono_int16(&args.output, &out_samples)?;
+    write_wav_mono_int16(&args.output, &out_samples, manifest.sample_rate)?;
     Ok(())
 }
