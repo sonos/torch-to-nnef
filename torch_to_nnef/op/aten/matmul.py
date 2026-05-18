@@ -565,37 +565,30 @@ def einsum(g, node, name_to_tensor, inference_target, **kwargs):
     return ["tract_core"]
 
 
-def _emit_unsqueeze_intermediate(g, src: NTensor, axes, suffix: str) -> NTensor:
+def _emit_unsqueeze_intermediate(
+    op_helper, src: NTensor, axes, suffix: str
+) -> NTensor:
     """Emit an `unsqueeze` whose output carries the right intermediate shape.
 
-    `add_single_output_op` builds its output NNEF tensor from
-    `node.outputs[0]`, which for chained-helper emits means every
-    intermediate would inherit the *final* op's shape. For multi-step
-    decomposition we need to author the intermediate NTensor by hand.
+    Wrapper around `op_helper.add_intermediate_op` that computes the
+    unsqueezed shape from `src.shape` + `axes`.
     """
     new_shape = list(src.shape)
     for ax in axes:
         new_shape.insert(ax, 1)
-    out = NTensor(
-        g,
-        name=f"{src.name}_{suffix}",
-        dtype=src.dtype,
-        shape=tuple(new_shape),
+    return op_helper.add_intermediate_op(
+        src=src,
+        op_type="unsqueeze",
+        attrs={"axes": list(axes)},
+        new_shape=new_shape,
+        suffix=suffix,
     )
-    NOperation(
-        g,
-        type="unsqueeze",
-        attribs={"axes": list(axes)},
-        inputs=src,
-        outputs=out,
-    )
-    return out
 
 
 @OP_REGISTRY.register(
     torch_op_ids=["matmul", "bmm", "mm"]
 )  # since NNEF matmul does not care about rank
-def matmul(g, node, name_to_tensor, **kwargs):
+def matmul(g, node, name_to_tensor, op_helper, **kwargs):
     """Map PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF.
 
     NNEF `matmul` requires *equal* rank on both operands; PyTorch's
@@ -648,19 +641,27 @@ def matmul(g, node, name_to_tensor, **kwargs):
         # the row axis. After this A has shape `(1,) * (target_rank-1) +
         # (K,)`; matmul will broadcast batch dims with B.
         a_axes = list(range(target_rank - 1))
-        a_ref = _emit_unsqueeze_intermediate(g, a_ref, a_axes, "matmul_a_rank2")
+        a_ref = _emit_unsqueeze_intermediate(
+            op_helper, a_ref, a_axes, "matmul_a_rank2"
+        )
     elif a_rank < target_rank:
         a_axes = list(range(target_rank - a_rank))
-        a_ref = _emit_unsqueeze_intermediate(g, a_ref, a_axes, "matmul_a_bcast")
+        a_ref = _emit_unsqueeze_intermediate(
+            op_helper, a_ref, a_axes, "matmul_a_bcast"
+        )
 
     if b_is_v:
         # (K,) -> (1, ..., 1, K, 1): leading singletons for batch dims,
         # K stays, then a trailing singleton on the col axis.
         b_axes = list(range(target_rank - 2)) + [target_rank - 1]
-        b_ref = _emit_unsqueeze_intermediate(g, b_ref, b_axes, "matmul_b_rank2")
+        b_ref = _emit_unsqueeze_intermediate(
+            op_helper, b_ref, b_axes, "matmul_b_rank2"
+        )
     elif b_rank < target_rank:
         b_axes = list(range(target_rank - b_rank))
-        b_ref = _emit_unsqueeze_intermediate(g, b_ref, b_axes, "matmul_b_bcast")
+        b_ref = _emit_unsqueeze_intermediate(
+            op_helper, b_ref, b_axes, "matmul_b_bcast"
+        )
 
     matmul_out_shape = list(a_ref.shape)
     matmul_out_shape[-1] = b_ref.shape[-1]

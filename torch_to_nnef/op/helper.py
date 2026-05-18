@@ -1035,6 +1035,49 @@ class OpHelper:
             graph=self.g, name_to_tensor=self.name_to_tensor, **kwargs
         )
 
+    def add_intermediate_op(
+        self,
+        src: "NTensor",
+        op_type: str,
+        attrs: T.Optional[T.Dict[str, T.Any]],
+        new_shape: T.Sequence[int],
+        suffix: str,
+        new_dtype=None,
+    ) -> "NTensor":
+        """Emit an op whose output is a fresh intermediate NTensor.
+
+        `add_single_output_op` derives its output NNEF tensor from
+        `node.outputs[0]`, which for chained-helper emits means every
+        intermediate would inherit the *final* op's shape (and dtype).
+        For multi-step decomposition we need to author the intermediate
+        NTensor by hand: this helper does that.
+
+        Args:
+            src: the upstream NNEF tensor feeding this op.
+            op_type: NNEF op type to emit.
+            attrs: op attributes (or None).
+            new_shape: shape of the intermediate output.
+            suffix: appended to `src.name` to name the new tensor.
+            new_dtype: optional dtype override (defaults to `src.dtype`).
+
+        Returns:
+            The newly-created NNEF tensor.
+        """
+        out = NTensor(
+            self.g,
+            name=f"{src.name}_{suffix}",
+            dtype=new_dtype if new_dtype is not None else src.dtype,
+            shape=tuple(new_shape),
+        )
+        NOperation(
+            self.g,
+            type=op_type,
+            attribs=attrs or {},
+            inputs=src,
+            outputs=out,
+        )
+        return out
+
     def promote_if_int_to_float(
         self,
         node,
