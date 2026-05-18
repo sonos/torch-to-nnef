@@ -51,12 +51,14 @@ same `export.py` via `--variant`:
 | `dpdfnet2_48khz_hr`  | 48 kHz      | 480 | 960   | 2            |
 | `dpdfnet8_48khz_hr`  | 48 kHz      | 480 | 960   | 8            |
 
-The 48 kHz HR variants need an extra fixup at load time: the upstream
-`MagNorm48` / `SpecNorm48` register their `var0` / `s0` buffers via
-`torch.full(shape, int)` which infers `int64`, and the forward then
-divides a float32 tensor by the buffer (tract rejects "no super type
-for F32 and I64"). `export.py` recasts those buffers to float32 before
-export.
+The 48 kHz HR variants check out with no example-side fixups; the
+upstream `MagNorm48` `var0` int64 buffer that used to need a manual
+recast is now handled in t2n itself: float-result unary ops (`sqrt`,
+`log`, `exp`, trig, ...) emit an explicit input cast when the trace
+records a dtype promotion, matching PyTorch's standard
+integer-to-float promotion. HF checkpoints' leftover
+`num_batches_tracked` keys (BatchNorm counters the streaming class
+doesn't have) are filtered before strict-load.
 
 ## Inputs / outputs (per frame)
 

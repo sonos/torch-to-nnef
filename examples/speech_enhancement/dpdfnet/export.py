@@ -123,29 +123,7 @@ _COMMON_KWARGS = {
 
 def _build_inner(spec: VariantSpec):
     """Instantiate the per-variant DPDFNet model class with shared kwargs."""
-    inner = spec.cls(dprnn_num_blocks=spec.dprnn_num_blocks, **_COMMON_KWARGS)
-    # Upstream bug on the 48 kHz HR `MagNorm48` / `SpecNorm48`: their
-    # `var0` / `s0` buffers are registered via `torch.full(shape, int)`
-    # which infers `int64`. The forward then divides a float32 tensor
-    # by `var0.sqrt() + eps`, which tract rejects with "no super type
-    # for F32 and I64". Re-register *participating* integer buffers as
-    # float32. `num_batches_tracked` from BatchNorm is legitimately
-    # integer and never reaches an arithmetic op against float, so we
-    # leave it alone; same for buffers explicitly carrying integer
-    # semantics elsewhere -- target only the float-pretender buffers.
-    _FLOAT_PRETENDER_BUFFERS = {"var0", "s0"}
-    for module in inner.modules():
-        for name, buf in list(module.named_buffers(recurse=False)):
-            if (
-                buf is not None
-                and name in _FLOAT_PRETENDER_BUFFERS
-                and not buf.is_floating_point()
-            ):
-                persistent = name not in module._non_persistent_buffers_set
-                module.register_buffer(
-                    name, buf.to(torch.float32), persistent=persistent
-                )
-    return inner
+    return spec.cls(dprnn_num_blocks=spec.dprnn_num_blocks, **_COMMON_KWARGS)
 
 
 def _vorbis_window(win_len: int) -> torch.Tensor:
