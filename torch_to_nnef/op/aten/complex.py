@@ -51,15 +51,20 @@ def view_as_real(
     inference_target,
     **kwargs,
 ):
-    """Map PyTorch: 'aten:view_as_real' to NNEF."""
+    """Map PyTorch: 'aten:view_as_real' to NNEF.
+
+    The input is a view-tagged complex tensor (IR rank N+1 with the
+    trailing-2 axis carrying `(real, imag)`, dtype `complex64`). PyTorch
+    semantics: `view_as_real` returns a real-dtype tensor with the same
+    `(N+1)`-rank layout. We just retag the dtype back to `float32`; no
+    NNEF op is emitted (the layout in the NNEF tensor is already
+    `(..., 2)` real).
+    """
     if tract_complex_support(inference_target):
         raise T2NErrorNotImplemented("Complex not supported by vanilla NNEF")
-    # in such case we simulate complex with additional last axis being x2
-    # 1 for real
-    # 1 for imaginary
-    # this means that rest of the flow still need to handle this design
-    # decision.
-    torch_graph.remap_node(node.outputs[0], node.inputs[0])
+    in_node = node.inputs[0]
+    in_node.dtype = torch.float32
+    torch_graph.remap_node(node.outputs[0], in_node)
     return []
 
 

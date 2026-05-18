@@ -89,6 +89,7 @@ class _RNNMixin:
         name_to_tensor,
         nnef_fragment_name,
         argument_names_order,
+        inference_target=None,
         **tensor_params_kwargs,
     ):
         """Delegate the per-layer loop to the canonical fragment emitter.
@@ -107,6 +108,7 @@ class _RNNMixin:
             nnef_fragment_name=nnef_fragment_name,
             argument_names_order=argument_names_order,
             tensor_params_fn=self._tensor_params_fn(),
+            inference_target=inference_target,
             **tensor_params_kwargs,
         )
 
@@ -209,6 +211,7 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
             name_to_tensor=name_to_tensor,
             nnef_fragment_name=nnef_fragment_selected,
             argument_names_order=argument_names_order,
+            inference_target=inference_target,
             **tensor_params_kwargs,
         )
 
@@ -286,6 +289,7 @@ class GRUExtractor(_RNNMixin, ModuleInfoExtractor):
                 "b_in",
                 "b_hn",
             ],
+            inference_target=inference_target,
             **tensor_params_kwargs,
         )
 
@@ -349,6 +353,7 @@ class RNNExtractor(_RNNMixin, ModuleInfoExtractor):
                 # -----
                 "b_ih_hh",
             ],
+            inference_target=inference_target,
             **tensor_params_kwargs,
         )
 
@@ -362,7 +367,7 @@ class LSTMCellExtractor(ModuleInfoExtractor):
         c_new = sigmoid(f) * c + sigmoid(i) * tanh(g)
         h_new = sigmoid(o) * tanh(c_new)
 
-    Input order from the user-facing wrapper is `(input, h, c)` -- the
+    Input order from the user-facing wrapper is `(input, h, c)`: the
     internal nn.LSTMCell call expects `(input, (h, c))` which is handled by
     `_call_original_mod_with_args`.
     """
@@ -433,7 +438,7 @@ class LSTMCellExtractor(ModuleInfoExtractor):
             if input_idx is None:
                 input_idx = 0
         else:
-            # Ambiguous shapes -- use position 1 (the empirical (h, input, c)
+            # Ambiguous shapes: use position 1 (the empirical (h, input, c)
             # ordering of the trace).
             input_idx = 1
 

@@ -60,6 +60,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_CONVOLUTION_MODE,
     ATEN_CUMSUM,
     ATEN_DIV,
+    ATEN_DIV_,
     ATEN_EINSUM,
     ATEN_EMBEDDING,
     ATEN_EMPTY,
@@ -362,19 +363,17 @@ def _infer_shape_embedding_output(
 
 
 def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
-    """Infer output tensor shape of matmul without executing it."""
-    ax = list(a.shape)
-    bx = list(b.shape)
-    # Basic rank check (matmul requires at least 2D tensors here)
-    assert len(ax) >= 2 and len(bx) >= 2, "Expected tensors with rank >= 2"
-    # Inner dimension compatibility: (..., M, K) @ (..., K, N)
-    assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
-    # Explicit batch broadcasting resolution
-    batch_shape = torch.broadcast_shapes(ax[:-2], bx[:-2])
-    # Output shape: (..., M, N)
-    cx = list(batch_shape) + [ax[-2], bx[-1]]
-    # Simulated output tensor
-    return torch.Size(cx)
+    """Infer output tensor shape of `aten::matmul` without executing it.
+
+    Delegates to PyTorch's own matmul on `meta` tensors. Meta tensors
+    are zero-allocation shape carriers, so this avoids both the cost
+    of running the full op and the risk of diverging from PyTorch's
+    documented shape rules (rank-1 vector forms, batched broadcasting,
+    future rule changes).
+    """
+    meta_a = torch.empty(tuple(a.shape), device="meta", dtype=a.dtype)
+    meta_b = torch.empty(tuple(b.shape), device="meta", dtype=b.dtype)
+    return meta_a.matmul(meta_b).shape
 
 
 def _infer_shape_linear_output(x, w) -> torch.Size:
@@ -433,7 +432,7 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
     if transposed:
         # PyTorch transposed conv: weight is (Cin, Cout/groups, *kernel),
         # so the actual ``Cout`` is ``w_shape[1] * groups``. Plain
-        # ``w_shape[1]`` only matches when ``groups == 1`` -- for the
+        # ``w_shape[1]`` only matches when ``groups == 1``: for the
         # depthwise upsample in Mimi (``groups == in_channels``) we'd
         # otherwise infer ``Cout = 1`` and downstream LayerNorm chokes.
         cout = w_shape[1] * groups
@@ -500,7 +499,7 @@ INFER_RULES = {
     # tracer hands all-zero placeholder tensors (the dispatcher
     # picks an overload it can't satisfy). Output shape matches the
     # input argument (`input` for bucketize, `values` for
-    # searchsorted) -- short-circuit instead of calling op_ref.
+    # searchsorted): short-circuit instead of calling op_ref.
     "aten::bucketize": InferRule(
         lambda inp, *_: inp.shape, 1, require_dtype=False
     ),
@@ -611,7 +610,7 @@ class TorchOp:
     def update_call_op_arg_kwargs(self, args):
         """Custom adaptation to call aten fn with torch exposed py fn."""
         kwargs = {}
-        if self.kind == ATEN_DIV and len(args) >= 3:
+        if self.kind in (ATEN_DIV, ATEN_DIV_) and len(args) >= 3:
             kwargs["rounding_mode"] = args[2]
             args = args[:-1]
             self.op_ref = torch.div
@@ -632,6 +631,30 @@ class TorchOp:
             self.op_ref = (
                 torch.add if self.kind in (ATEN_ADD, ATEN_ADD_) else torch.sub
             )
+        # In-place ops (`aten::*_`, but not double-underscore dunders
+        # like `aten::__and__`) mutate their first input in place. During
+        # IR construction we re-execute each op via `call_op` to recover
+        # output shape/dtype, but the input tensor's `_traced_data` may
+        # be shared across IR nodes (e.g. einops' shape-product chain
+        # reuses the same scalar tensor across `mul_` calls). Routing
+        # through the out-of-place equivalent gives the same result
+        # without mutating the input. The in-place semantics aren't
+        # needed at trace time.
+        #
+        # Generic strip: `aten::foo_` -> `torch.foo` when the resolved
+        # out-of-place callable exists. Falls back to the in-place
+        # op_ref otherwise (e.g. ops with no out-of-place form). Covers
+        # mul_, div_, pow_, clamp_, sqrt_, exp_, and any future `_`
+        # in-place op without needing per-op enumeration.
+        if (
+            self.kind.startswith(ATEN_STARTID)
+            and self.kind.endswith("_")
+            and not self.kind.endswith("__")
+        ):
+            outplace_name = self.kind[len(ATEN_STARTID) : -1]
+            outplace_fn = getattr(torch, outplace_name, None)
+            if outplace_fn is not None and callable(outplace_fn):
+                self.op_ref = outplace_fn
         # }
         args, kwargs = InputsAlignBetweenAtenAndTorch.align_inputs(
             self.kind, args, kwargs

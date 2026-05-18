@@ -87,12 +87,20 @@ def generic_unary(aten_op_id, node, op_helper, **kwargs):
         'aten:less', 'aten:less_equal', 'aten:logical_not', 'aten:logical_and',
         'aten:logical_or', 'aten:reciprocal', 'aten:minimum', 'aten:maximum'
     """
-    aten_op_id = REMAP_ATEN_OP_NAMES.get(aten_op_id, aten_op_id)
+    nnef_name = REMAP_ATEN_OP_NAMES.get(aten_op_id, aten_op_id)
     inference_target = kwargs.get("inference_target")
     if isinstance(inference_target, TractNNEF):
-        aten_op_id = TRACT_OP_ALIASES.get(aten_op_id, aten_op_id)
+        nnef_name = TRACT_OP_ALIASES.get(nnef_name, nnef_name)
+
+    # PyTorch's silent int->float promotion (`sqrt(int) -> float`,
+    # `sin(int) -> float`, ...) is bridged at the NNEF emit layer:
+    # the float-result NNEF op names are registered in
+    # `OPS_IMPLICIT_CAST_BY_OUTPUT_DTYPE`, and
+    # `add_single_output_op_from_nnef_tensors` automatically casts
+    # integer inputs to match the trace's recorded output dtype.
+    # Falling through to the generic emitter is sufficient here.
     return op_helper.unary_output_op_without_attr(
-        nnef_op_type=aten_op_id,
+        nnef_op_type=nnef_name,
         node=node,
     )
 

@@ -23,21 +23,60 @@ from ._common import (
 
 
 def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.matmul(A, B)`: joint inner-dim constraint A[-1]==B[-2]."""
+    """`torch.matmul(A, B)` across all PyTorch-supported rank shapes.
+
+    Covers the four documented forms:
+      * vec @ vec: `(K,) @ (K,) -> scalar`
+      * vec @ mat: `(K,) @ (..., K, N) -> (..., N)`
+      * mat @ vec: `(..., M, K) @ (K,) -> (..., M)`
+      * mat @ mat: `(..., M, K) @ (..., K, N) -> (..., M, N)` (batched)
+
+    The rank-1 forms previously had a standalone test
+    (`tests/test_primitive.py:rank-1 matmul cases`); they now live
+    here so any future regression on `_infer_trace_result_matmul` or
+    the rank-1 emit path is caught by the property suite.
+    """
 
     @st.composite
     def _draw(draw) -> OpSample:
-        # Rank in [2, 4]: 2D for plain matmul, higher for batched.
-        rank = draw(st.integers(min_value=2, max_value=4))
-        batch_dims = []
-        for _ in range(rank - 2):
-            batch_dims.append(draw(st.integers(min_value=1, max_value=3)))
-        m = draw(st.integers(min_value=1, max_value=6))
+        form = draw(
+            st.sampled_from(["vec_vec", "vec_mat", "mat_vec", "mat_mat"])
+        )
         k = draw(st.integers(min_value=1, max_value=6))
-        n = draw(st.integers(min_value=1, max_value=6))
+        if form == "vec_vec":
+            a_shape = (k,)
+            b_shape = (k,)
+        elif form == "vec_mat":
+            rank_b = draw(st.integers(min_value=2, max_value=4))
+            batch = [
+                draw(st.integers(min_value=1, max_value=3))
+                for _ in range(rank_b - 2)
+            ]
+            n = draw(st.integers(min_value=1, max_value=6))
+            a_shape = (k,)
+            b_shape = tuple(batch + [k, n])
+        elif form == "mat_vec":
+            rank_a = draw(st.integers(min_value=2, max_value=4))
+            batch = [
+                draw(st.integers(min_value=1, max_value=3))
+                for _ in range(rank_a - 2)
+            ]
+            m = draw(st.integers(min_value=1, max_value=6))
+            a_shape = tuple(batch + [m, k])
+            b_shape = (k,)
+        else:
+            rank = draw(st.integers(min_value=2, max_value=4))
+            batch = [
+                draw(st.integers(min_value=1, max_value=3))
+                for _ in range(rank - 2)
+            ]
+            m = draw(st.integers(min_value=1, max_value=6))
+            n = draw(st.integers(min_value=1, max_value=6))
+            a_shape = tuple(batch + [m, k])
+            b_shape = tuple(batch + [k, n])
         a = draw(
             tensor_st(
-                tuple(batch_dims + [m, k]),
+                a_shape,
                 torch.float32,
                 finite=True,
                 domain=Interval(-5.0, 5.0),
@@ -45,7 +84,7 @@ def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
         )
         b = draw(
             tensor_st(
-                tuple(batch_dims + [k, n]),
+                b_shape,
                 torch.float32,
                 finite=True,
                 domain=Interval(-5.0, 5.0),

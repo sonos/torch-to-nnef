@@ -974,7 +974,7 @@ _UNARY_SINC_DOMAIN = Interval(-10.0, 10.0)
 # `frac` straddles the integer boundary; bound modestly so trunc has
 # room without overflowing f32 mantissa precision.
 _UNARY_FRAC_DOMAIN = Interval(-1e3, 1e3)
-# Hypot, copysign etc. -- a single comfortable f32 finite range.
+# Hypot, copysign etc.: a single comfortable f32 finite range.
 _BINARY_FINITE_DOMAIN = Interval(-1e3, 1e3)
 # logaddexp(2): inputs already get exp'd internally, so bound similar
 # to the unary exp surface.
@@ -1357,7 +1357,7 @@ def _special_function_specs() -> T.List[OpSpec]:
 
 
 def _xlog1py_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.special.xlog1py(x, y)` -- domain `y > -1`.
+    """`torch.special.xlog1py(x, y)`: domain `y > -1`.
 
     Shapes are kept equal-rank so the broadcast goes through tract's
     pointwise binary path (rank-mismatch broadcast hits an unrelated

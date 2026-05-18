@@ -20,6 +20,54 @@ LOGGER = logging.getLogger(__name__)
 OP_REGISTRY = AtenOpRegistry()
 
 
+def _is_view_tagged_complex(input_node) -> bool:
+    """True iff `input_node` is the trailing-2 / dtype-tagged complex form.
+
+    t2n's chosen convention for complex tensors is *view-tagged*: a
+    PyTorch tensor of logical complex rank N is represented in the IR
+    as rank N+1 with the trailing axis of size 2 carrying the
+    `(real, imag)` pair, and `dtype` marked `complex64` / `complex128`.
+    Real tensors keep their PyTorch rank and a real dtype.
+
+    `view_as_complex`, `complex`, `polar`, and every FFT output (after
+    this module's normalisation) all produce view-tagged complex; the
+    consumer handlers (`fft_irfft`, `angle`, `conj`, `real`/`imag`,
+    `sgn`, `view_as_real`) all read `rank - 1` for the complex axis.
+    Keeping the convention uniform across t2n is what lets chains like
+    `view_as_complex(x).fft.irfft(...)` work with no special-casing.
+    """
+    # `rank >= 2` is load-bearing: a view-tagged complex tensor carries
+    # the trailing-2 axis *on top of* at least one logical axis, so its
+    # IR rank is at least 2. A rank-1 complex tensor with shape `[2]`
+    # (which a rank-1 `rfft` of a length-2 signal produces) is logically
+    # rank-1 with 2 complex bins, *not* view-tagged.
+    return (
+        input_node.dtype in (torch.complex64, torch.complex128)
+        and input_node.rank >= 2
+        and isinstance(input_node.shape, list)
+        and input_node.shape[-1] == 2
+    )
+
+
+def _pick_logical_axis(input_node, raw_dim) -> int:
+    """Resolve a (possibly negative) PyTorch dim against the *logical* rank.
+
+    For view-tagged complex inputs the logical rank is `IR_rank - 1`
+    (the trailing-2 axis is the complex pair, not a logical axis); for
+    real inputs the logical rank equals the IR rank.
+    """
+    logical_rank = (
+        input_node.rank - 1
+        if _is_view_tagged_complex(input_node)
+        else input_node.rank
+    )
+    if raw_dim is None:
+        raw_dim = -1
+    if raw_dim < 0:
+        raw_dim += logical_rank
+    return raw_dim
+
+
 def _fft(
     node,
     g,
@@ -412,6 +460,13 @@ def fft_rfft(g, node, name_to_tensor, inference_target, **kwargs):
         attrs={"axis": dim, "inverse": False},
         output_tensor_name_suffix="rfft_full_spectrum",
     )
+    # Promote the IR output to the t2n view-tagged complex convention:
+    # rank = logical_rank + 1, last axis = 2 (the (real, imag) pair).
+    # Without this, an rfft output whose logical bin-count happens to be
+    # 2 is indistinguishable from a view-tagged complex (both have
+    # `shape[-1] == 2`) and `_is_view_tagged_complex` would misclassify
+    # downstream (e.g. `fft.irfft(fft.rfft(...))` on a length-2 axis).
+    node.outputs[0].shape = list(node.outputs[0].shape) + [2]
     add_single_output_op(
         g,
         node,
@@ -444,12 +499,11 @@ def _fftn_loop(
     if norm_node.data is not None:
         raise T2NErrorNotImplemented("norm unexpected")
 
-    # Default `dim`: all real-tensor axes (the trailing complex axis is
-    # added below and never gets transformed).
+    # Default `dim`: all logical (non-complex) axes. For view-tagged
+    # complex inputs the trailing-2 axis is not an FFT axis.
     raw_dims = dim_node.data
     if raw_dims is None:
-        if input_node.dtype in [torch.complex64, torch.complex128]:
-            # complex stored as [..., 2]; real-tensor rank is one less.
+        if _is_view_tagged_complex(input_node):
             real_rank = input_node.rank - 1
         else:
             real_rank = input_node.rank
@@ -542,12 +596,26 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
             f"fft_irfft expects complex input; got dtype={input_node.dtype}"
         )
 
-    # `input_node.rank` is the PyTorch (complex) rank; NNEF emission
-    # adds a trailing-2 axis at position `input_node.rank`. The FFT
-    # axis sits inside the complex view, so `pick_axis` works against
-    # the PyTorch rank as usual.
-    dim = pick_axis(input_node, dim_node.data)
-    complex_axis = input_node.rank
+    # Two IR layouts arrive here for a complex tensor (see
+    # `_is_view_tagged_complex` for the full discussion). The view-tagged
+    # form (`view_as_complex` / `complex` / `polar`) keeps the trailing-2
+    # axis in the IR shape; the logical form (`fft.fft` / `fft.rfft` /
+    # `fft.ifft` / `fft.fftn` / `fft.ifftn` / `stft`) keeps the PyTorch
+    # logical rank. The handler dispatches against the heuristic; the
+    # only fragile case (a logical complex tensor whose FFT axis happens
+    # to be 2) is implausible in real models: FFT axes are practically
+    # never 2.
+    if _is_view_tagged_complex(input_node):
+        # View-tagged: trailing-2 already in IR shape.
+        # logical rank = IR rank - 1, complex axis sits at IR rank - 1.
+        dim = _pick_logical_axis(input_node, dim_node.data)
+        complex_axis = input_node.rank - 1
+    else:
+        # Logical: NNEF emission upstream added the trailing-2 axis at
+        # position `input_node.rank`. PyTorch dim is picked directly
+        # against the input rank.
+        dim = pick_axis(input_node, dim_node.data)
+        complex_axis = input_node.rank
     k = input_node.shape[dim]
     if not isinstance(k, int):
         raise T2NErrorNotImplemented("fft_irfft on dynamic FFT axis")
@@ -656,7 +724,15 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
         )
 
         # 4. Concat input with conjugate mirror on the FFT axis
-        #    -> (..., n, 2).
+        #    -> (..., n, 2). Force `force_consistent_inputs_shapes=False`:
+        #    every intermediate NNEF tensor we created above carries
+        #    `node.outputs[0]`'s shape (the irfft's final-output rank,
+        #    which is the *real* signal rank without the trailing-2),
+        #    so the auto-aligner's rank comparison against `inp` (the
+        #    full view-tagged complex tensor) sees an artificial
+        #    mismatch and prepends an extra leading-1. The actual NNEF
+        #    op semantics are correct; we just need to keep the helper
+        #    from second-guessing them.
         full_spec = add_single_output_op(
             g,
             node,
@@ -665,6 +741,7 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
             inputs=[inp, conj],
             attrs={"axis": dim},
             ensure_tuple=False,
+            force_consistent_inputs_shapes=False,
             output_tensor_name_suffix="_irfft_full_spec",
         )
 

@@ -1,6 +1,7 @@
 import typing as T
 
 import torch
+from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE, TORCH_DTYPE_TO_TRACT_STR
@@ -9,6 +10,7 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
+    add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
     weight_bias_and_output_tensor,
@@ -34,7 +36,7 @@ def _get_padding_same_symetric(
 
 
 @OP_REGISTRY.register(
-    # Most of these aten symbols never reach the trace -- pytorch
+    # Most of these aten symbols never reach the trace: pytorch
     # decomposes them through `aten::_convolution_mode` or
     # `aten::_convolution` upstream. `convolution_overrideable` is an
     # autograd hook for backend-specific dispatch; same story. The
@@ -150,6 +152,7 @@ def _emit_conv(
     dilation,
     groups,
     transposed,
+    output_padding=None,
 ):
     """Emit NNEF `conv` / `deconv` for the convolution family.
 
@@ -159,6 +162,19 @@ def _emit_conv(
     `(in_channels, out_channels // groups, *spatial)`; NNEF's `deconv`
     expects `(in_channels // groups, out_channels, *spatial)`. The
     grouped-then-transposed reshape is in-place on `weight_node.data`.
+
+    PyTorch's transposed conv has an `output_padding` parameter that
+    extends the output by up to `stride-1` on the "after" side, used to
+    disambiguate the inverse of a strided conv (multiple input sizes
+    yield the same forward-conv output size). NNEF's `deconv` does not
+    expose `output_padding` directly, but the difference is exactly the
+    same as removing `output_padding` from the cropping on the "after"
+    side. So `pytorch (pad, output_padding)` maps to NNEF
+    `padding=(pad, pad - output_padding)` (asymmetric). Without this
+    asymmetric adjustment, every deconv with `output_padding > 0`
+    underestimates the output by `output_padding`, and the shape
+    mismatch propagates into downstream shape inference (typically
+    surfaced by a `reshape` whose static target no longer matches).
     """
     # TODO: problem with conv on qtensor for weight or bias
     # since these params can now be dynamic
@@ -194,6 +210,35 @@ def _emit_conv(
         null_ref,
     )
 
+    nnef_padding = []
+    for axis, pad in enumerate(padding):
+        if isinstance(pad, int):
+            pad_before, pad_after = pad, pad
+        else:
+            pad_before, pad_after = pad
+        if transposed and output_padding is not None:
+            op = output_padding[axis] if axis < len(output_padding) else 0
+            if op:
+                # Subtract output_padding from the "after"-side crop. We
+                # require that the result stays non-negative; otherwise
+                # we'd need a post-deconv pad op to reach the right
+                # output size. PyTorch's constraint `output_padding <
+                # max(stride, dilation)` keeps this in the safe range
+                # for the common cases (stride>=2 with pad>=1): if a
+                # model triggers the corner where `pad_after < op`
+                # we raise so the gap is explicit rather than silently
+                # producing a wrong-shape NNEF.
+                if pad_after - op < 0:
+                    raise T2NErrorNotImplemented(
+                        "conv_transpose `output_padding > padding` "
+                        "would require a negative NNEF deconv padding "
+                        f"(axis={axis}, pad={pad_after}, "
+                        f"output_padding={op}); emit a post-deconv pad "
+                        "op instead (not yet implemented)."
+                    )
+                pad_after -= op
+        nnef_padding.append((pad_before, pad_after))
+
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
         graph=g,
@@ -207,9 +252,7 @@ def _emit_conv(
         outputs=output_tensor,
         attribs={
             "dilation": list(dilation),
-            "padding": [
-                (pad, pad) if isinstance(pad, int) else pad for pad in padding
-            ],
+            "padding": nnef_padding,
             "stride": list(stride),
             "groups": groups,
             "border": "constant",
@@ -229,7 +272,7 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         padding_node,
         dilation_node,
         transposed_node,
-        _,  # output_padding_name
+        output_padding_node,
         groups_node,
         _,  # benchmark_name
         _,  # deterministic_name
@@ -250,6 +293,7 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         dilation=dilation_node.data,
         groups=groups_node.data,
         transposed=transposed_node.data,
+        output_padding=output_padding_node.data,
     )
 
 
@@ -268,7 +312,7 @@ def conv_transpose_nd(
     decomposing for some platform.
 
     Signature: `(input, weight, bias?, stride, padding, output_padding,
-    groups, dilation)` -- 8 positional args.
+    groups, dilation)`: 8 positional args.
     """
     (
         input_node,
@@ -276,7 +320,7 @@ def conv_transpose_nd(
         bias_node,
         stride_node,
         padding_node,
-        _,  # output_padding -- not propagated to NNEF deconv
+        output_padding_node,
         groups_node,
         dilation_node,
     ) = node.inputs
@@ -294,6 +338,7 @@ def conv_transpose_nd(
         dilation=dilation_node.data,
         groups=groups_node.data,
         transposed=True,
+        output_padding=output_padding_node.data,
     )
 
 
@@ -304,7 +349,7 @@ def conv_tbc(
     """Map PyTorch: 'aten:conv_tbc' to NNEF.
 
     `conv_tbc(input, weight, bias, pad)` is a 1-D convolution over a
-    `(T, B, C)` input -- time-batch-channel layout -- with weight
+    `(T, B, C)` input: time-batch-channel layout: with weight
     `(kernel, C_in, C_out)`. Equivalent semantically to
     `conv1d(input.permute(1, 2, 0), weight.permute(2, 1, 0), bias,
     padding=pad).permute(2, 0, 1)`, which is exactly the
@@ -520,29 +565,135 @@ def einsum(g, node, name_to_tensor, inference_target, **kwargs):
     return ["tract_core"]
 
 
+def _emit_unsqueeze_intermediate(
+    op_helper, src: NTensor, axes, suffix: str
+) -> NTensor:
+    """Emit an `unsqueeze` whose output carries the right intermediate shape.
+
+    Wrapper around `op_helper.add_intermediate_op` that computes the
+    unsqueezed shape from `src.shape` + `axes`.
+    """
+    new_shape = list(src.shape)
+    for ax in axes:
+        new_shape.insert(ax, 1)
+    return op_helper.add_intermediate_op(
+        src=src,
+        op_type="unsqueeze",
+        attrs={"axes": list(axes)},
+        new_shape=new_shape,
+        suffix=suffix,
+    )
+
+
 @OP_REGISTRY.register(
     torch_op_ids=["matmul", "bmm", "mm"]
 )  # since NNEF matmul does not care about rank
-def matmul(g, node, name_to_tensor, **kwargs):
-    """Map PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF."""
-    (
-        input_node,
-        other_node,
-    ) = node.inputs
+def matmul(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF.
 
-    add_single_output_op(
+    NNEF `matmul` requires *equal* rank on both operands; PyTorch's
+    `aten::matmul` accepts rank-1 forms with these documented semantics:
+
+      - `(K,) @ (..., K, N)`   -> `(..., N)` : promote A to `(..., 1, K)`,
+        matmul gives `(..., 1, N)`, squeeze the row-1 axis.
+      - `(..., M, K) @ (K,)`   -> `(..., M)` : promote B to `(..., K, 1)`,
+        matmul gives `(..., M, 1)`, squeeze the col-1 axis.
+      - `(K,) @ (K,)`          -> `()` (scalar): promote both, matmul
+        gives `(1, 1)`, squeeze both axes.
+
+    Both inputs are promoted to a common `target_rank = max(a_rank,
+    b_rank, 2)`: batch dims get prepended `1`s; for rank-1 inputs the
+    vector lands as the row (A) or column (B) dim with a singleton on
+    the opposite side. The post-matmul squeeze drops those singletons
+    to match `_infer_trace_result_matmul`'s rank prediction so
+    downstream `unsqueeze(-1)` / shape ops resolve their axes against
+    the same rank the IR is tracking.
+    """
+    (input_node, other_node) = node.inputs
+    a_rank = input_node.rank
+    b_rank = other_node.rank
+
+    a_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    b_ref = get_or_add_tensor_variable_in_nnef(g, other_node, name_to_tensor)
+
+    a_is_v = a_rank < 2
+    b_is_v = b_rank < 2
+
+    if not (a_is_v or b_is_v):
+        # Standard case: both rank >= 2. Let the generic emitter handle
+        # it: `force_consistent_inputs_shapes` prepends 1s to the
+        # smaller-rank input if needed (e.g. rank-3 @ rank-2), and the
+        # IR shape inferrer already accounts for that broadcasting.
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "matmul",
+            inputs=(a_ref, b_ref),
+            attrs={"transposeA": False, "transposeB": False},
+        )
+        return
+
+    target_rank = max(a_rank, b_rank, 2)
+
+    if a_is_v:
+        # (K,) -> (1, ..., 1, K): leading singletons for batch dims +
+        # the row axis. After this A has shape `(1,) * (target_rank-1) +
+        # (K,)`; matmul will broadcast batch dims with B.
+        a_axes = list(range(target_rank - 1))
+        a_ref = _emit_unsqueeze_intermediate(
+            op_helper, a_ref, a_axes, "matmul_a_rank2"
+        )
+    elif a_rank < target_rank:
+        a_axes = list(range(target_rank - a_rank))
+        a_ref = _emit_unsqueeze_intermediate(
+            op_helper, a_ref, a_axes, "matmul_a_bcast"
+        )
+
+    if b_is_v:
+        # (K,) -> (1, ..., 1, K, 1): leading singletons for batch dims,
+        # K stays, then a trailing singleton on the col axis.
+        b_axes = list(range(target_rank - 2)) + [target_rank - 1]
+        b_ref = _emit_unsqueeze_intermediate(
+            op_helper, b_ref, b_axes, "matmul_b_rank2"
+        )
+    elif b_rank < target_rank:
+        b_axes = list(range(target_rank - b_rank))
+        b_ref = _emit_unsqueeze_intermediate(
+            op_helper, b_ref, b_axes, "matmul_b_bcast"
+        )
+
+    matmul_out_shape = list(a_ref.shape)
+    matmul_out_shape[-1] = b_ref.shape[-1]
+    matmul_out = NTensor(
         g,
-        node,
-        name_to_tensor,
-        "matmul",
-        inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            get_or_add_tensor_variable_in_nnef(g, other_node, name_to_tensor),
-        ),
-        attrs={
-            "transposeA": False,
-            "transposeB": False,
-        },
+        name=f"{node.outputs[0].export_name}_matmul",
+        dtype=a_ref.dtype,
+        shape=tuple(matmul_out_shape),
+    )
+    NOperation(
+        g,
+        type="matmul",
+        attribs={"transposeA": False, "transposeB": False},
+        inputs=(a_ref, b_ref),
+        outputs=matmul_out,
+    )
+
+    squeeze_axes = []
+    if a_is_v:
+        squeeze_axes.append(target_rank - 2)
+    if b_is_v:
+        squeeze_axes.append(target_rank - 1)
+
+    out_final = add_tensor_variable_node_as_nnef_tensor(
+        g, node.outputs[0], name_to_tensor, prevent_variable=True
+    )
+    NOperation(
+        g,
+        type="squeeze",
+        attribs={"axes": sorted(squeeze_axes)},
+        inputs=matmul_out,
+        outputs=out_final,
     )
 
 
@@ -783,7 +934,7 @@ def inner(g, node, name_to_tensor, op_helper, **kwargs):
     For 1D inputs the trace materializes torch's "0-D scalar" output;
     NNEF doesn't have a 0-D tensor type, so for the 1D case we let the
     standard matmul emit a `(1, 1)` result and rely on torch's trace
-    having squeezed it upstream (it does -- `aten::inner` with 1D
+    having squeezed it upstream (it does: `aten::inner` with 1D
     inputs is the dot-product overload that returns a 0-D real).
     """
     a_node, b_node = node.inputs[:2]
@@ -1007,7 +1158,7 @@ def _emit_fused_matmul(g, node, name_to_tensor, inference_target, fragment):
     """Shared body for `addbmm` / `addmv` / `addr`.
 
     All three follow the same `(self, A, B, *, beta, alpha)` aten
-    signature as `baddbmm` -- only the fragment that does the actual
+    signature as `baddbmm`: only the fragment that does the actual
     math differs.
     """
     input_node, a_node, b_node, beta_node, alpha_node = node.inputs

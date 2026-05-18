@@ -154,18 +154,21 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         elif not all(go.type().kind() == "TensorType" for go in gouts):
             raise T2NErrorNotImplemented([go.type().kind() for go in gouts])
         used_outputs_order = [_.offset() for _ in gouts]
-        if provided_outputs and len(gouts) > len(provided_outputs):
-            raise T2NErrorNotImplemented(
-                "Unclear how to mitigate in such case n output from "
-                f"PyTorch Python: {len(results)} but "
-                f"PyTorch IR graph has: {len(gouts)} "
-                "(this problem was not observed in PyTorch>=2.0)"
-            )
+        # When `len(gouts) > len(provided_outputs)` the submodule's IR
+        # exposes more outputs than the caller binds. Common shape: an
+        # `nn.GRU` returns `(output, h_n)` and the caller writes
+        # `out, _ = gru(x)`, so `h_n` is dead from the upstream's
+        # perspective but still appears in the submodule's trace. The
+        # extra IR slots get placeholder TensorVariables so the submodule
+        # graph stays well-formed; downstream optimisation drops the
+        # references the caller never reads.
         for idx, result in enumerate(expanded_results):
+            tensor_variable = None
             if provided_outputs and idx in used_outputs_order:
                 po_ix = used_outputs_order.index(idx)
-                tensor_variable = provided_outputs[po_ix]
-            else:
+                if po_ix < len(provided_outputs):
+                    tensor_variable = provided_outputs[po_ix]
+            if tensor_variable is None:
                 tensor_variable = tg.TensorVariable(
                     name=f"{self._cname_slug}_output_{idx}",
                     shape=list(result.shape),

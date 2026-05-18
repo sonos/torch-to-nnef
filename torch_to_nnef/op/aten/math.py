@@ -673,7 +673,8 @@ def square(node, op_helper, **kwargs):
 
     `x.square()` is `x * x`; the dedicated NNEF `sqr` op exists in some
     runtimes but the simplest portable form is a `mul` with the same
-    tensor on both sides.
+    tensor on both sides. `square` preserves dtype, so no int->float
+    promotion is needed.
     """
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     op_helper.add_single_output_op_from_nnef_tensors(

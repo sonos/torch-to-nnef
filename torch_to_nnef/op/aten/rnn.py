@@ -387,7 +387,7 @@ def gru_cell(g, node, name_to_tensor, **kwargs):
 
 
 # -------------------------------------------------------------------------
-# RNNCell (single step Elman cell, tanh/relu variants -- see
+# RNNCell (single step Elman cell, tanh/relu variants: see
 # rnn_tanh_cell.nnef / rnn_relu_cell.nnef fragments)
 # -------------------------------------------------------------------------
 
@@ -410,9 +410,9 @@ def emit_rnn_cell_via_fragment(
 ) -> T.List[str]:
     """Emit a single `rnn_{tanh,relu}_cell` NNEF fragment call.
 
-    Like `lstm_cell` the biases are pre-summed to a single `(1, H)` term
-    -- the Elman cell's nonlinearity sits on the full preactivation so
-    `b_ih` and `b_hh` are interchangeable in the math.
+     Like `lstm_cell` the biases are pre-summed to a single `(1, H)` term
+    : the Elman cell's nonlinearity sits on the full preactivation so
+     `b_ih` and `b_hh` are interchangeable in the math.
     """
     if nonlinearity not in ("tanh", "relu"):
         raise T2NErrorNotImplemented(
@@ -621,13 +621,35 @@ def _translate_state_variable_load_and_prep(
     tensor_variable,
     torch_tensor,
     input_tensor,
+    inference_target=None,
+    static_batch_size: T.Optional[int] = None,
 ) -> NTensor:
     """Materialize a default initial state at runtime.
 
     Used when the user did not pass an explicit hidden state. We store
-    the per-layer init tensor as a variable and tile it along the input's
-    batch axis so the runtime gets a correctly-shaped state without the
-    graph baking in a specific batch size.
+    the per-layer init tensor (shape `(1, 1, hidden)`) as a variable
+    and tile it along the input's batch axis to `(1, batch, hidden)`.
+
+    Two emit strategies for the batch repeat count:
+
+    - **Static** (caller passes a `static_batch_size`): the value is
+      baked into the `tile` repeats as an `int`. No `tract_core_shape_of`
+      is emitted. This avoids introducing a tract symbol that would
+      otherwise propagate through the RNN and downstream ops, breaking
+      shape inference where a static dim is expected (e.g. a reshape
+      with a baked target size). This is the right path when the
+      inference target has no dynamic axes.
+    - **Dynamic**: the batch size is read from the input at runtime
+      via `tract_core_shape_of -> slice -> squeeze`, then fed as an
+      `Identifier` into `tile(..., repeats=[1, B, 1])`. Required when
+      the model is exported with symbolic batch.
+
+    The caller is responsible for choosing which mode based on
+    `inference_target.has_dynamic_axes`: this function does not
+    re-derive the batch size from `input_tensor.shape`, because
+    `input_tensor` is the post-`_pre_batch_first` tensor and its
+    `.shape` attribute still reflects the pre-transpose IR layout
+    (so axis 1 is *seq*, not batch, when `batch_first=True`).
     """
     assert tensor_variable is None, tensor_variable
     base_var_name = next(node.op_ref.parameters()).nnef_name.rsplit(".", 1)[0]
@@ -655,60 +677,66 @@ def _translate_state_variable_load_and_prep(
         dtype=node.inputs[0].dtype,
     )
 
-    batch_size_tensor_id = f"{reference_rnn_input.export_name}_batch_size"
-    if batch_size_tensor_id in name_to_tensor:
-        input_batch_size_tensor = name_to_tensor[batch_size_tensor_id]
-    else:
-        input_shape_tensor = helper.add_tensor_variable_node_as_nnef_tensor(
-            g,
-            reference_rnn_input,
-            name_to_tensor,
-            name_suffix="shape",
-            prevent_variable=True,
-        )
-        NOperation(
-            g,
-            type="tract_core_shape_of",
-            inputs=name_to_tensor[reference_rnn_input.export_name],
-            outputs=input_shape_tensor,
-        )
-        input_batch_size_slice_tensor = (
-            helper.add_tensor_variable_node_as_nnef_tensor(
+    input_batch_size_tensor = None
+    if static_batch_size is None:
+        # Dynamic-axes path: derive the batch size from the input at
+        # runtime via `tract_core_shape_of -> slice -> squeeze`. Cache
+        # the result by name so repeated state initialisations for the
+        # same RNN reuse the same chain.
+        batch_size_tensor_id = f"{reference_rnn_input.export_name}_batch_size"
+        if batch_size_tensor_id in name_to_tensor:
+            input_batch_size_tensor = name_to_tensor[batch_size_tensor_id]
+        else:
+            input_shape_tensor = helper.add_tensor_variable_node_as_nnef_tensor(
                 g,
                 reference_rnn_input,
                 name_to_tensor,
-                name_suffix="batch_size_sliced",
+                name_suffix="shape",
                 prevent_variable=True,
             )
-        )
-        NOperation(
-            g,
-            type="slice",
-            inputs=input_shape_tensor,
-            outputs=input_batch_size_slice_tensor,
-            attribs={
-                "axes": [0],
-                "begin": [1],
-                "end": [2],
-                "stride": [1],
-            },
-        )
-        input_batch_size_tensor = (
-            helper.add_tensor_variable_node_as_nnef_tensor(
+            NOperation(
                 g,
-                reference_rnn_input,
-                name_to_tensor,
-                name_suffix="batch_size",
-                prevent_variable=True,
+                type="tract_core_shape_of",
+                inputs=name_to_tensor[reference_rnn_input.export_name],
+                outputs=input_shape_tensor,
             )
-        )
-        NOperation(
-            g,
-            type="squeeze",
-            inputs=input_batch_size_slice_tensor,
-            outputs=input_batch_size_tensor,
-            attribs={"axes": [0]},
-        )
+            input_batch_size_slice_tensor = (
+                helper.add_tensor_variable_node_as_nnef_tensor(
+                    g,
+                    reference_rnn_input,
+                    name_to_tensor,
+                    name_suffix="batch_size_sliced",
+                    prevent_variable=True,
+                )
+            )
+            NOperation(
+                g,
+                type="slice",
+                inputs=input_shape_tensor,
+                outputs=input_batch_size_slice_tensor,
+                attribs={
+                    "axes": [0],
+                    "begin": [1],
+                    "end": [2],
+                    "stride": [1],
+                },
+            )
+            input_batch_size_tensor = (
+                helper.add_tensor_variable_node_as_nnef_tensor(
+                    g,
+                    reference_rnn_input,
+                    name_to_tensor,
+                    name_suffix="batch_size",
+                    prevent_variable=True,
+                )
+            )
+            NOperation(
+                g,
+                type="squeeze",
+                inputs=input_batch_size_slice_tensor,
+                outputs=input_batch_size_tensor,
+                attribs={"axes": [0]},
+            )
 
     initial_state_ready_tensor = helper.add_tensor_variable_node_as_nnef_tensor(
         name_suffix=var_name,
@@ -722,18 +750,16 @@ def _translate_state_variable_load_and_prep(
         name_to_tensor=name_to_tensor,
         prevent_variable=True,
     )
+    if static_batch_size is not None:
+        repeats: T.List[T.Any] = [1, int(static_batch_size), 1]
+    else:
+        repeats = [1, nnef.Identifier(input_batch_size_tensor.name), 1]
     NOperation(
         g,
         type="tile",
         inputs=store_tensor,
         outputs=initial_state_ready_tensor,
-        attribs={
-            "repeats": [
-                1,
-                nnef.Identifier(input_batch_size_tensor.name),
-                1,
-            ]
-        },
+        attribs={"repeats": repeats},
     )
     return initial_state_ready_tensor
 
@@ -748,6 +774,8 @@ def _translate_to_nnef_variable(
     is_backward: bool,
     input_tensor: NTensor,
     tensor_params_fn: T.Callable,
+    inference_target=None,
+    static_batch_size: T.Optional[int] = None,
 ) -> T.Dict[str, NTensor]:
     """Per-layer-and-direction param materialization.
 
@@ -822,6 +850,8 @@ def _translate_to_nnef_variable(
                         tensor_variable,
                         torch_tensor,
                         input_tensor,
+                        inference_target=inference_target,
+                        static_batch_size=static_batch_size,
                     )
                 )
         else:
@@ -879,6 +909,7 @@ def emit_rnn_via_fragment(
     nnef_fragment_name: str,
     argument_names_order: T.Sequence[str],
     tensor_params_fn: T.Callable,
+    inference_target=None,
     **tensor_params_kwargs,
 ) -> T.List[str]:
     """Multi-layer / bidirectional RNN orchestration around a fragment call.
@@ -893,6 +924,22 @@ def emit_rnn_via_fragment(
         used_fragments += ["rnn_bidi_pack"]
 
     input_tensor = name_to_tensor[node.inputs[0].export_name]
+
+    # Pick the static batch size from the IR node BEFORE the layout swap;
+    # post-swap, `input_tensor.shape` still reflects the pre-transpose
+    # IR layout, so probing it after `_pre_batch_first` would give the
+    # wrong axis for `batch_first=True`. When dynamic axes are requested
+    # we fall back to the runtime `tract_core_shape_of` chain.
+    has_dyn = bool(
+        inference_target is not None
+        and getattr(inference_target, "has_dynamic_axes", False)
+    )
+    batch_rank_pre = 0 if module.batch_first else 1
+    static_batch_size: T.Optional[int] = None
+    if not has_dyn:
+        raw = node.inputs[0].shape[batch_rank_pre]
+        if isinstance(raw, int):
+            static_batch_size = raw
 
     if module.batch_first:
         input_tensor = _pre_batch_first(g, input_tensor, node, name_to_tensor)
@@ -921,6 +968,8 @@ def emit_rnn_via_fragment(
                 is_backward,
                 input_tensor=input_tensor,
                 tensor_params_fn=tensor_params_fn,
+                inference_target=inference_target,
+                static_batch_size=static_batch_size,
             )
 
             if is_backward:
@@ -1389,6 +1438,7 @@ def lstm(g, node, name_to_tensor, **kwargs):
         nnef_fragment_name="lstm",
         argument_names_order=list(_LSTM_ARG_NAMES_ORDER),
         tensor_params_fn=_lstm_tensor_params,
+        inference_target=kwargs.get("inference_target"),
         **state_kwargs,
     )
 
@@ -1415,12 +1465,18 @@ def gru(g, node, name_to_tensor, **kwargs):
         nnef_fragment_name="gru",
         argument_names_order=list(_GRU_ARG_NAMES_ORDER),
         tensor_params_fn=_gru_tensor_params,
+        inference_target=kwargs.get("inference_target"),
         **state_kwargs,
     )
 
 
 def _emit_aten_rnn_simple(
-    g, node, name_to_tensor, fragment_name: str, nonlinearity: str
+    g,
+    node,
+    name_to_tensor,
+    fragment_name: str,
+    nonlinearity: str,
+    inference_target=None,
 ):
     parsed = _split_aten_rnn_inputs(node)
     base = node.outputs[0].export_name
@@ -1442,6 +1498,7 @@ def _emit_aten_rnn_simple(
         nnef_fragment_name=fragment_name,
         argument_names_order=list(_RNN_ARG_NAMES_ORDER),
         tensor_params_fn=_rnn_tensor_params,
+        inference_target=inference_target,
         **state_kwargs,
     )
 
@@ -1449,10 +1506,24 @@ def _emit_aten_rnn_simple(
 @OP_REGISTRY.register()
 def rnn_tanh(g, node, name_to_tensor, **kwargs):
     """Map `aten::rnn_tanh.input` to NNEF via existing `rnn_tanh` fragment."""
-    return _emit_aten_rnn_simple(g, node, name_to_tensor, "rnn_tanh", "tanh")
+    return _emit_aten_rnn_simple(
+        g,
+        node,
+        name_to_tensor,
+        "rnn_tanh",
+        "tanh",
+        inference_target=kwargs.get("inference_target"),
+    )
 
 
 @OP_REGISTRY.register()
 def rnn_relu(g, node, name_to_tensor, **kwargs):
     """Map `aten::rnn_relu.input` to NNEF via existing `rnn_relu` fragment."""
-    return _emit_aten_rnn_simple(g, node, name_to_tensor, "rnn_relu", "relu")
+    return _emit_aten_rnn_simple(
+        g,
+        node,
+        name_to_tensor,
+        "rnn_relu",
+        "relu",
+        inference_target=kwargs.get("inference_target"),
+    )
