@@ -48,12 +48,46 @@ NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER = [
 ]
 # )
 OPS_IMPLICIT_CAST_BY_OUTPUT_DTYPE = [
+    # Binary arithmetic: PyTorch promotes (int + float -> float) but
+    # NNEF requires matching dtypes. Cast every input to the trace's
+    # recorded output dtype.
     "mul",
     "div",
     "add",
     "sub",
     "rsub",
     "pow",
+    # Binary mathematical (float-result) ops -- same dtype-mismatch
+    # pattern as the arithmetic ops above; `atan2(int, float) -> float`
+    # in PyTorch, so cast int inputs up to match.
+    "atan2",
+    # Float-result unary ops: `sqrt(int_tensor) -> float_tensor` etc.
+    # under PyTorch semantics. Adding them here means every emit of
+    # these NNEF op names gets the input cast for free, regardless of
+    # which handler emitted it (drops the per-handler `promote_if_
+    # int_to_float` calls).
+    "sqrt",
+    "rsqrt",
+    "log",
+    "log2",
+    "log1p",
+    "exp",
+    "expm1",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "sinh",
+    "cosh",
+    "tanh",
+    "asinh",
+    "acosh",
+    "atanh",
+    "sigmoid",
+    "rcp",
+    "recip",
 ]
 OPS_IMPLICIT_CAST_CONSISTENT_INPS = [
     "ne",
@@ -1042,15 +1076,18 @@ class OpHelper:
         attrs: T.Optional[T.Dict[str, T.Any]],
         new_shape: T.Sequence[int],
         suffix: str,
-        new_dtype=None,
     ) -> "NTensor":
         """Emit an op whose output is a fresh intermediate NTensor.
 
         `add_single_output_op` derives its output NNEF tensor from
         `node.outputs[0]`, which for chained-helper emits means every
-        intermediate would inherit the *final* op's shape (and dtype).
-        For multi-step decomposition we need to author the intermediate
-        NTensor by hand: this helper does that.
+        intermediate would inherit the *final* op's shape. For multi-
+        step decomposition we need to author the intermediate NTensor
+        by hand: this helper does that.
+
+        The intermediate inherits `src.dtype` (no dtype-change ops
+        like `cast` go through this helper -- use the dedicated cast
+        emitter for those).
 
         Args:
             src: the upstream NNEF tensor feeding this op.
@@ -1058,7 +1095,6 @@ class OpHelper:
             attrs: op attributes (or None).
             new_shape: shape of the intermediate output.
             suffix: appended to `src.name` to name the new tensor.
-            new_dtype: optional dtype override (defaults to `src.dtype`).
 
         Returns:
             The newly-created NNEF tensor.
@@ -1066,7 +1102,7 @@ class OpHelper:
         out = NTensor(
             self.g,
             name=f"{src.name}_{suffix}",
-            dtype=new_dtype if new_dtype is not None else src.dtype,
+            dtype=src.dtype,
             shape=tuple(new_shape),
         )
         NOperation(

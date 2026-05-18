@@ -614,9 +614,6 @@ def _abs(
 def log10(node, op_helper, **kwargs):
     """Mul val may not be good enough."""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
-    input_tensor, _ = op_helper.promote_if_int_to_float(
-        node, input_tensor, node.inputs[0], suffix="log10_input_promote"
-    )
     # maybe better puting this in the graph to avoid precision loss
     mul_val = 1 / np.log(10)
     input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
@@ -637,9 +634,6 @@ def log10(node, op_helper, **kwargs):
 def log1p(node, op_helper, **kwargs):
     """aten::log1p."""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
-    input_tensor, _ = op_helper.promote_if_int_to_float(
-        node, input_tensor, node.inputs[0], suffix="log1p_input_promote"
-    )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "log1p",
@@ -653,12 +647,6 @@ def atan2(node, op_helper, **kwargs):
     """aten::atan2."""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     other_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
-    input_tensor, _ = op_helper.promote_if_int_to_float(
-        node, input_tensor, node.inputs[0], suffix="atan2_a_promote"
-    )
-    other_tensor, _ = op_helper.promote_if_int_to_float(
-        node, other_tensor, node.inputs[1], suffix="atan2_b_promote"
-    )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "atan2",
@@ -671,9 +659,6 @@ def atan2(node, op_helper, **kwargs):
 def expm1(node, op_helper, **kwargs):
     """aten::exp1m."""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
-    input_tensor, _ = op_helper.promote_if_int_to_float(
-        node, input_tensor, node.inputs[0], suffix="expm1_input_promote"
-    )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "expm1",

@@ -92,23 +92,13 @@ def generic_unary(aten_op_id, node, op_helper, **kwargs):
     if isinstance(inference_target, TractNNEF):
         nnef_name = TRACT_OP_ALIASES.get(nnef_name, nnef_name)
 
-    # Bridge PyTorch's silent integer->float promotion. Trigger purely
-    # on IR dtype mismatch: when the trace recorded a different
-    # floating output dtype than the (non-floating) input dtype, the op
-    # promoted (`sqrt(int) -> float`, `sin(int) -> float`, ...). No
-    # op-name allowlist needed.
-    if node.inputs and node.inputs[0] is not None:
-        in_node = node.inputs[0]
-        in_tensor = op_helper.get_or_add_tensor_variable_in_nnef(in_node)
-        cast_tensor, used_frag = op_helper.promote_if_int_to_float(
-            node, in_tensor, in_node, suffix=f"{aten_op_id}_input_promote"
-        )
-        if cast_tensor is not in_tensor:
-            op_helper.add_single_output_op_from_nnef_tensors(
-                node, nnef_name, inputs=cast_tensor
-            )
-            return used_frag
-
+    # PyTorch's silent int->float promotion (`sqrt(int) -> float`,
+    # `sin(int) -> float`, ...) is bridged at the NNEF emit layer:
+    # the float-result NNEF op names are registered in
+    # `OPS_IMPLICIT_CAST_BY_OUTPUT_DTYPE`, and
+    # `add_single_output_op_from_nnef_tensors` automatically casts
+    # integer inputs to match the trace's recorded output dtype.
+    # Falling through to the generic emitter is sufficient here.
     return op_helper.unary_output_op_without_attr(
         nnef_op_type=nnef_name,
         node=node,
