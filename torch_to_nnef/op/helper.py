@@ -1114,41 +1114,6 @@ class OpHelper:
         )
         return out
 
-    def promote_if_int_to_float(
-        self,
-        node,
-        nnef_input: "NTensor",
-        ir_input_node,
-        suffix: str = "input_promote",
-    ) -> "T.Tuple[NTensor, T.List[str]]":
-        """Cast `nnef_input` up to the trace output dtype if PyTorch promoted.
-
-        PyTorch silently promotes integer inputs to float for ops whose
-        mathematical output is always floating (`sqrt(int) -> float`,
-        `sin(int) -> float`, etc.); NNEF / tract have no implicit
-        promotion. Trigger purely on IR dtype mismatch: when the trace
-        recorded a different floating-point output dtype than the
-        (non-floating) input dtype, emit a `tract_core_cast` to bring
-        the input up. Returns `(possibly_cast_tensor, fragments)`;
-        fragments is empty when no cast was emitted so callers can
-        always `.extend(used)` unconditionally.
-        """
-        in_dtype = getattr(ir_input_node, "dtype", None)
-        out_dtype = getattr(node.outputs[0], "dtype", None)
-        if (
-            in_dtype is None
-            or out_dtype is None
-            or in_dtype == out_dtype
-            or not getattr(out_dtype, "is_floating_point", False)
-            or getattr(in_dtype, "is_floating_point", False)
-        ):
-            return nnef_input, []
-        np_target = type(torch.empty((), dtype=out_dtype).numpy()[()])
-        cast_tensor, used_frag = self.cast_to_if_not_dtype_and_variable(
-            node, nnef_input, cast_to=np_target, suffix=suffix
-        )
-        return cast_tensor, used_frag
-
     def add_single_output_op_from_ir_datas(
         self,
         nnef_op_type: str,
