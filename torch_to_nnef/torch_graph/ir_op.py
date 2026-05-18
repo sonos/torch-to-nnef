@@ -76,7 +76,6 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_MASKED_FILL,
     ATEN_MASKED_FILL_,
     ATEN_MATMUL,
-    ATEN_MUL_,
     ATEN_NEW_EMPTY,
     ATEN_NEW_ONES,
     ATEN_NEW_ZEROS,
@@ -366,28 +365,15 @@ def _infer_shape_embedding_output(
 def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
     """Infer output tensor shape of `aten::matmul` without executing it.
 
-    Implements PyTorch's documented matmul rules, including the rank-1
-    forms (vector dot product, vector @ matrix, matrix @ vector). See
-    https://pytorch.org/docs/stable/generated/torch.matmul.html.
+    Delegates to PyTorch's own matmul on `meta` tensors. Meta tensors
+    are zero-allocation shape carriers, so this avoids both the cost
+    of running the full op and the risk of diverging from PyTorch's
+    documented shape rules (rank-1 vector forms, batched broadcasting,
+    future rule changes).
     """
-    ax = list(a.shape)
-    bx = list(b.shape)
-    if len(ax) == 1 and len(bx) == 1:
-        # (K,) @ (K,) -> scalar
-        assert ax[0] == bx[0], "Incompatible matmul inner dimensions"
-        return torch.Size([])
-    if len(ax) == 1:
-        # (K,) @ (..., K, N) -> (..., N): prepend 1 to a, drop it from out.
-        assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
-        return torch.Size(list(bx[:-2]) + [bx[-1]])
-    if len(bx) == 1:
-        # (..., M, K) @ (K,) -> (..., M)
-        assert ax[-1] == bx[-1], "Incompatible matmul inner dimensions"
-        return torch.Size(list(ax[:-1]))
-    # Both rank-2+: standard batched matmul.
-    assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
-    batch_shape = torch.broadcast_shapes(ax[:-2], bx[:-2])
-    return torch.Size(list(batch_shape) + [ax[-2], bx[-1]])
+    meta_a = torch.empty(tuple(a.shape), device="meta", dtype=a.dtype)
+    meta_b = torch.empty(tuple(b.shape), device="meta", dtype=b.dtype)
+    return meta_a.matmul(meta_b).shape
 
 
 def _infer_shape_linear_output(x, w) -> torch.Size:
@@ -645,18 +631,30 @@ class TorchOp:
             self.op_ref = (
                 torch.add if self.kind in (ATEN_ADD, ATEN_ADD_) else torch.sub
             )
-        # `aten::mul_` / `aten::div_` mutate their first input in place.
-        # During IR construction we re-execute each op via `call_op` to
-        # recover output shape/dtype, but the input tensor's
-        # `_traced_data` may be shared with other IR nodes (e.g. the
-        # einops shape-product chain reuses the same scalar tensor
-        # across `mul_` calls). Routing through the out-of-place op
-        # gives the same result without mutating the input. The
-        # in-place semantics aren't needed at trace time.
-        if self.kind == ATEN_MUL_:
-            self.op_ref = torch.mul
-        if self.kind == ATEN_DIV_ and self.op_ref is not torch.div:
-            self.op_ref = torch.div
+        # In-place ops (`aten::*_`, but not double-underscore dunders
+        # like `aten::__and__`) mutate their first input in place. During
+        # IR construction we re-execute each op via `call_op` to recover
+        # output shape/dtype, but the input tensor's `_traced_data` may
+        # be shared across IR nodes (e.g. einops' shape-product chain
+        # reuses the same scalar tensor across `mul_` calls). Routing
+        # through the out-of-place equivalent gives the same result
+        # without mutating the input. The in-place semantics aren't
+        # needed at trace time.
+        #
+        # Generic strip: `aten::foo_` -> `torch.foo` when the resolved
+        # out-of-place callable exists. Falls back to the in-place
+        # op_ref otherwise (e.g. ops with no out-of-place form). Covers
+        # mul_, div_, pow_, clamp_, sqrt_, exp_, and any future `_`
+        # in-place op without needing per-op enumeration.
+        if (
+            self.kind.startswith(ATEN_STARTID)
+            and self.kind.endswith("_")
+            and not self.kind.endswith("__")
+        ):
+            outplace_name = self.kind[len(ATEN_STARTID) : -1]
+            outplace_fn = getattr(torch, outplace_name, None)
+            if outplace_fn is not None and callable(outplace_fn):
+                self.op_ref = outplace_fn
         # }
         args, kwargs = InputsAlignBetweenAtenAndTorch.align_inputs(
             self.kind, args, kwargs

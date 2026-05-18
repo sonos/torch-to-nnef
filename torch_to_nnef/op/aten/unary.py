@@ -1,7 +1,5 @@
 import math
 
-import torch
-
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op import helper
 
@@ -70,82 +68,6 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
 OP_REGISTRY = helper.AtenOpRegistry()
 
 
-# Unary ops whose mathematical output is always floating-point regardless
-# of input dtype: PyTorch silently promotes an integer input to float
-# (e.g. `torch.sqrt(torch.tensor([4], dtype=torch.int64))` returns float).
-# tract / NNEF have no such implicit promotion: emitting the bare op on
-# an integer tensor either fails type-checking (`no super type for F32
-# and I64`) or returns the wrong dtype, depending on the op. Insert an
-# explicit input cast so the NNEF graph matches PyTorch semantics.
-_FLOAT_RESULT_UNARY_ATEN_OP_NAMES = frozenset(
-    {
-        "sqrt",
-        "rsqrt",
-        "log",
-        "log2",
-        "exp",
-        "sin",
-        "cos",
-        "tan",
-        "asin",
-        "acos",
-        "atan",
-        "sinh",
-        "cosh",
-        "tanh",
-        "asinh",
-        "acosh",
-        "atanh",
-        "sigmoid",
-        "rcp",
-        "reciprocal",
-    }
-)
-
-
-def _maybe_promote_input_to_float(op_helper, node, aten_op_id):
-    """For float-result unary ops, cast int input up to the trace output dtype.
-
-    Returns the (possibly cast) NNEF tensor list for the op's inputs and
-    the list of custom fragments that need to be registered (matching
-    `get_or_add_tensor_variable_in_nnef`'s convention).
-    """
-    canonical_name = REMAP_ATEN_OP_NAMES.get(aten_op_id, aten_op_id)
-    inputs = list(node.inputs)
-    if (
-        canonical_name not in _FLOAT_RESULT_UNARY_ATEN_OP_NAMES
-        or not inputs
-        or inputs[0] is None
-    ):
-        return None
-    in_node = inputs[0]
-    in_dtype = getattr(in_node, "dtype", None)
-    out_dtype = getattr(node.outputs[0], "dtype", None)
-    # Trigger only when the trace itself recorded a dtype mismatch
-    # (e.g. `aten::sqrt(int64) -> float32`); leave float-in float-out
-    # ops untouched so we don't perturb the common path.
-    if (
-        in_dtype is None
-        or out_dtype is None
-        or in_dtype == out_dtype
-        or not out_dtype.is_floating_point
-        or in_dtype.is_floating_point
-    ):
-        return None
-    # `cast_to_if_not_dtype_and_variable` expects the numpy scalar
-    # *type* (e.g. `np.float32`), not a `np.dtype` instance, so pull the
-    # canonical type via a zero-element tensor.
-    np_target = type(torch.empty((), dtype=out_dtype).numpy()[()])
-    in_tensor = op_helper.get_or_add_tensor_variable_in_nnef(in_node)
-    cast_tensor, used_frag = op_helper.cast_to_if_not_dtype_and_variable(
-        node,
-        in_tensor,
-        cast_to=np_target,
-        suffix=f"{aten_op_id}_input_promote",
-    )
-    return cast_tensor, used_frag
-
-
 @OP_REGISTRY.register(
     torch_op_ids=GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES
     + list(REMAP_ATEN_OP_NAMES.keys())
@@ -170,15 +92,22 @@ def generic_unary(aten_op_id, node, op_helper, **kwargs):
     if isinstance(inference_target, TractNNEF):
         nnef_name = TRACT_OP_ALIASES.get(nnef_name, nnef_name)
 
-    # Bridge PyTorch's silent integer->float promotion for ops whose
-    # mathematical output is always float (sqrt, log, exp, trig, ...).
-    promoted = _maybe_promote_input_to_float(op_helper, node, aten_op_id)
-    if promoted is not None:
-        cast_tensor, used_frag = promoted
-        op_helper.add_single_output_op_from_nnef_tensors(
-            node, nnef_name, inputs=cast_tensor
+    # Bridge PyTorch's silent integer->float promotion. Trigger purely
+    # on IR dtype mismatch: when the trace recorded a different
+    # floating output dtype than the (non-floating) input dtype, the op
+    # promoted (`sqrt(int) -> float`, `sin(int) -> float`, ...). No
+    # op-name allowlist needed.
+    if node.inputs and node.inputs[0] is not None:
+        in_node = node.inputs[0]
+        in_tensor = op_helper.get_or_add_tensor_variable_in_nnef(in_node)
+        cast_tensor, used_frag = op_helper.promote_if_int_to_float(
+            node, in_tensor, in_node, suffix=f"{aten_op_id}_input_promote"
         )
-        return used_frag
+        if cast_tensor is not in_tensor:
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node, nnef_name, inputs=cast_tensor
+            )
+            return used_frag
 
     return op_helper.unary_output_op_without_attr(
         nnef_op_type=nnef_name,
