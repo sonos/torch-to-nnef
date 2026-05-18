@@ -49,18 +49,20 @@ sys.path.insert(0, str(CLONE))
 # ruff: noqa: E402, I001
 # Imports below sit after a `sys.path.insert` for the cloned upstream
 # repo, hence the file-level E402 / I001 silencing.
-from onnx_model.dpdfnet import (
+from onnx_model.dpdfnet import (  # noqa: E402
     DPDFNet,
     correct_state_dict as correct_state_dict_16k,
 )
-from onnx_model.dpdfnet_48khz_hr import (
+from onnx_model.dpdfnet_48khz_hr import (  # noqa: E402
     DPDFNet48HR,
     correct_state_dict as correct_state_dict_48k,
 )
-from onnx_model.layers import convert_grouped_linear_to_einsum
+from onnx_model.layers import (  # noqa: E402
+    convert_grouped_linear_to_einsum,
+)
 
-from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.export import export_model_to_nnef  # noqa: E402
+from torch_to_nnef.inference_target import TractNNEF  # noqa: E402
 
 
 @dataclass(frozen=True)
