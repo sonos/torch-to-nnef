@@ -1410,9 +1410,27 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.complex.imag" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;imag
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.complex.polar" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;polar
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.complex.real" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;real
     </span>
   </a>
   
@@ -3213,9 +3231,27 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.complex.imag" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;imag
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.complex.polar" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;polar
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.complex.real" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;real
     </span>
   </a>
   
@@ -3387,6 +3423,25 @@ conjugating it).</p>
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.op.aten.complex.imag" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">imag</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">imag</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::imag(complex)</code> to NNEF: imag part of a complex tensor.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.op.aten.complex.polar" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">polar</span>
 
@@ -3400,6 +3455,25 @@ conjugating it).</p>
         <p>Map PyTorch: 'aten:polar(abs, angle)' to NNEF.</p>
 <p>Calls the <code>polar</code> fragment which builds <code>(abs*cos, abs*sin)</code> on a
 new trailing axis (matching t2n's <code>(..., 2)</code> complex layout).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.complex.real" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">real</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">real</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::real(complex)</code> to NNEF: real part of a complex tensor.</p>
 
     </div>
 
@@ -3460,6 +3534,12 @@ through the <code>sgn_complex</code> fragment.</p>
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:view_as_real' to NNEF.</p>
+<p>The input is a view-tagged complex tensor (IR rank N+1 with the
+trailing-2 axis carrying <code>(real, imag)</code>, dtype <code>complex64</code>). PyTorch
+semantics: <code>view_as_real</code> returns a real-dtype tensor with the same
+<code>(N+1)</code>-rank layout. We just retag the dtype back to <code>float32</code>; no
+NNEF op is emitted (the layout in the NNEF tensor is already
+<code>(..., 2)</code> real).</p>
 
     </div>
 

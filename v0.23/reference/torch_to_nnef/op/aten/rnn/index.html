@@ -3451,9 +3451,11 @@ the 4 gates, and computes <code>(h_new, c_new)</code>.</p>
     <div class="doc doc-contents ">
 
         <p>Emit a single <code>rnn_{tanh,relu}_cell</code> NNEF fragment call.</p>
-<p>Like <code>lstm_cell</code> the biases are pre-summed to a single <code>(1, H)</code> term
--- the Elman cell's nonlinearity sits on the full preactivation so
-<code>b_ih</code> and <code>b_hh</code> are interchangeable in the math.</p>
+<dl>
+<dt>Like <code>lstm_cell</code> the biases are pre-summed to a single <code>(1, H)</code> term</dt>
+<dd>the Elman cell's nonlinearity sits on the full preactivation so
+ <code>b_ih</code> and <code>b_hh</code> are interchangeable in the math.</dd>
+</dl>
 
     </div>
 
@@ -3467,7 +3469,7 @@ the 4 gates, and computes <code>(h_new, c_new)</code>.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">emit_rnn_via_fragment</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">nnef_fragment_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">argument_names_order</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">tensor_params_fn</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">,</span> <span class="o">**</span><span class="n">tensor_params_kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">emit_rnn_via_fragment</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">nnef_fragment_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">argument_names_order</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">tensor_params_fn</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">,</span> <span class="n">inference_target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">tensor_params_kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">

@@ -1660,6 +1660,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.math.diff" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;diff
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.math.digamma" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;digamma
@@ -2056,6 +2065,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.math.special_entr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;special_entr
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.math.special_i0e" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;special_i0e
@@ -2068,6 +2086,15 @@
   <a href="#torch_to_nnef.op.aten.math.special_i1e" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;special_i1e
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.math.special_xlog1py" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;special_xlog1py
     </span>
   </a>
   
@@ -2122,6 +2149,15 @@
   <a href="#torch_to_nnef.op.aten.math.tensordot" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tensordot
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.math.trapezoid" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;trapezoid
     </span>
   </a>
   
@@ -3951,6 +3987,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.math.diff" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;diff
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.math.digamma" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;digamma
@@ -4347,6 +4392,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.math.special_entr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;special_entr
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.math.special_i0e" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;special_i0e
@@ -4359,6 +4413,15 @@
   <a href="#torch_to_nnef.op.aten.math.special_i1e" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;special_i1e
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.math.special_xlog1py" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;special_xlog1py
     </span>
   </a>
   
@@ -4413,6 +4476,15 @@
   <a href="#torch_to_nnef.op.aten.math.tensordot" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tensordot
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.math.trapezoid" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;trapezoid
     </span>
   </a>
   
@@ -4887,6 +4959,28 @@ pointwise via <code>mul(first, 0) + 1</code> to keep init shape-matching).</p>
 <li>For arbitrary dim, transpose input to bring that axis to 0, apply
   fragment, then transpose back.</li>
 </ul>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.math.diff" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">diff</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">diff</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::diff(input, n, dim, prepend?, append?)</code> to NNEF.</p>
+<p>n-th order finite differences along <code>dim</code>: each step replaces
+<code>x</code> with <code>x[1:] - x[:-1]</code> along <code>dim</code>. <code>prepend</code> / <code>append</code> are
+not supported (raise <code>T2NErrorNotImplemented</code>).</p>
 
     </div>
 
@@ -5799,6 +5893,27 @@ False here (vs PyTorch's True); same caveat as <code>copysign</code> /
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.op.aten.math.special_entr" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">special_entr</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">special_entr</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>aten::special_entr -&gt; <code>-x * log(x)</code> (0 at x=0).</p>
+<p>See <code>special_entr.nnef</code> for the eps-clamped formulation that keeps
+<code>log(0)</code> from poisoning the discarded <code>select</code> branch.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.op.aten.math.special_i0e" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">special_i0e</span>
 
@@ -5842,6 +5957,26 @@ arbitrarily large <code>|x|</code>.</p>
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.op.aten.math.special_xlog1py" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">special_xlog1py</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">special_xlog1py</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>aten::special_xlog1py -&gt; <code>x * log(1 + y)</code> (0 at x=0).</p>
+<p>See <code>special_xlog1py.nnef</code> for the eps-clamped log argument.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.op.aten.math.square" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">square</span>
 
@@ -5855,7 +5990,8 @@ arbitrarily large <code>|x|</code>.</p>
         <p>Map PyTorch: 'aten:square' to NNEF.</p>
 <p><code>x.square()</code> is <code>x * x</code>; the dedicated NNEF <code>sqr</code> op exists in some
 runtimes but the simplest portable form is a <code>mul</code> with the same
-tensor on both sides.</p>
+tensor on both sides. <code>square</code> preserves dtype, so no int-&gt;float
+promotion is needed.</p>
 
     </div>
 
@@ -5955,6 +6091,29 @@ tensor on both sides.</p>
 size on each side) and produces an output of rank
 <code>a.rank + b.rank - 2 * len(dims_a)</code>. The einsum expression is
 built so each contracted axis-pair shares a label.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.math.trapezoid" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">trapezoid</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">trapezoid</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::trapezoid(y, dx_or_x, dim)</code> (alias <code>trapz</code>) to NNEF.</p>
+<p>Uniform-<code>dx</code> case only: the second arg must be a scalar float
+constant (the <code>dx</code> overload). The tensor-<code>x</code> overload is rejected
+for now (would need a <code>(x[1:] - x[:-1])</code> multiply that broadcasts
+against <code>y[1:] + y[:-1]</code>).</p>
 
     </div>
 

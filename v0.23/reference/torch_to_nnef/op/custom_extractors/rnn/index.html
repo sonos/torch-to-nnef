@@ -3239,7 +3239,7 @@
     i, f, g, o = chunk(preact, 4, axis=-1)
     c_new = sigmoid(f) * c + sigmoid(i) * tanh(g)
     h_new = sigmoid(o) * tanh(c_new)</p>
-<p>Input order from the user-facing wrapper is <code>(input, h, c)</code> -- the
+<p>Input order from the user-facing wrapper is <code>(input, h, c)</code>: the
 internal nn.LSTMCell call expects <code>(input, (h, c))</code> which is handled by
 <code>_call_original_mod_with_args</code>.</p>
 
