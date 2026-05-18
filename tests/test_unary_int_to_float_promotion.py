@@ -61,7 +61,7 @@ class _IntSqrtStandalone(torch.nn.Module):
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_sqrt_on_int_tensor_promotes_to_float(inference_target):
-    """`sqrt(int_input)` * float_tensor -- dtype must match."""
+    """`sqrt(int_input)` * float_tensor: dtype must match."""
     torch.manual_seed(0)
     x = torch.randn(4, dtype=torch.float32)
     ints = torch.tensor([1, 4, 9, 16], dtype=torch.int64)

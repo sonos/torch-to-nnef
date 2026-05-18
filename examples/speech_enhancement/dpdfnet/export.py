@@ -19,7 +19,7 @@ read directly off the loaded model and written into a sidecar JSON
 manifest next to the NNEF artifact so downstream consumers (bench.py,
 wav-cleaner-rs) don't need to hard-code shapes per variant.
 
-Supported variants -- 16 kHz hop=160 n_fft=320, 48 kHz hop=480
+Supported variants: 16 kHz hop=160 n_fft=320, 48 kHz hop=480
 n_fft=960; `dprnn_num_blocks` differs per checkpoint:
 
     baseline             dprnn_num_blocks=0  (16 kHz)

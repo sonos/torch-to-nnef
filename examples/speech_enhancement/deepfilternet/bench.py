@@ -8,11 +8,11 @@ where time is spent.
 
 Three artifact shapes are compared if all are provided:
 
-- **NNEF variant A** -- t2n export with matmul-iFFT (grazder verbatim);
+- **NNEF variant A**: t2n export with matmul-iFFT (grazder verbatim);
   ships full pipeline (STFT/ERB/NN/iSTFT) in one artifact.
-- **NNEF variant B** -- t2n export with native `torch.fft.irfft` on
+- **NNEF variant B**: t2n export with native `torch.fft.irfft` on
   synthesis; same single-artifact shape as A.
-- **Official ONNX (3 components)** -- the upstream DeepFilterNet
+- **Official ONNX (3 components)**: the upstream DeepFilterNet
   `models/DeepFilterNet3_onnx.tar.gz` ships `enc.onnx`,
   `erb_dec.onnx`, `df_dec.onnx` as three frequency-domain components
   (no FFT in graph). This is what DfTract / czoli1976 actually run --
@@ -20,7 +20,7 @@ Three artifact shapes are compared if all are provided:
   graph, the per-frame NN cost is the sum of the three tract calls.
   We feed each component via `--input-bundle` after pre-baking concrete
   shapes with `onnxsim` (tract's CLI can't resolve the symbolic dims
-  baked into the ONNX -- the DfTract Rust binary does it via the API).
+  baked into the ONNX: the DfTract Rust binary does it via the API).
 
 DFN3's per-frame budget for real-time at 48 kHz is 480 / 48000 =
 **10 ms per frame**. Anything below that is real-time-capable; below 1 ms
@@ -76,7 +76,7 @@ from torch_to_nnef.inference_target.tract import (  # noqa: E402
 def make_input_bundle(out_dir: Path) -> Path:
     """Build an NPZ bundle matching the per-frame NNEF export's 13 inputs.
 
-    Reuses the cached bundle if `inputs.npz` exists -- avoids re-importing
+    Reuses the cached bundle if `inputs.npz` exists: avoids re-importing
     the upstream `df` package (which pins to torch 2.11; the test suite
     may have re-locked the venv to torch 2.9).
     """
@@ -131,7 +131,7 @@ def prepare_official_onnx(
 
     The official `DeepFilterNet3_onnx.tar.gz` ONNXs carry symbolic
     dimension parameters (`Relue0_dim_0`, `Relue0_dim_3`, ...) that
-    tract's CLI cannot resolve from `--input-bundle` alone -- DfTract's
+    tract's CLI cannot resolve from `--input-bundle` alone: DfTract's
     Rust API sets them on the model before analyse. We work around it
     by running `onnxsim` first with concrete input shapes; that bakes
     every symbolic dim down to the trace-time value. Returns a dict
@@ -268,7 +268,7 @@ def _split_nn_dsp(stats: dict) -> tuple[float, float, list, list]:
     nn_ops: list[tuple[str, float]] = []
     dsp_ops: list[tuple[str, float]] = []
     for label, secs in stats["all_ops"]:
-        # label is `OpName (node_name)` -- pull `node_name` to match prefix.
+        # label is `OpName (node_name)`: pull `node_name` to match prefix.
         node_name = label.rsplit("(", 1)[-1].rstrip(")")
         if node_name.startswith(_NN_PREFIXES):
             nn_ops.append((label, secs))

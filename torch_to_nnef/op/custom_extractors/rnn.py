@@ -367,7 +367,7 @@ class LSTMCellExtractor(ModuleInfoExtractor):
         c_new = sigmoid(f) * c + sigmoid(i) * tanh(g)
         h_new = sigmoid(o) * tanh(c_new)
 
-    Input order from the user-facing wrapper is `(input, h, c)` -- the
+    Input order from the user-facing wrapper is `(input, h, c)`: the
     internal nn.LSTMCell call expects `(input, (h, c))` which is handled by
     `_call_original_mod_with_args`.
     """
@@ -438,7 +438,7 @@ class LSTMCellExtractor(ModuleInfoExtractor):
             if input_idx is None:
                 input_idx = 0
         else:
-            # Ambiguous shapes -- use position 1 (the empirical (h, input, c)
+            # Ambiguous shapes: use position 1 (the empirical (h, input, c)
             # ordering of the trace).
             input_idx = 1
 

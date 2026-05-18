@@ -14,7 +14,7 @@ tract's native FFT machinery actually optimises.
 Why this is a one-method patch and not a model rewrite:
 
 - DFN's streaming inner module runs **one frame at a time**, so no
-  per-buffer overlap-add op (`col2im` / `F.fold`) is needed -- the
+  per-buffer overlap-add op (`col2im` / `F.fold`) is needed: the
   overlap-add already happens between frames via `synthesis_mem`
   passthrough (`output = x_first + synthesis_mem`).
 - `torch.fft.irfft` directly replaces the einsum; the window multiply
@@ -145,17 +145,17 @@ def verify_parity_against_a(
 ) -> None:
     """Per-frame parity: B vs unmodified A on the same frame + state.
 
-    The two are not bitwise identical by construction. grazder's
-    matmul-iFFT uses ``irfft_matrix = torch.linalg.pinv(rfft_matrix)``
-    -- a per-frequency least-squares pseudo-inverse. ``torch.fft.irfft``
-    is the analytic inverse DFT. They agree up to the pinv's numerical
-    accuracy: typical max abs diff on the enhanced audio frame is well
-    below auditory thresholds, but above the ~1e-6 drift you'd see from
-    two implementations of the same algorithm.
+     The two are not bitwise identical by construction. grazder's
+     matmul-iFFT uses ``irfft_matrix = torch.linalg.pinv(rfft_matrix)``
+    : a per-frequency least-squares pseudo-inverse. ``torch.fft.irfft``
+     is the analytic inverse DFT. They agree up to the pinv's numerical
+     accuracy: typical max abs diff on the enhanced audio frame is well
+     below auditory thresholds, but above the ~1e-6 drift you'd see from
+     two implementations of the same algorithm.
 
-    A failure -- much larger diff, or NaN -- would suggest a real bug
-    (e.g. a missing window multiply or a transpose). The thresholds
-    are sized to catch that without firing on the expected pinv drift.
+     A failure: much larger diff, or NaN: would suggest a real bug
+     (e.g. a missing window multiply or a transpose). The thresholds
+     are sized to catch that without firing on the expected pinv drift.
     """
     pipeline_a = TorchDFMinimalPipeline().eval()
     inner_a = pipeline_a.torch_streaming_model
@@ -168,7 +168,7 @@ def verify_parity_against_a(
         raise RuntimeError(
             f"variant B diverges from A: max abs diff = {diff:.3e} "
             f"(atol={atol}, rtol={rtol}). Within ~1e-3 is expected (pinv "
-            f"approximation); much larger is a real bug -- probably a "
+            f"approximation); much larger is a real bug: probably a "
             f"window-multiply factor or a missing transpose."
         )
     print(

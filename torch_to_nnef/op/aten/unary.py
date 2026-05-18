@@ -71,7 +71,7 @@ OP_REGISTRY = helper.AtenOpRegistry()
 
 
 # Unary ops whose mathematical output is always floating-point regardless
-# of input dtype -- PyTorch silently promotes an integer input to float
+# of input dtype: PyTorch silently promotes an integer input to float
 # (e.g. `torch.sqrt(torch.tensor([4], dtype=torch.int64))` returns float).
 # tract / NNEF have no such implicit promotion: emitting the bare op on
 # an integer tensor either fails type-checking (`no super type for F32

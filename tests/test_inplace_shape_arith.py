@@ -69,7 +69,7 @@ class _DprnnLikeBlock(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (B=1, C=hidden, T=1, F=num_feat)
-        # `(b f t) c` collapses *three* axes into one -- that produces
+        # `(b f t) c` collapses *three* axes into one: that produces
         # the multi-step `aten::mul_` chain that exposes the bug.
         # A single `mul_` is harmless (mutate once, read once); the
         # aliasing only corrupts results when multiple chained `mul_`

@@ -707,7 +707,7 @@ def _cdist_sample_st() -> st.SearchStrategy[OpSample]:
 def _distance_specs() -> T.List[OpSpec]:
     return [
         # All four lower to NNEF stdlib + (tensordot only) tract_core_einsum,
-        # all rank-preserving / shape-only -- the dyn-axes path works
+        # all rank-preserving / shape-only: the dyn-axes path works
         # straight away.
         OpSpec(
             name="pairwise_distance",
@@ -799,7 +799,7 @@ def _embedding_bag_static_offsets_sample_st(
 
 
 def _affine_grid_sample_st() -> st.SearchStrategy[OpSample]:
-    """`F.affine_grid(theta, (N, C, H, W), align_corners)` -- 2-D only."""
+    """`F.affine_grid(theta, (N, C, H, W), align_corners)`: 2-D only."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -978,7 +978,7 @@ def _renorm_sample_st() -> st.SearchStrategy[OpSample]:
     `p` restricted to {1, 2}: the `norm_pn` fragment branch (p != 1
     and p != 2) currently fails tract type-resolution
     (`No super type for F32 and TDim` on the `pow(input, ord)` call
-    inside `norm_pn`) -- the `ord` attribute reaches tract as a TDim
+    inside `norm_pn`): the `ord` attribute reaches tract as a TDim
     integer instead of a float scalar.
     """
 
@@ -1087,7 +1087,7 @@ def _addr_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _inner_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.inner(a, b)` -- rank-2 inputs, matching trailing dim."""
+    """`torch.inner(a, b)`: rank-2 inputs, matching trailing dim."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -1103,7 +1103,7 @@ def _inner_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _vdot_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.vdot(a, b)` -- 1-D real inputs of equal length."""
+    """`torch.vdot(a, b)`: 1-D real inputs of equal length."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -1117,7 +1117,7 @@ def _vdot_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _kron_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.kron(a, b)` -- rank-2 inputs."""
+    """`torch.kron(a, b)`: rank-2 inputs."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -1134,7 +1134,7 @@ def _kron_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _diag_1d_to_2d_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.diag(x)` with 1-D input -- build a square diag matrix."""
+    """`torch.diag(x)` with 1-D input: build a square diag matrix."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -1153,7 +1153,7 @@ def _diag_1d_to_2d_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _diag_2d_to_1d_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.diag(x)` with square 2-D input -- extract diagonal."""
+    """`torch.diag(x)` with square 2-D input: extract diagonal."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -1172,7 +1172,7 @@ def _diag_2d_to_1d_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _diagflat_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.diagflat(x)` -- flatten + diag."""
+    """`torch.diagflat(x)`: flatten + diag."""
 
     @st.composite
     def _draw(draw) -> OpSample:

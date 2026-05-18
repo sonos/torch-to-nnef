@@ -5,7 +5,7 @@ STFT, ERB feature extraction, complex deep-filter coefficient processing,
 and iSTFT all live in `libDF` (Rust) outside the model. To get a single
 waveform-in / waveform-out graph, this example uses @grazder's pure-torch
 reimplementation (`torchDF/torch_df_streaming_minimal.py`), which packs the
-full pipeline -- STFT, features, DfNet, gains, deep filter, iSTFT -- into
+full pipeline: STFT, features, DfNet, gains, deep filter, iSTFT: into
 one `nn.Module`.
 
 Variant A (this file, default) is grazder's model **verbatim**. Its STFT
@@ -42,7 +42,7 @@ def _patch_torchaudio_audio_meta_data() -> None:
     DeepFilterNet 0.5.6 (latest PyPI release) still imports
     `from torchaudio.backend.common import AudioMetaData`, which was removed
     in torchaudio >= 2.7. The class is only used for type hints and as the
-    return type of `torchaudio.info(...)` inside `df.io.load_audio` -- a
+    return type of `torchaudio.info(...)` inside `df.io.load_audio`: a
     function we never call (the example feeds dummy in-memory waveforms).
     A no-op stub is enough to keep the chain importable.
     """

@@ -603,7 +603,7 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
     # `fft.ifft` / `fft.fftn` / `fft.ifftn` / `stft`) keeps the PyTorch
     # logical rank. The handler dispatches against the heuristic; the
     # only fragile case (a logical complex tensor whose FFT axis happens
-    # to be 2) is implausible in real models -- FFT axes are practically
+    # to be 2) is implausible in real models: FFT axes are practically
     # never 2.
     if _is_view_tagged_complex(input_node):
         # View-tagged: trailing-2 already in IR shape.

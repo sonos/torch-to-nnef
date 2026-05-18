@@ -4,7 +4,7 @@ Profiles the streaming NNEF artifact via `tract dump --profile --json`
 and partitions the per-op latency by node-name prefix
 (`inner__enc__`, `inner__erb_dec__`, `inner__df_dec__` = NN; everything
 else = DSP) so we can compare apples-to-apples against the official
-ONNX bundle (which is NN-only -- libDF handles STFT/iSTFT externally).
+ONNX bundle (which is NN-only: libDF handles STFT/iSTFT externally).
 
 Per-frame budget at 16 kHz with hop=160 is **10 ms** (160 / 16000).
 """

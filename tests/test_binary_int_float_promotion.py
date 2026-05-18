@@ -52,7 +52,7 @@ class _MixedAddSub(torch.nn.Module):
 
 
 class _MixedMul(torch.nn.Module):
-    """`float_x * int_buf` -- the common scale-by-int-shape pattern."""
+    """`float_x * int_buf`: the common scale-by-int-shape pattern."""
 
     def __init__(self) -> None:
         super().__init__()

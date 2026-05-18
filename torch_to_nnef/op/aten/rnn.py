@@ -387,7 +387,7 @@ def gru_cell(g, node, name_to_tensor, **kwargs):
 
 
 # -------------------------------------------------------------------------
-# RNNCell (single step Elman cell, tanh/relu variants -- see
+# RNNCell (single step Elman cell, tanh/relu variants: see
 # rnn_tanh_cell.nnef / rnn_relu_cell.nnef fragments)
 # -------------------------------------------------------------------------
 
@@ -410,9 +410,9 @@ def emit_rnn_cell_via_fragment(
 ) -> T.List[str]:
     """Emit a single `rnn_{tanh,relu}_cell` NNEF fragment call.
 
-    Like `lstm_cell` the biases are pre-summed to a single `(1, H)` term
-    -- the Elman cell's nonlinearity sits on the full preactivation so
-    `b_ih` and `b_hh` are interchangeable in the math.
+     Like `lstm_cell` the biases are pre-summed to a single `(1, H)` term
+    : the Elman cell's nonlinearity sits on the full preactivation so
+     `b_ih` and `b_hh` are interchangeable in the math.
     """
     if nonlinearity not in ("tanh", "relu"):
         raise T2NErrorNotImplemented(
@@ -645,7 +645,7 @@ def _translate_state_variable_load_and_prep(
       the model is exported with symbolic batch.
 
     The caller is responsible for choosing which mode based on
-    `inference_target.has_dynamic_axes` -- this function does not
+    `inference_target.has_dynamic_axes`: this function does not
     re-derive the batch size from `input_tensor.shape`, because
     `input_tensor` is the post-`_pre_batch_first` tensor and its
     `.shape` attribute still reflects the pre-transpose IR layout

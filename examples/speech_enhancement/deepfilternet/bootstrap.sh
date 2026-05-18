@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Clone grazder's DeepFilterNet fork so we can pick up
-# `torchDF/torch_df_streaming_minimal.py` -- the pure-torch reimplementation
+# `torchDF/torch_df_streaming_minimal.py`: the pure-torch reimplementation
 # of the full DFN pipeline (waveform in / waveform out). The torchDF
 # subdirectory is *not* pip-installable on its own (its pyproject.toml
 # references source files outside the subdir), so we put it on the

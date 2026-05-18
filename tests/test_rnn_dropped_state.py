@@ -4,7 +4,7 @@
 the sequence output and drop the hidden-state(s) at the call site
 (``out, _ = gru(x)``). Under `torch.jit.trace` (PyTorch >= 2.0) the submodule's
 IR graph still exposes the full output tuple, while the upstream
-`prim::CallMethod` declares only the bound output -- a `len(gouts) > len(
+`prim::CallMethod` declares only the bound output: a `len(gouts) > len(
 provided_outputs)` mismatch in
 `torch_to_nnef.op.custom_extractors.base._extract_outputs`. The extractor
 must synthesise placeholders for the un-bound slots instead of raising.
@@ -166,7 +166,7 @@ def test_gru_implicit_init_then_static_reshape(inference_target):
     unconditionally, which made tract treat the resulting batch dim as
     symbolic even when no dynamic axes were requested. The symbolic dim
     then propagated through the GRU output, the slice, and into the
-    `.view(-1, nout)` reshape, which has a static target -- tract's
+    `.view(-1, nout)` reshape, which has a static target: tract's
     constraint solver rejected the reshape because the symbolic
     flattened size could not be unified with the baked target. The fix
     is to use a static `tile` repeats vector (the input's actual batch

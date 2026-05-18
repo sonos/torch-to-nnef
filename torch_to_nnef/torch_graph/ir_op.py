@@ -446,7 +446,7 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
     if transposed:
         # PyTorch transposed conv: weight is (Cin, Cout/groups, *kernel),
         # so the actual ``Cout`` is ``w_shape[1] * groups``. Plain
-        # ``w_shape[1]`` only matches when ``groups == 1`` -- for the
+        # ``w_shape[1]`` only matches when ``groups == 1``: for the
         # depthwise upsample in Mimi (``groups == in_channels``) we'd
         # otherwise infer ``Cout = 1`` and downstream LayerNorm chokes.
         cout = w_shape[1] * groups
@@ -513,7 +513,7 @@ INFER_RULES = {
     # tracer hands all-zero placeholder tensors (the dispatcher
     # picks an overload it can't satisfy). Output shape matches the
     # input argument (`input` for bucketize, `values` for
-    # searchsorted) -- short-circuit instead of calling op_ref.
+    # searchsorted): short-circuit instead of calling op_ref.
     "aten::bucketize": InferRule(
         lambda inp, *_: inp.shape, 1, require_dtype=False
     ),

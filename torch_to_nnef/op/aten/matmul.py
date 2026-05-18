@@ -36,7 +36,7 @@ def _get_padding_same_symetric(
 
 
 @OP_REGISTRY.register(
-    # Most of these aten symbols never reach the trace -- pytorch
+    # Most of these aten symbols never reach the trace: pytorch
     # decomposes them through `aten::_convolution_mode` or
     # `aten::_convolution` upstream. `convolution_overrideable` is an
     # autograd hook for backend-specific dispatch; same story. The
@@ -224,7 +224,7 @@ def _emit_conv(
                 # we'd need a post-deconv pad op to reach the right
                 # output size. PyTorch's constraint `output_padding <
                 # max(stride, dilation)` keeps this in the safe range
-                # for the common cases (stride>=2 with pad>=1) -- if a
+                # for the common cases (stride>=2 with pad>=1): if a
                 # model triggers the corner where `pad_after < op`
                 # we raise so the gap is explicit rather than silently
                 # producing a wrong-shape NNEF.
@@ -312,7 +312,7 @@ def conv_transpose_nd(
     decomposing for some platform.
 
     Signature: `(input, weight, bias?, stride, padding, output_padding,
-    groups, dilation)` -- 8 positional args.
+    groups, dilation)`: 8 positional args.
     """
     (
         input_node,
@@ -349,7 +349,7 @@ def conv_tbc(
     """Map PyTorch: 'aten:conv_tbc' to NNEF.
 
     `conv_tbc(input, weight, bias, pad)` is a 1-D convolution over a
-    `(T, B, C)` input -- time-batch-channel layout -- with weight
+    `(T, B, C)` input: time-batch-channel layout: with weight
     `(kernel, C_in, C_out)`. Equivalent semantically to
     `conv1d(input.permute(1, 2, 0), weight.permute(2, 1, 0), bias,
     padding=pad).permute(2, 0, 1)`, which is exactly the
@@ -609,7 +609,7 @@ def matmul(g, node, name_to_tensor, **kwargs):
         gives `(1, 1)`, squeeze both axes.
 
     Both inputs are promoted to a common `target_rank = max(a_rank,
-    b_rank, 2)` -- batch dims get prepended `1`s; for rank-1 inputs the
+    b_rank, 2)`: batch dims get prepended `1`s; for rank-1 inputs the
     vector lands as the row (A) or column (B) dim with a singleton on
     the opposite side. The post-matmul squeeze drops those singletons
     to match `_infer_trace_result_matmul`'s rank prediction so
@@ -628,7 +628,7 @@ def matmul(g, node, name_to_tensor, **kwargs):
 
     if not (a_is_v or b_is_v):
         # Standard case: both rank >= 2. Let the generic emitter handle
-        # it -- `force_consistent_inputs_shapes` prepends 1s to the
+        # it: `force_consistent_inputs_shapes` prepends 1s to the
         # smaller-rank input if needed (e.g. rank-3 @ rank-2), and the
         # IR shape inferrer already accounts for that broadcasting.
         add_single_output_op(
@@ -933,7 +933,7 @@ def inner(g, node, name_to_tensor, op_helper, **kwargs):
     For 1D inputs the trace materializes torch's "0-D scalar" output;
     NNEF doesn't have a 0-D tensor type, so for the 1D case we let the
     standard matmul emit a `(1, 1)` result and rely on torch's trace
-    having squeezed it upstream (it does -- `aten::inner` with 1D
+    having squeezed it upstream (it does: `aten::inner` with 1D
     inputs is the dot-product overload that returns a 0-D real).
     """
     a_node, b_node = node.inputs[:2]
@@ -1157,7 +1157,7 @@ def _emit_fused_matmul(g, node, name_to_tensor, inference_target, fragment):
     """Shared body for `addbmm` / `addmv` / `addr`.
 
     All three follow the same `(self, A, B, *, beta, alpha)` aten
-    signature as `baddbmm` -- only the fragment that does the actual
+    signature as `baddbmm`: only the fragment that does the actual
     math differs.
     """
     input_node, a_node, b_node, beta_node, alpha_node = node.inputs

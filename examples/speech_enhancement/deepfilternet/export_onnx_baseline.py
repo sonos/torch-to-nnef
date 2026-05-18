@@ -63,7 +63,7 @@ OPSET_VERSION = 17
 # symbolic style. Local noqa on each shim.
 @symbolic_helper.parse_args("v", "i", "i", "s")
 def _onnx_custom_rfft(g, X, n, dim, norm):  # noqa: N803
-    """Symbolic for `aten::fft_rfft` -- mirror grazder's `custom_rfft`.
+    """Symbolic for `aten::fft_rfft`: mirror grazder's `custom_rfft`.
 
     DFN3's streaming model only ever calls `fft_rfft` on a rank-1 buffer
     (the windowed audio frame), so the only valid axis is 0. tract's
@@ -74,7 +74,7 @@ def _onnx_custom_rfft(g, X, n, dim, norm):  # noqa: N803
 
 
 def _onnx_custom_identity(g, X):  # noqa: N803
-    """Symbolic for `aten::view_as_real` -- pass-through."""
+    """Symbolic for `aten::view_as_real`: pass-through."""
     return X
 
 

@@ -28,7 +28,7 @@ from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
 class ConvT2dOutputPadding1(nn.Module):
-    """`stride=2` deconv with `output_padding=1` -- doubles the spatial dim.
+    """`stride=2` deconv with `output_padding=1`: doubles the spatial dim.
 
     Matches DFN3's `convt1` / `convt2` shape: kernel=3, padding=1,
     output_padding=1, stride=2. PyTorch yields `out_W = 2 * in_W`. The

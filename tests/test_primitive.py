@@ -512,7 +512,7 @@ test_suite.add(
 )
 
 
-# torch.arange with dtype=float64 -- shows up in RoPE-style position embeds.
+# torch.arange with dtype=float64: shows up in RoPE-style position embeds.
 # NNEF runtimes run it as f32 which is fine for integer-range / position math.
 class _ArangeF64Add(nn.Module):
     def forward(self, x):
@@ -1251,7 +1251,7 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 # lgamma: positive small + positive large (skip reflection corner
-# `x <= 0.5` for now -- that branch needs `sin(pi*x)` and is rarely
+# `x <= 0.5` for now: that branch needs `sin(pi*x)` and is rarely
 # hit in inference).
 test_suite.add(
     (torch.tensor([0.6, 1.0, 1.5, 2.0, 3.0, 5.5, 12.0, 25.0]),),
@@ -1261,7 +1261,7 @@ test_suite.add(
 
 
 class MvlgammaMod(nn.Module):
-    """`torch.mvlgamma(x, p)` -- multivariate log-Gamma.
+    """`torch.mvlgamma(x, p)`: multivariate log-Gamma.
 
     Each shifted argument `x + (1 - i)/2` must stay > 0.5 (lgamma's
     domain), so the test feeds large enough x values.
@@ -1332,7 +1332,7 @@ test_suite.add((torch.zeros(4),), LogspaceMod(-1.0, 1.0, 4, base=2.0))
 
 
 class ChainMatmulMod(nn.Module):
-    """`torch.chain_matmul(*mats)` -- sequential matmul fold."""
+    """`torch.chain_matmul(*mats)`: sequential matmul fold."""
 
     def forward(self, a, b, c, d):
         return torch.chain_matmul(a, b, c, d)
@@ -1419,7 +1419,7 @@ test_suite.add(
 
 
 class DiffMod(nn.Module):
-    """`torch.diff(x, n, dim)` -- n-th order finite differences."""
+    """`torch.diff(x, n, dim)`: n-th order finite differences."""
 
     def __init__(self, n=1, dim=-1):
         super().__init__()
@@ -1441,7 +1441,7 @@ test_suite.add(
 
 
 class TrapezoidMod(nn.Module):
-    """`torch.trapezoid(y, dx=, dim=)` -- uniform-spacing integration."""
+    """`torch.trapezoid(y, dx=, dim=)`: uniform-spacing integration."""
 
     def __init__(self, dx=1.0, dim=-1, use_trapz=False):
         super().__init__()
@@ -1466,7 +1466,7 @@ test_suite.add(
 
 
 class InnerMod(nn.Module):
-    """`torch.inner(a, b)` -- inner product along trailing axis."""
+    """`torch.inner(a, b)`: inner product along trailing axis."""
 
     def forward(self, a, b):
         return torch.inner(a, b)
@@ -1483,7 +1483,7 @@ test_suite.add(
 
 
 class VdotMod(nn.Module):
-    """`torch.vdot(a, b)` -- 1-D dot product."""
+    """`torch.vdot(a, b)`: 1-D dot product."""
 
     def forward(self, a, b):
         return torch.vdot(a, b)
@@ -1496,7 +1496,7 @@ test_suite.add(
 
 
 class EntrMod(nn.Module):
-    """`torch.special.entr(x)` -- entropy term -x*log(x)."""
+    """`torch.special.entr(x)`: entropy term -x*log(x)."""
 
     def forward(self, x):
         return torch.special.entr(x)
@@ -1510,7 +1510,7 @@ test_suite.add(
 
 
 class Xlog1pyMod(nn.Module):
-    """`torch.special.xlog1py(x, y)` -- x * log(1 + y), 0 at x=0."""
+    """`torch.special.xlog1py(x, y)`: x * log(1 + y), 0 at x=0."""
 
     def forward(self, x, y):
         return torch.special.xlog1py(x, y)
@@ -1527,7 +1527,7 @@ test_suite.add(
 
 
 class KronMod(nn.Module):
-    """`torch.kron(a, b)` -- 2-D Kronecker product."""
+    """`torch.kron(a, b)`: 2-D Kronecker product."""
 
     def forward(self, a, b):
         return torch.kron(a, b)
@@ -1544,7 +1544,7 @@ test_suite.add(
 
 
 class BlockDiagMod(nn.Module):
-    """`torch.block_diag(*mats)` -- rank-2 blocks only."""
+    """`torch.block_diag(*mats)`: rank-2 blocks only."""
 
     def forward(self, a, b, c):
         return torch.block_diag(a, b, c)
@@ -1558,7 +1558,7 @@ test_suite.add(
 
 
 class CartesianProdMod(nn.Module):
-    """`torch.cartesian_prod(*tensors)` -- 1-D inputs only."""
+    """`torch.cartesian_prod(*tensors)`: 1-D inputs only."""
 
     def __init__(self, k=2):
         super().__init__()
@@ -1583,7 +1583,7 @@ test_suite.add(
 
 
 class DiagMod(nn.Module):
-    """`torch.diag(x)` -- offset 0 only."""
+    """`torch.diag(x)`: offset 0 only."""
 
     def forward(self, x):
         return torch.diag(x)
@@ -1602,7 +1602,7 @@ test_suite.add(
 
 
 class DiagflatMod(nn.Module):
-    """`torch.diagflat(x)` -- flatten + diag, offset 0 only."""
+    """`torch.diagflat(x)`: flatten + diag, offset 0 only."""
 
     def forward(self, x):
         return torch.diagflat(x)
@@ -1616,7 +1616,7 @@ test_suite.add(
 
 
 class DiagEmbedMod(nn.Module):
-    """`torch.diag_embed(x)` -- embed last axis as diagonal."""
+    """`torch.diag_embed(x)`: embed last axis as diagonal."""
 
     def forward(self, x):
         return torch.diag_embed(x)
@@ -1635,7 +1635,7 @@ test_suite.add(
 
 
 class BilinearMod(nn.Module):
-    """`F.bilinear(x1, x2, weight, bias)` -- rank-2 inputs."""
+    """`F.bilinear(x1, x2, weight, bias)`: rank-2 inputs."""
 
     def __init__(self, in1, in2, out, bias=True):
         super().__init__()

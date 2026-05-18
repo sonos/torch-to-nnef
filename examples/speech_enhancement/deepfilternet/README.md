@@ -17,16 +17,16 @@ deep-filter coefficients, and iSTFT all live in `libDF` (Rust) outside
 the model. [@grazder's pure-torch reimplementation](https://github.com/grazder/DeepFilterNet)
 provides:
 
-- `TorchDFMinimalPipeline` -- the *outer* whole-waveform wrapper that
+- `TorchDFMinimalPipeline`: the *outer* whole-waveform wrapper that
   internally chunks audio and loops over `torch_streaming_model`.
-- `ExportableStreamingMinimalTorchDF` (alias `torch_streaming_model`) --
+- `ExportableStreamingMinimalTorchDF` (alias `torch_streaming_model`):
   the *inner* per-frame model with 12 explicit state tensors.
 
 We export the **inner** model. The outer wrapper's loop unrolls into 52+
 graph copies under tracing (3MB → 19MB+), and tract's `PushSliceUp`
 declutter pass rejects the rolling-buffer slice fan-outs (no `begin=0`
 sibling). Exporting per-frame matches grazder's ONNX deploy shape and
-sidesteps both issues -- the rolling buffers become external state, not
+sidesteps both issues: the rolling buffers become external state, not
 in-graph slices.
 
 ## Variants
@@ -35,7 +35,7 @@ DeepFilterNet's synthesis stage maps a complex frame spectrum back to the
 time domain. grazder's `frame_synthesis` (in `torch_streaming_model`)
 implements this as a matrix multiply with a precomputed
 `irfft_matrix = torch.linalg.pinv(rfft_matrix)`. That choice is
-deliberate -- it round-trips through ONNX cleanly, where a real
+deliberate: it round-trips through ONNX cleanly, where a real
 `torch.fft.irfft` would not. The matrix is also a baked-in model
 parameter (so its weights ship inside the artifact).
 
@@ -62,7 +62,7 @@ The headline difference between the two paths is *what ships*:
 
 | Path | Artifacts | DSP runtime |
 | ---- | --------- | ----------- |
-| NNEF (t2n) | 1 file: `deepfilternet3.nnef.tgz` | none -- STFT / iSTFT / ERB filterbank are *in* the graph |
+| NNEF (t2n) | 1 file: `deepfilternet3.nnef.tgz` | none: STFT / iSTFT / ERB filterbank are *in* the graph |
 | Official ONNX (`DfTract`) | 3 files: `enc.onnx`, `erb_dec.onnx`, `df_dec.onnx` | external `libDF` (Rust) for STFT / iSTFT / ERB |
 
 For an edge / embedded / WebAssembly deploy this is the load-bearing
@@ -77,7 +77,7 @@ processing.
 (`enc__`, `erb_dec__`, `df_dec__` = NN; everything else = DSP) and
 reports the NN-only sum alongside the full pipeline. The NN-only
 column matches what the official ONNX bundle measures end-to-end
-(since its ONNX graphs *only* contain the NN -- libDF handles the
+(since its ONNX graphs *only* contain the NN: libDF handles the
 DSP):
 
 | Variant | NN-only | NN ops | RTFx (NN-only) |
@@ -105,7 +105,7 @@ candidates if we want to push it further:
   a single op. Worth profiling whether tract's NNEF declutter
   rewrites it to the same einsum form.
 - Op count: NNEF has 187 NN ops (3.4 µs/op avg), ONNX has 245
-  (2.5 µs/op avg). NNEF has fewer, *heavier* ops -- some declutter
+  (2.5 µs/op avg). NNEF has fewer, *heavier* ops: some declutter
   passes that tract applies on ONNX may not run on NNEF.
 
 ### Full-pipeline timings (NNEF includes DSP in-graph; ONNX doesn't)
@@ -118,7 +118,7 @@ candidates if we want to push it further:
 
 The two NNEF artifacts include the STFT analysis + iFFT synthesis +
 ERB feature extract in-graph (per-frame). The official ONNX timings
-*exclude* that DSP -- to get a like-for-like end-to-end you'd add
+*exclude* that DSP: to get a like-for-like end-to-end you'd add
 libDF's per-frame DSP cost on top of the ONNX number. We don't have
 that number here; what we do have is that the full NNEF pipeline runs
 in **0.72 ms / 14× real-time** without any DSP companion.
@@ -147,13 +147,13 @@ python export.py --out deepfilternet3.nnef.tgz
 python export_stft_variant.py --out deepfilternet3_stft.nnef.tgz
 
 # (optional) per-frame ONNX export via grazder's symbolic-op hooks
-# Note: this artifact does not load on tract -- the inline DFT shape
+# Note: this artifact does not load on tract: the inline DFT shape
 # inference disagrees with what tract's ONNX importer expects. Use
 # the official 3-component bundle for tract-based comparisons.
 # python export_onnx_baseline.py --out deepfilternet3.onnx
 
 # (optional) for the 3-way bench, fetch the official ONNX components
-# (NN-only, no FFT/ERB in graph) -- libDF handles DSP outside
+# (NN-only, no FFT/ERB in graph): libDF handles DSP outside
 curl -L -o DeepFilterNet3_onnx.tar.gz \
     https://github.com/Rikorose/DeepFilterNet/raw/main/models/DeepFilterNet3_onnx.tar.gz
 mkdir -p _official_onnx && tar -xzf DeepFilterNet3_onnx.tar.gz -C _official_onnx
@@ -181,7 +181,7 @@ first run.
   produces a NNEF that hits tract's `PushSliceUp` declutter assertion
   (`boundaries[0] == 0`) on rolling-buffer slice fan-outs. Fixing that
   is upstream (tract). The per-frame export avoids the issue entirely
-  by making rolling buffers external state -- this is also the deploy
+  by making rolling buffers external state: this is also the deploy
   shape grazder's reference ONNX uses.
 - **Per-frame ONNX from torch.onnx** (`export_onnx_baseline.py`): the
   script produces a valid ONNX (~12 MB), but tract refuses its `DFT`
