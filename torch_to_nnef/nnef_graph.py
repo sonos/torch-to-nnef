@@ -20,6 +20,7 @@ from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
 )
+from torch_to_nnef.op.extras import t2n_extra_to_nnef_tensor_and_ops
 from torch_to_nnef.op.helper import add_nnef_operation
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
@@ -78,6 +79,15 @@ class TorchToNGraphExtractor:
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):
         if node.kind.startswith("aten::"):
             return aten_to_nnef_tensor_and_ops(
+                self.g,
+                node,
+                name_to_tensor,
+                null_ref,
+                torch_graph=self._torch_ir_graph,
+                inference_target=self._inference_target,
+            )
+        if node.kind.startswith("t2n_extra::"):
+            return t2n_extra_to_nnef_tensor_and_ops(
                 self.g,
                 node,
                 name_to_tensor,

@@ -50,8 +50,10 @@ from torch_to_nnef.torch_graph.torch_const import (
     MAP_TO_NOP,
     MODULE_PATH_ATEN,
     MODULE_PATH_QUANTIZED,
+    MODULE_PATH_T2N_EXTRA,
     NUMTOTENSOR_KIND,
     PRIM_STARTID,
+    T2N_EXTRA_STARTID,
     TENSORTYPE_KIND,
     TUPLECONSTRUCT_KIND,
     TUPLEUNPACK_KIND,
@@ -86,6 +88,12 @@ def aten_name_to_torch_fn(
 def quantized_name_to_torch_fn(aten_name):
     name = aten_name.replace("quantized::", "")
     return getattr(torch.ops.quantized, name)
+
+
+def t2n_extra_name_to_torch_fn(kind: str):
+    """Resolve a `t2n_extra::<name>` op kind to its `torch.ops` entry."""
+    name = kind.replace("t2n_extra::", "")
+    return getattr(torch.ops.t2n_extra, name)
 
 
 def _add_prefix_if_start_with_digit(text: str, prefix: str) -> str:
@@ -673,6 +681,14 @@ def _extract_op_infos(
                 _find_data_node(data_nodes, in_name)
             except T2NErrorTorchNotFoundDataNode:
                 _parse_getattr_script_obj(inp.node(), module, data_nodes)
+    elif kind.startswith(T2N_EXTRA_STARTID):
+        # User-registered custom ops (see `torch_to_nnef.op.extras`).
+        # We resolve a `torch.ops.t2n_extra.<name>` callable for the IR
+        # replay path; the actual NNEF emit happens later in
+        # `nnef_graph._op_nodes_to_nnef_operation`.
+        module_getter_ref = MODULE_PATH_T2N_EXTRA
+        op_ref = t2n_extra_name_to_torch_fn(kind)
+        inputs = _prepare_arguments(kind, inputs, data_nodes)
     else:
         module_getter_ref = MODULE_PATH_ATEN
         if kind in MAP_TO_NOP:

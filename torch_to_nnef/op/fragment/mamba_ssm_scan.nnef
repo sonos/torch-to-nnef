@@ -1,0 +1,80 @@
+extension tract_registry tract_core;
+
+# Per-timestep body of Mamba's selective SSM scan.
+#
+# Convention: scan iterates along axis 0 of each `scan` input. tract
+# keeps the scan axis with size `scan_pace = 1` inside the body
+# (pulse-style), so each input arrives one rank higher than the
+# stateful shape -- we squeeze axis 0 before the arithmetic.
+#
+# Math (matches HF MambaMixer.slow_forward's per-step recurrence):
+#   h_t = A_t * h_prev + Bu_t      (elementwise; (B, D, N))
+#   y_t = sum_n(h_t * C_t)         ((B, D) after broadcast + reduce)
+#
+# Shapes (after the leading-1 squeeze):
+#   h_prev: (B, D, N)              -- state, rank 3
+#   A_t:    (B, D, N)              -- arrived as (1, B, D, N)
+#   Bu_t:   (B, D, N)              -- arrived as (1, B, D, N)
+#   C_t:    (B, N)                 -- arrived as (1, B, N)
+# Outputs:
+#   h_t:    (B, D, N)              -- same shape as h_prev (recurrence)
+#   y_t:    (B, D)                 -- per-step contextualised output
+fragment mamba_ssm_step(
+    h_prev: tensor<scalar>,
+    A_t: tensor<scalar>,
+    Bu_t: tensor<scalar>,
+    C_t: tensor<scalar>
+) -> ( h_t: tensor<scalar>, y_t: tensor<scalar> ) {
+    A_t_s = squeeze(A_t, axes = [0]);
+    Bu_t_s = squeeze(Bu_t, axes = [0]);
+    C_t_s = squeeze(C_t, axes = [0]);
+
+    h_t = A_t_s * h_prev + Bu_t_s;
+
+    # y_t[b, d] = sum_n h_t[b, d, n] * C_t_s[b, n]
+    # Broadcast C_t_s over the D axis: (B, N) -> (B, 1, N).
+    C_bcast = unsqueeze(C_t_s, axes = [1]);
+    prod = h_t * C_bcast;
+    y_t = sum_reduce(prod, axes = [2]);
+}
+
+
+# Whole-sequence SSM scan over T. Wraps `mamba_ssm_step` in
+# `tract_core_scan`; tract's pulse declutter compiles the recurrence
+# into a streaming graph (no static unroll).
+#
+# The t2n handler pre-transposes the SSM tensors so the scan (time)
+# axis is at position 0, matching the GRU / LSTM fragment convention.
+# After that:
+#   discrete_A: (T, B, D, N)
+#   deltaB_u  : (T, B, D, N)
+#   C         : (T, B, N)
+#   h_init    : (B, D, N)
+# Outputs:
+#   scan_y    : (T, B, D)        per-step output stacked along axis 0
+#   h_final   : (B, D, N)        final state
+fragment mamba_ssm_scan(
+    discrete_A: tensor<scalar>,
+    deltaB_u: tensor<scalar>,
+    C: tensor<scalar>,
+    h_init: tensor<scalar>,
+    scan_pace: integer
+) -> ( scan_y: tensor<scalar>, h_final: tensor<scalar> ) {
+    (scan_y, h_final) = tract_core_scan(
+        body = "mamba_ssm_step",
+        scan = [
+            ("A_t", discrete_A, 0, scan_pace),
+            ("Bu_t", deltaB_u, 0, scan_pace),
+            ("C_t", C, 0, scan_pace)
+        ],
+        full = [],
+        state = [
+            ("h_prev", h_init, "h_t")
+        ],
+        output = [
+            ("y_t", "full", 2, scan_pace),
+            ("h_t", "last", 0, scan_pace)
+        ],
+        skip = 0
+    );
+}
