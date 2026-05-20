@@ -11,6 +11,12 @@ from __future__ import annotations
 import pytest
 import torch
 
+if not hasattr(torch.library, "custom_op"):
+    pytest.skip(
+        "t2n_extra::ssm_scan tests need torch.library.custom_op (torch >= 2.4)",
+        allow_module_level=True,
+    )
+
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
