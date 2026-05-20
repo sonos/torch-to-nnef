@@ -116,7 +116,7 @@ def replication_padnd(
 
 @OP_REGISTRY.register(torch_op_ids=["constant_pad1d", "constant_pad_nd"])
 def constant_pad_nd(
-    g, node, name_to_tensor, torch_graph, inference_target, **kwargs
+    g, node, name_to_tensor, torch_graph, inference_target, op_helper, **kwargs
 ):
     """Map PyTorch: 'aten:constant_pad_{1,n}d' to NNEF."""
     (input_node, pads_node, value_node) = node.inputs
@@ -137,13 +137,81 @@ def constant_pad_nd(
     # ensure cast to same dtype as output
     value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
 
+    # PyTorch's constant_pad_nd allows negative entries (cropping the
+    # corresponding side). NNEF `pad` only accepts non-negative
+    # paddings, so split: emit a `slice` to absorb the negative parts
+    # first, then a `pad` for the positive remainder. Common path
+    # (all-non-negative) stays a single `pad`.
+    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    custom_fragments: list = []
+    has_negative = any(left < 0 or right < 0 for (left, right) in pads)
+    if has_negative:
+        # Decompose per-axis: each axis with a negative pad becomes its
+        # own slice. This keeps streaming-axis crops on `dyn_slice_begin`
+        # (which preserves the symbolic streaming shape) and lets the
+        # static axes use the regular `slice` op. A single multi-axis
+        # `slice` with a concrete `end` would otherwise collapse the
+        # streaming axis to a fixed size and break pulse mode downstream.
+        pos_pads = []
+        for axis_idx, (left, right) in enumerate(pads):
+            crop_left = -left if left < 0 else 0
+            crop_right = -right if right < 0 else 0
+            pos_pads.append((max(left, 0), max(right, 0)))
+            if not (crop_left or crop_right):
+                continue
+            dim_size = input_node.shape[axis_idx]
+            # When the export carries any dynamic axes, prefer the
+            # streaming-friendly `dyn_slice_begin` op for left-crops:
+            # t2n's IR uses concrete trace shapes everywhere so we
+            # can't tell from `dim_size` alone whether *this* axis is
+            # the streaming one. `dyn_slice_begin` works correctly on
+            # static axes too (it just slices to end-of-axis), and the
+            # caller pulse-pass requires it on the streaming axis to
+            # keep the symbolic dim intact.
+            if inference_target.has_dynamic_axes:
+                if crop_right > 0:
+                    raise T2NErrorNotImplemented(
+                        "negative pad on the right side of a dynamic axis "
+                        "is not supported (would need a symbolic `end`)"
+                    )
+                # `dyn_slice_begin` preserves the symbolic dim on this axis.
+                inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
+                    node,
+                    "dyn_slice_begin",
+                    inputs=inp_ref,
+                    attrs={
+                        "axis": axis_idx,
+                        "begin": crop_left,
+                        "stride": 1,
+                    },
+                    output_tensor_name_suffix=f"_pad_crop_axis{axis_idx}",
+                )
+                custom_fragments.extend(
+                    ["dyn_slice_begin", "within_bound_index"]
+                )
+            else:
+                inp_ref = add_single_output_op(
+                    g,
+                    node,
+                    name_to_tensor,
+                    nnef_op_type="slice",
+                    inputs=inp_ref,
+                    attrs={
+                        "axes": [axis_idx],
+                        "begin": [crop_left],
+                        "end": [dim_size - crop_right],
+                        "stride": [1],
+                    },
+                    output_tensor_name_suffix=f"_pad_crop_axis{axis_idx}",
+                )
+        pads = pos_pads
+
     add_single_output_op(
         g,
         node,
         name_to_tensor,
         nnef_op_type="pad",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=inp_ref,
         attrs={"padding": pads, "value": value},
     )
+    return custom_fragments or None

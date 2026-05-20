@@ -228,6 +228,24 @@ test_suite.add(
 )
 
 
+# Negative-pad-on-dynamic-axis: PyTorch's `nn.ConstantPad2d` (and the
+# underlying `aten::constant_pad_nd`) accepts negative entries that
+# crop the corresponding side. T2n decomposes that into a `slice` +
+# `pad` pair. Under dynamic axes the slice must use the streaming-aware
+# `dyn_slice_begin` form (open-ended end), otherwise the cropped axis
+# collapses to a concrete value and the downstream pulse-mode pass
+# breaks every subsequent broadcast against the streaming siblings.
+# Surfaced first on DPDFNet's `pad_feat` (causal lookahead crop).
+test_suite.add(
+    torch.rand(1, 1, 100, 64),
+    nn.ConstantPad2d((0, 0, -2, 2), 0.0),
+    inference_conditions=ge_tract_0_21_5,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
+)
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
