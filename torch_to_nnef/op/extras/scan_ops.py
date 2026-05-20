@@ -110,3 +110,67 @@ def ssm_scan(
         outputs=(y_final, h_final),
     )
     return ["mamba_ssm_scan"]
+
+
+@register("ssm_scan_y")
+def ssm_scan_y(
+    g, node, name_to_tensor, op_helper, inference_target, **kwargs
+) -> T.List[str]:
+    """Pulse-friendly variant of `ssm_scan`: emits only y_t (no h_final).
+
+    The Scan pulsifier in tract rejects `"last"` outputs (h_final).
+    Dropping it makes the scan body compatible with `into_pulse`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "t2n_extra::ssm_scan_y requires a TractNNEF target."
+        )
+
+    discrete_A_in, deltaB_u_in, C_in, h_init_in = node.inputs
+    discrete_A = op_helper.get_or_add_tensor_variable_in_nnef(discrete_A_in)
+    deltaB_u = op_helper.get_or_add_tensor_variable_in_nnef(deltaB_u_in)
+    C = op_helper.get_or_add_tensor_variable_in_nnef(C_in)
+    h_init = op_helper.get_or_add_tensor_variable_in_nnef(h_init_in)
+
+    b, d, t, n = discrete_A.shape
+    A_perm = op_helper.add_intermediate_op(
+        src=discrete_A,
+        op_type="transpose",
+        attrs={"axes": [2, 0, 1, 3]},
+        new_shape=[t, b, d, n],
+        suffix="scan_time_first",
+    )
+    Bu_perm = op_helper.add_intermediate_op(
+        src=deltaB_u,
+        op_type="transpose",
+        attrs={"axes": [2, 0, 1, 3]},
+        new_shape=[t, b, d, n],
+        suffix="scan_time_first",
+    )
+    bC, tC, nC = C.shape
+    C_perm = op_helper.add_intermediate_op(
+        src=C,
+        op_type="transpose",
+        attrs={"axes": [1, 0, 2]},
+        new_shape=[tC, bC, nC],
+        suffix="scan_time_first",
+    )
+
+    from nnef_tools.model import Operation as NOperation
+    from nnef_tools.model import Tensor as NTensor
+
+    y_final = NTensor(
+        g,
+        name=node.outputs[0].export_name,
+        dtype=discrete_A.dtype,
+        shape=(b, d, t),
+    )
+    name_to_tensor[node.outputs[0].export_name] = y_final
+    NOperation(
+        g,
+        type="mamba_ssm_scan_pulse",
+        attribs={"scan_pace": 1},
+        inputs=(A_perm, Bu_perm, C_perm, h_init),
+        outputs=(y_final,),
+    )
+    return ["mamba_ssm_scan_pulse"]
