@@ -409,9 +409,15 @@ def _reduction_dtype_kwarg_specs() -> T.List[OpSpec]:
     CLOSE = TractCheckTolerance.CLOSE
     return [
         OpSpec(
+            # The strategy domain `[-1e2, 1e2]` can draw values that
+            # cancel down to ~1e-1 (e.g. `34 - 31 - 1.37 - 1.37`). The
+            # post-cancellation absolute error is then ~`N * eps * max|x|`
+            # which is a few ULPs at f32 eps and exceeds the APPROXIMATE
+            # 1e-6 atol. Match `sum-dim-broad`'s rationale (accumulated
+            # float error needs CLOSE).
             name="sum-dtype",
             sample_st=_reduction_dtype_kwarg_sample_st("sum"),
-            tolerance=APPROX,
+            tolerance=CLOSE,
         ),
         OpSpec(
             name="mean-dtype",
