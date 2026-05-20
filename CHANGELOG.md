@@ -19,6 +19,7 @@
   - `div` wraps scalar division result in a 0-d tensor before `.to(dtype)`.
   - `_convolution_mode` accepts list-padding from `aten::conv1d/2d/3d`.
   - `prim::TupleUnpack` output names are normalised through `cleanup_data_name`, fixing dotted SSA-name lookups (e.g. `h0.1`).
+- `constant_pad_nd` with a negative entry on a dynamic axis: the decomposed `slice` now uses `dyn_slice_begin` (open-ended) instead of a concrete-`end` `slice`, so the streaming-axis symbolic dim survives the crop. Without this, the cropped axis collapsed to a fixed size and any downstream broadcast against a streaming sibling failed under pulse mode (surfaced by DPDFNet's causal `pad_feat`).
 
 ## [0.23.2] - 2026-04-21
 
