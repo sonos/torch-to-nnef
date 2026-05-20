@@ -92,19 +92,18 @@ in both shapes.
 
 ## Notes
 
-- The pulse path depends on two tract-side bits merged on `main`:
-  the Gather `axes_mapping` (commit 9ceee1b5c) and the `PushSliceUp`
-  prefix-boundary fix (commit 803bdad5a, was PR sonos/tract#2247).
-  `pulse/mamba-rs/Cargo.toml` pins to a tract main rev (`f070a6d7f`)
-  that includes both. Stock 0.22.1 from crates.io is missing both
-  fixes and will not pulse this graph.
+- Both demos pin tract to commit `0c771a4c7` on `sonos/tract` main.
+  That rev has the Gather `axes_mapping` (commit 9ceee1b5c) the
+  pulse pipeline needs, and predates a downstream AMX dispatch
+  commit (`1b4fbf7c0 linalg/arm64/apple_amx: shape-aware AMX
+  dispatch`) that routes `M=1` `f32` matmul / GeMV through NEON
+  paths. That heuristic loses badly on this workload's LM head
+  (`M=1, N=50280`), costing ~40% per step on Apple silicon. Pinning
+  both demos to the same pre-regression rev keeps the comparison
+  honest: pulse and external_state run at the same per-step latency.
 - End-to-end on mamba-130m: identical decoded text to HF generate,
-  ~54 ms/step median in pulse-mode Rust runtime (vs ~40 ms/step in
-  external_state). The pulse runner is slightly slower per step
-  because the pulse pipeline produces a different op shape than the
-  per-token static graph; the per-step matmul packing cost is the
-  same in both. Per-token max abs diff vs PyTorch: 1.3e-4, argmax
-  identical.
+  ~39 ms/step median in both runtimes. Per-token max abs diff vs
+  PyTorch: 1.3e-4, argmax identical.
 - For day-to-day deployment of mamba-130m today, `external_state/`
   is the simpler choice and works on stock tract 0.22 with no patch.
 - The `t2n_extra::ssm_scan_y` op (pulse-friendly variant of

@@ -106,9 +106,8 @@ fn load_manifest(nnef_path: &Path) -> Result<Manifest, Box<dyn std::error::Error
     .into())
 }
 
-fn load_model(path: &Path) -> TractResult<TypedSimplePlan<TypedModel>> {
-    let mut nnef = tract_nnef::nnef();
-    nnef.enable_tract_core();
+fn load_model(path: &Path) -> TractResult<std::sync::Arc<TypedSimplePlan>> {
+    let nnef = tract_nnef::nnef();
     let model = nnef
         .model_for_path(path)?
         .into_optimized()?
@@ -129,18 +128,18 @@ fn argmax_f32(slice: &[f32]) -> usize {
 }
 
 fn run_step(
-    model: &TypedSimplePlan<TypedModel>,
+    model: &std::sync::Arc<TypedSimplePlan>,
     token_id: i64,
     conv_states: Tensor,
     ssm_states: Tensor,
 ) -> TractResult<(Vec<f32>, Tensor, Tensor)> {
     let token: Tensor = tract_ndarray::Array1::from_vec(vec![token_id]).into();
-    let outputs = model.run(tvec!(
+    let outputs = tract_nnef::tract_core::plan::SimpleState::new(model)?.run(tvec!(
         token.into_tvalue(),
         conv_states.into_tvalue(),
         ssm_states.into_tvalue(),
     ))?;
-    let logits = outputs[0].as_slice::<f32>()?.to_vec();
+    let logits = outputs[0].try_as_plain()?.as_slice::<f32>()?.to_vec();
     let new_conv = outputs[1].clone().into_tensor();
     let new_ssm = outputs[2].clone().into_tensor();
     Ok((logits, new_conv, new_ssm))

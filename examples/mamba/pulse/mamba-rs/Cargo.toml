@@ -6,13 +6,14 @@ description = "Pulse-mode Mamba streaming via tract: state lives inside tract."
 publish = false
 
 [dependencies]
-# Pinned to sonos/tract main post-5/18 for two fixes the pulse path
-# needs: (1) Gather axes_mapping (commit 9ceee1b5c) so the embedding
-# op pulses, (2) PushSliceUp prefix-boundary fix (commit 803bdad5a)
-# so the declutter pass passes on the Mamba prefill graph. Stock
-# 0.22.1 from crates.io is missing both.
-tract-nnef = { git = "https://github.com/sonos/tract", rev = "f070a6d7f" }
-tract-pulse = { git = "https://github.com/sonos/tract", rev = "f070a6d7f" }
+# Pinned to the last tract main rev before commit 1b4fbf7c0
+# ("linalg/arm64/apple_amx: shape-aware AMX dispatch"). That commit
+# routes f32 m=1 mmm to NEON 8x8 and all f32 mmv to NEON 64x1, which
+# regresses our mamba pattern (M=1 with N up to 50K, LM head dominant)
+# by ~40% on Apple silicon. This rev still has the Gather axes_mapping
+# we need for the pulse pipeline (commit 9ceee1b5c).
+tract-nnef = { git = "https://github.com/sonos/tract", rev = "0c771a4c7" }
+tract-pulse = { git = "https://github.com/sonos/tract", rev = "0c771a4c7" }
 tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
