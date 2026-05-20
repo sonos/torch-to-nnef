@@ -92,15 +92,19 @@ in both shapes.
 
 ## Notes
 
-- The pulse path depends on two tract-side bits already merged on
-  `main`: the Gather `axes_mapping` (commit 9ceee1b5c) and the
-  `PushSliceUp` prefix-boundary fix (PR sonos/tract#2247). Pin to
-  tract `main` (or the first release that includes both) for the
-  pulse runtime. The pulse-pipeline flow has been validated end-to-end
-  on a small Mamba config (1 layer, 32-dim model) with matching
-  argmax to PyTorch; full mamba-130m pulse export goes through the
-  same path and pulse pass but takes minutes plus several GB of RAM
-  in tract.
+- The pulse path depends on two tract-side bits merged on `main`:
+  the Gather `axes_mapping` (commit 9ceee1b5c) and the `PushSliceUp`
+  prefix-boundary fix (commit 803bdad5a, was PR sonos/tract#2247).
+  `pulse/mamba-rs/Cargo.toml` pins to a tract main rev (`f070a6d7f`)
+  that includes both. Stock 0.22.1 from crates.io is missing both
+  fixes and will not pulse this graph.
+- End-to-end on mamba-130m: identical decoded text to HF generate,
+  ~54 ms/step median in pulse-mode Rust runtime (vs ~40 ms/step in
+  external_state). The pulse runner is slightly slower per step
+  because the pulse pipeline produces a different op shape than the
+  per-token static graph; the per-step matmul packing cost is the
+  same in both. Per-token max abs diff vs PyTorch: 1.3e-4, argmax
+  identical.
 - For day-to-day deployment of mamba-130m today, `external_state/`
   is the simpler choice and works on stock tract 0.22 with no patch.
 - The `t2n_extra::ssm_scan_y` op (pulse-friendly variant of

@@ -6,8 +6,13 @@ description = "Pulse-mode Mamba streaming via tract: state lives inside tract."
 publish = false
 
 [dependencies]
-tract-nnef = "0.22.1"
-tract-pulse = "0.22.1"
+# Pinned to sonos/tract main post-5/18 for two fixes the pulse path
+# needs: (1) Gather axes_mapping (commit 9ceee1b5c) so the embedding
+# op pulses, (2) PushSliceUp prefix-boundary fix (commit 803bdad5a)
+# so the declutter pass passes on the Mamba prefill graph. Stock
+# 0.22.1 from crates.io is missing both.
+tract-nnef = { git = "https://github.com/sonos/tract", rev = "f070a6d7f" }
+tract-pulse = { git = "https://github.com/sonos/tract", rev = "f070a6d7f" }
 tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

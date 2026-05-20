@@ -101,9 +101,8 @@ fn load_manifest(
 
 fn build_pulsed_runnable(
     path: &Path,
-) -> TractResult<TypedSimplePlan<TypedModel>> {
-    let mut nnef = tract_nnef::nnef();
-    nnef.enable_tract_core();
+) -> TractResult<std::sync::Arc<TypedSimplePlan>> {
+    let nnef = tract_nnef::nnef();
     let typed = nnef.model_for_path(path)?;
     let sym = typed.symbols.sym("S");
     let pulsed = PulsedModel::new(&typed, sym, &1.to_dim())?;
@@ -144,21 +143,18 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // One streaming session = one fresh state. State carries conv +
     // ssm internally across run() calls.
-    let plan = std::sync::Arc::new(model);
-    let mut state = TypedSimpleState::new(plan.clone())?;
+    let mut state = TypedSimpleState::new(&model)?;
 
     let mut out_ids: Vec<i64> = prompt_ids.clone();
     let mut last_logits: Vec<f32> = Vec::new();
     let mut step_ms: Vec<f64> = Vec::new();
     let start = Instant::now();
 
-    let run_one = |st: &mut TypedSimpleState<TypedModel, std::sync::Arc<TypedSimplePlan<TypedModel>>>,
-                       tok: i64|
-     -> TractResult<Vec<f32>> {
+    let run_one = |st: &mut TypedSimpleState, tok: i64| -> TractResult<Vec<f32>> {
         let inp: Tensor =
             tract_ndarray::Array2::from_shape_vec((1, 1), vec![tok])?.into();
         let outputs = st.run(tvec!(inp.into_tvalue()))?;
-        Ok(outputs[0].as_slice::<f32>()?.to_vec())
+        Ok(outputs[0].try_as_plain()?.as_slice::<f32>()?.to_vec())
     };
 
     for &tok in &prompt_ids {
