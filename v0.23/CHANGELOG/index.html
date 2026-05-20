@@ -10321,6 +10321,7 @@
 <li><code>div</code> wraps scalar division result in a 0-d tensor before <code>.to(dtype)</code>.</li>
 <li><code>_convolution_mode</code> accepts list-padding from <code>aten::conv1d/2d/3d</code>.</li>
 <li><code>prim::TupleUnpack</code> output names are normalised through <code>cleanup_data_name</code>, fixing dotted SSA-name lookups (e.g. <code>h0.1</code>).</li>
+<li><code>constant_pad_nd</code> with a negative entry on a dynamic axis: the decomposed <code>slice</code> now uses <code>dyn_slice_begin</code> (open-ended) instead of a concrete-<code>end</code> <code>slice</code>, so the streaming-axis symbolic dim survives the crop. Without this, the cropped axis collapsed to a fixed size and any downstream broadcast against a streaming sibling failed under pulse mode (surfaced by DPDFNet's causal <code>pad_feat</code>).</li>
 </ul>
 <h2 id="0232-2026-04-21">[0.23.2] - 2026-04-21</h2>
 <h3 id="added_1">Added</h3>
