@@ -79,8 +79,12 @@ def main() -> None:
     )
 
     input_id = torch.zeros(1, dtype=torch.long)
-    conv = torch.zeros(num_layers, 1, intermediate_size, conv_kernel, dtype=torch.float32)
-    ssm = torch.zeros(num_layers, 1, intermediate_size, state_size, dtype=torch.float32)
+    conv = torch.zeros(
+        num_layers, 1, intermediate_size, conv_kernel, dtype=torch.float32
+    )
+    ssm = torch.zeros(
+        num_layers, 1, intermediate_size, state_size, dtype=torch.float32
+    )
 
     target = TractNNEF(
         version=TractNNEF.latest_version(),

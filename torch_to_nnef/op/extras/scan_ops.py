@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import typing as T
 
+from nnef_tools.model import Operation as NOperation
+from nnef_tools.model import Tensor as NTensor
+
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.extras import register
-from nnef_tools.model import Operation as NOperation
-from nnef_tools.model import Tensor as NTensor
 
 
 @register("ssm_scan")
