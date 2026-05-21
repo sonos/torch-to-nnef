@@ -179,9 +179,67 @@ def transpose(g, node, name_to_tensor, inference_target, **kwargs):
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
         input_node.dtype, inference_target
     ):
-        raise T2NErrorNotImplemented(
-            "complex transpose without tract complex feature flag"
+        # Determine the NNEF storage rank for this complex tensor.
+        # Two possibilities:
+        # - View-tagged: IR shape and NNEF storage agree (rank N+1,
+        #   trailing 2 in IR shape).
+        # - Logical-tagged: IR shape is rank N (PyTorch's logical view),
+        #   but the NNEF tensor produced by upstream ops carries the
+        #   trailing 2-axis. Read storage rank from the actual NNEF
+        #   tensor.
+        nnef_input = get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
         )
+        storage_rank = len(nnef_input.shape)
+        logical_rank = input_node.rank
+        if storage_rank == logical_rank + 1:
+            # Logical-tagged: dim0/dim1 are in logical view, complex
+            # axis lives at storage_rank-1.
+            pass
+        elif storage_rank == logical_rank:
+            # View-tagged: complex axis is at logical_rank-1; logical
+            # transpose may not touch it.
+            complex_axis = logical_rank - 1
+            if dim0 == complex_axis or dim1 == complex_axis:
+                raise T2NErrorNotImplemented(
+                    f"complex transpose touching the trailing (re/im) "
+                    f"axis: input={input_node.export_name} "
+                    f"ir_shape={input_node.shape} "
+                    f"nnef_shape={list(nnef_input.shape)} "
+                    f"dim0={dim0} dim1={dim1}"
+                )
+        else:
+            raise T2NErrorNotImplemented(
+                f"complex transpose: storage rank {storage_rank} "
+                f"(nnef shape {list(nnef_input.shape)}) vs "
+                f"IR rank {logical_rank} (IR shape {input_node.shape}) "
+                f"on {input_node.export_name} dim0={dim0} dim1={dim1}"
+            )
+        # Build the permutation over storage_rank: swap dim0/dim1 in
+        # the logical part, identity on the trailing complex axis (if
+        # logical-tagged) or already covered (if view-tagged).
+        new_dims_ranks = list(range(storage_rank))
+        new_dims_ranks[dim0], new_dims_ranks[dim1] = dim1, dim0
+        # Promote `node.outputs[0]` to view-tagged BEFORE the emit so
+        # the NNEF tensor registered under this node's name gets the
+        # storage rank (the NNEF tensor's shape is read from the IR
+        # node's shape at registration time).
+        out_node = node.outputs[0]
+        if (
+            isinstance(out_node.shape, list)
+            and len(out_node.shape) == storage_rank - 1
+        ):
+            out_node.shape = list(out_node.shape) + [2]
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "transpose",
+            inputs=nnef_input,
+            attrs={"axes": new_dims_ranks},
+            pass_quantization_params=True,
+        )
+        return
 
     new_dims_ranks = []
     for _ in range(node.outputs[0].rank):
@@ -280,16 +338,22 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
     """
     (input_node, start_dim, end_dim) = node.inputs
     onode = node.outputs[0]
-    if is_complex_dtype_and_complex_only_supported_as_lastdim(
-        input_node.dtype, inference_target
-    ):
-        raise T2NErrorNotImplemented(
-            "complex flatten without tract complex feature flag"
-        )
     raw_start = start_dim.data if start_dim.data is not None else 0
     raw_end = end_dim.data if end_dim.data is not None else -1
     axis_start = pick_axis(input_node, raw_start)
     axis_end = pick_axis(input_node, raw_end)
+    if is_complex_dtype_and_complex_only_supported_as_lastdim(
+        input_node.dtype, inference_target
+    ):
+        # Complex tensors are stored as (..., 2) real. A logical flatten
+        # that stays strictly above the trailing complex axis maps 1:1
+        # to a real flatten with the same axis_start/axis_count; the
+        # trailing 2-axis is preserved.
+        complex_axis = input_node.rank - 1
+        if axis_end >= complex_axis:
+            raise T2NErrorNotImplemented(
+                "complex flatten touching the complex (re/im) axis"
+            )
     axis_count = axis_end - axis_start + 1
     add_single_output_op(
         g,

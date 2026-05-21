@@ -1,0 +1,22 @@
+[package]
+name = "wav-cleaner-pulse"
+version = "0.1.0"
+edition = "2021"
+description = "Read a WAV, run pulsed DPDFNet (NNEF/tract pulse-mode) chunk by chunk, write a clean WAV."
+publish = false
+
+# Pinned to the `feat/fft-pulse-non-fft-axis` branch of sonos/tract
+# (PR https://github.com/sonos/tract/pull/2261). The branch adds the
+# `Fft::axes_mapping` natural mapping the streaming-axis-on-Fft path
+# needs. Repin to a published `tract-*` version once the PR lands.
+[dependencies]
+tract-nnef = { git = "https://github.com/sonos/tract.git", branch = "feat/fft-pulse-non-fft-axis" }
+tract-pulse = { git = "https://github.com/sonos/tract.git", branch = "feat/fft-pulse-non-fft-axis" }
+tract-pulse-opl = { git = "https://github.com/sonos/tract.git", branch = "feat/fft-pulse-non-fft-axis" }
+tract-core = { git = "https://github.com/sonos/tract.git", branch = "feat/fft-pulse-non-fft-axis" }
+hound = "3.5"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

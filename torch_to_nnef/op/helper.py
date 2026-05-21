@@ -296,6 +296,21 @@ def add_tensor_variable_node_as_nnef_tensor(
     return nnef_tensor_ref
 
 
+def _is_view_tagged_complex_nnef(nnef_tensor) -> bool:
+    """Mirror of t2n IR's view-tagged complex check at the NNEF tensor level."""
+    if not hasattr(nnef_tensor, "shape") or not hasattr(nnef_tensor, "dtype"):
+        return False
+    try:
+        is_complex = np.issubdtype(nnef_tensor.dtype, np.complexfloating)
+    except TypeError:
+        return False
+    return (
+        is_complex
+        and len(nnef_tensor.shape) >= 2
+        and nnef_tensor.shape[-1] == 2
+    )
+
+
 def maybe_align_inputs_ranks(
     g: NGraph,
     inputs: T.Sequence[NTensor],
@@ -312,6 +327,38 @@ def maybe_align_inputs_ranks(
     instead of PyTorch expansion which happen in opposite direction.
 
     """
+    # If any input is a view-tagged complex tensor (trailing-2 axis
+    # carrying re/im), the real-valued co-inputs need a trailing-1 axis
+    # so their logical axes align with the complex's logical axes
+    # before the regular left-aligned rank padding kicks in. Otherwise
+    # element-wise ops like `mul`, `add`, `div` mis-broadcast the
+    # complex tensor's freq / time axes against the real tensor's
+    # storage axes.
+    any_complex_view_tagged = any(
+        _is_view_tagged_complex_nnef(t) for t in inputs
+    )
+    if any_complex_view_tagged:
+        inputs_list = list(inputs)
+        for idx, t in enumerate(inputs_list):
+            if _is_view_tagged_complex_nnef(t):
+                continue
+            # Real co-input: append a trailing-1 axis.
+            new_shape = list(t.shape) + [1]
+            aligned = NTensor(
+                g,
+                name=f"{t.name}_complex_align",
+                dtype=t.dtype,
+                shape=tuple(new_shape),
+            )
+            NOperation(
+                g,
+                type="unsqueeze",
+                attribs={"axes": [len(t.shape)]},
+                inputs=t,
+                outputs=aligned,
+            )
+            inputs_list[idx] = aligned
+        inputs = inputs_list if isinstance(inputs, list) else tuple(inputs_list)
     tensors_ranks = [len(_.shape) for _ in inputs]
     if len(set(tensors_ranks)) > 1:
         all_inputs_shapes_are_scalar_like = all(
@@ -457,6 +504,19 @@ def pick_axis(input_node, rank: int) -> int:
         base_rank = len(input_node.data)
     else:
         base_rank = input_node.rank
+        # Complex view-tagged tensors carry a trailing-2 axis as
+        # storage; PyTorch's negative dims index the *logical* view
+        # (rank - 1). Without this adjustment, `dim = -1` on a
+        # complex spec resolves to the complex (re/im) axis instead
+        # of the last frequency / time axis.
+        if (
+            getattr(input_node, "dtype", None)
+            in (torch.complex64, torch.complex128)
+            and isinstance(input_node.shape, list)
+            and len(input_node.shape) >= 2
+            and input_node.shape[-1] == 2
+        ):
+            base_rank = base_rank - 1
     return base_rank + rank
 
 
@@ -985,10 +1045,33 @@ class OpHelper:
                 inputs[idx] = out
         if nnef_op_type not in OPS_IMPLICIT_CAST_BY_OUTPUT_DTYPE:
             return inputs
+        # Skip the implicit cast when the output dtype is complex: tract
+        # has no native complex datum type; t2n carries complex via a
+        # trailing-2 real axis instead, so emitting a `tract_core_cast`
+        # to `complexf64` here would crash tract at load time.
+        if node.outputs[0].dtype in (torch.complex64, torch.complex128):
+            return inputs
         final_dtype = TORCH_TO_NUMPY_DTYPE[node.outputs[0].dtype]
         inputs = list(inputs)
         for idx, inp in enumerate(inputs):
             if inp.dtype != final_dtype:
+                # Don't emit a `tract_core_cast` from t2n's view-tagged
+                # complex (real `(..., 2)` storage tagged as complex64)
+                # to a real dtype: the storage IS already real, only
+                # the NNEF dtype tag needs updating. Tract has no
+                # complex datum type, so the cast would either crash
+                # at load or produce wrong values.
+                try:
+                    inp_is_complex = np.issubdtype(
+                        inp.dtype, np.complexfloating
+                    )
+                except TypeError:
+                    inp_is_complex = False
+                if inp_is_complex and np.issubdtype(
+                    final_dtype, np.floating
+                ):
+                    inp.dtype = final_dtype
+                    continue
                 to_str = numpy_dtype_to_tract_str(final_dtype)
                 out = self.add_single_output_op_from_nnef_tensors(
                     node=node,
