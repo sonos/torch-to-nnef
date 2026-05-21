@@ -39,17 +39,19 @@ def _streaming_mixer(
     x_conv = mixer.act(x_conv)
 
     ssm_params = mixer.x_proj(x_conv)
-    time_step, B_in, C_in = torch.split(
+    time_step, b_in, c_in = torch.split(
         ssm_params, [mixer.time_step_rank, state_size, state_size], dim=-1
     )
     discrete_time_step = nn.functional.softplus(mixer.dt_proj(time_step))
-    A = -torch.exp(mixer.A_log.float())
-    discrete_A = torch.exp(A.unsqueeze(0) * discrete_time_step.unsqueeze(-1))
-    discrete_B = discrete_time_step.unsqueeze(-1) * B_in.unsqueeze(1)
-    deltaB_u = discrete_B * x_conv.unsqueeze(-1)
+    a_param = -torch.exp(mixer.A_log.float())
+    discrete_a = torch.exp(
+        a_param.unsqueeze(0) * discrete_time_step.unsqueeze(-1)
+    )
+    discrete_b = discrete_time_step.unsqueeze(-1) * b_in.unsqueeze(1)
+    delta_b_u = discrete_b * x_conv.unsqueeze(-1)
 
-    new_ssm = discrete_A * ssm_state + deltaB_u
-    scan_out = torch.matmul(new_ssm, C_in.unsqueeze(-1)).squeeze(-1)
+    new_ssm = discrete_a * ssm_state + delta_b_u
+    scan_out = torch.matmul(new_ssm, c_in.unsqueeze(-1)).squeeze(-1)
     scan_out = scan_out + mixer.D * x_conv
     scan_out = scan_out * mixer.act(gate)
 

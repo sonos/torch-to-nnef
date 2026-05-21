@@ -14,6 +14,8 @@ import typing as T
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.extras import register
+from nnef_tools.model import Operation as NOperation
+from nnef_tools.model import Tensor as NTensor
 
 
 @register("ssm_scan")
@@ -46,36 +48,36 @@ def ssm_scan(
             "(uses `tract_core_scan` under the hood)."
         )
 
-    discrete_A_in, deltaB_u_in, C_in, h_init_in = node.inputs
-    discrete_A = op_helper.get_or_add_tensor_variable_in_nnef(discrete_A_in)
-    deltaB_u = op_helper.get_or_add_tensor_variable_in_nnef(deltaB_u_in)
-    C = op_helper.get_or_add_tensor_variable_in_nnef(C_in)
+    discrete_a_in, delta_b_u_in, c_in, h_init_in = node.inputs
+    discrete_a = op_helper.get_or_add_tensor_variable_in_nnef(discrete_a_in)
+    delta_b_u = op_helper.get_or_add_tensor_variable_in_nnef(delta_b_u_in)
+    c = op_helper.get_or_add_tensor_variable_in_nnef(c_in)
     h_init = op_helper.get_or_add_tensor_variable_in_nnef(h_init_in)
 
     # Pre-transpose so the scan axis (time) lands at position 0.
     # discrete_A / deltaB_u: (B, D, T, N) -> (T, B, D, N) via (2, 0, 1, 3).
-    b, d, t, n = discrete_A.shape
-    A_perm = op_helper.add_intermediate_op(
-        src=discrete_A,
+    b, d, t, n = discrete_a.shape
+    a_perm = op_helper.add_intermediate_op(
+        src=discrete_a,
         op_type="transpose",
         attrs={"axes": [2, 0, 1, 3]},
         new_shape=[t, b, d, n],
         suffix="scan_time_first",
     )
-    Bu_perm = op_helper.add_intermediate_op(
-        src=deltaB_u,
+    bu_perm = op_helper.add_intermediate_op(
+        src=delta_b_u,
         op_type="transpose",
         attrs={"axes": [2, 0, 1, 3]},
         new_shape=[t, b, d, n],
         suffix="scan_time_first",
     )
     # C: (B, T, N) -> (T, B, N) by permute(1, 0, 2).
-    bC, tC, nC = C.shape
-    C_perm = op_helper.add_intermediate_op(
-        src=C,
+    bc, tc, nc = c.shape
+    c_perm = op_helper.add_intermediate_op(
+        src=c,
         op_type="transpose",
         attrs={"axes": [1, 0, 2]},
-        new_shape=[tC, bC, nC],
+        new_shape=[tc, bc, nc],
         suffix="scan_time_first",
     )
 
@@ -83,15 +85,12 @@ def ssm_scan(
     # post-shape ops (the per-step `y_t` stacks to (T, B, D) and we
     # transpose back to (B, D, T) to match the torch trace's logical
     # output shape).
-    from nnef_tools.model import Operation as NOperation
-    from nnef_tools.model import Tensor as NTensor
-
     # The fragment's `output` spec inserts T at axis 2 of the body's
     # y_t shape, giving (B, D, T) directly: no post-transpose needed.
     y_final = NTensor(
         g,
         name=node.outputs[0].export_name,
-        dtype=discrete_A.dtype,
+        dtype=discrete_a.dtype,
         shape=(b, d, t),
     )
     h_final = NTensor(
@@ -106,7 +105,7 @@ def ssm_scan(
         g,
         type="mamba_ssm_scan",
         attribs={"scan_pace": 1},
-        inputs=(A_perm, Bu_perm, C_perm, h_init),
+        inputs=(a_perm, bu_perm, c_perm, h_init),
         outputs=(y_final, h_final),
     )
     return ["mamba_ssm_scan"]
@@ -126,43 +125,40 @@ def ssm_scan_y(
             "t2n_extra::ssm_scan_y requires a TractNNEF target."
         )
 
-    discrete_A_in, deltaB_u_in, C_in, h_init_in = node.inputs
-    discrete_A = op_helper.get_or_add_tensor_variable_in_nnef(discrete_A_in)
-    deltaB_u = op_helper.get_or_add_tensor_variable_in_nnef(deltaB_u_in)
-    C = op_helper.get_or_add_tensor_variable_in_nnef(C_in)
+    discrete_a_in, delta_b_u_in, c_in, h_init_in = node.inputs
+    discrete_a = op_helper.get_or_add_tensor_variable_in_nnef(discrete_a_in)
+    delta_b_u = op_helper.get_or_add_tensor_variable_in_nnef(delta_b_u_in)
+    c = op_helper.get_or_add_tensor_variable_in_nnef(c_in)
     h_init = op_helper.get_or_add_tensor_variable_in_nnef(h_init_in)
 
-    b, d, t, n = discrete_A.shape
-    A_perm = op_helper.add_intermediate_op(
-        src=discrete_A,
+    b, d, t, n = discrete_a.shape
+    a_perm = op_helper.add_intermediate_op(
+        src=discrete_a,
         op_type="transpose",
         attrs={"axes": [2, 0, 1, 3]},
         new_shape=[t, b, d, n],
         suffix="scan_time_first",
     )
-    Bu_perm = op_helper.add_intermediate_op(
-        src=deltaB_u,
+    bu_perm = op_helper.add_intermediate_op(
+        src=delta_b_u,
         op_type="transpose",
         attrs={"axes": [2, 0, 1, 3]},
         new_shape=[t, b, d, n],
         suffix="scan_time_first",
     )
-    bC, tC, nC = C.shape
-    C_perm = op_helper.add_intermediate_op(
-        src=C,
+    bc, tc, nc = c.shape
+    c_perm = op_helper.add_intermediate_op(
+        src=c,
         op_type="transpose",
         attrs={"axes": [1, 0, 2]},
-        new_shape=[tC, bC, nC],
+        new_shape=[tc, bc, nc],
         suffix="scan_time_first",
     )
-
-    from nnef_tools.model import Operation as NOperation
-    from nnef_tools.model import Tensor as NTensor
 
     y_final = NTensor(
         g,
         name=node.outputs[0].export_name,
-        dtype=discrete_A.dtype,
+        dtype=discrete_a.dtype,
         shape=(b, d, t),
     )
     name_to_tensor[node.outputs[0].export_name] = y_final
@@ -170,7 +166,7 @@ def ssm_scan_y(
         g,
         type="mamba_ssm_scan_pulse",
         attribs={"scan_pace": 1},
-        inputs=(A_perm, Bu_perm, C_perm, h_init),
+        inputs=(a_perm, bu_perm, c_perm, h_init),
         outputs=(y_final,),
     )
     return ["mamba_ssm_scan_pulse"]

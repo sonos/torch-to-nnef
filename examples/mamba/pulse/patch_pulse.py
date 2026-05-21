@@ -26,26 +26,26 @@ from transformers.models.mamba.modeling_mamba import MambaMixer
     ),
 )
 def _ssm_scan_y(
-    discrete_A: torch.Tensor,
-    deltaB_u: torch.Tensor,
-    C: torch.Tensor,
+    discrete_a: torch.Tensor,
+    delta_b_u: torch.Tensor,
+    c: torch.Tensor,
     h_init: torch.Tensor,
 ) -> torch.Tensor:
     """Pure-PyTorch reference for the y-only selective scan."""
     h = h_init
     outs = []
-    seq_len = discrete_A.shape[2]
+    seq_len = discrete_a.shape[2]
     for t in range(seq_len):
-        h = discrete_A[:, :, t, :] * h + deltaB_u[:, :, t, :]
-        y = torch.matmul(h, C[:, t, :].unsqueeze(-1)).squeeze(-1)
+        h = discrete_a[:, :, t, :] * h + delta_b_u[:, :, t, :]
+        y = torch.matmul(h, c[:, t, :].unsqueeze(-1)).squeeze(-1)
         outs.append(y)
     return torch.stack(outs, dim=-1)
 
 
 @_ssm_scan_y.register_fake
-def _meta(discrete_A, deltaB_u, C, h_init):
-    B, D, T, _ = discrete_A.shape
-    return discrete_A.new_empty((B, D, T))
+def _meta(discrete_a, delta_b_u, c, h_init):
+    b, d, t, _ = discrete_a.shape
+    return discrete_a.new_empty((b, d, t))
 
 
 _ORIG_SLOW_FORWARD = MambaMixer.slow_forward
@@ -62,7 +62,7 @@ def _patched(self, input_states, cache_params=None, attention_mask=None):
             self, input_states, cache_params, attention_mask
         )
 
-    batch_size, seq_len, _ = input_states.shape
+    batch_size, _, _ = input_states.shape
     dtype = input_states.dtype
 
     projected = self.in_proj(input_states).transpose(1, 2)
@@ -91,7 +91,7 @@ def _patched(self, input_states, cache_params=None, attention_mask=None):
         hidden_states = hidden_states * attention_mask.unsqueeze(1)
 
     ssm_parameters = self.x_proj(hidden_states.transpose(1, 2))
-    time_step, B, C = torch.split(
+    time_step, b_param, c_param = torch.split(
         ssm_parameters,
         [self.time_step_rank, self.ssm_state_size, self.ssm_state_size],
         dim=-1,
@@ -100,12 +100,14 @@ def _patched(self, input_states, cache_params=None, attention_mask=None):
     discrete_time_step = nn.functional.softplus(discrete_time_step)
     discrete_time_step = discrete_time_step.transpose(1, 2)
 
-    A = -torch.exp(self.A_log.float())
-    discrete_A = torch.exp(
-        A[None, :, None, :] * discrete_time_step[:, :, :, None]
+    a_param = -torch.exp(self.A_log.float())
+    discrete_a = torch.exp(
+        a_param[None, :, None, :] * discrete_time_step[:, :, :, None]
     )
-    discrete_B = discrete_time_step[:, :, :, None] * B[:, None, :, :].float()
-    deltaB_u = discrete_B * hidden_states[:, :, :, None].float()
+    discrete_b = (
+        discrete_time_step[:, :, :, None] * b_param[:, None, :, :].float()
+    )
+    delta_b_u = discrete_b * hidden_states[:, :, :, None].float()
 
     ssm_state = torch.zeros(
         (batch_size, self.intermediate_size, self.ssm_state_size),
@@ -114,7 +116,7 @@ def _patched(self, input_states, cache_params=None, attention_mask=None):
     )
 
     scan_output = torch.ops.t2n_extra.ssm_scan_y(
-        discrete_A, deltaB_u, C, ssm_state
+        discrete_a, delta_b_u, c_param, ssm_state
     )
 
     scan_output = scan_output + (hidden_states * self.D[None, :, None])

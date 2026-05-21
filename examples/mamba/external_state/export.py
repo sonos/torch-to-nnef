@@ -68,16 +68,19 @@ def main() -> None:
     model.eval()
     stream = StreamingMamba(model).eval()
 
-    L = stream.num_layers
-    D = stream.intermediate
-    K = stream.conv_kernel
-    N = stream.state_size
-    V = stream.vocab_size
-    print(f"[export] L={L} D={D} K={K} N={N} vocab={V}")
+    num_layers = stream.num_layers
+    intermediate_size = stream.intermediate
+    conv_kernel = stream.conv_kernel
+    state_size = stream.state_size
+    vocab_size = stream.vocab_size
+    print(
+        f"[export] L={num_layers} D={intermediate_size} K={conv_kernel} "
+        f"N={state_size} vocab={vocab_size}"
+    )
 
     input_id = torch.zeros(1, dtype=torch.long)
-    conv = torch.zeros(L, 1, D, K, dtype=torch.float32)
-    ssm = torch.zeros(L, 1, D, N, dtype=torch.float32)
+    conv = torch.zeros(num_layers, 1, intermediate_size, conv_kernel, dtype=torch.float32)
+    ssm = torch.zeros(num_layers, 1, intermediate_size, state_size, dtype=torch.float32)
 
     target = TractNNEF(
         version=TractNNEF.latest_version(),
@@ -96,11 +99,11 @@ def main() -> None:
     manifest_path = out_dir / (out_path.name.split(".")[0] + ".json")
     manifest = {
         "repo": args.repo,
-        "num_layers": L,
-        "intermediate_size": D,
-        "conv_kernel": K,
-        "state_size": N,
-        "vocab_size": V,
+        "num_layers": num_layers,
+        "intermediate_size": intermediate_size,
+        "conv_kernel": conv_kernel,
+        "state_size": state_size,
+        "vocab_size": vocab_size,
         "input_names": ["input_id", "conv_states", "ssm_states"],
         "output_names": ["logits", "conv_states_out", "ssm_states_out"],
     }

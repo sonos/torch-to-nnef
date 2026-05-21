@@ -77,9 +77,11 @@ def main() -> None:
     # ssm_scan_y custom op. Disable it for the prefill trace.
     model.config.use_cache = False
     wrap = _MambaForward(model).eval()
-    L = model.config.num_hidden_layers
-    V = model.config.vocab_size
-    print(f"[export] L={L} vocab={V} trace_len={args.trace_len}")
+    num_layers = model.config.num_hidden_layers
+    vocab_size = model.config.vocab_size
+    print(
+        f"[export] L={num_layers} vocab={vocab_size} trace_len={args.trace_len}"
+    )
 
     ids = torch.arange(args.trace_len, dtype=torch.long).unsqueeze(0)
 
@@ -101,8 +103,8 @@ def main() -> None:
     manifest_path = out_dir / (out_path.name.split(".")[0] + ".json")
     manifest = {
         "repo": args.repo,
-        "num_layers": L,
-        "vocab_size": V,
+        "num_layers": num_layers,
+        "vocab_size": vocab_size,
         "streaming_symbol": "S",
         "input_names": ["input_ids"],
         "output_names": ["logits"],
