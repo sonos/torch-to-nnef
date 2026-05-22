@@ -63,7 +63,7 @@ def export_model_to_nnef(
     allow_same_io_names: bool = False,
     auto_harden_jit: bool = True,
     load_extra_op_modules: T.Optional[T.List[str]] = None,
-    discover_extra_entrypoints: bool = True,
+    discover_extra_entrypoints: bool = False,
     strict_extra_imports: bool = False,
     skip_eager_forward: bool = False,
 ) -> Path:
@@ -194,7 +194,7 @@ def export_model_to_nnef(
             via the `TORCH_TO_NNEF_EXTRA_MODULES` environment variable
             (comma-separated).
 
-        discover_extra_entrypoints: bool (default: True)
+        discover_extra_entrypoints: bool (default: False)
             Auto-discover and import installed plugins that declare a
             Python entry point under the `torch_to_nnef.extras` group. The
             entry point value should be a module path that performs the

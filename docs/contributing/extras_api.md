@@ -39,8 +39,10 @@ Loading handlers
 - Or via env var: `TORCH_TO_NNEF_EXTRA_MODULES=my_pkg.handlers`.
 - Or install a plugin that exposes an entry point under
   `torch_to_nnef.extras` (module path as the entry point value).
- - Load order (first wins on duplicates): explicit list → env var → entry points.
- - CI option: set `strict_extra_imports=True` to fail fast if any module fails to import.
+- Load order (first wins on duplicates): explicit list → env var → entry points.
+- Discovery is off by default for predictability; pass
+  `discover_extra_entrypoints=True` to enable.
+- CI option: set `strict_extra_imports=True` to fail fast if any module fails to import.
 
 Publishing a plugin
 - In your package's `pyproject.toml`, add an entry point so
