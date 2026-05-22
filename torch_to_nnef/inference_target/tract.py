@@ -766,10 +766,23 @@ def build_io(
         try:
             test_outputs = model(*test_input)
         except (RuntimeError, ValueError, TypeError, AttributeError) as exp:
-            # Unwrap common eager-forward failures (e.g., custom-op CPU kernel
-            # shape errors) into a consistent invalid-argument signal so tests
-            # expecting validation errors don't depend on torch's error class.
-            raise T2NErrorInvalidArgument(str(exp)) from exp
+            # Map eager failures stemming from torch.library custom ops to a
+            # T2NErrorInvalidArgument so tests validate shape errors uniformly.
+            tb = exp.__traceback__
+            saw_custom_op = False
+            while tb is not None:
+                fname = tb.tb_frame.f_code.co_filename
+                if ("torch/_library/custom_ops.py" in fname) or (
+                    "torch/_ops.py" in fname
+                ):
+                    saw_custom_op = True
+                    break
+                tb = tb.tb_next
+            if saw_custom_op:
+                raise T2NErrorInvalidArgument(str(exp)) from exp
+            # Otherwise, preserve the original exception type (e.g., f16
+            # LayerNorm not implemented) to match test expectations.
+            raise
     model_info = unfold_model_io(
         model, test_input, test_outputs, input_names, output_names
     )
