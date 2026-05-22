@@ -153,8 +153,8 @@ def init_test_spec():
                 # allow to check access is authorized
                 _ = get_tokenizer_from_slug(mdl_slug)
                 add_raw_test_spec(mdl_slug)
-            except Exception as exp:
-                # should be missing access
+            except (OSError, ValueError, RuntimeError) as exp:
+                # likely missing access or local IO/env issues; skip gated test
                 print("skip test since exception:", exp)
 
     if (
