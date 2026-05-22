@@ -326,22 +326,19 @@ def export_model_to_nnef(
         )
     # Discover installed plugins via entry points.
     if discover_extra_entrypoints:
-        try:
-            eps = importlib_metadata.entry_points()
-            # Newer Python returns a Selection; older returns dict; handle both.
-            group = (
-                eps.select(group="torch_to_nnef.extras")
-                if hasattr(eps, "select")
-                else eps.get("torch_to_nnef.extras", [])
-            )
-            for ep in group:  # type: ignore[assignment]
-                # Entry point values can be "pkg.mod:obj"; import module part.
-                val = getattr(ep, "value", None) or getattr(ep, "module", "")
-                mod_path = val.split(":", 1)[0]
-                if mod_path:
-                    mods_to_import.append(mod_path)
-        except Exception as err:  # pragma: no cover
-            LOGGER.debug("Entry point discovery failed: %s", err)
+        eps = importlib_metadata.entry_points()
+        # Newer Python returns a Selection; older returns dict; handle both.
+        group = (
+            eps.select(group="torch_to_nnef.extras")
+            if hasattr(eps, "select")
+            else eps.get("torch_to_nnef.extras", [])
+        )
+        for ep in group:  # type: ignore[assignment]
+            # Entry point values can be "pkg.mod:obj"; import module part.
+            val = getattr(ep, "value", None) or getattr(ep, "module", "")
+            mod_path = val.split(":", 1)[0]
+            if mod_path:
+                mods_to_import.append(mod_path)
 
     # Deduplicate while preserving order.
     seen = set()
@@ -354,7 +351,7 @@ def export_model_to_nnef(
         try:
             importlib.import_module(mod)
             LOGGER.info("Loaded extra op module: %s", mod)
-        except Exception as err:  # pragma: no cover - defensive logging only
+        except (ImportError, ModuleNotFoundError) as err:  # pragma: no cover
             msg = f"Failed to import extra op module '{mod}': {err}"
             if strict_extra_imports:
                 raise T2NErrorInvalidArgument(msg) from err
@@ -384,7 +381,7 @@ def export_model_to_nnef(
                 for a in args
             )
             outs = _try_forward(model, meta_args)
-        except Exception as err:
+        except (RuntimeError, ValueError, TypeError) as err:
             raise T2NErrorInvalidArgument(
                 "skip_eager_forward requested but meta forward failed; "
                 "provide CPU/meta kernels for custom ops or disable the flag. "
@@ -393,7 +390,7 @@ def export_model_to_nnef(
     else:
         try:
             outs = _try_forward(model, args)
-        except Exception as eager_err:
+        except (RuntimeError, ValueError, TypeError) as eager_err:
             # Fallback to meta forward for custom ops lacking CPU kernels.
             try:
                 meta_args = tuple(
@@ -409,7 +406,7 @@ def export_model_to_nnef(
                     "Eager forward failed; fell back to meta forward: %s",
                     eager_err,
                 )
-            except Exception as meta_err:
+            except (RuntimeError, ValueError, TypeError) as meta_err:
                 raise eager_err from meta_err
 
     # Normalize and validate IO names and shapes
