@@ -1,0 +1,7 @@
+*.nnef.tgz
+tokenizer.json
+mamba*.json
+__pycache__/
+
+mamba-rs/target/
+mamba-rs/Cargo.lock

@@ -1,0 +1,48 @@
+extension tract_registry tract_core;
+
+# Pulse-friendly variant of `mamba_ssm_scan`: emits only y_t at every
+# timestep (`"full"` output). h_t still loops back as state but is not
+# exposed as a top-level output, so tract's pulse declutter accepts it:
+# per-pulse `run` advances by `scan_pace` along the time axis.
+#
+# See `mamba_ssm_scan.nnef` for the per-step body and shape contract.
+fragment mamba_ssm_step_pulse(
+    h_prev: tensor<scalar>,
+    A_t: tensor<scalar>,
+    Bu_t: tensor<scalar>,
+    C_t: tensor<scalar>
+) -> ( h_t: tensor<scalar>, y_t: tensor<scalar> ) {
+    A_t_s = squeeze(A_t, axes = [0]);
+    Bu_t_s = squeeze(Bu_t, axes = [0]);
+    C_t_s = squeeze(C_t, axes = [0]);
+    h_t = A_t_s * h_prev + Bu_t_s;
+    C_bcast = unsqueeze(C_t_s, axes = [1]);
+    prod = h_t * C_bcast;
+    y_t = sum_reduce(prod, axes = [2]);
+}
+
+
+fragment mamba_ssm_scan_pulse(
+    discrete_A: tensor<scalar>,
+    deltaB_u: tensor<scalar>,
+    C: tensor<scalar>,
+    h_init: tensor<scalar>,
+    scan_pace: integer
+) -> ( scan_y: tensor<scalar> ) {
+    scan_y = tract_core_scan(
+        body = "mamba_ssm_step_pulse",
+        scan = [
+            ("A_t", discrete_A, 0, scan_pace),
+            ("Bu_t", deltaB_u, 0, scan_pace),
+            ("C_t", C, 0, scan_pace)
+        ],
+        full = [],
+        state = [
+            ("h_prev", h_init, "h_t")
+        ],
+        output = [
+            ("y_t", "full", 2, scan_pace)
+        ],
+        skip = 0
+    );
+}

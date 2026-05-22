@@ -14,6 +14,8 @@ README.
 | [`multi_io_py/`](multi_io_py/) | Multi-input / multi-output export (ALBERT) | [3. Multiple inputs/outputs](https://sonos.github.io/torch-to-nnef/latest/tutos/3_multi_inputs_outputs/) |: |
 | [`dynamic_axes/`](dynamic_axes/) | Dynamic-axes export patterns | [4. Dynamic axes](https://sonos.github.io/torch-to-nnef/latest/tutos/4_dynamic_axes/) |: |
 | [`quantization_py/`](quantization_py/) | int8 / mixed-precision quantization | [6. Quantization](https://sonos.github.io/torch-to-nnef/latest/tutos/6_quantization/) |: |
+| [`t2n_extra_custom_op/`](t2n_extra_custom_op/) | External custom op via `t2n_extra` (handler auto-load) | [8. Custom operators](https://sonos.github.io/torch-to-nnef/latest/tutos/8_custom_operator/) |: |
+| [`mamba/`](mamba/) | Mamba streaming inference (two designs); uses `t2n_extra::ssm_scan{,_y}` handlers and Tract-specific fragments | [8. Custom operators](https://sonos.github.io/torch-to-nnef/latest/tutos/8_custom_operator/), [5. LLM](https://sonos.github.io/torch-to-nnef/latest/tutos/5_llm/) |: |
 | [`imageclass-wasm/`](imageclass-wasm/) | Image classifier compiled to wasm | [1. Getting started](https://sonos.github.io/torch-to-nnef/latest/tutos/1_getting_started/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_image_classifier.html) |
 | [`yolo/`](yolo/) | YOLO pose estimation in wasm | [1. Getting started](https://sonos.github.io/torch-to-nnef/latest/tutos/1_getting_started/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_pose_estimation.html) |
 | [`llm_wasm/`](llm_wasm/) | Small LLM running in wasm | [5. Large Language Models](https://sonos.github.io/torch-to-nnef/latest/tutos/5_llm/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_poem_generator.html) |

@@ -134,6 +134,7 @@ nav:
   - 'Internals API': reference/
   - Contributing:
     - 'Guidelines': contributing/guidelines.md
+    - 'Extras API': contributing/extras_api.md
     - 'Internal design': contributing/internal_design.md
     - 'Supported aten operators': contributing/supported_operators.md
     - 'Add new aten operator': contributing/add_new_aten_op.md

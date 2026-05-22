@@ -1,7 +1,10 @@
 import contextlib
+import importlib
 import logging as log
+import os
 import typing as T
 from collections.abc import KeysView, ValuesView
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 import numpy as np
@@ -44,6 +47,110 @@ from torch_to_nnef.utils import dedup_list, ensure_tuple_io, torch_version
 LOGGER = log.getLogger(__name__)
 
 
+def _gather_extra_modules(
+    load_extra_op_modules: T.Optional[T.List[str]],
+    discover_extra_entrypoints: bool,
+):
+    mods: T.List[str] = []
+    if load_extra_op_modules:
+        mods.extend(load_extra_op_modules)
+    env_mods = os.environ.get("TORCH_TO_NNEF_EXTRA_MODULES")
+    if env_mods:
+        mods.extend([m.strip() for m in env_mods.split(",") if m.strip()])
+    if discover_extra_entrypoints:
+        eps = importlib_metadata.entry_points()
+        group = (
+            eps.select(group="torch_to_nnef.extras")
+            if hasattr(eps, "select")
+            else eps.get("torch_to_nnef.extras", [])
+        )
+        for ep in group:  # type: ignore[assignment]
+            val = getattr(ep, "value", None) or getattr(ep, "module", "")
+            mod_path = val.split(":", 1)[0]
+            if mod_path:
+                mods.append(mod_path)
+    # Dedup, preserve order
+    seen: set[str] = set()
+    return [m for m in mods if not (m in seen or seen.add(m))]
+
+
+def _import_extra_modules(mods_to_import: T.List[str], strict: bool) -> None:
+    if mods_to_import:
+        LOGGER.debug("Extra-op handler modules to import: %s", mods_to_import)
+    for mod in mods_to_import:
+        try:
+            importlib.import_module(mod)
+            LOGGER.info("Loaded extra op module: %s", mod)
+        except (ImportError, ModuleNotFoundError) as err:  # pragma: no cover
+            msg = f"Failed to import extra op module '{mod}': {err}"
+            if strict:
+                raise T2NErrorInvalidArgument(msg) from err
+            LOGGER.warning(msg)
+
+
+def _infer_outputs_via_forward(
+    model: torch.nn.Module,
+    args: T.Tuple[T.Any, ...],
+    skip_eager_forward: bool,
+):
+    args = ensure_tuple_io(args)
+
+    def _try_forward(_model, _args):
+        with (
+            select_model_mode_for_export(_model, TrainingMode.EVAL),
+            torch.no_grad(),
+            torch.inference_mode(),
+        ):
+            return _model(*_args)
+
+    def _to_meta(a):
+        if isinstance(a, torch.Tensor):
+            return torch.empty_like(a, device="meta")
+        return a
+
+    if skip_eager_forward:
+        try:
+            return _try_forward(model, tuple(_to_meta(a) for a in args))
+        except (
+            RuntimeError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            NotImplementedError,
+        ) as err:
+            raise T2NErrorInvalidArgument(
+                (
+                    "skip_eager_forward requested but meta forward failed; "
+                    "provide CPU/meta kernels for custom ops or disable "
+                    "the flag."
+                )
+            ) from err
+
+    try:
+        return _try_forward(model, args)
+    except (
+        RuntimeError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        NotImplementedError,
+    ) as eager_err:
+        try:
+            outs = _try_forward(model, tuple(_to_meta(a) for a in args))
+            LOGGER.info(
+                "Eager forward failed; fell back to meta forward: %s", eager_err
+            )
+            return outs
+        except (
+            RuntimeError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            NotImplementedError,
+        ) as meta_err:
+            raise eager_err from meta_err
+
+
 def export_model_to_nnef(
     model: torch.nn.Module,
     args,  # args pushed with *args in forward of module
@@ -59,6 +166,10 @@ def export_model_to_nnef(
     custom_extensions: T.Optional[T.List[str]] = None,
     allow_same_io_names: bool = False,
     auto_harden_jit: bool = True,
+    load_extra_op_modules: T.Optional[T.List[str]] = None,
+    discover_extra_entrypoints: bool = False,
+    strict_extra_imports: bool = False,
+    skip_eager_forward: bool = False,
 ) -> Path:
     """Main entrypoint of this library.
 
@@ -178,6 +289,32 @@ def export_model_to_nnef(
             the wrapper is safe to apply unconditionally; turn it off
             to drive the chain manually for fine-grained control.
 
+        load_extra_op_modules: Optional[List[str]]
+            Optional list of Python module paths to import before
+            tracing/export. Importing a module that calls
+            `torch_to_nnef.op.extras.register("<name>")` registers a
+            handler for `t2n_extra::<name>` custom ops so they are
+            translated during export. You can also provide the same list
+            via the `TORCH_TO_NNEF_EXTRA_MODULES` environment variable
+            (comma-separated).
+
+        discover_extra_entrypoints: bool (default: False)
+            Auto-discover and import installed plugins that declare a
+            Python entry point under the `torch_to_nnef.extras` group. The
+            entry point value should be a module path that performs the
+            `extras.register` calls on import.
+
+        strict_extra_imports: bool (default: False)
+            If True, fail the export when an extra-op module fails to import
+            (from `load_extra_op_modules`, env var, or entry points). When
+            False, log a warning and continue.
+
+        skip_eager_forward: bool (default: False)
+            Skip running a real eager forward to infer outputs and attempt a
+            meta-only forward instead (meta tensors). When False, exporter runs
+            an eager forward and falls back to a meta forward if the eager run
+            fails (e.g., a `t2n_extra` op lacks a CPU kernel).
+
     Returns:
         Path: the path to the exported artifact.
             - If `compression_level is None`: returns the
@@ -226,6 +363,9 @@ def export_model_to_nnef(
     if isinstance(output_names, KeysView):
         output_names = list(output_names)
     args = tuple(args) if isinstance(args, ValuesView) else args
+    # Normalise single-Tensor inputs to a tuple immediately to keep IO handling
+    # consistent across torch versions and tracing paths.
+    args = ensure_tuple_io(args)
 
     # Auto-apply the JIT-only export hardening chain when the input is
     # a `torch.jit.ScriptModule`. The chain is a no-op on already-clean
@@ -259,14 +399,41 @@ def export_model_to_nnef(
             )
         )
 
+    # Optionally load external custom-op handler modules. Handlers registered
+    # via `torch_to_nnef.op.extras.register` become available once their
+    # defining module is imported. This can be driven via the function
+    # parameter or the `TORCH_TO_NNEF_EXTRA_MODULES` environment variable
+    # (comma-separated list of module paths).
+    mods_to_import: T.List[str] = []
+    # Disallow custom-op module usage on legacy torch versions that don't
+    # expose the `torch.library` surface (authors often define ops at import).
+    supports_t2n_custom = (
+        torch_version() >= "2.0.0"
+        and hasattr(torch, "library")
+        and hasattr(torch.library, "Library")
+    )
+    if not supports_t2n_custom:
+        requested = (
+            bool(load_extra_op_modules)
+            or bool(os.environ.get("TORCH_TO_NNEF_EXTRA_MODULES"))
+            or bool(discover_extra_entrypoints)
+        )
+        if requested:
+            raise T2NErrorInvalidArgument(
+                "Custom-op handler modules requested but torch < 2.0.0 or "
+                "missing torch.library API. Upgrade torch or run without "
+                "custom-op modules."
+            )
+    mods_to_import = _gather_extra_modules(
+        load_extra_op_modules, discover_extra_entrypoints
+    )
+    _import_extra_modules(mods_to_import, strict_extra_imports)
+
     # Run forward once to capture outputs under safe modes
+    outs = _infer_outputs_via_forward(model, args, skip_eager_forward)
+    # Ensure inputs are normalized to a tuple before IO unfolding. Without this,
+    # passing a single Tensor input can lead to incorrect flattening (empty IO).
     args = ensure_tuple_io(args)
-    with (
-        select_model_mode_for_export(model, TrainingMode.EVAL),
-        torch.no_grad(),
-        torch.inference_mode(),
-    ):
-        outs = model(*args)
 
     # Normalize and validate IO names and shapes
     apply_name_to_tensor_in_module(model)

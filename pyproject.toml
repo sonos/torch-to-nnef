@@ -158,8 +158,9 @@ markers = [
     "proptest: hypothesis-driven property-based tests (run with '-m proptest')",
 ]
 
-[tool.pylint.imports]
-known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
+## Note: isort-style configuration like `known-first-party` must live under
+## `tool.ruff.lint.isort` (already configured above). It is not a valid pylint
+## option and caused Prospector/Pylint to error with E0015 (unrecognized option).
 
 [tool.pylint.master]
 py-version = "3.10"

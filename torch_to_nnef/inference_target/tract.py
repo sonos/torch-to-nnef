@@ -39,6 +39,7 @@ from torch_to_nnef.collect_env import (
 )
 from torch_to_nnef.exceptions import (
     T2NErrorDynamicShapeValue,
+    T2NErrorInvalidArgument,
     T2NErrorIOPytorchTractNotISO,
     T2NErrorNotImplemented,
     T2NErrorOnnxExport,
@@ -762,7 +763,26 @@ def build_io(
         torch.no_grad(),
         torch.inference_mode(),
     ):
-        test_outputs = model(*test_input)
+        try:
+            test_outputs = model(*test_input)
+        except (RuntimeError, ValueError, TypeError, AttributeError) as exp:
+            # Map eager failures stemming from torch.library custom ops to a
+            # T2NErrorInvalidArgument so tests validate shape errors uniformly.
+            tb = exp.__traceback__
+            saw_custom_op = False
+            while tb is not None:
+                fname = tb.tb_frame.f_code.co_filename
+                if ("torch/_library/custom_ops.py" in fname) or (
+                    "torch/_ops.py" in fname
+                ):
+                    saw_custom_op = True
+                    break
+                tb = tb.tb_next
+            if saw_custom_op:
+                raise T2NErrorInvalidArgument(str(exp)) from exp
+            # Otherwise, preserve the original exception type (e.g., f16
+            # LayerNorm not implemented) to match test expectations.
+            raise
     model_info = unfold_model_io(
         model, test_input, test_outputs, input_names, output_names
     )
