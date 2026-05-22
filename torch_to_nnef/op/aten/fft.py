@@ -607,6 +607,7 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
     the imaginary part.
     """
     _check_fft_target(inference_target)
+    # pylint: disable=too-many-branches,too-many-statements
     input_node, n_node, dim_node, norm_node = node.inputs
     if norm_node.data is not None:
         raise T2NErrorNotImplemented("norm unexpected")
@@ -628,14 +629,11 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
         # View-tagged: trailing-2 already in IR shape.
         # logical rank = IR rank - 1, complex axis sits at IR rank - 1.
         dim = _pick_logical_axis(input_node, dim_node.data)
-        complex_axis = input_node.rank - 1
     else:
-        # Logical: NNEF emission upstream adds the trailing-2 axis at
-        # position `input_node.rank` in the NNEF tensor. Pick the FFT
-        # dim directly from the input rank, and set the complex axis
-        # to the new last axis that NNEF appends.
+        # Logical: pick the FFT dim directly from the input rank; the
+        # storage tensor produced by upstream FFT ops still carries the
+        # trailing-2 complex axis at the end.
         dim = pick_axis(input_node, dim_node.data)
-        complex_axis = input_node.rank
     k = input_node.shape[dim]
     if not isinstance(k, int):
         raise T2NErrorNotImplemented("fft_irfft on dynamic FFT axis")
@@ -646,6 +644,8 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
     n = n_node.data if n_node.data is not None else 2 * (k - 1)
 
     inp = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    # The complex axis is always the trailing one on the storage tensor.
+    complex_axis = len(inp.shape) - 1
 
     # 1. Mirror chunk: slice `[1, K-1)` on the FFT axis -> (..., K-2, 2).
     if k == 2:

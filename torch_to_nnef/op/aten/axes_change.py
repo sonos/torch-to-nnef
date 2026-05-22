@@ -200,7 +200,7 @@ def transpose(g, node, name_to_tensor, inference_target, **kwargs):
             # View-tagged: complex axis is at logical_rank-1; logical
             # transpose may not touch it.
             complex_axis = logical_rank - 1
-            if dim0 == complex_axis or dim1 == complex_axis:
+            if complex_axis in (dim0, dim1):
                 raise T2NErrorNotImplemented(
                     f"complex transpose touching the trailing (re/im) "
                     f"axis: input={input_node.export_name} "

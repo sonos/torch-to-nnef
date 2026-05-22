@@ -215,6 +215,7 @@ class TorchToNGraphExtractor:
         # up-front means downstream emitters can rely on a uniform
         # `rank == N+1, shape[-1] == 2` invariant.
         for tv in self._torch_ir_graph.data_nodes:
+            # pylint: disable=too-many-boolean-expressions
             if (
                 isinstance(tv, TensorVariable)
                 and tv.dtype in (torch.complex64, torch.complex128)
