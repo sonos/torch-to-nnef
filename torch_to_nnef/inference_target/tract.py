@@ -39,6 +39,7 @@ from torch_to_nnef.collect_env import (
 )
 from torch_to_nnef.exceptions import (
     T2NErrorDynamicShapeValue,
+    T2NErrorInvalidArgument,
     T2NErrorIOPytorchTractNotISO,
     T2NErrorNotImplemented,
     T2NErrorOnnxExport,
