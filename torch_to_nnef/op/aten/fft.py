@@ -92,7 +92,14 @@ def _fft(
     if n_node.data is not None or norm_node.data is not None:
         raise T2NErrorNotImplemented("n or norm unexpected")
 
-    dim = pick_axis(input_node, dim_node.data)
+    # Resolve `dim` against the logical rank for view-tagged complex
+    # inputs so we don't accidentally pick the trailing (real, imag)
+    # axis when `dim=-1`.
+    dim = (
+        _pick_logical_axis(input_node, dim_node.data)
+        if _is_view_tagged_complex(input_node)
+        else pick_axis(input_node, dim_node.data)
+    )
 
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
