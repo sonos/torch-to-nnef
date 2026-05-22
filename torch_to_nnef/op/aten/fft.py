@@ -630,11 +630,12 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
         dim = _pick_logical_axis(input_node, dim_node.data)
         complex_axis = input_node.rank - 1
     else:
-        # Logical: NNEF emission upstream added the trailing-2 axis at
-        # the end of the IR shape. PyTorch dim is picked directly
-        # against the input rank, and the complex axis is the last one.
+        # Logical: NNEF emission upstream adds the trailing-2 axis at
+        # position `input_node.rank` in the NNEF tensor. Pick the FFT
+        # dim directly from the input rank, and set the complex axis
+        # to the new last axis that NNEF appends.
         dim = pick_axis(input_node, dim_node.data)
-        complex_axis = input_node.rank - 1
+        complex_axis = input_node.rank
     k = input_node.shape[dim]
     if not isinstance(k, int):
         raise T2NErrorNotImplemented("fft_irfft on dynamic FFT axis")
