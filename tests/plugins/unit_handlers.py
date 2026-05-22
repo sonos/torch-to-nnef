@@ -25,11 +25,11 @@ if has_lib:
         def _cpu(x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - simple
             return torch.relu(x)
 
-        def _meta(x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - simple
-            return torch.empty_like(x, device="meta")
-
         lib.impl("unit_relu", _cpu, "CPU")
-        lib.impl_abstract("unit_relu", _meta)
+        # Meta kernel is not strictly required for this test op; exporter
+        # runs eager forward successfully with the CPU kernel. Older torch
+        # releases (e.g., 2.2) do not support `impl_abstract`, so we skip
+        # registering a meta kernel here for maximum compatibility.
 
     # Meta-only variant to exercise exporter eager→meta fallback. Only define
     # on torch versions that expose the decorator-based API.
