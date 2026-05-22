@@ -6,11 +6,14 @@ from torch_to_nnef.op.extras import register
 from torch_to_nnef.utils import torch_version
 
 # Define t2n_extra ops only when torch exposes the Library API (>= 2.0).
-if (
+has_lib = (
     torch_version() >= "2.0.0"
     and hasattr(torch, "library")
     and hasattr(torch.library, "Library")
-):
+)
+has_custom_op = hasattr(torch.library, "custom_op")
+
+if has_lib:
     lib = torch.library.Library("t2n_extra", "DEF")
 
     # Guard redefinition if the test module is imported twice in the same run.
@@ -28,16 +31,25 @@ if (
         lib.impl("unit_relu", _cpu, "CPU")
         lib.impl_abstract("unit_relu", _meta)
 
-    try:
-        _ = torch.ops.t2n_extra.unit_relu_meta_only  # type: ignore[attr-defined]
-    except AttributeError:
-        # Meta-only variant to exercise exporter eager→meta fallback.
-        lib.define("unit_relu_meta_only(Tensor x) -> Tensor")
+    # Meta-only variant to exercise exporter eager→meta fallback. Only define
+    # on torch versions that expose the decorator-based API.
+    if has_custom_op:
+        try:
+            _ = torch.ops.t2n_extra.unit_relu_meta_only  # type: ignore[attr-defined]
+        except AttributeError:
 
-        def _meta_only(x: torch.Tensor) -> torch.Tensor:  # pragma: no cover
-            return torch.empty_like(x, device="meta")
+            @torch.library.custom_op(
+                "t2n_extra::unit_relu_meta_only",
+                mutates_args=(),
+                schema="(Tensor x) -> Tensor",
+            )
+            def _unit_relu_meta_only(x: torch.Tensor) -> torch.Tensor:
+                # No CPU kernel; meta-only path exercises exporter fallback.
+                return torch.relu(x)  # not used; CPU impl unregistered
 
-        lib.impl_abstract("unit_relu_meta_only", _meta_only)
+            @_unit_relu_meta_only.register_fake
+            def _unit_relu_meta_only_meta(x: torch.Tensor) -> torch.Tensor:
+                return torch.empty_like(x, device="meta")
 
 
 @register("unit_relu")

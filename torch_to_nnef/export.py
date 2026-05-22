@@ -47,6 +47,110 @@ from torch_to_nnef.utils import dedup_list, ensure_tuple_io, torch_version
 LOGGER = log.getLogger(__name__)
 
 
+def _gather_extra_modules(
+    load_extra_op_modules: T.Optional[T.List[str]],
+    discover_extra_entrypoints: bool,
+):
+    mods: T.List[str] = []
+    if load_extra_op_modules:
+        mods.extend(load_extra_op_modules)
+    env_mods = os.environ.get("TORCH_TO_NNEF_EXTRA_MODULES")
+    if env_mods:
+        mods.extend([m.strip() for m in env_mods.split(",") if m.strip()])
+    if discover_extra_entrypoints:
+        eps = importlib_metadata.entry_points()
+        group = (
+            eps.select(group="torch_to_nnef.extras")
+            if hasattr(eps, "select")
+            else eps.get("torch_to_nnef.extras", [])
+        )
+        for ep in group:  # type: ignore[assignment]
+            val = getattr(ep, "value", None) or getattr(ep, "module", "")
+            mod_path = val.split(":", 1)[0]
+            if mod_path:
+                mods.append(mod_path)
+    # Dedup, preserve order
+    seen: set[str] = set()
+    return [m for m in mods if not (m in seen or seen.add(m))]
+
+
+def _import_extra_modules(mods_to_import: T.List[str], strict: bool) -> None:
+    if mods_to_import:
+        LOGGER.debug("Extra-op handler modules to import: %s", mods_to_import)
+    for mod in mods_to_import:
+        try:
+            importlib.import_module(mod)
+            LOGGER.info("Loaded extra op module: %s", mod)
+        except (ImportError, ModuleNotFoundError) as err:  # pragma: no cover
+            msg = f"Failed to import extra op module '{mod}': {err}"
+            if strict:
+                raise T2NErrorInvalidArgument(msg) from err
+            LOGGER.warning(msg)
+
+
+def _infer_outputs_via_forward(
+    model: torch.nn.Module,
+    args: T.Tuple[T.Any, ...],
+    skip_eager_forward: bool,
+):
+    args = ensure_tuple_io(args)
+
+    def _try_forward(_model, _args):
+        with (
+            select_model_mode_for_export(_model, TrainingMode.EVAL),
+            torch.no_grad(),
+            torch.inference_mode(),
+        ):
+            return _model(*_args)
+
+    def _to_meta(a):
+        if isinstance(a, torch.Tensor):
+            return torch.empty_like(a, device="meta")
+        return a
+
+    if skip_eager_forward:
+        try:
+            return _try_forward(model, tuple(_to_meta(a) for a in args))
+        except (
+            RuntimeError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            NotImplementedError,
+        ) as err:
+            raise T2NErrorInvalidArgument(
+                (
+                    "skip_eager_forward requested but meta forward failed; "
+                    "provide CPU/meta kernels for custom ops or disable "
+                    "the flag."
+                )
+            ) from err
+
+    try:
+        return _try_forward(model, args)
+    except (
+        RuntimeError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        NotImplementedError,
+    ) as eager_err:
+        try:
+            outs = _try_forward(model, tuple(_to_meta(a) for a in args))
+            LOGGER.info(
+                "Eager forward failed; fell back to meta forward: %s", eager_err
+            )
+            return outs
+        except (
+            RuntimeError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            NotImplementedError,
+        ) as meta_err:
+            raise eager_err from meta_err
+
+
 def export_model_to_nnef(
     model: torch.nn.Module,
     args,  # args pushed with *args in forward of module
@@ -317,97 +421,13 @@ def export_model_to_nnef(
                 "missing torch.library API. Upgrade torch or run without "
                 "custom-op modules."
             )
-    if load_extra_op_modules:
-        mods_to_import.extend(load_extra_op_modules)
-    env_mods = os.environ.get("TORCH_TO_NNEF_EXTRA_MODULES")
-    if env_mods:
-        mods_to_import.extend(
-            [m.strip() for m in env_mods.split(",") if m.strip()]
-        )
-    # Discover installed plugins via entry points.
-    if discover_extra_entrypoints:
-        eps = importlib_metadata.entry_points()
-        # Newer Python returns a Selection; older returns dict; handle both.
-        group = (
-            eps.select(group="torch_to_nnef.extras")
-            if hasattr(eps, "select")
-            else eps.get("torch_to_nnef.extras", [])
-        )
-        for ep in group:  # type: ignore[assignment]
-            # Entry point values can be "pkg.mod:obj"; import module part.
-            val = getattr(ep, "value", None) or getattr(ep, "module", "")
-            mod_path = val.split(":", 1)[0]
-            if mod_path:
-                mods_to_import.append(mod_path)
-
-    # Deduplicate while preserving order.
-    seen = set()
-    mods_to_import = [
-        m for m in mods_to_import if not (m in seen or seen.add(m))
-    ]
-    if mods_to_import:
-        LOGGER.debug("Extra-op handler modules to import: %s", mods_to_import)
-    for mod in mods_to_import:
-        try:
-            importlib.import_module(mod)
-            LOGGER.info("Loaded extra op module: %s", mod)
-        except (ImportError, ModuleNotFoundError) as err:  # pragma: no cover
-            msg = f"Failed to import extra op module '{mod}': {err}"
-            if strict_extra_imports:
-                raise T2NErrorInvalidArgument(msg) from err
-            LOGGER.warning(msg)
+    mods_to_import = _gather_extra_modules(
+        load_extra_op_modules, discover_extra_entrypoints
+    )
+    _import_extra_modules(mods_to_import, strict_extra_imports)
 
     # Run forward once to capture outputs under safe modes
-    args = ensure_tuple_io(args)
-
-    def _try_forward(_model, _args):
-        with (
-            select_model_mode_for_export(_model, TrainingMode.EVAL),
-            torch.no_grad(),
-            torch.inference_mode(),
-        ):
-            return _model(*_args)
-
-    # Run forward once to capture outputs under safe modes
-    if skip_eager_forward:
-        # Try a meta-only dry run to infer output structures and shapes.
-        try:
-            meta_args = tuple(
-                (
-                    torch.empty_like(a, device="meta")
-                    if isinstance(a, torch.Tensor)
-                    else a
-                )
-                for a in args
-            )
-            outs = _try_forward(model, meta_args)
-        except (RuntimeError, ValueError, TypeError, AttributeError, NotImplementedError) as err:
-            raise T2NErrorInvalidArgument(
-                "skip_eager_forward requested but meta forward failed; "
-                "provide CPU/meta kernels for custom ops or disable the flag. "
-                f"Error: {err}"
-            ) from err
-    else:
-        try:
-            outs = _try_forward(model, args)
-        except (RuntimeError, ValueError, TypeError, AttributeError, NotImplementedError) as eager_err:
-            # Fallback to meta forward for custom ops lacking CPU kernels.
-            try:
-                meta_args = tuple(
-                    (
-                        torch.empty_like(a, device="meta")
-                        if isinstance(a, torch.Tensor)
-                        else a
-                    )
-                    for a in args
-                )
-                outs = _try_forward(model, meta_args)
-                LOGGER.info(
-                    "Eager forward failed; fell back to meta forward: %s",
-                    eager_err,
-                )
-            except (RuntimeError, ValueError, TypeError, AttributeError, NotImplementedError) as meta_err:
-                raise eager_err from meta_err
+    outs = _infer_outputs_via_forward(model, args, skip_eager_forward)
 
     # Normalize and validate IO names and shapes
     apply_name_to_tensor_in_module(model)
