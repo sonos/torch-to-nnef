@@ -6,10 +6,14 @@ from torch import nn
 
 from torch_to_nnef import KhronosNNEF, TractNNEF, export_model_to_nnef
 
-# Skip entirely if torch doesn't expose the modern custom-op API.
-if not hasattr(torch, "library") or not hasattr(torch.library, "Library"):
+# Skip entirely if torch doesn't expose the modern custom-op API surface we use.
+if not (
+    hasattr(torch, "library")
+    and hasattr(torch.library, "Library")
+    and hasattr(torch.library, "custom_op")
+):
     pytest.skip(
-        "t2n_extra tests require torch.library.Library (torch >= 2.0)",
+        "t2n_extra tests require torch.library.custom_op (torch >= 2.4)",
         allow_module_level=True,
     )
 
