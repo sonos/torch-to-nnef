@@ -145,3 +145,4 @@ examples/tts/pocket_tts/cli/latents.npz
 examples/tts/pocket_tts/cli/tokenizer.model
 examples/tts/pocket_tts/voices/
 AGENTS.md
+.claude/
