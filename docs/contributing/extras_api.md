@@ -76,6 +76,8 @@ OpHelper cheatsheet
 - `add_intermediate_op(src, op_type, attrs, new_shape, suffix) -> NTensor`:
   emit an intermediate op producing a fresh NTensor (helpful for
   multi-step decompositions).
+- Real-world multi-step example: Mamba selective scan handlers in
+  `torch_to_nnef/op/extras/scan_ops.py`.
 - `resolve_attr_axis_size(op_helper, input_node, axis) -> int|Identifier`:
   shape-derived attribute that remains dynamic under `TractNNEF(dynamic_axes)`.
 

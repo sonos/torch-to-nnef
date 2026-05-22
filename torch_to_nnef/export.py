@@ -329,6 +329,8 @@ def export_model_to_nnef(
     mods_to_import = [
         m for m in mods_to_import if not (m in seen or seen.add(m))
     ]
+    if mods_to_import:
+        LOGGER.debug("Extra-op handler modules to import: %s", mods_to_import)
     for mod in mods_to_import:
         try:
             importlib.import_module(mod)

@@ -94,6 +94,10 @@ Notes
 See also
 - Example repo folder with a runnable script:
   https://github.com/sonos/torch-to-nnef/tree/main/examples/t2n_extra_custom_op
+- Real-world multi-step handler (Mamba selective scan):
+  https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/op/extras/scan_ops.py
+  and end-to-end example:
+  https://github.com/sonos/torch-to-nnef/tree/main/examples/mamba
 
 Module-level extractors (ModuleInfoExtractor)
 ---------------------------------------------
