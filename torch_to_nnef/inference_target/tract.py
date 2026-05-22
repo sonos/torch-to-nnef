@@ -762,7 +762,13 @@ def build_io(
         torch.no_grad(),
         torch.inference_mode(),
     ):
-        test_outputs = model(*test_input)
+        try:
+            test_outputs = model(*test_input)
+        except (RuntimeError, ValueError, TypeError, AttributeError) as exp:
+            # Unwrap common eager-forward failures (e.g., custom-op CPU kernel
+            # shape errors) into a consistent invalid-argument signal so tests
+            # expecting validation errors don't depend on torch's error class.
+            raise T2NErrorInvalidArgument(str(exp)) from exp
     model_info = unfold_model_io(
         model, test_input, test_outputs, input_names, output_names
     )
