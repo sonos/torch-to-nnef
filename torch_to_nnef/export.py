@@ -381,7 +381,7 @@ def export_model_to_nnef(
                 for a in args
             )
             outs = _try_forward(model, meta_args)
-        except (RuntimeError, ValueError, TypeError) as err:
+        except (RuntimeError, ValueError, TypeError, AttributeError, NotImplementedError) as err:
             raise T2NErrorInvalidArgument(
                 "skip_eager_forward requested but meta forward failed; "
                 "provide CPU/meta kernels for custom ops or disable the flag. "
@@ -390,7 +390,7 @@ def export_model_to_nnef(
     else:
         try:
             outs = _try_forward(model, args)
-        except (RuntimeError, ValueError, TypeError) as eager_err:
+        except (RuntimeError, ValueError, TypeError, AttributeError, NotImplementedError) as eager_err:
             # Fallback to meta forward for custom ops lacking CPU kernels.
             try:
                 meta_args = tuple(
@@ -406,7 +406,7 @@ def export_model_to_nnef(
                     "Eager forward failed; fell back to meta forward: %s",
                     eager_err,
                 )
-            except (RuntimeError, ValueError, TypeError) as meta_err:
+            except (RuntimeError, ValueError, TypeError, AttributeError, NotImplementedError) as meta_err:
                 raise eager_err from meta_err
 
     # Normalize and validate IO names and shapes
