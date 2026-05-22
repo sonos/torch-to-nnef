@@ -428,6 +428,9 @@ def export_model_to_nnef(
 
     # Run forward once to capture outputs under safe modes
     outs = _infer_outputs_via_forward(model, args, skip_eager_forward)
+    # Ensure inputs are normalized to a tuple before IO unfolding. Without this,
+    # passing a single Tensor input can lead to incorrect flattening (empty IO).
+    args = ensure_tuple_io(args)
 
     # Normalize and validate IO names and shapes
     apply_name_to_tensor_in_module(model)
