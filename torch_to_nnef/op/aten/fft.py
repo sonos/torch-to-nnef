@@ -1,3 +1,8 @@
+"""Aten FFT/STFT/ISTFT handlers mapping to NNEF ops.
+
+Contains helpers for complex layout handling and tract-core FFT glue.
+"""
+
 import logging
 
 import nnef
@@ -177,6 +182,7 @@ def stft(
     **kwargs,
 ):
     """Map PyTorch: 'aten:stft' to NNEF."""
+    # pylint: disable=too-many-branches
     # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
     if (
@@ -625,10 +631,10 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
         complex_axis = input_node.rank - 1
     else:
         # Logical: NNEF emission upstream added the trailing-2 axis at
-        # position `input_node.rank`. PyTorch dim is picked directly
-        # against the input rank.
+        # the end of the IR shape. PyTorch dim is picked directly
+        # against the input rank, and the complex axis is the last one.
         dim = pick_axis(input_node, dim_node.data)
-        complex_axis = input_node.rank
+        complex_axis = input_node.rank - 1
     k = input_node.shape[dim]
     if not isinstance(k, int):
         raise T2NErrorNotImplemented("fft_irfft on dynamic FFT axis")
@@ -905,6 +911,7 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
       7. If `center=True`, slice off `n_fft // 2` samples from each end.
     """
     _check_fft_target(inference_target)
+    # pylint: disable=too-many-branches,too-many-statements
     (
         input_node,
         n_fft_node,
@@ -921,17 +928,11 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
     hop = hop_node.data if hop_node.data is not None else n_fft // 4
     win_len = win_len_node.data if win_len_node.data is not None else n_fft
     center = True if center_node.data is None else center_node.data
-    normalized = (
-        False if normalized_node.data is None else normalized_node.data
-    )
-    onesided = (
-        True if onesided_node.data is None else onesided_node.data
-    )
+    normalized = False if normalized_node.data is None else normalized_node.data
+    onesided = True if onesided_node.data is None else onesided_node.data
     length = length_node.data
     return_complex = (
-        False
-        if return_complex_node.data is None
-        else return_complex_node.data
+        False if return_complex_node.data is None else return_complex_node.data
     )
     if not onesided:
         raise T2NErrorNotImplemented("istft onesided=False not supported")
@@ -947,7 +948,8 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         )
     if input_node.rank < 3:
         raise T2NErrorNotImplemented(
-            f"istft input must have at least (freq, T_frames, 2); got rank={input_node.rank}"
+            "istft input must have at least (freq, T_frames, 2); got rank="
+            f"{input_node.rank}"
         )
 
     # Storage layout for view-tagged complex (..., freq, T_frames, 2):
@@ -959,21 +961,26 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
     onesided_expected = (n_fft >> 1) + 1
     if freq_size != onesided_expected:
         raise T2NErrorNotImplemented(
-            f"istft input freq size {freq_size} != onesided expected {onesided_expected}"
+            f"istft input freq size {freq_size} != onesided expected "
+            f"{onesided_expected}"
         )
 
     inp = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     out_name = node.outputs[0].export_name
 
     def _emit(op_type, *, inputs, attrs=None, suffix, new_shape, **kwargs):
-        """Wrap `add_single_output_op` and patch the recorded NNEF
+        """Wrap `add_single_output_op` and patch the recorded NNEF.
+
         shape on the intermediate. Intermediates emitted via
         `add_single_output_op` otherwise inherit `node.outputs[0].shape`
         (the istft's final audio shape), which confuses tract's
         rank-alignment when later ops broadcast.
         """
         out = add_single_output_op(
-            g, node, name_to_tensor, op_type,
+            g,
+            node,
+            name_to_tensor,
+            op_type,
             inputs=inputs,
             attrs=attrs or {},
             output_tensor_name_suffix=suffix,
@@ -993,8 +1000,15 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
     if k == 2:
         full_spec = inp
     else:
-        mirror_src = _emit("slice", inputs=inp,
-            attrs={"axes": [freq_axis], "begin": [1], "end": [k - 1], "stride": [1]},
+        mirror_src = _emit(
+            "slice",
+            inputs=inp,
+            attrs={
+                "axes": [freq_axis],
+                "begin": [1],
+                "end": [k - 1],
+                "stride": [1],
+            },
             suffix="_istft_mirror_src",
             new_shape=leading + (k - 2, frames_size, 2),
         )
@@ -1005,19 +1019,35 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         idx_ref = get_or_add_tensor_variable_in_nnef(
             g, idx_const, name_to_tensor
         )
-        flipped = _emit("tract_core_gather", inputs=[mirror_src, idx_ref],
+        flipped = _emit(
+            "tract_core_gather",
+            inputs=[mirror_src, idx_ref],
             attrs={"axis": freq_axis},
             suffix="_istft_flipped",
             new_shape=leading + (k - 2, frames_size, 2),
             force_consistent_inputs_shapes=False,
         )
-        re_part = _emit("slice", inputs=flipped,
-            attrs={"axes": [complex_axis], "begin": [0], "end": [1], "stride": [1]},
+        re_part = _emit(
+            "slice",
+            inputs=flipped,
+            attrs={
+                "axes": [complex_axis],
+                "begin": [0],
+                "end": [1],
+                "stride": [1],
+            },
             suffix="_istft_re",
             new_shape=leading + (k - 2, frames_size, 1),
         )
-        im_part = _emit("slice", inputs=flipped,
-            attrs={"axes": [complex_axis], "begin": [1], "end": [2], "stride": [1]},
+        im_part = _emit(
+            "slice",
+            inputs=flipped,
+            attrs={
+                "axes": [complex_axis],
+                "begin": [1],
+                "end": [2],
+                "stride": [1],
+            },
             suffix="_istft_im",
             new_shape=leading + (k - 2, frames_size, 1),
         )
@@ -1028,17 +1058,23 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         neg1_ref = get_or_add_tensor_variable_in_nnef(
             g, neg1_const, name_to_tensor
         )
-        neg_im = _emit("mul", inputs=[im_part, neg1_ref],
+        neg_im = _emit(
+            "mul",
+            inputs=[im_part, neg1_ref],
             suffix="_istft_neg_im",
             new_shape=leading + (k - 2, frames_size, 1),
         )
-        conj = _emit("concat", inputs=[re_part, neg_im],
+        conj = _emit(
+            "concat",
+            inputs=[re_part, neg_im],
             attrs={"axis": complex_axis},
             ensure_tuple=False,
             suffix="_istft_conj",
             new_shape=leading + (k - 2, frames_size, 2),
         )
-        full_spec = _emit("concat", inputs=[inp, conj],
+        full_spec = _emit(
+            "concat",
+            inputs=[inp, conj],
             attrs={"axis": freq_axis},
             ensure_tuple=False,
             suffix="_istft_full_spec",
@@ -1047,7 +1083,9 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         )
 
     # 2. Inverse FFT on the freq axis.
-    ifft = _emit("tract_core_fft", inputs=full_spec,
+    ifft = _emit(
+        "tract_core_fft",
+        inputs=full_spec,
         attrs={"axis": freq_axis, "inverse": True},
         suffix="_istft_ifft",
         new_shape=leading + (n_fft, frames_size, 2),
@@ -1059,18 +1097,24 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         data=torch.tensor(float(n_fft), dtype=torch.float32),
     )
     n_ref = get_or_add_tensor_variable_in_nnef(g, n_const, name_to_tensor)
-    scaled = _emit("div", inputs=[ifft, n_ref],
+    scaled = _emit(
+        "div",
+        inputs=[ifft, n_ref],
         suffix="_istft_scaled",
         new_shape=leading + (n_fft, frames_size, 2),
     )
 
     # 4. Take the real part: slice complex axis [0:1], then squeeze.
-    re_slice = _emit("slice", inputs=scaled,
+    re_slice = _emit(
+        "slice",
+        inputs=scaled,
         attrs={"axes": [complex_axis], "begin": [0], "end": [1], "stride": [1]},
         suffix="_istft_real_slice",
         new_shape=leading + (n_fft, frames_size, 1),
     )
-    re_squeeze = _emit("squeeze", inputs=re_slice,
+    re_squeeze = _emit(
+        "squeeze",
+        inputs=re_slice,
         attrs={"axes": [complex_axis]},
         suffix="_istft_frames",
         new_shape=leading + (n_fft, frames_size),
@@ -1102,7 +1146,9 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         data=win_data.reshape(1, n_fft, 1).float(),
     )
     win_ref = get_or_add_tensor_variable_in_nnef(g, win_const, name_to_tensor)
-    windowed = _emit("mul", inputs=[re_squeeze, win_ref],
+    windowed = _emit(
+        "mul",
+        inputs=[re_squeeze, win_ref],
         suffix="_istft_windowed",
         new_shape=leading + (n_fft, frames_size),
     )
@@ -1113,7 +1159,9 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
     #    (freq, T_frames)), we add one. IR rank with the trailing-2
     #    complex axis: logical-rank 2 -> IR rank 3.
     if input_node.rank == 3:
-        ola_in = _emit("unsqueeze", inputs=windowed,
+        ola_in = _emit(
+            "unsqueeze",
+            inputs=windowed,
             attrs={"axes": [0]},
             suffix="_istft_ola_in",
             new_shape=(1, n_fft, frames_size),
@@ -1126,7 +1174,9 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
     # identity OLA: each input channel i pastes a unit pulse at output
     # offset i. So kernel[0, i, j] = delta(i, j) -> torch.eye(n_fft) with
     # a leading singleton out_channels axis.
-    eye_kernel = torch.eye(n_fft, dtype=torch.float32).unsqueeze(0)  # (1, n_fft, n_fft)
+    eye_kernel = torch.eye(n_fft, dtype=torch.float32).unsqueeze(
+        0
+    )  # (1, n_fft, n_fft)
     kernel_const = PythonConstant(
         name=f"{out_name}_istft_ola_kernel",
         data=eye_kernel,
@@ -1138,11 +1188,10 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         name=f"{out_name}_istft_ola_bias",
         data=torch.zeros(1, dtype=torch.float32),
     )
-    bias_ref = get_or_add_tensor_variable_in_nnef(
-        g, bias_const, name_to_tensor
-    )
+    bias_ref = get_or_add_tensor_variable_in_nnef(g, bias_const, name_to_tensor)
     audio_len_raw = (frames_size - 1) * hop + n_fft
-    ola = _emit("deconv",
+    ola = _emit(
+        "deconv",
         inputs=[ola_in, kernel_ref, bias_ref],
         attrs={
             "dilation": [1],
@@ -1181,7 +1230,9 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         norm_ref = get_or_add_tensor_variable_in_nnef(
             g, norm_const, name_to_tensor
         )
-        normed = _emit("div", inputs=[ola, norm_ref],
+        normed = _emit(
+            "div",
+            inputs=[ola, norm_ref],
             suffix="_istft_normed",
             new_shape=(1, 1, audio_len_raw)
             if isinstance(audio_len_raw, int)
@@ -1201,7 +1252,9 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         norm_ref = get_or_add_tensor_variable_in_nnef(
             g, norm_const, name_to_tensor
         )
-        normed = _emit("div", inputs=[ola, norm_ref],
+        normed = _emit(
+            "div",
+            inputs=[ola, norm_ref],
             suffix="_istft_normed",
             new_shape=(1, 1, audio_len_raw),
         )
@@ -1214,7 +1267,9 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
     do_final_squeeze = batched_added  # squeeze the synthetic batch back
 
     if do_crop or do_final_squeeze:
-        channel_squeezed = _emit("squeeze", inputs=normed,
+        channel_squeezed = _emit(
+            "squeeze",
+            inputs=normed,
             attrs={"axes": [1]},
             suffix="_istft_audio_raw",
             new_shape=(1, audio_len_raw),
@@ -1222,7 +1277,10 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
     else:
         # No further ops downstream; this squeeze writes to the IR output.
         add_single_output_op(
-            g, node, name_to_tensor, "squeeze",
+            g,
+            node,
+            name_to_tensor,
+            "squeeze",
             inputs=normed,
             attrs={"axes": [1]},
         )
@@ -1238,14 +1296,19 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
             "stride": [1],
         }
         if do_final_squeeze:
-            cropped = _emit("slice", inputs=channel_squeezed,
+            cropped = _emit(
+                "slice",
+                inputs=channel_squeezed,
                 attrs=slice_attrs,
                 suffix="_istft_cropped",
                 new_shape=(1, final_len),
             )
         else:
             add_single_output_op(
-                g, node, name_to_tensor, "slice",
+                g,
+                node,
+                name_to_tensor,
+                "slice",
                 inputs=channel_squeezed,
                 attrs=slice_attrs,
             )
@@ -1255,7 +1318,10 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
 
     # do_final_squeeze branch: peel off the synthetic batch axis.
     add_single_output_op(
-        g, node, name_to_tensor, "squeeze",
+        g,
+        node,
+        name_to_tensor,
+        "squeeze",
         inputs=cropped,
         attrs={"axes": [0]},
     )

@@ -50,23 +50,24 @@ sys.path.insert(0, str(CLONE / "model"))
 
 # ruff: noqa: E402, I001
 from model.dpdfnet import DPDFNet  # noqa: E402
+from model.utils import as_complex  # noqa: E402
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef  # noqa: E402
 
 
-COMMON_KWARGS = dict(
-    conv_kernel_inp=(3, 3),
-    conv_ch=64,
-    enc_gru_dim=256,
-    erb_dec_gru_dim=256,
-    df_dec_gru_dim=256,
-    enc_lin_groups=32,
-    lin_groups=16,
-    upsample_conv_type="subpixel",
-    group_linear_type="loop",
-    point_wise_type="cnn",
-    separable_first_conv=True,
-)
+COMMON_KWARGS = {
+    "conv_kernel_inp": (3, 3),
+    "conv_ch": 64,
+    "enc_gru_dim": 256,
+    "erb_dec_gru_dim": 256,
+    "df_dec_gru_dim": 256,
+    "enc_lin_groups": 32,
+    "lin_groups": 16,
+    "upsample_conv_type": "subpixel",
+    "group_linear_type": "loop",
+    "point_wise_type": "cnn",
+    "separable_first_conv": True,
+}
 
 
 class ErbNormStateless(torch.nn.Module):
@@ -84,7 +85,7 @@ class ErbNormStateless(torch.nn.Module):
             [init_vals[0] + i * step for i in range(num_feat)],
             dtype=torch.float32,
         )
-        var = torch.full_like(mu, 40.0 ** 2)
+        var = torch.full_like(mu, 40.0**2)
         self.register_buffer("mu", mu)
         self.register_buffer("inv_std", 1.0 / (var.sqrt() + eps))
 
@@ -149,7 +150,6 @@ class IstftCenterFalse(torch.nn.Module):
         self.register_buffer("w", src.w_inv.clone())
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        from model.utils import as_complex
         x = as_complex(x)
         return torch.istft(
             x,
@@ -177,7 +177,7 @@ class DPDFNetMaskOnly(torch.nn.Module):
         feat_spec = feat_spec.squeeze(1).permute(0, 3, 1, 2)
         feat_erb = self.inner.pad_feat(feat_erb)
         feat_spec = self.inner.pad_feat(feat_spec)
-        e0, e1, e2, e3, emb, c0, _ = self.inner.enc(feat_erb, feat_spec)
+        e0, e1, e2, e3, emb, _, _ = self.inner.enc(feat_erb, feat_spec)
         m = self.inner.erb_dec(emb, e3, e2, e1, e0)
         spec_e = self.inner.mask(spec, m)
         spec_e = torch.view_as_complex(spec_e).squeeze(1)
@@ -187,7 +187,7 @@ class DPDFNetMaskOnly(torch.nn.Module):
 def build(checkpoint: Path) -> torch.nn.Module:
     model = DPDFNet(dprnn_num_blocks=0, **COMMON_KWARGS).eval()
     raw = torch.load(checkpoint, map_location="cpu", weights_only=False)
-    state = raw["state_dict"] if "state_dict" in raw else raw
+    state = raw.get("state_dict", raw)
     state = {
         k: v for k, v in state.items() if not k.endswith("num_batches_tracked")
     }

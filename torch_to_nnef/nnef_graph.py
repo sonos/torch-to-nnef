@@ -220,9 +220,7 @@ class TorchToNGraphExtractor:
                 and tv.dtype in (torch.complex64, torch.complex128)
                 and isinstance(tv.shape, list)
                 and len(tv.shape) > 0
-                and (
-                    len(tv.shape) < 2 or tv.shape[-1] != 2
-                )
+                and (len(tv.shape) < 2 or tv.shape[-1] != 2)
             ):
                 # Only promote the IR shape, leave dtype tagged as
                 # complex64. Storage carries the trailing-2 implicitly;

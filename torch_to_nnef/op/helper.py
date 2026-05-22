@@ -1067,9 +1067,7 @@ class OpHelper:
                     )
                 except TypeError:
                     inp_is_complex = False
-                if inp_is_complex and np.issubdtype(
-                    final_dtype, np.floating
-                ):
+                if inp_is_complex and np.issubdtype(final_dtype, np.floating):
                     inp.dtype = final_dtype
                     continue
                 to_str = numpy_dtype_to_tract_str(final_dtype)
