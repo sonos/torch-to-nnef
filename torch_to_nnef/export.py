@@ -363,6 +363,9 @@ def export_model_to_nnef(
     if isinstance(output_names, KeysView):
         output_names = list(output_names)
     args = tuple(args) if isinstance(args, ValuesView) else args
+    # Normalise single-Tensor inputs to a tuple immediately to keep IO handling
+    # consistent across torch versions and tracing paths.
+    args = ensure_tuple_io(args)
 
     # Auto-apply the JIT-only export hardening chain when the input is
     # a `torch.jit.ScriptModule`. The chain is a no-op on already-clean
