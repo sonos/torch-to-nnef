@@ -58,7 +58,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     TUPLECONSTRUCT_KIND,
     TUPLEUNPACK_KIND,
 )
-from torch_to_nnef.utils import ReactiveNamedItemDict
+from torch_to_nnef.utils import ReactiveNamedItemDict, torch_version
 
 LOGGER = logging.getLogger(__name__)
 
@@ -92,6 +92,12 @@ def quantized_name_to_torch_fn(aten_name):
 
 def t2n_extra_name_to_torch_fn(kind: str):
     """Resolve a `t2n_extra::<name>` op kind to its `torch.ops` entry."""
+    # Guard against legacy torch where `torch.ops.t2n_extra` cannot exist
+    # because `torch.library` is unavailable.
+    if torch_version() < "2.0.0" or not hasattr(torch.ops, "t2n_extra"):
+        raise T2NErrorNotImplemented(
+            "t2n_extra custom ops require torch >= 2.0.0 (torch.library)."
+        )
     name = kind.replace("t2n_extra::", "")
     return getattr(torch.ops.t2n_extra, name)
 

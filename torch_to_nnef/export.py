@@ -298,6 +298,25 @@ def export_model_to_nnef(
     # parameter or the `TORCH_TO_NNEF_EXTRA_MODULES` environment variable
     # (comma-separated list of module paths).
     mods_to_import: T.List[str] = []
+    # Disallow custom-op module usage on legacy torch versions that don't
+    # expose the `torch.library` surface (authors often define ops at import).
+    supports_t2n_custom = (
+        torch_version() >= "2.0.0"
+        and hasattr(torch, "library")
+        and hasattr(torch.library, "Library")
+    )
+    if not supports_t2n_custom:
+        requested = (
+            bool(load_extra_op_modules)
+            or bool(os.environ.get("TORCH_TO_NNEF_EXTRA_MODULES"))
+            or bool(discover_extra_entrypoints)
+        )
+        if requested:
+            raise T2NErrorInvalidArgument(
+                "Custom-op handler modules requested but torch < 2.0.0 or "
+                "missing torch.library API. Upgrade torch or run without "
+                "custom-op modules."
+            )
     if load_extra_op_modules:
         mods_to_import.extend(load_extra_op_modules)
     env_mods = os.environ.get("TORCH_TO_NNEF_EXTRA_MODULES")
