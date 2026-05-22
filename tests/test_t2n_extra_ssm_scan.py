@@ -17,11 +17,16 @@ if not hasattr(torch.library, "custom_op"):
         allow_module_level=True,
     )
 
+import tarfile
+from pathlib import Path
+
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
+from torch_to_nnef.inference_target import TractNNEF
 
 
 def _skip_if_not_tract(inf):
@@ -137,6 +142,40 @@ for seed in (0, 1, 2):
     ids=_test_suite.ids,
 )
 def test_ssm_scan_export(_id, test_input, model, inference_target):
+    def _assert_fragments(it, export_path: Path):
+        # Only check for tract targets; they ship the fragments.
+        if not isinstance(it, TractNNEF):
+            return
+        expected = (
+            "mamba_ssm_scan"
+            if isinstance(model, _ScanFull)
+            else "mamba_ssm_scan_pulse"
+        )
+        # compression_level=0 produces a .tar; read graph.nnef inside.
+        with tarfile.open(export_path) as tf:
+            graph = tf.extractfile("graph.nnef").read().decode("utf8")
+            assert expected in graph
+
     check_model_io_test(
-        model=model, test_input=test_input, inference_target=inference_target
+        model=model,
+        test_input=test_input,
+        inference_target=inference_target,
+        callback_post_export=_assert_fragments,
     )
+
+
+def test_bad_rank_raises(tmp_path):
+    class _BadCShape(torch.nn.Module):
+        def forward(self, A, Bu, C, h0):
+            return torch.ops.t2n_extra.ssm_scan_y(A, Bu, C, h0)
+
+    A, Bu, C, h0 = _make_inputs()
+    C_bad = C.unsqueeze(-1)  # rank-4, should be 3
+    with pytest.raises(T2NErrorInvalidArgument):
+        _ = check_model_io_test(
+            model=_BadCShape(),
+            test_input=(A, Bu, C_bad, h0),
+            inference_target=TractNNEF(
+                TractNNEF.latest_version(), check_io=False
+            ),
+        )

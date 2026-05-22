@@ -39,6 +39,19 @@ Loading handlers
 - Or via env var: `TORCH_TO_NNEF_EXTRA_MODULES=my_pkg.handlers`.
 - Or install a plugin that exposes an entry point under
   `torch_to_nnef.extras` (module path as the entry point value).
+ - Load order (first wins on duplicates): explicit list → env var → entry points.
+ - CI option: set `strict_extra_imports=True` to fail fast if any module fails to import.
+
+Publishing a plugin
+- In your package's `pyproject.toml`, add an entry point so
+  `export_model_to_nnef(..., discover_extra_entrypoints=True)` can load it:
+
+```toml
+[project.entry-points."torch_to_nnef.extras"]
+my_pkg = "my_pkg.handlers"
+```
+- `my_pkg.handlers` should import `torch_to_nnef.op.extras.register` and
+  register your handlers at module import time (see the example above).
 
 Handler signature
 - Parameters
@@ -72,3 +85,7 @@ Eager vs. meta forward
   meta tensors. Provide `@custom_op.register_fake` for meta support.
 - You can force the meta path with `export_model_to_nnef(..., skip_eager_forward=True)`.
 
+Safety note
+- Importing external modules (via explicit list, env var, or entry points)
+  executes their top-level code in the current process. Only install and
+  enable plugins you trust.

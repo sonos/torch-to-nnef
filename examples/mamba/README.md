@@ -110,3 +110,6 @@ in both shapes.
   `ssm_scan`, drops `h_final`) is bundled in the t2n PR alongside
   the original; both are covered by
   `tests/test_t2n_extra_ssm_scan.py`.
+ - Both `ssm_scan` and `ssm_scan_y` are implemented as Tract-specific
+   NNEF fragments (`mamba_ssm_scan{,_pulse}`) and require a Tract NNEF
+   target at export time; they are not supported by the Khronos target.

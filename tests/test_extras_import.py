@@ -6,6 +6,13 @@ from torch import nn
 
 from torch_to_nnef import KhronosNNEF, TractNNEF, export_model_to_nnef
 
+# Skip entirely if torch doesn't expose the modern custom-op API.
+if not hasattr(torch, "library") or not hasattr(torch.library, "Library"):
+    pytest.skip(
+        "t2n_extra tests require torch.library.Library (torch >= 2.0)",
+        allow_module_level=True,
+    )
+
 
 class _UnitRelu(nn.Module):
     def forward(self, x):
@@ -56,5 +63,35 @@ def test_env_auto_import(inference_target, tmp_path, monkeypatch):
         compression_level=0,
         input_names=["x"],
         output_names=["y"],
+    )
+    assert out.exists()
+
+
+class _UnitReluMetaOnly(nn.Module):
+    def forward(self, x):
+        # No CPU kernel registered; eager forward should fail, exporter falls
+        # back to meta forward and succeeds.
+        return torch.ops.t2n_extra.unit_relu_meta_only(x)
+
+
+@pytest.mark.parametrize(
+    "inference_target",
+    [
+        KhronosNNEF.latest(),
+        TractNNEF(TractNNEF.latest_version(), check_io=False),
+    ],
+)
+def test_meta_forward_fallback(inference_target, tmp_path):
+    model = _UnitReluMetaOnly().eval()
+    x = torch.randn(2, 3)
+    out = export_model_to_nnef(
+        model,
+        args=(x,),
+        file_path_export=tmp_path / "mod.nnef",
+        inference_target=inference_target,
+        compression_level=0,
+        input_names=["x"],
+        output_names=["y"],
+        load_extra_op_modules=["tests.plugins.unit_handlers"],
     )
     assert out.exists()

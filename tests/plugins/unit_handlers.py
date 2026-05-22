@@ -18,12 +18,42 @@ try:
 
     lib.impl("unit_relu", _cpu, "CPU")
     lib.impl_abstract("unit_relu", _meta)
+
+    # Define a meta-only variant to exercise exporter eager→meta fallback.
+    lib.define("unit_relu_meta_only(Tensor x) -> Tensor")
+
+    def _meta_only(x: torch.Tensor) -> torch.Tensor:  # pragma: no cover
+        return torch.empty_like(x, device="meta")
+
+    lib.impl_abstract("unit_relu_meta_only", _meta_only)
 except Exception:
     pass
 
 
 @register("unit_relu")
 def unit_relu(
+    g,
+    node,
+    name_to_tensor,
+    null_ref,
+    *,
+    torch_graph,
+    inference_target,
+    op_helper,
+    **_,
+):
+    x = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node=node,
+        nnef_op_type="relu",
+        inputs=x,
+        force_full_output_tensor_name=node.outputs[0].export_name,
+    )
+    return []
+
+
+@register("unit_relu_meta_only")
+def unit_relu_meta_only(
     g,
     node,
     name_to_tensor,
