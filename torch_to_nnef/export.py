@@ -1,7 +1,10 @@
 import contextlib
+import importlib
 import logging as log
+import os
 import typing as T
 from collections.abc import KeysView, ValuesView
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 import numpy as np
@@ -59,6 +62,10 @@ def export_model_to_nnef(
     custom_extensions: T.Optional[T.List[str]] = None,
     allow_same_io_names: bool = False,
     auto_harden_jit: bool = True,
+    load_extra_op_modules: T.Optional[T.List[str]] = None,
+    discover_extra_entrypoints: bool = True,
+    strict_extra_imports: bool = False,
+    skip_eager_forward: bool = False,
 ) -> Path:
     """Main entrypoint of this library.
 
@@ -178,6 +185,32 @@ def export_model_to_nnef(
             the wrapper is safe to apply unconditionally; turn it off
             to drive the chain manually for fine-grained control.
 
+        load_extra_op_modules: Optional[List[str]]
+            Optional list of Python module paths to import before
+            tracing/export. Importing a module that calls
+            `torch_to_nnef.op.extras.register("<name>")` registers a
+            handler for `t2n_extra::<name>` custom ops so they are
+            translated during export. You can also provide the same list
+            via the `TORCH_TO_NNEF_EXTRA_MODULES` environment variable
+            (comma-separated).
+
+        discover_extra_entrypoints: bool (default: True)
+            Auto-discover and import installed plugins that declare a
+            Python entry point under the `torch_to_nnef.extras` group. The
+            entry point value should be a module path that performs the
+            `extras.register` calls on import.
+
+        strict_extra_imports: bool (default: False)
+            If True, fail the export when an extra-op module fails to import
+            (from `load_extra_op_modules`, env var, or entry points). When
+            False, log a warning and continue.
+
+        skip_eager_forward: bool (default: False)
+            Skip running a real eager forward to infer outputs and attempt a
+            meta-only forward instead (meta tensors). When False, exporter runs
+            an eager forward and falls back to a meta forward if the eager run
+            fails (e.g., a `t2n_extra` op lacks a CPU kernel).
+
     Returns:
         Path: the path to the exported artifact.
             - If `compression_level is None`: returns the
@@ -259,14 +292,104 @@ def export_model_to_nnef(
             )
         )
 
+    # Optionally load external custom-op handler modules. Handlers registered
+    # via `torch_to_nnef.op.extras.register` become available once their
+    # defining module is imported. This can be driven via the function
+    # parameter or the `TORCH_TO_NNEF_EXTRA_MODULES` environment variable
+    # (comma-separated list of module paths).
+    mods_to_import: T.List[str] = []
+    if load_extra_op_modules:
+        mods_to_import.extend(load_extra_op_modules)
+    env_mods = os.environ.get("TORCH_TO_NNEF_EXTRA_MODULES")
+    if env_mods:
+        mods_to_import.extend(
+            [m.strip() for m in env_mods.split(",") if m.strip()]
+        )
+    # Discover installed plugins via entry points.
+    if discover_extra_entrypoints:
+        try:
+            eps = importlib_metadata.entry_points()
+            # Newer Python returns a Selection; older returns dict; handle both.
+            group = (
+                eps.select(group="torch_to_nnef.extras")
+                if hasattr(eps, "select")
+                else eps.get("torch_to_nnef.extras", [])
+            )
+            for ep in group:  # type: ignore[assignment]
+                # Entry point values can be "pkg.mod:obj"; import module part.
+                val = getattr(ep, "value", None) or getattr(ep, "module", "")
+                mod_path = val.split(":", 1)[0]
+                if mod_path:
+                    mods_to_import.append(mod_path)
+        except Exception as err:  # pragma: no cover
+            LOGGER.debug("Entry point discovery failed: %s", err)
+
+    # Deduplicate while preserving order.
+    seen = set()
+    mods_to_import = [
+        m for m in mods_to_import if not (m in seen or seen.add(m))
+    ]
+    for mod in mods_to_import:
+        try:
+            importlib.import_module(mod)
+            LOGGER.info("Loaded extra op module: %s", mod)
+        except Exception as err:  # pragma: no cover - defensive logging only
+            msg = f"Failed to import extra op module '{mod}': {err}"
+            if strict_extra_imports:
+                raise T2NErrorInvalidArgument(msg) from err
+            LOGGER.warning(msg)
+
     # Run forward once to capture outputs under safe modes
     args = ensure_tuple_io(args)
-    with (
-        select_model_mode_for_export(model, TrainingMode.EVAL),
-        torch.no_grad(),
-        torch.inference_mode(),
-    ):
-        outs = model(*args)
+
+    def _try_forward(_model, _args):
+        with (
+            select_model_mode_for_export(_model, TrainingMode.EVAL),
+            torch.no_grad(),
+            torch.inference_mode(),
+        ):
+            return _model(*_args)
+
+    # Run forward once to capture outputs under safe modes
+    if skip_eager_forward:
+        # Try a meta-only dry run to infer output structures and shapes.
+        try:
+            meta_args = tuple(
+                (
+                    torch.empty_like(a, device="meta")
+                    if isinstance(a, torch.Tensor)
+                    else a
+                )
+                for a in args
+            )
+            outs = _try_forward(model, meta_args)
+        except Exception as err:
+            raise T2NErrorInvalidArgument(
+                "skip_eager_forward requested but meta forward failed; "
+                "provide CPU/meta kernels for custom ops or disable the flag. "
+                f"Error: {err}"
+            ) from err
+    else:
+        try:
+            outs = _try_forward(model, args)
+        except Exception as eager_err:
+            # Fallback to meta forward for custom ops lacking CPU kernels.
+            try:
+                meta_args = tuple(
+                    (
+                        torch.empty_like(a, device="meta")
+                        if isinstance(a, torch.Tensor)
+                        else a
+                    )
+                    for a in args
+                )
+                outs = _try_forward(model, meta_args)
+                LOGGER.info(
+                    "Eager forward failed; fell back to meta forward: %s",
+                    eager_err,
+                )
+            except Exception as meta_err:
+                raise eager_err from meta_err
 
     # Normalize and validate IO names and shapes
     apply_name_to_tensor_in_module(model)

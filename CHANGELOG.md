@@ -4,6 +4,17 @@
 ## [Unreleased]
 
 ### Added
+- External custom op support via `t2n_extra` handlers (extensible):
+  - `torch_to_nnef.op.extras.register("<name>")` handler API.
+  - Auto-loading of handler modules in `export_model_to_nnef` via:
+    - `load_extra_op_modules=[...]` parameter,
+    - `TORCH_TO_NNEF_EXTRA_MODULES` environment variable,
+    - Python entry points under the `torch_to_nnef.extras` group.
+  - Meta-forward fallback in export: if eager forward fails, exporter retries
+    with meta tensors to infer output structures (requires op meta kernels).
+  - New example `examples/t2n_extra_custom_op/` demonstrating end-to-end usage.
+  - Docs: expanded tutorial (8. Custom operators) and a new reference page
+    (Contributing → Extras API) covering handler signature and helpers.
 - **JIT-only model export support** (`torch.jit.ScriptModule` with non-importable inner classes, e.g. Silero-VAD's `silero_vad.jit`).
   - `torch_to_nnef.harden_jit_for_export(model, args, *, freeze=True, diagnostics=None)`: high-level helper that bundles freeze + selective inline + size folds + scalar arithmetic + constant Ifs + tuple round-trip folds + `prim::data` strip + assertion-If strip + data-dependent If fold.
   - `export_model_to_nnef` auto-applies the helper when `model` is a `torch.jit.ScriptModule`. Opt out via `auto_harden_jit=False`.
