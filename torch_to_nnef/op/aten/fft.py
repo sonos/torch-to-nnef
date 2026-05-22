@@ -901,6 +901,7 @@ def fft_rfftfreq(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
+# pylint: disable=too-many-branches,too-many-statements
 def istft(g, node, name_to_tensor, inference_target, **kwargs):
     """Map PyTorch: 'aten:istft' to NNEF.
 
