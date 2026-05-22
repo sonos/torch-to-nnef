@@ -3,26 +3,31 @@ from __future__ import annotations
 import torch
 
 from torch_to_nnef.op.extras import register
+from torch_to_nnef.utils import torch_version
 
 # 1) Declare a custom torch op under the `t2n_extra` namespace and
 #    provide simple CPU + meta implementations so that `model(*args)`
-#    can run during export.
-try:
+#    can run during export. Only do this on torch >= 2.0 with Library.
+if (
+    torch_version() >= "2.0.0"
+    and hasattr(torch, "library")
+    and hasattr(torch.library, "Library")
+):
     lib = torch.library.Library("t2n_extra", "DEF")
-    lib.define("my_relu(Tensor x) -> Tensor")
+    try:
+        _ = torch.ops.t2n_extra.my_relu  # type: ignore[attr-defined]
+    except AttributeError:
+        lib.define("my_relu(Tensor x) -> Tensor")
 
-    def _my_relu_cpu(x: torch.Tensor) -> torch.Tensor:
-        return torch.relu(x)
+        def _my_relu_cpu(x: torch.Tensor) -> torch.Tensor:
+            return torch.relu(x)
 
-    def _my_relu_meta(x: torch.Tensor) -> torch.Tensor:
-        # Create a meta tensor with the same dtype/shape.
-        return torch.empty_like(x, device="meta")
+        def _my_relu_meta(x: torch.Tensor) -> torch.Tensor:
+            # Create a meta tensor with the same dtype/shape.
+            return torch.empty_like(x, device="meta")
 
-    lib.impl("my_relu", _my_relu_cpu, "CPU")
-    lib.impl_abstract("my_relu", _my_relu_meta)
-except Exception:
-    # If already defined/registered in this process, ignore.
-    pass
+        lib.impl("my_relu", _my_relu_cpu, "CPU")
+        lib.impl_abstract("my_relu", _my_relu_meta)
 
 
 # 2) Register the export handler that maps the IR node to NNEF.
