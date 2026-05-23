@@ -151,9 +151,10 @@ def _fft(
     # Normalise IR: FFT results are view-tagged complex in t2n (rank N+1,
     # trailing axis of size 2). Ensure the IR output shape reflects that so
     # downstream handlers can reliably detect the complex layout.
-    if isinstance(node.outputs[0].shape, list):
-        if len(node.outputs[0].shape) == 0 or node.outputs[0].shape[-1] != 2:
-            node.outputs[0].shape = list(node.outputs[0].shape) + [2]
+    if isinstance(node.outputs[0].shape, list) and (
+        len(node.outputs[0].shape) == 0 or node.outputs[0].shape[-1] != 2
+    ):
+        node.outputs[0].shape = list(node.outputs[0].shape) + [2]
     # Ensure complex dtype on the IR output (storage is real with trailing 2).
     node.outputs[0].dtype = torch.complex64
     if inverse and norm_node.data == "backward":
@@ -640,16 +641,21 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
     # only fragile case (a logical complex tensor whose FFT axis happens
     # to be 2) is implausible in real models: FFT axes are practically
     # never 2.
-    if _is_view_tagged_complex(input_node):
-        # View-tagged: trailing-2 already in IR shape.
-        # logical rank = IR rank - 1, complex axis sits at IR rank - 1.
-        dim = _pick_logical_axis(input_node, dim_node.data)
-    else:
-        # Logical: pick the FFT dim directly from the input rank; the
-        # storage tensor produced by upstream FFT ops still carries the
-        # trailing-2 complex axis at the end.
-        dim = pick_axis(input_node, dim_node.data)
-    k = input_node.shape[dim]
+    # Choose axes from the concrete storage shape to be robust even if
+    # IR dtype wasn't marked complex. Storage carries a trailing-2 axis
+    # for complex; logical rank excludes it.
+    inp = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    storage_shape = tuple(inp.shape)
+    has_trailing_complex = len(storage_shape) >= 1 and storage_shape[-1] == 2
+    logical_rank = (
+        len(storage_shape) - 1 if has_trailing_complex else len(storage_shape)
+    )
+    raw_dim = dim_node.data if dim_node.data is not None else -1
+    if raw_dim < 0:
+        raw_dim += logical_rank
+    # Storage axis index (same as logical; trailing complex sits after it).
+    dim = raw_dim
+    k = storage_shape[dim]
     if not isinstance(k, int):
         raise T2NErrorNotImplemented("fft_irfft on dynamic FFT axis")
     if k < 2:
@@ -658,9 +664,8 @@ def fft_irfft(g, node, name_to_tensor, inference_target, **kwargs):
         )
     n = n_node.data if n_node.data is not None else 2 * (k - 1)
 
-    inp = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     # The complex axis is always the trailing one on the storage tensor.
-    complex_axis = len(inp.shape) - 1
+    complex_axis = len(storage_shape) - 1
 
     # 1. Mirror chunk: slice `[1, K-1)` on the FFT axis -> (..., K-2, 2).
     if k == 2:
