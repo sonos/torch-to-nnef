@@ -148,6 +148,14 @@ def _fft(
         attrs={"axis": dim, "inverse": inverse},
         output_tensor_name_suffix=suffix,
     )
+    # Normalise IR: FFT results are view-tagged complex in t2n (rank N+1,
+    # trailing axis of size 2). Ensure the IR output shape reflects that so
+    # downstream handlers can reliably detect the complex layout.
+    if isinstance(node.outputs[0].shape, list):
+        if len(node.outputs[0].shape) == 0 or node.outputs[0].shape[-1] != 2:
+            node.outputs[0].shape = list(node.outputs[0].shape) + [2]
+    # Ensure complex dtype on the IR output (storage is real with trailing 2).
+    node.outputs[0].dtype = torch.complex64
     if inverse and norm_node.data == "backward":
         if inference_target.has_dynamic_axes:
             raise T2NErrorNotImplemented("Need to use implement")
