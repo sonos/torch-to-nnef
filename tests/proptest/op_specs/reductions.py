@@ -251,22 +251,27 @@ def _var_std_sample_st(method_name: str) -> st.SearchStrategy[OpSample]:
 def _reduction_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
+            # Even single-axis reductions can hit catastrophic cancellation
+            # under adversarial inputs (hypothesis happily draws `[31, 31,
+            # ..., 31, -64, -64.92]` whose sum cancels to ~-5 with absolute
+            # f32 error around a few ULPs). Same rationale as
+            # `sum-dim-broad` / `sum-dtype`; APPROXIMATE's 1e-6 atol is too
+            # tight.
             name="sum-dim",
             sample_st=_reduction_sample_st("sum"),
-            tolerance=TractCheckTolerance.APPROXIMATE,
+            tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
-            # Multi-dim and full-tensor sums accumulate float error across
-            # many elements; the per-dim form (sum-dim) only sums one axis
-            # so APPROXIMATE works there. Multi-dim sums need CLOSE.
             name="sum-dim-broad",
             sample_st=_sum_full_or_multi_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
+            # See `sum-dim`: post-cancellation absolute error exceeds
+            # APPROXIMATE for the mean as well.
             name="mean-dim",
             sample_st=_reduction_sample_st("mean"),
-            tolerance=TractCheckTolerance.APPROXIMATE,
+            tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="max-dim",
