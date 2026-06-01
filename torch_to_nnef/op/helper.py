@@ -334,6 +334,12 @@ def maybe_align_inputs_ranks(
     # element-wise ops like `mul`, `add`, `div` mis-broadcast the
     # complex tensor's freq / time axes against the real tensor's
     # storage axes.
+    # TODO: this unconditionally appends a trailing-1 to every
+    # non-complex input. If the real co-input already happens to end
+    # in a length-2 axis (e.g., a user-side `(..., 2)` real tensor
+    # not produced by t2n's view-tagging), the broadcast would be
+    # wrong. We haven't seen this in practice but it's a latent
+    # foot-gun; revisit if a downstream user model trips over it.
     any_complex_view_tagged = any(
         _is_view_tagged_complex_nnef(t) for t in inputs
     )
@@ -1065,7 +1071,25 @@ class OpHelper:
                 except TypeError:
                     inp_is_complex = False
                 if inp_is_complex and np.issubdtype(final_dtype, np.floating):
-                    inp.dtype = final_dtype
+                    # The storage is already real (view-tagged complex
+                    # stores `(..., 2)` floats); only the dtype tag
+                    # needs updating. Create a fresh NTensor instead of
+                    # mutating `inp` in place -- the input may be
+                    # shared with other consumers that still expect the
+                    # complex tag.
+                    retagged = NTensor(
+                        self.g,
+                        name=f"{inp.name}_as_{numpy_dtype_to_tract_str(final_dtype)}",
+                        dtype=final_dtype,
+                        shape=tuple(inp.shape),
+                    )
+                    NOperation(
+                        self.g,
+                        type="copy",
+                        inputs=inp,
+                        outputs=retagged,
+                    )
+                    inputs[idx] = retagged
                     continue
                 to_str = numpy_dtype_to_tract_str(final_dtype)
                 out = self.add_single_output_op_from_nnef_tensors(

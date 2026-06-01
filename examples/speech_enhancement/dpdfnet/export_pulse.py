@@ -41,18 +41,34 @@ from pathlib import Path
 
 import torch
 
+from torch_to_nnef import TractNNEF, export_model_to_nnef
+
 HERE = Path(__file__).resolve().parent
 CLONE = HERE / "_dpdfnet_clone"
-if not CLONE.exists():
-    raise SystemExit(f"missing {CLONE}; run ./bootstrap.sh first")
-sys.path.insert(0, str(CLONE))
-sys.path.insert(0, str(CLONE / "model"))
 
-# ruff: noqa: E402, I001
-from model.dpdfnet import DPDFNet  # noqa: E402
-from model.utils import as_complex  # noqa: E402
 
-from torch_to_nnef import TractNNEF, export_model_to_nnef  # noqa: E402
+def _setup_clone_path() -> None:
+    """Add the bootstrapped DPDFNet clone to `sys.path`.
+
+    The clone is third-party; we don't import it at module import time
+    so that automated tooling (e.g., test discovery, linters) that
+    *imports* this module without invoking `main()` doesn't fail with a
+    SystemExit on a missing bootstrap.
+    """
+    if not CLONE.exists():
+        raise SystemExit(f"missing {CLONE}; run ./bootstrap.sh first")
+    sys.path.insert(0, str(CLONE))
+    sys.path.insert(0, str(CLONE / "model"))
+
+
+def _import_dpdfnet():
+    """Lazy-import the upstream DPDFNet symbols after `_setup_clone_path`."""
+    _setup_clone_path()
+    # pylint: disable=import-outside-toplevel
+    from model.dpdfnet import DPDFNet  # noqa: PLC0415
+    from model.utils import as_complex  # noqa: PLC0415
+
+    return DPDFNet, as_complex
 
 
 COMMON_KWARGS = {
@@ -148,9 +164,12 @@ class IstftCenterFalse(torch.nn.Module):
         self.hop = src.hop_inv
         self.normalized = src.normalized
         self.register_buffer("w", src.w_inv.clone())
+        # Lazy-imported here so `IstftCenterFalse` can be referenced
+        # without `bootstrap.sh` having run.
+        _, self._as_complex = _import_dpdfnet()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = as_complex(x)
+        x = self._as_complex(x)
         return torch.istft(
             x,
             n_fft=self.n_fft,
@@ -168,7 +187,7 @@ class DPDFNetMaskOnly(torch.nn.Module):
     Drops the ``df_op`` head (see module docstring).
     """
 
-    def __init__(self, inner: DPDFNet) -> None:
+    def __init__(self, inner: "DPDFNet") -> None:  # noqa: F821
         super().__init__()
         self.inner = inner
 
@@ -185,7 +204,8 @@ class DPDFNetMaskOnly(torch.nn.Module):
 
 
 def build(checkpoint: Path) -> torch.nn.Module:
-    model = DPDFNet(dprnn_num_blocks=0, **COMMON_KWARGS).eval()
+    dpdfnet_cls, _ = _import_dpdfnet()
+    model = dpdfnet_cls(dprnn_num_blocks=0, **COMMON_KWARGS).eval()
     raw = torch.load(checkpoint, map_location="cpu", weights_only=False)
     state = raw.get("state_dict", raw)
     state = {
