@@ -349,6 +349,78 @@ test_suite.add(
 )
 
 
+class MyISTFT(nn.Module):
+    """`stft -> istft` round-trip on a real signal.
+
+    Locks in the iSTFT handler: builds a one-sided complex spectrum via
+    `torch.stft(return_complex=True)`, then reconstructs the signal via
+    `torch.istft`. With a COLA-satisfying window (Hann at hop=n_fft/2)
+    the round-trip is the identity modulo a small symmetric crop and
+    floating-point error -- the same coverage that fed the DPDFNet
+    pulse-mode pipeline regression.
+    """
+
+    def __init__(self, n_fft: int = 8, hop_length: int = 4):
+        super().__init__()
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.register_buffer(
+            "window", torch.hann_window(n_fft, dtype=torch.float32)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        spec = torch.stft(
+            input=x,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.n_fft,
+            window=self.window,
+            center=True,
+            normalized=False,
+            onesided=True,
+            return_complex=True,
+        )
+        return torch.istft(
+            spec,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.n_fft,
+            window=self.window,
+            center=True,
+            normalized=False,
+            onesided=True,
+            return_complex=False,
+        )
+
+
+test_suite.add(
+    torch.sin(torch.arange(64, dtype=torch.float32) * 0.5).unsqueeze(0),
+    MyISTFT(n_fft=8, hop_length=4),
+    inference_conditions=_cond_stft_ge_0_22,
+)
+
+
+class MyComplexTranspose(nn.Module):
+    """Transpose a complex tensor's logical axes.
+
+    Exercises the view-tagged complex `transpose` handler: the IR carries
+    the trailing-2 axis as storage, but PyTorch's transpose only sees
+    the logical (freq, time) axes -- the handler must build a storage
+    permutation that swaps those two and leaves the complex axis alone.
+    """
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        c = torch.view_as_complex(x)
+        return torch.view_as_real(c.transpose(0, 1))
+
+
+test_suite.add(
+    torch.arange(3 * 5 * 2, dtype=torch.float32).reshape(3, 5, 2),
+    MyComplexTranspose(),
+    inference_conditions=cond_tract_gt_0_20_7,
+)
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,

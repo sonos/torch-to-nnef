@@ -23,6 +23,11 @@
 - **`lstm_cell` NNEF fragment** (single-call, grouped-matmul) replaces the per-gate sigmoid/tanh/mul decomposition.
 - **`examples/vad/silero-jit/`**: end-to-end demo of the JIT-only export path on a real artifact, gated in CI via the `silero_vad_demo` tox env.
 - **Tutorial**: `docs/tutos/12_jit_only_models.md` covers both the auto-detection path and the manual chain.
+- **`aten::istft` handler** for the common case (`onesided=True`, `normalized=False`, `return_complex=False`, `length=None`). Decomposes into Hermitian-symmetric spectrum build, `tract_core_fft` inverse, window multiply, OLA via `deconv` with an identity kernel, divide by the window² OLA, and optional `center=True` crop. Under dynamic axes the window² divisor falls back to the central-region COLA constant (boundary samples are hidden by the crop / pulse-mode warm-up).
+- **`examples/speech_enhancement/dpdfnet/export_pulse.py`** and companion `wav-cleaner-pulse/` Rust wrapper: streaming-friendly DPDFNet export that folds the rolling STFT, NN, iSTFT, OLA, and GRU state into a single streaming-axis NNEF artifact, with tract pulse mode handling buffering and state downstream.
+
+### Changed
+- **View-tagged complex IR is now an enforced invariant.** `TorchToNGraphExtractor.build_nnef_graph` promotes every complex IR tensor to rank N+1 with a trailing axis of size 2 carrying `(real, imag)`, unconditionally and once up-front. Producer handlers (`_fft`, `stft`, `fft_rfft`, …) no longer re-promote `node.outputs[0].shape`; consumer handlers (`fft_irfft`, `transpose`, `pick_axis`, …) rely on the uniform invariant `complex_dtype => IR rank == storage rank == logical_rank + 1`. The previous `shape[-1] == 2` heuristic misfired on logical complex tensors whose last axis happened to be 2 (e.g. `fft.fft` of `float32[2,2]`, `fft.rfft(x, dim=0)` on a length-2 signal).
 
 ### Fixed
 - Parser bugs surfaced by JIT-only export (each was latent in main):

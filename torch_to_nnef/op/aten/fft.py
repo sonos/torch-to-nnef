@@ -25,33 +25,27 @@ LOGGER = logging.getLogger(__name__)
 OP_REGISTRY = AtenOpRegistry()
 
 
-def _is_view_tagged_complex(input_node) -> bool:
-    """True iff `input_node` is a t2n view-tagged complex tensor.
+_COMPLEX_DTYPES = (torch.complex64, torch.complex128)
 
-    Since `TorchToNGraphExtractor.build_nnef_graph` promotes every
-    complex IR tensor up-front (shape gains a trailing 2, dtype stays
-    complex), this is equivalent to checking the dtype: any complex
-    tensor in the post-pre-pass IR is view-tagged.
+
+def _logical_rank(input_node) -> int:
+    """Logical (PyTorch-visible) rank of a t2n IR tensor.
+
+    Complex tensors are uniformly view-tagged (see
+    `TorchToNGraphExtractor.build_nnef_graph`): IR rank is one more
+    than the logical rank, with the trailing axis carrying re/im.
     """
-    return input_node.dtype in (torch.complex64, torch.complex128)
+    if input_node.dtype in _COMPLEX_DTYPES:
+        return input_node.rank - 1
+    return input_node.rank
 
 
 def _pick_logical_axis(input_node, raw_dim) -> int:
-    """Resolve a (possibly negative) PyTorch dim against the *logical* rank.
-
-    For view-tagged complex inputs the logical rank is `IR_rank - 1`
-    (the trailing-2 axis is the complex pair, not a logical axis); for
-    real inputs the logical rank equals the IR rank.
-    """
-    logical_rank = (
-        input_node.rank - 1
-        if _is_view_tagged_complex(input_node)
-        else input_node.rank
-    )
+    """Resolve a (possibly negative) PyTorch dim against the logical rank."""
     if raw_dim is None:
         raw_dim = -1
     if raw_dim < 0:
-        raw_dim += logical_rank
+        raw_dim += _logical_rank(input_node)
     return raw_dim
 
 
@@ -168,7 +162,6 @@ def stft(
     **kwargs,
 ):
     """Map PyTorch: 'aten:stft' to NNEF."""
-    # pylint: disable=too-many-branches
     # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
     if (
@@ -491,11 +484,7 @@ def _fftn_loop(
     # complex inputs the trailing-2 axis is not an FFT axis.
     raw_dims = dim_node.data
     if raw_dims is None:
-        if _is_view_tagged_complex(input_node):
-            real_rank = input_node.rank - 1
-        else:
-            real_rank = input_node.rank
-        raw_dims = list(range(real_rank))
+        raw_dims = list(range(_logical_rank(input_node)))
     dims = [pick_axis(input_node, d) for d in raw_dims]
 
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
@@ -899,9 +888,9 @@ def _istft_parse_args(node):
             "istft: only (onesided=True, normalized=False, "
             "return_complex=False, length=None) is supported"
         )
-    if not _is_view_tagged_complex(input_node):
+    if input_node.dtype not in _COMPLEX_DTYPES:
         raise T2NErrorNotImplemented(
-            "istft expects view-tagged complex input (rank N+1, trailing 2)"
+            f"istft expects complex input; got dtype={input_node.dtype}"
         )
     if input_node.rank < 3:
         raise T2NErrorNotImplemented(
