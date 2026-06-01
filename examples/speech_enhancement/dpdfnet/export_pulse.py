@@ -21,16 +21,17 @@ Limitations:
 * Drops the ``df_op`` (deep filter) head, which uses
   ``Tensor.unfold`` and traces into a per-trace-T-step stack-of-
   slices that clashes with symbolic-T streaming.
-* Replaces ``ErbNorm`` / ``SpecNorm`` (per-frame EMA) with stateless
-  approximations driven by the upstream init values; quality on
-  short windows is close, the EMA tracking is gone. Pulse-mode
-  EMAs need a tract-side state primitive that isn't wired yet.
 * Tract pulse can't pulse a ``reflect`` pad, so ``center=False``
   STFT/iSTFT replacements are installed in place of the upstream
   ``center=True`` ones.
 * Streams the *baseline* variant (``dprnn_num_blocks=0``). The
   DPRNN variants hit an unrelated tract pulse Scan-body warmup
   limitation: tracked in :doc:`README.md` "Known limits".
+
+``ErbNorm`` / ``SpecNorm`` keep their per-frame EMA: their forwards
+are routed through ``t2n_extra::exp_{mean,unit}_norm`` (lowered to
+``tract_extra_exp_*_norm``), and tract's ``OpPulsifier`` carries the
+state across pulses.
 """
 
 from __future__ import annotations
@@ -86,43 +87,148 @@ COMMON_KWARGS = {
 }
 
 
-class ErbNormStateless(torch.nn.Module):
-    """Stateless replacement for ``ErbNorm`` (drops the per-frame EMA).
+# `t2n_extra::exp_{unit,mean}_norm` custom ops -- declared at module
+# import time so that `torch.ops.t2n_extra.exp_*_norm` is resolvable
+# during tracing. The same ops are declared (independently) by
+# `tests/test_t2n_extra_exp_norm.py`; the example and the test never
+# share a Python process so the duplicate-registration check doesn't
+# fire in practice.
 
-    Uses the upstream module's init values for a fixed mean/std; quality
-    on short windows is close to the tracked EMA but the per-utterance
-    adaptation is gone.
+
+@torch.library.custom_op(
+    "t2n_extra::exp_unit_norm",
+    mutates_args=(),
+    schema=(
+        "(Tensor input, Tensor state_init, int axis, float alpha, "
+        "float epsilon, bool complex) -> Tensor"
+    ),
+)
+# pylint: disable=redefined-builtin
+def _exp_unit_norm(
+    input: torch.Tensor,
+    state_init: torch.Tensor,
+    axis: int,
+    alpha: float,
+    epsilon: float,
+    complex: bool,  # noqa: A002 -- matches tract attr name
+) -> torch.Tensor:
+    state = state_init.clone()
+    out = input.clone()
+    n = input.shape[axis]
+    eps_t = torch.full_like(state, epsilon)
+    for i in range(n):
+        idx = [slice(None)] * input.ndim
+        idx[axis] = i
+        t_slice = out[tuple(idx)]
+        if complex:
+            mag = (t_slice * t_slice).sum(dim=-1).sqrt()
+        else:
+            mag = t_slice.abs()
+        state = torch.maximum(mag, eps_t) * (1.0 - alpha) + state * alpha
+        denom = state.sqrt()
+        if complex:
+            denom = denom.unsqueeze(-1)
+        out[tuple(idx)] = t_slice / denom
+    return out
+
+
+@_exp_unit_norm.register_fake
+# pylint: disable=redefined-builtin
+def _exp_unit_norm_meta(input, state_init, axis, alpha, epsilon, complex):  # noqa: A002
+    return input.new_empty(input.shape)
+
+
+@torch.library.custom_op(
+    "t2n_extra::exp_mean_norm",
+    mutates_args=(),
+    schema=(
+        "(Tensor input, Tensor state_init, int axis, float alpha, "
+        "float scaling_factor) -> Tensor"
+    ),
+)
+# pylint: disable=redefined-builtin
+def _exp_mean_norm(
+    input: torch.Tensor,
+    state_init: torch.Tensor,
+    axis: int,
+    alpha: float,
+    scaling_factor: float,
+) -> torch.Tensor:
+    state = state_init.clone()
+    out = input.clone()
+    n = input.shape[axis]
+    for i in range(n):
+        idx = [slice(None)] * input.ndim
+        idx[axis] = i
+        t_slice = out[tuple(idx)]
+        state = t_slice * (1.0 - alpha) + state * alpha
+        out[tuple(idx)] = (t_slice - state) / scaling_factor
+    return out
+
+
+@_exp_mean_norm.register_fake
+# pylint: disable=redefined-builtin
+def _exp_mean_norm_meta(input, state_init, axis, alpha, scaling_factor):
+    return input.new_empty(input.shape)
+
+
+class ErbNormEMA(torch.nn.Module):
+    """Streaming-friendly replacement for upstream ``ErbNorm``.
+
+    Routes the per-frame EMA centring through ``t2n_extra::exp_mean_norm``
+    so tract pulse can carry the state across pulses. Matches upstream
+    semantics: ``x_norm[t] = (x[t] - mu[t]) / sqrt(var + eps)`` with
+    ``var = 40^2`` (DFN3 default) and a fixed-init mu linearly
+    interpolated across the feature axis from ``init_vals``.
     """
 
-    def __init__(self, init_vals, eps: float, num_feat: int) -> None:
+    def __init__(self, init_vals, eps: float, num_feat: int, alpha: float):
         super().__init__()
+        self.alpha = alpha
+        # scaling_factor = sqrt(var + eps) ~= 40 + eps (eps << 1)
+        self.scaling_factor = float(40.0 + eps)
         step = (init_vals[1] - init_vals[0]) / (num_feat - 1)
-        mu = torch.tensor(
+        mu_init = torch.tensor(
             [init_vals[0] + i * step for i in range(num_feat)],
             dtype=torch.float32,
         )
-        var = torch.full_like(mu, 40.0**2)
-        self.register_buffer("mu", mu)
-        self.register_buffer("inv_std", 1.0 / (var.sqrt() + eps))
+        self.register_buffer("mu_init", mu_init)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return (x - self.mu) * self.inv_std
+        # x: [B, T, F]; axis=T=1; state shape (B, F).
+        state = self.mu_init.unsqueeze(0).expand(x.shape[0], -1).contiguous()
+        return torch.ops.t2n_extra.exp_mean_norm(
+            x, state, 1, self.alpha, self.scaling_factor
+        )
 
 
-class SpecNormStateless(torch.nn.Module):
-    """Stateless replacement for ``SpecNorm``."""
+class SpecNormEMA(torch.nn.Module):
+    """Streaming-friendly replacement for upstream ``SpecNorm``.
 
-    def __init__(self, init_vals, eps: float, num_feat: int) -> None:
+    Routes the per-frame magnitude EMA through
+    ``t2n_extra::exp_unit_norm`` with ``complex=True``. Matches upstream
+    semantics: ``x_norm[t] = x[t] / sqrt(s[t])`` where
+    ``s[t] = alpha * s[t-1] + (1 - alpha) * |x[t]|`` (with ``|x|``
+    computed over the trailing-2 (re, im) axis).
+    """
+
+    def __init__(self, init_vals, eps: float, num_feat: int, alpha: float):
         super().__init__()
+        self.alpha = alpha
+        self.eps = float(eps)
         step = (init_vals[1] - init_vals[0]) / (num_feat - 1)
-        s = torch.tensor(
+        s_init = torch.tensor(
             [init_vals[0] + i * step for i in range(num_feat)],
             dtype=torch.float32,
-        ).view(1, 1, num_feat, 1)
-        self.register_buffer("inv_s_sqrt", 1.0 / (s + eps).sqrt())
+        )
+        self.register_buffer("s_init", s_init)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x * self.inv_s_sqrt
+        # x: [B, T, F, 2]; axis=T=1; state shape (B, F).
+        state = self.s_init.unsqueeze(0).expand(x.shape[0], -1).contiguous()
+        return torch.ops.t2n_extra.exp_unit_norm(
+            x, state, 1, self.alpha, self.eps, True
+        )
 
 
 class StftCenterFalse(torch.nn.Module):
@@ -212,15 +318,17 @@ def build(checkpoint: Path) -> torch.nn.Module:
         k: v for k, v in state.items() if not k.endswith("num_batches_tracked")
     }
     model.load_state_dict(state, strict=False)
-    model.erb_norm = ErbNormStateless(
+    model.erb_norm = ErbNormEMA(
         init_vals=model.erb_norm.init_vals,
         eps=model.erb_norm.eps,
         num_feat=model.erb_bins,
+        alpha=model.erb_norm.alpha,
     )
-    model.spec_norm = SpecNormStateless(
+    model.spec_norm = SpecNormEMA(
         init_vals=model.spec_norm.init_vals,
         eps=model.spec_norm.eps,
         num_feat=model.nb_df,
+        alpha=model.spec_norm.alpha,
     )
     model.stft = StftCenterFalse(model.stft)
     model.istft = IstftCenterFalse(model.istft)
