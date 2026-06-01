@@ -504,19 +504,16 @@ def pick_axis(input_node, rank: int) -> int:
         base_rank = len(input_node.data)
     else:
         base_rank = input_node.rank
-        # Complex view-tagged tensors carry a trailing-2 axis as
-        # storage; PyTorch's negative dims index the *logical* view
-        # (rank - 1). Without this adjustment, `dim = -1` on a
-        # complex spec resolves to the complex (re/im) axis instead
-        # of the last frequency / time axis.
-        if (
-            getattr(input_node, "dtype", None)
-            in (torch.complex64, torch.complex128)
-            and isinstance(input_node.shape, list)
-            and len(input_node.shape) >= 2
-            and input_node.shape[-1] == 2
+        # Complex IR tensors are uniformly view-tagged (storage rank =
+        # logical_rank + 1, trailing axis = 2; see
+        # `TorchToNGraphExtractor.build_nnef_graph`). PyTorch's negative
+        # dims index the logical view, so resolve `-1` against
+        # `rank - 1` rather than the trailing (re, imag) axis.
+        if getattr(input_node, "dtype", None) in (
+            torch.complex64,
+            torch.complex128,
         ):
-            base_rank = base_rank - 1
+            base_rank -= 1
     return base_rank + rank
 
 
