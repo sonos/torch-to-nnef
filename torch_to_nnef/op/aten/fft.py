@@ -1068,12 +1068,14 @@ def _istft_emit_ola_norm(
             rtol=1e-4,
         ):
             raise T2NErrorNotImplemented(
-                "istft under dynamic axes requires a COLA-satisfying "
-                "(window, hop) pair: the window^2 OLA must be constant "
-                "across the signal's central region. Got per-sample "
-                f"range [{central.min().item():.3e}, "
+                "istft under dynamic axes requires a window^2 OLA that "
+                "is constant across the signal's central region (the "
+                "divisor is baked at trace time as a single scalar). "
+                f"Got per-sample range [{central.min().item():.3e}, "
                 f"{central.max().item():.3e}] around mid={cola_const:.3e}. "
-                "Use e.g. Hann/Hamming at hop = n_fft / 2."
+                "Use sqrt(hann_window), sqrt(hamming_window), or a "
+                "vorbis window at hop = n_fft / 2 -- plain Hann/Hamming "
+                "at that hop satisfy COLA only for `w`, not `w^2`."
             )
         norm_const = PythonConstant(
             name=f"{out_name}_istft_cola_const",

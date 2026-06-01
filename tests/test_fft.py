@@ -405,6 +405,11 @@ class MyISTFT(nn.Module):
             window = torch.hann_window(n_fft, dtype=torch.float32)
         elif window_name == "hamming":
             window = torch.hamming_window(n_fft, dtype=torch.float32)
+        elif window_name == "sqrt_hann":
+            # sqrt(Hann) satisfies w^2-COLA at hop = n_fft / 2 (plain Hann
+            # does not -- it's only w-COLA there). Required for the
+            # dynamic-axes istft branch.
+            window = torch.hann_window(n_fft, dtype=torch.float32).sqrt()
         else:
             raise ValueError(window_name)
         self.register_buffer("window", window)
@@ -459,6 +464,18 @@ test_suite.add(
     torch.sin(torch.arange(64, dtype=torch.float32) * 0.5),
     MyISTFT(n_fft=8, hop_length=4),
     inference_conditions=_cond_stft_ge_0_22,
+)
+# Dynamic-axes istft with sqrt(Hann): exercises the COLA-constant
+# divisor branch (the export bakes a scalar instead of a full-length
+# vector). Plain Hann at hop=n_fft/2 fails the w^2-COLA check; sqrt-Hann
+# is the canonical w^2-COLA window at that hop.
+test_suite.add(
+    torch.sin(torch.arange(64, dtype=torch.float32) * 0.5).unsqueeze(0),
+    MyISTFT(n_fft=8, hop_length=4, window_name="sqrt_hann"),
+    inference_conditions=_cond_stft_ge_0_22,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes={"input_0": {1: "STREAM"}}
+    ),
 )
 
 
