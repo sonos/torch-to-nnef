@@ -18,9 +18,12 @@ chunk-of-enhanced-audio per call.
 
 Limitations:
 
-* Drops the ``df_op`` (deep filter) head, which uses
-  ``Tensor.unfold`` and traces into a per-trace-T-step stack-of-
-  slices that clashes with symbolic-T streaming.
+* Drops the ``df_op`` (deep filter) head for now. ``df_op`` itself
+  uses ``Tensor.unfold`` over the time axis, which is now supported
+  under streaming (the ``aten::unfold`` handler emits the ``unfold``
+  fragment, lowering to a Conv1d-with-identity-kernel that tract
+  pulsifies natively). Wiring ``df_dec`` -> ``df_op`` back into the
+  mask-only forward is left as a follow-up.
 * Tract pulse can't pulse a ``reflect`` pad, so ``center=False``
   STFT/iSTFT replacements are installed in place of the upstream
   ``center=True`` ones.

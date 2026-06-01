@@ -4,7 +4,10 @@ import nnef
 import torch
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.exceptions import T2NErrorNotImplemented
+from torch_to_nnef.exceptions import (
+    T2NErrorInvalidArgument,
+    T2NErrorNotImplemented,
+)
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import (
     is_complex_dtype_and_complex_only_supported_as_lastdim,
@@ -1304,35 +1307,13 @@ def meshgrid(node, op_helper, inference_target, **kwargs):
     return ["tract_core"]
 
 
-@OP_REGISTRY.register()
-def unfold(node, op_helper, **kwargs):
-    """Map PyTorch `aten::unfold` (Tensor.unfold) to NNEF.
+def _unfold_via_slice_stack(node, op_helper, *, input_node, axis, size, step):
+    """Static-shape unfold: `n_windows` slices + `stack` (+ transpose).
 
-    Signature: `unfold(self, dimension, size, step)`. Extracts overlapping
-    windows of length `size` along `dimension`, advancing by `step`.
-    The result has rank `R + 1`: the `dimension` axis becomes
-    `n_windows = (D - size) // step + 1`, and a new trailing axis of
-    length `size` is appended.
-
-    Decomposed as `n_windows` `slice` ops along `dimension` followed by
-    a `stack` along that same axis; if `dimension` is not the last
-    axis of the input, an extra `transpose` moves the size axis to the
-    end (matching torch's "appended-at-back" layout).
+    Used when every dim is statically known, including the unfold axis.
+    Cheap (slices are no-op views in tract) and produces a graph that
+    reads naturally.
     """
-    input_node, dim_node, size_node, step_node = node.inputs
-    if not isinstance(dim_node, PythonConstant):
-        raise T2NErrorNotImplemented("unfold requires a static dimension")
-    if not isinstance(size_node, PythonConstant) or not isinstance(
-        step_node, PythonConstant
-    ):
-        raise T2NErrorNotImplemented("unfold requires static size and step")
-    axis = pick_axis(input_node, dim_node.data)
-    size = int(size_node.data)
-    step = int(step_node.data)
-    if size <= 0 or step <= 0:
-        raise T2NErrorNotImplemented(
-            f"unfold needs positive size/step; got size={size}, step={step}"
-        )
     dim_size = int(input_node.shape[axis])
     if dim_size < size:
         raise T2NErrorNotImplemented(
@@ -1341,7 +1322,6 @@ def unfold(node, op_helper, **kwargs):
     n_windows = (dim_size - size) // step + 1
     input_rank = input_node.rank
     inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
-    # Emit one slice per window and stack along `axis`.
     window_refs = []
     for j in range(n_windows):
         begin = j * step
@@ -1359,11 +1339,6 @@ def unfold(node, op_helper, **kwargs):
                 output_tensor_name_suffix=f"_unfold_w{j}",
             )
         )
-    # After stack, shape is (..., n_windows, size, *rest_after_axis).
-    # Torch wants size at the back; if `axis` is already the last input
-    # axis then the size axis lands at the end naturally and we emit the
-    # final tensor directly from `stack`. Otherwise emit `stack` to an
-    # intermediate and `transpose` it to move the size axis to the end.
     if axis + 1 == input_rank:
         op_helper.add_single_output_op_from_nnef_tensors(
             node,
@@ -1392,6 +1367,156 @@ def unfold(node, op_helper, **kwargs):
         attrs={"axes": perm},
     )
     return []
+
+
+def _unfold_via_conv_fragment(
+    g, node, name_to_tensor, op_helper, *, input_node, axis, size, step
+):
+    """Streaming-friendly unfold: emit the `unfold` fragment.
+
+    The fragment lowers to a 1D convolution with an identity kernel of
+    shape ``(size, 1, size)`` -- each output channel picks a different
+    position within the window. Tract's `Conv` pulsifier handles
+    streaming natively, so the unfold axis can be symbolic (`STREAM`).
+
+    Limitation: only the unfold axis itself may be symbolic; every
+    other dim must be a static int (the collapse-to-batch reshape
+    requires a known product).
+    """
+    rank = input_node.rank
+    in_shape = list(input_node.shape)
+    other_dims = []
+    static_prod = 1
+    for i, d in enumerate(in_shape):
+        if i == axis:
+            continue
+        if not isinstance(d, int):
+            raise T2NErrorNotImplemented(
+                f"unfold: non-axis dim {i} is symbolic ({d!r}); only the "
+                f"unfold axis itself may be symbolic in current export"
+            )
+        other_dims.append(d)
+        static_prod *= d
+
+    # Identity kernel (size, 1, size): kernel[k, 0, j] = delta(j == k).
+    kernel_const = PythonConstant(
+        name=f"{node.outputs[0].export_name}_unfold_kernel",
+        data=torch.eye(size, dtype=torch.float32).unsqueeze(1),
+    )
+    kernel_ref = get_or_add_tensor_variable_in_nnef(
+        g, kernel_const, name_to_tensor
+    )
+
+    # See `op/fragment/unfold.nnef` for the full derivation of these.
+    perm_in = [i for i in range(rank) if i != axis] + [axis]
+    shape_pre_conv = [static_prod, 1, -1]
+    shape_post_conv = other_dims + [size, -1]
+    perm_out = (
+        list(range(axis)) + [rank] + list(range(axis, rank - 1)) + [rank - 1]
+    )
+
+    input_ref = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unfold",
+        inputs=[input_ref, kernel_ref],
+        attrs={
+            "perm_in": perm_in,
+            "shape_pre_conv": shape_pre_conv,
+            "shape_post_conv": shape_post_conv,
+            "perm_out": perm_out,
+            "stride": step,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["unfold"]
+
+
+def _unfold_axis_is_streaming(input_node, axis, inference_target):
+    """True if `axis` of `input_node` is marked as a streaming axis.
+
+    The IR shape stays concrete at trace time even under dynamic axes
+    (the symbolic dim is applied at NNEF emit time), so we can't
+    detect streaming from `input_node.shape[axis]`. Instead, walk
+    `inference_target.dynamic_axes` and check the original IO axis
+    that this tensor's `axis` descends from.
+    """
+    if not getattr(inference_target, "has_dynamic_axes", False):
+        return False
+    # In practice for `unfold` the input is either a graph input or a
+    # tensor downstream of one; if any graph input has `axis` flagged
+    # as a streaming dim, assume this is the same axis. (A more
+    # precise resolver could trace the IR back to the input, but
+    # `aten::unfold` callers in practice route the stream axis
+    # directly.)
+    for _, axis_map in (inference_target.dynamic_axes or {}).items():
+        if isinstance(axis_map, dict) and axis in axis_map:
+            return True
+        if isinstance(axis_map, (list, tuple)) and axis in axis_map:
+            return True
+    return False
+
+
+@OP_REGISTRY.register(torch_op_ids=["unfold", "unfold_copy"])
+def unfold(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map PyTorch `aten::unfold` (Tensor.unfold) to NNEF.
+
+    Signature: `unfold(self, dimension, size, step)`. Extracts overlapping
+    windows of length `size` along `dimension`, advancing by `step`.
+    Output has rank `R + 1`: the `dimension` axis becomes
+    `n_windows = (D - size) // step + 1`, and a new trailing axis of
+    length `size` is appended.
+
+    Dispatch:
+    - **Static unfold axis**: emit `n_windows` slices + `stack` (cheap,
+      no extra compute; slices fold away in tract's optimiser).
+    - **Streaming unfold axis** (the axis is flagged in
+      `inference_target.dynamic_axes`): emit the `unfold` NNEF
+      fragment, which lowers to a Conv1d with an identity kernel of
+      shape `(size, 1, size)`. Tract's existing `Conv` pulsifier
+      handles the streaming case natively -- no new tract op needed.
+    """
+    input_node, dim_node, size_node, step_node = node.inputs
+    if not isinstance(dim_node, PythonConstant):
+        raise T2NErrorNotImplemented("unfold requires a static dimension")
+    if not isinstance(size_node, PythonConstant) or not isinstance(
+        step_node, PythonConstant
+    ):
+        raise T2NErrorNotImplemented("unfold requires static size and step")
+    axis = pick_axis(input_node, dim_node.data)
+    size = int(size_node.data)
+    step = int(step_node.data)
+    if size <= 0 or step <= 0:
+        raise T2NErrorInvalidArgument(
+            f"unfold needs positive size/step; got size={size}, step={step}"
+        )
+    rank = input_node.rank
+    if axis < 0 or axis >= rank:
+        raise T2NErrorInvalidArgument(
+            f"unfold dim={dim_node.data} out of bounds for rank-{rank} input"
+        )
+
+    if _unfold_axis_is_streaming(input_node, axis, inference_target):
+        return _unfold_via_conv_fragment(
+            g,
+            node,
+            name_to_tensor,
+            op_helper,
+            input_node=input_node,
+            axis=axis,
+            size=size,
+            step=step,
+        )
+    return _unfold_via_slice_stack(
+        node,
+        op_helper,
+        input_node=input_node,
+        axis=axis,
+        size=size,
+        step=step,
+    )
 
 
 def _as_pair(node_value, name: str):
