@@ -2696,6 +2696,7 @@ dependencies = [
 
 [package.optional-dependencies]
 eval = [
+    { name = "datasets" },
     { name = "evaluate" },
     { name = "jiwer" },
     { name = "nemo-toolkit", extra = ["asr"] },
@@ -2707,6 +2708,7 @@ eval = [
 
 [package.metadata]
 requires-dist = [
+    { name = "datasets", marker = "extra == 'eval'", specifier = ">=4.0.0" },
     { name = "evaluate", marker = "extra == 'eval'", specifier = ">=0.4.6" },
     { name = "jiwer", marker = "extra == 'eval'", specifier = ">=4.0.0" },
     { name = "nemo-toolkit", extras = ["asr"], marker = "extra == 'eval'", specifier = ">=2.0.0,<2.7.0" },

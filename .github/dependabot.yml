@@ -1,0 +1,121 @@
+# Dependabot config for the torch-to-nnef security initiative.
+#
+# Covers:
+#   - main Python packages  : the uv workspace (core + packages/llm +
+#                             packages/nemo-asr, locked by the root uv.lock)
+#                             and the standalone examples/.../nemo_asr_py project
+#   - example Rust crates    : crates.io deps + Cargo.lock for every crate root
+#   - example Python deps    : the requirements.txt pins under examples/
+#   - GitHub Actions         : keeps the SHA pins (+ "# vN" comment) current
+#
+# Intentionally NOT handled here (Dependabot cannot):
+#   - git dependencies on sonos/tract (pinned by rev/branch in several example
+#     Cargo.toml files). A separate scheduled job bumps those (Rust-hygiene
+#     step of the initiative).
+#   - examples/**/requirements.lock: these are `uv pip compile` outputs, not a
+#     manifest Dependabot recognises. Dependabot bumps the requirements.txt
+#     pins; the .lock files are refreshed separately.
+version: 2
+updates:
+  # ---------------------------------------------------------------------------
+  # Main packages: torch_to_nnef (core) + packages/llm + packages/nemo-asr form
+  # a single uv workspace locked by the root uv.lock.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "python", "core"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      core-python:
+        patterns: ["*"]
+
+  # Standalone example uv project (own uv.lock, outside the workspace).
+  - package-ecosystem: "uv"
+    directory: "/examples/nemo_asr/src/nemo_asr_py"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "python", "examples"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      nemo-asr-py:
+        patterns: ["*"]
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions (we SHA-pin; Dependabot bumps the SHA and the "# vN" comment)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # ---------------------------------------------------------------------------
+  # Example Rust crates (crates.io deps + Cargo.lock; git/tract deps untouched).
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "cargo"
+    directories:
+      - "/examples/getting_started_rs"
+      - "/examples/imageclass-wasm"
+      - "/examples/llm_wasm"
+      - "/examples/yolo"
+      - "/examples/nemo_asr"
+      - "/examples/vad/FSMN-wasm"
+      - "/examples/mamba/pulse/mamba-rs"
+      - "/examples/mamba/external_state/mamba-rs"
+      - "/examples/speech_enhancement/dpdfnet/wav-cleaner-rs"
+      - "/examples/tts/pocket_tts/cli"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "rust", "examples"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      examples-cargo:
+        patterns: ["*"]
+
+  # ---------------------------------------------------------------------------
+  # Example Python deps (requirements.txt pins; .lock refreshed separately).
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "pip"
+    directories:
+      - "/examples/dynamic_axes"
+      - "/examples/getting_started_py"
+      - "/examples/image_gen"
+      - "/examples/imageclass-wasm"
+      - "/examples/llm_wasm"
+      - "/examples/mamba/external_state"
+      - "/examples/multi_io_py"
+      - "/examples/nemo_asr"
+      - "/examples/speech_enhancement/deepfilternet"
+      - "/examples/speech_enhancement/dpdfnet"
+      - "/examples/tts/pocket_tts"
+      - "/examples/vad/FSMN-wasm"
+      - "/examples/vad/silero-jit"
+      - "/examples/yolo"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "python", "examples"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      examples-pip:
+        patterns: ["*"]

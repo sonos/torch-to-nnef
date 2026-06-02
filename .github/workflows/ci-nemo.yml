@@ -6,11 +6,15 @@ on:
     paths:
       - "packages/nemo-asr/**"
       - "torch_to_nnef/**"
+      - "uv.lock"
+      - ".github/workflows/ci-nemo.yml"
   pull_request:
     branches: [main]
     paths:
       - "packages/nemo-asr/**"
       - "torch_to_nnef/**"
+      - "uv.lock"
+      - ".github/workflows/ci-nemo.yml"
   workflow_dispatch:
 
 jobs:
