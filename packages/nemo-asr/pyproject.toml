@@ -4,7 +4,7 @@ version = "0.23.2"
 description = "NeMo ASR export to NNEF via torch-to-nnef."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
-license-files = []
+license-files = ["LICENSE", "LICENSE-MIT", "LICENSE-APACHE"]
 requires-python = ">=3.10"
 readme = { text = "NeMo ASR export to NNEF. See [torch-to-nnef](https://github.com/sonos/torch-to-nnef) for details.", content-type = "text/markdown" }
 classifiers = [

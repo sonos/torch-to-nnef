@@ -4,7 +4,7 @@ version = "0.23.2"
 description = "Any PyTorch Model to NNEF file format."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "LICENSE-MIT", "LICENSE-APACHE"]
 
 requires-python = ">=3.9"
 readme = "README.md"

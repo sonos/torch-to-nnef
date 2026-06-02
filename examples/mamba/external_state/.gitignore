@@ -6,4 +6,3 @@ __pycache__/
 
 # Rust build artifacts
 mamba-rs/target/
-mamba-rs/Cargo.lock

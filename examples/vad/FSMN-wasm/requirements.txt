@@ -1,6 +1,6 @@
-torch>=2.0
-torchaudio>=2.0
-huggingface_hub>=0.20
-pyyaml>=6.0
-numpy
+torch==2.11.0
+torchaudio==2.11.0
+huggingface_hub==1.17.0
+pyyaml==6.0.3
+numpy==2.4.6
 -e ../../../

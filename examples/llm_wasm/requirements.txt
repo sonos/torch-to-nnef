@@ -1,2 +1,2 @@
--e ../../../[llm_tract]
-rich
+-e ../../[llm_tract]
+rich==15.0.0
