@@ -139,7 +139,6 @@ examples/tts/pocket_tts/.venv/
 examples/tts/pocket_tts/cli/models/
 examples/tts/pocket_tts/cli/voices/
 examples/tts/pocket_tts/cli/out.wav
-examples/tts/pocket_tts/cli/Cargo.lock
 examples/tts/pocket_tts/cli/target/
 examples/tts/pocket_tts/cli/latents.npz
 examples/tts/pocket_tts/cli/tokenizer.model

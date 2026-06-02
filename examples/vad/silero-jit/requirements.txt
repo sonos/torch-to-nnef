@@ -1,4 +1,4 @@
--e ../../
-silero-vad
-torch==2.11.*
-torchaudio==2.11.*
+-e ../../..
+silero-vad==6.2.1
+torch==2.11.0
+torchaudio==2.11.0
