@@ -69,9 +69,30 @@ jobs:
         run: |
           set -euxo pipefail
           uv venv --python 3.11 .venv
-          uv pip install --python .venv/bin/python -r requirements.lock
+          # Install from requirements.txt -- the manifest Dependabot bumps -- so a
+          # dependency PR is actually exercised here, not the unchanged lockfile.
+          uv pip install --python .venv/bin/python -r requirements.txt
           source .venv/bin/activate
           ./run.sh
+      - name: requirements.lock is in sync with requirements.txt pins
+        working-directory: examples/${{ matrix.example }}
+        run: |
+          set -uo pipefail
+          # Each '==' pin in requirements.txt must appear verbatim in the lock,
+          # else the SBOM lock has drifted (e.g. a bump landed in the manifest
+          # but the lock was not refreshed). Robust to header/transitive churn:
+          # we only assert the direct pins are present, not a full re-resolve.
+          norm() { sed -E 's/^([^=]+)==/\L\1==/' | tr '_' '-'; }
+          locked="$(grep -oE '^[A-Za-z0-9_.-]+==[^ ;]+' requirements.lock | norm)"
+          fail=0
+          while IFS= read -r pin; do
+            [ -z "$pin" ] && continue
+            if ! printf '%s\n' "$locked" | grep -qxF "$(printf '%s' "$pin" | norm)"; then
+              echo "::error file=examples/${{ matrix.example }}/requirements.lock::'$pin' is pinned in requirements.txt but missing from requirements.lock. Refresh: uv pip compile requirements.txt -o requirements.lock --universal --python-version 3.11"
+              fail=1
+            fi
+          done < <(grep -oE '^[A-Za-z0-9_.-]+==[^ ;]+' requirements.txt)
+          exit "$fail"
 
   tier2:
     name: "tier2: ${{ matrix.example }}"
