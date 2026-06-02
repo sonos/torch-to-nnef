@@ -52,17 +52,20 @@ CLONE = HERE / "_dpdfnet_clone"
 
 
 def _setup_clone_path() -> None:
-    """Add the bootstrapped DPDFNet clone to `sys.path`.
+    """Add the bootstrapped DPDFNet clone to `sys.path` (idempotent).
 
     The clone is third-party; we don't import it at module import time
     so that automated tooling (e.g., test discovery, linters) that
     *imports* this module without invoking `main()` doesn't fail with a
-    SystemExit on a missing bootstrap.
+    SystemExit on a missing bootstrap. Repeated calls are no-ops -- the
+    function is invoked from both `build()` and the lazy imports inside
+    `IstftCenterFalse.forward`.
     """
     if not CLONE.exists():
         raise SystemExit(f"missing {CLONE}; run ./bootstrap.sh first")
-    sys.path.insert(0, str(CLONE))
-    sys.path.insert(0, str(CLONE / "model"))
+    for entry in (str(CLONE), str(CLONE / "model")):
+        if entry not in sys.path:
+            sys.path.insert(0, entry)
 
 
 def _import_dpdfnet():
@@ -273,12 +276,15 @@ class IstftCenterFalse(torch.nn.Module):
         self.hop = src.hop_inv
         self.normalized = src.normalized
         self.register_buffer("w", src.w_inv.clone())
-        # Lazy-imported here so `IstftCenterFalse` can be referenced
-        # without `bootstrap.sh` having run.
-        _, self._as_complex = _import_dpdfnet()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self._as_complex(x)
+        # Lazy import keeps the module importable without `bootstrap.sh`
+        # (the clone is only required at run time). Storing the function
+        # on ``self`` would force eager resolution at construction; this
+        # also avoids holding a reference that an ``nn.Module`` reflects
+        # under ``_modules`` / ``_buffers`` introspection.
+        _, _as_complex = _import_dpdfnet()
+        x = _as_complex(x)
         return torch.istft(
             x,
             n_fft=self.n_fft,

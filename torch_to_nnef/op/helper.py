@@ -334,12 +334,6 @@ def maybe_align_inputs_ranks(
     # element-wise ops like `mul`, `add`, `div` mis-broadcast the
     # complex tensor's freq / time axes against the real tensor's
     # storage axes.
-    # TODO: this unconditionally appends a trailing-1 to every
-    # non-complex input. If the real co-input already happens to end
-    # in a length-2 axis (e.g., a user-side `(..., 2)` real tensor
-    # not produced by t2n's view-tagging), the broadcast would be
-    # wrong. We haven't seen this in practice but it's a latent
-    # foot-gun; revisit if a downstream user model trips over it.
     any_complex_view_tagged = any(
         _is_view_tagged_complex_nnef(t) for t in inputs
     )
@@ -348,6 +342,25 @@ def maybe_align_inputs_ranks(
         for idx, t in enumerate(inputs_list):
             if _is_view_tagged_complex_nnef(t):
                 continue
+            # Fail-fast on the latent foot-gun: a real co-input whose
+            # last axis is already 2 is ambiguous -- we can't tell
+            # whether the user meant the 2 to broadcast against the
+            # complex's logical axes or against the (re, imag) pair
+            # itself. The trailing-1 unsqueeze below would silently
+            # mis-broadcast in the former case. Force the user to be
+            # explicit (manually unsqueeze or reshape) before the op.
+            if (
+                isinstance(t.shape, (list, tuple))
+                and len(t.shape) >= 1
+                and t.shape[-1] == 2
+            ):
+                raise T2NErrorNotImplemented(
+                    f"{op_type}: real input {t.name!r} ends in a length-2 "
+                    "axis while another input is view-tagged complex. The "
+                    "auto-aligner cannot tell whether the trailing 2 is a "
+                    "logical axis or t2n's complex pair; unsqueeze / reshape "
+                    "the real input explicitly before this op."
+                )
             # Real co-input: append a trailing-1 axis.
             new_shape = list(t.shape) + [1]
             aligned = NTensor(

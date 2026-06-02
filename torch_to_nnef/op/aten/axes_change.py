@@ -1434,31 +1434,6 @@ def _unfold_via_conv_fragment(
     return ["unfold"]
 
 
-def _unfold_axis_is_streaming(input_node, axis, inference_target):
-    """True if `axis` of `input_node` is marked as a streaming axis.
-
-    The IR shape stays concrete at trace time even under dynamic axes
-    (the symbolic dim is applied at NNEF emit time), so we can't
-    detect streaming from `input_node.shape[axis]`. Instead, walk
-    `inference_target.dynamic_axes` and check the original IO axis
-    that this tensor's `axis` descends from.
-    """
-    if not getattr(inference_target, "has_dynamic_axes", False):
-        return False
-    # In practice for `unfold` the input is either a graph input or a
-    # tensor downstream of one; if any graph input has `axis` flagged
-    # as a streaming dim, assume this is the same axis. (A more
-    # precise resolver could trace the IR back to the input, but
-    # `aten::unfold` callers in practice route the stream axis
-    # directly.)
-    for _, axis_map in (inference_target.dynamic_axes or {}).items():
-        if isinstance(axis_map, dict) and axis in axis_map:
-            return True
-        if isinstance(axis_map, (list, tuple)) and axis in axis_map:
-            return True
-    return False
-
-
 @OP_REGISTRY.register(torch_op_ids=["unfold", "unfold_copy"])
 def unfold(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
     """Map PyTorch `aten::unfold` (Tensor.unfold) to NNEF.
@@ -1470,13 +1445,21 @@ def unfold(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
     length `size` is appended.
 
     Dispatch:
-    - **Static unfold axis**: emit `n_windows` slices + `stack` (cheap,
-      no extra compute; slices fold away in tract's optimiser).
-    - **Streaming unfold axis** (the axis is flagged in
-      `inference_target.dynamic_axes`): emit the `unfold` NNEF
-      fragment, which lowers to a Conv1d with an identity kernel of
-      shape `(size, 1, size)`. Tract's existing `Conv` pulsifier
-      handles the streaming case natively -- no new tract op needed.
+    - **Static export** (no `dynamic_axes` configured): emit
+      `n_windows` slices + `stack` (cheap; slices fold away in tract's
+      optimiser).
+    - **Any dynamic-axes export**: emit the `unfold` NNEF fragment,
+      which lowers to a Conv1d with an identity kernel of shape
+      `(size, 1, size)`. Tract's existing `Conv` pulsifier handles
+      the streaming case natively -- no new tract op needed.
+
+      We don't try to prove that *this particular* unfold's axis is
+      the streaming one: the IR shape stays concrete until NNEF emit,
+      and tracking the streaming axis through reshape/transpose
+      chains would require a full provenance pass. The Conv1d path
+      is correct in both static and streaming evaluation, so under
+      ``dynamic_axes`` we route there unconditionally. The cost is a
+      handful of multiply-by-1 ops that tract folds away.
     """
     input_node, dim_node, size_node, step_node = node.inputs
     if not isinstance(dim_node, PythonConstant):
@@ -1498,7 +1481,7 @@ def unfold(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
             f"unfold dim={dim_node.data} out of bounds for rank-{rank} input"
         )
 
-    if _unfold_axis_is_streaming(input_node, axis, inference_target):
+    if getattr(inference_target, "has_dynamic_axes", False):
         return _unfold_via_conv_fragment(
             g,
             node,

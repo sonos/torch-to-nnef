@@ -465,6 +465,12 @@ test_suite.add(
     MyISTFT(n_fft=8, hop_length=4),
     inference_conditions=_cond_stft_ge_0_22,
 )
+# Multi-batch input (B>1) — exercises the OLA chain shape threading.
+test_suite.add(
+    torch.sin(torch.arange(3 * 64, dtype=torch.float32) * 0.5).reshape(3, 64),
+    MyISTFT(n_fft=8, hop_length=4),
+    inference_conditions=_cond_stft_ge_0_22,
+)
 # Dynamic-axes istft with sqrt(Hann): exercises the COLA-constant
 # divisor branch (the export bakes a scalar instead of a full-length
 # vector). Plain Hann at hop=n_fft/2 fails the w^2-COLA check; sqrt-Hann

@@ -32,16 +32,16 @@ def _logical_rank(input_node) -> int:
     """Logical (PyTorch-visible) rank of a t2n IR tensor.
 
     Complex tensors are uniformly view-tagged (see
-    `TorchToNGraphExtractor.build_nnef_graph`): IR rank is one more
-    than the logical rank, with the trailing axis carrying re/im.
+    `TorchToNGraphExtractor.build_nnef_graph`): the IR rank is one
+    more than the logical rank, with the trailing axis carrying re/im.
 
-    Use this when you need the *count* of logical axes (e.g., building
-    a default `dim=list(range(...))` for `fftn`). For converting a
-    single (possibly negative) PyTorch dim to a storage axis index, see
-    `_pick_logical_axis` here or `op.helper.pick_axis` (which both
-    apply the same complex-axis adjustment for negative dims, but only
-    `pick_axis` is set up for the positive-dim early-return path used
-    by generic ops).
+    Use this when you need the *count* of logical axes -- e.g., to
+    build a default `dim=list(range(...))` for `fftn`'s no-`dim` path.
+    For resolving a *single* (possibly negative) PyTorch dim to a
+    storage axis index, use `_pick_logical_axis` here or
+    `op.helper.pick_axis`; both adjust for the trailing complex axis,
+    and they differ only in scope (`pick_axis` is the generic-op entry
+    point and also handles `FixedTensorList` inputs).
     """
     if input_node.dtype in _COMPLEX_DTYPES:
         return input_node.rank - 1
@@ -146,7 +146,6 @@ def _fft(
         # input_node, n_node, dim_node, norm_node = node.inputs
         input_to_real_tensor = output_tensor
 
-        node.outputs[0].dtype = torch.complex64
         add_single_output_op(
             g,
             node,
@@ -549,7 +548,6 @@ def _fftn_loop(
             ),
             name_to_tensor,
         )
-        node.outputs[0].dtype = torch.complex64
         add_single_output_op(
             g,
             node,
@@ -1031,6 +1029,7 @@ def _istft_emit_ola_norm(
     hop,
     frames_size,
     audio_len_raw,
+    batch_size,
 ):
     """Divide the OLA tensor by the window^2 OLA (static or dynamic axes).
 
@@ -1093,11 +1092,14 @@ def _istft_emit_ola_norm(
         )
 
     norm_ref = get_or_add_tensor_variable_in_nnef(g, norm_const, name_to_tensor)
+    # Divisor is rank-3 `(1, 1, audio_len_raw)`; under B>1 the leading-1
+    # broadcasts against `(B, 1, audio_len_raw)` so we only need to label
+    # the recorded shape with the right batch.
     return _emit(
         "div",
         inputs=[ola, norm_ref],
         suffix="_istft_normed",
-        new_shape=(1, 1, audio_len_raw),
+        new_shape=(batch_size, 1, audio_len_raw),
     )
 
 
@@ -1112,6 +1114,7 @@ def _istft_emit_finalize(
     center,
     n_fft,
     audio_len_raw,
+    batch_size,
 ):
     """Apply the optional center crop and squeeze the synthetic axes.
 
@@ -1137,7 +1140,7 @@ def _istft_emit_finalize(
         inputs=normed,
         attrs={"axes": [1]},
         suffix="_istft_audio_raw",
-        new_shape=(1, audio_len_raw),
+        new_shape=(batch_size, audio_len_raw),
     )
 
     if do_crop:
@@ -1155,7 +1158,7 @@ def _istft_emit_finalize(
                 inputs=channel_squeezed,
                 attrs=slice_attrs,
                 suffix="_istft_cropped",
-                new_shape=(1, final_len),
+                new_shape=(batch_size, final_len),
             )
         else:
             add_single_output_op(
@@ -1290,6 +1293,9 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
     #    (B, C_in=n_fft, T_frames); add a synthetic batch axis when the
     #    istft input has no leading dim (IR rank 3 = bare (freq, T, 2)).
     batched_added = re_squeeze_rank == 2
+    # Batch axis that survives the deconv: 1 when we just synthesised it,
+    # otherwise the original leading dim (rank-4 input).
+    ola_batch_size = 1 if batched_added else int(leading[0])
     if batched_added:
         ola_in = _emit(
             "unsqueeze",
@@ -1328,7 +1334,7 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
             "border": "constant",
         },
         suffix="_istft_ola",
-        new_shape=(1, 1, audio_len_raw),
+        new_shape=(ola_batch_size, 1, audio_len_raw),
         force_consistent_inputs_shapes=False,
     )
 
@@ -1345,6 +1351,7 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         hop=hop,
         frames_size=frames_size,
         audio_len_raw=audio_len_raw,
+        batch_size=ola_batch_size,
     )
     _istft_emit_finalize(
         g,
@@ -1356,5 +1363,6 @@ def istft(g, node, name_to_tensor, inference_target, **kwargs):
         center=center,
         n_fft=n_fft,
         audio_len_raw=audio_len_raw,
+        batch_size=ola_batch_size,
     )
     return ["tract_core"]
