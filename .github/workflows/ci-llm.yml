@@ -6,11 +6,15 @@ on:
     paths:
       - "packages/llm/**"
       - "torch_to_nnef/**"
+      - "uv.lock"
+      - ".github/workflows/ci-llm.yml"
   pull_request:
     branches: [main]
     paths:
       - "packages/llm/**"
       - "torch_to_nnef/**"
+      - "uv.lock"
+      - ".github/workflows/ci-llm.yml"
   workflow_dispatch:
 
 jobs:

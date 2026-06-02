@@ -1,0 +1,71 @@
+name: deps check
+
+# Gate for dependency-related changes (Dependabot PRs, manifest/lockfile edits)
+# that the path-filtered ci-*.yml suites would otherwise leave untested.
+# Deliberately lightweight: schema/consistency/pinning checks, no heavy builds.
+# Deep Rust auditing (cargo-deny) and CVE scanning (Trivy) land here in the
+# later steps of the security initiative.
+on:
+  pull_request:
+    paths:
+      - "**/uv.lock"
+      - "**/requirements*.txt"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/dependabot.yml"
+      - ".github/workflows/**"
+      - ".github/scripts/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    name: dependabot config + action pinning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Validate .github/dependabot.yml
+        run: uv run --no-project --with pyyaml python .github/scripts/check_dependabot.py
+      - name: Enforce SHA-pinned GitHub Actions
+        run: python3 .github/scripts/check_actions_pinned.py
+
+  uv-lock:
+    name: uv lockfiles consistent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Workspace lock up to date with pyproject
+        run: uv lock --check
+      - name: Standalone nemo_asr_py lock up to date
+        working-directory: examples/nemo_asr/src/nemo_asr_py
+        run: uv lock --check
+
+  cargo:
+    name: example Cargo manifests valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: cargo verify-project (all example crate roots)
+        run: |
+          set -euo pipefail
+          roots=(
+            examples/getting_started_rs
+            examples/imageclass-wasm
+            examples/llm_wasm
+            examples/yolo
+            examples/nemo_asr
+            examples/vad/FSMN-wasm
+            examples/mamba/pulse/mamba-rs
+            examples/mamba/external_state/mamba-rs
+            examples/speech_enhancement/dpdfnet/wav-cleaner-rs
+            examples/tts/pocket_tts/cli
+          )
+          for d in "${roots[@]}"; do
+            echo "::group::$d"
+            cargo verify-project --manifest-path "$d/Cargo.toml"
+            echo "::endgroup::"
+          done
