@@ -1,0 +1,54 @@
+name: locked workspace
+
+# Exercises the committed root uv.lock. The tox matrix (ci-core) pins its own
+# torch/numpy/transformers per env and never installs from uv.lock, so a uv.lock
+# bump (e.g. from Dependabot's `uv` updater) otherwise lands behaviourally
+# untested. This job does `uv sync --locked` -- the exact locked graph -- and
+# runs the core unit suite against it.
+on:
+  pull_request:
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
+      - "torch_to_nnef/**"
+      - "packages/**"
+      - ".github/workflows/locked-workspace.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: locked-workspace-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  locked:
+    runs-on: ubuntu-latest
+    env:
+      MODELS: "1"
+      PYTHONWARNINGS: "ignore"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Cache uv
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/uv
+          key: uv-locked-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-locked-
+      - name: Sync the exact locked graph
+        # Fails if uv.lock is out of date with pyproject (defends the lock too).
+        run: uv sync --locked --group test
+      - name: Core unit suite against locked deps
+        # Mirrors ci-core's py313 env, but uses uv.lock versions instead of the
+        # tox-pinned torch. Heavy zoo / proptest / fft suites stay in tox.
+        run: |
+          uv run --no-sync pytest -q -m "not ci_skip" -x \
+            --ignore=tests/test_model_zoo.py \
+            --ignore=tests/test_dynamic_axes.py \
+            --ignore=tests/test_fft.py \
+            --ignore=tests/test_mod.py \
+            --ignore=tests/test_primitive_proptest.py \
+            tests
