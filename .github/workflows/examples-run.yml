@@ -1,0 +1,147 @@
+name: examples run
+
+# End-to-end validation of the examples by actually running their run.sh.
+# This is the verification the path-filtered ci-*.yml suites don't provide:
+# the tox matrix pins its own torch/transformers and never installs from the
+# example lockfiles, and nothing else builds/runs the examples. So dependency
+# bumps (Dependabot or manual) currently land unexercised. Running run.sh fixes
+# that -- the export path executes against the *pinned* deps.
+#
+# Two tiers, because the examples are wildly unequal in cost:
+#   tier1 - cheap pure-python exports (toy or small/cacheable models). Runs on
+#           PRs that touch examples / the core package / lockfiles, so a bump is
+#           tested before merge. Installs from requirements.lock (also validating
+#           the lock resolves + installs).
+#   tier2 - heavy: wasm-pack builds, large model downloads, tract compiles,
+#           third-party repo clones. Too slow/flaky for PRs, so weekly + manual.
+on:
+  pull_request:
+    paths:
+      - "examples/**"
+      - "torch_to_nnef/**"
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/examples-run.yml"
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: examples-run-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tier1:
+    name: "tier1: ${{ matrix.example }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - quantization_py
+          - t2n_extra_custom_op
+          - getting_started_py
+          - multi_io_py
+          - dynamic_axes
+          - vad/silero-jit
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Cache model / build artifacts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/torch
+            ~/.cache/uv
+          key: t1-${{ matrix.example }}-${{ hashFiles(format('examples/{0}/requirements.lock', matrix.example)) }}
+          restore-keys: |
+            t1-${{ matrix.example }}-
+      - name: Install pinned deps and run example
+        working-directory: examples/${{ matrix.example }}
+        run: |
+          set -euxo pipefail
+          uv venv --python 3.11 .venv
+          uv pip install --python .venv/bin/python -r requirements.lock
+          source .venv/bin/activate
+          ./run.sh
+
+  tier2:
+    name: "tier2: ${{ matrix.example }}"
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - example: image_gen
+          - example: speech_enhancement/deepfilternet
+          - example: imageclass-wasm
+          - example: yolo
+          - example: llm_wasm
+          - example: vad/FSMN-wasm
+          - example: tts/pocket_tts
+          # Known-fragile in CI (broken/WIP example, external tract cache, or a
+          # user-supplied asset). Surfaced but non-blocking.
+          - example: mamba
+            allow_failure: true
+          - example: speech_enhancement/dpdfnet
+            allow_failure: true
+          - example: nemo_asr
+            allow_failure: true
+          - example: getting_started_rs
+            allow_failure: true
+    continue-on-error: ${{ matrix.allow_failure || false }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Cache cargo + model artifacts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cache/huggingface
+            ~/.cache/torch
+            ~/.cache/uv
+          key: t2-${{ matrix.example }}-${{ github.sha }}
+          restore-keys: |
+            t2-${{ matrix.example }}-
+      # getting_started_rs consumes the .nnef.tgz produced by getting_started_py.
+      - name: Build prerequisite artifact (getting_started_rs)
+        if: matrix.example == 'getting_started_rs'
+        working-directory: examples/getting_started_py
+        run: |
+          set -euxo pipefail
+          uv venv --python 3.11 .venv
+          uv pip install --python .venv/bin/python -r requirements.lock
+          source .venv/bin/activate
+          ./run.sh
+      - name: Bootstrap + run example
+        working-directory: examples/${{ matrix.example }}
+        run: |
+          set -euxo pipefail
+          # third-party repo clone / checkpoint download, if the example has one
+          if [ -f bootstrap.sh ]; then bash bootstrap.sh; fi
+          if grep -q 'bootstrap-uv' run.sh; then
+            # run.sh sources the bootstrap-*.sh scripts itself (venv + rust + wasm-pack)
+            ./run.sh
+          elif [ -f requirements.lock ]; then
+            uv venv --python 3.11 .venv
+            uv pip install --python .venv/bin/python -r requirements.lock
+            source .venv/bin/activate
+            ./run.sh
+          else
+            # pure cargo example (no python deps to install)
+            ./run.sh
+          fi
