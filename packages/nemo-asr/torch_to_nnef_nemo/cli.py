@@ -108,19 +108,16 @@ def setup_inference_target_from_cli_args(cfg: NemoTractConfig) -> TractNNEF:
     else:
         inference_target.check_io_tolerance = cfg.tract.tract_check_io_tolerance
 
-    # Honor tract_reify_sdpa in BOTH directions. Previously this only forced
-    # reify ON, leaving it at TractNNEF's default (True for tract >= 0.22), so
-    # the fused tract_transformers_sdpa op was always emitted -- and that op
-    # diverges from PyTorch (same root cause as the LLM export). Honoring the
-    # config default (False) decomposes attention into core ops that match.
-    inference_target.reify_sdpa_operator = cfg.sdpa.tract_reify_sdpa
-    if cfg.sdpa.tract_reify_sdpa and (
-        not cfg.sdpa.force_sdpa_pytorch and inference_target.version < "0.23.0"
-    ):
-        LOGGER.warning(
-            "Reifying sdpa without forcing pytorch implementation "
-            "may export no sdpa ops depending on model."
-        )
+    if cfg.sdpa.tract_reify_sdpa:
+        inference_target.reify_sdpa_operator = True
+        if (
+            not cfg.sdpa.force_sdpa_pytorch
+            and inference_target.version < "0.23.0"
+        ):
+            LOGGER.warning(
+                "Reifying sdpa without forcing pytorch implementation "
+                "may export no sdpa ops depending on model."
+            )
     return inference_target
 
 
