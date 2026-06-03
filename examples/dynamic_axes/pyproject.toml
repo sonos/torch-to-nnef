@@ -1,0 +1,18 @@
+[project]
+name = "t2n-example-dynamic-axes"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "torch_to_nnef",
+    "torch==2.7.0",
+    "torchaudio==2.7.0",
+    "torchvision==0.22.0",
+    "transformers==4.53.2",
+    "sentencepiece==0.2.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch_to_nnef = { path = "../../", editable = true }

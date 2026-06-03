@@ -1,77 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# -----------------------------
-# Configuration
-# -----------------------------
-PYTHON_VERSION="${PYTHON_VERSION:-3.11.8}"
-VENV_DIR=".venv"
+# Bootstrap the current example's uv project: ensure uv is installed, then
+# `uv sync --locked` to materialise the exact locked environment (.venv) from
+# pyproject.toml + uv.lock. Source this from an example's run.sh, then either
+# `source .venv/bin/activate` or use `uv run`.
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 
-# -----------------------------
-# Utilities
-# -----------------------------
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
-install_uv() {
+ensure_uv() {
+    command_exists uv && return 0
     echo "Installing uv..."
-    # Use pipefail to surface curl or installer failures
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.local/bin:$PATH"
-
-    if ! command_exists uv; then
-        echo "uv installation failed"
-        exit 1
-    fi
+    command_exists uv || { echo "uv installation failed"; exit 1; }
 }
 
-ensure_uv() { command_exists uv || install_uv; }
-
-# -----------------------------
-# Ensure Python toolchain
-# -----------------------------
-ensure_python() {
-    echo "Installing Python $PYTHON_VERSION (if needed)..."
-    uv python install "$PYTHON_VERSION"
-}
-
-# -----------------------------
-# Create venv (idempotent)
-# -----------------------------
-create_venv() {
-    if [ ! -d "$VENV_DIR" ]; then
-        echo "Creating virtual environment..."
-        uv venv --python "$PYTHON_VERSION" "$VENV_DIR"
-    fi
-}
-
-# -----------------------------
-# Install requirements
-# -----------------------------
-install_requirements() {
-    if [ ! -f requirements.txt ]; then
-        echo "requirements.txt not found"
-        exit 1
-    fi
-
-    echo "Installing dependencies from requirements.txt..."
-    uv pip install \
-        --python "$VENV_DIR/bin/python" \
-        --requirement requirements.txt
-}
-
-# -----------------------------
-# Main
-# -----------------------------
 main() {
     ensure_uv
-    ensure_python
-    create_venv
-    install_requirements
-
-    echo ""
-    echo "Environment ready."
-    echo "Activate with:"
-    echo "  . $VENV_DIR/bin/activate"
+    if [ ! -f pyproject.toml ]; then
+        echo "no pyproject.toml in $(pwd); this example is not a uv project"
+        exit 1
+    fi
+    echo "Syncing locked environment (uv sync --locked)..."
+    uv sync --locked --python "$PYTHON_VERSION"
+    echo "Environment ready (.venv). Activate with: . .venv/bin/activate"
 }
 
 main "$@"

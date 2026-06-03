@@ -1,6 +1,0 @@
--e ../../
-pip==26.1.2
-torch==2.1.2
-numpy==1.26.4
-onnx==1.20.1
-ultralytics==8.4.15

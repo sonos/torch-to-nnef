@@ -1,0 +1,21 @@
+[project]
+name = "t2n-example-speech-enhancement-deepfilternet"
+version = "0.0.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "torch_to_nnef",
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    "deepfilternet==0.5.6",
+    "soundfile==0.13.1",
+    "onnx==1.21.0",
+    "onnxruntime==1.26.0",
+    "onnxsim==0.6.4",
+    "loguru==0.7.3",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch_to_nnef = { path = "../../../", editable = true }

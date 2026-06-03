@@ -1,0 +1,18 @@
+[project]
+name = "t2n-example-getting-started-py"
+version = "0.0.0"
+description = "torch-to-nnef example: export ViT_B_16 to NNEF."
+requires-python = ">=3.11"
+dependencies = [
+    "torch_to_nnef",
+    "torch==2.7.0",
+    "torchvision==0.22.0",
+]
+
+[tool.uv]
+# Application example, not a distributable package.
+package = false
+
+[tool.uv.sources]
+# Editable install of the core package at the repo root.
+torch_to_nnef = { path = "../../", editable = true }

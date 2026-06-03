@@ -10,8 +10,8 @@ name: examples run
 # Two tiers, because the examples are wildly unequal in cost:
 #   tier1 - cheap pure-python exports (toy or small/cacheable models). Runs on
 #           PRs that touch examples / the core package / lockfiles, so a bump is
-#           tested before merge. run.sh self-bootstraps its own venv from
-#           requirements.txt (the manifest Dependabot bumps).
+#           tested before merge. run.sh runs `uv sync --locked` (each example is
+#           a uv project), which also enforces uv.lock <-> pyproject consistency.
 #   tier2 - heavy: wasm-pack builds, large model downloads, tract compiles,
 #           third-party repo clones. Too slow/flaky for PRs, so weekly + manual.
 on:
@@ -61,31 +61,15 @@ jobs:
             ~/.cache/huggingface
             ~/.cache/torch
             ~/.cache/uv
-          key: t1-${{ matrix.example }}-${{ hashFiles(format('examples/{0}/requirements.lock', matrix.example)) }}
+          key: t1-${{ matrix.example }}-${{ hashFiles(format('examples/{0}/uv.lock', matrix.example)) }}
           restore-keys: |
             t1-${{ matrix.example }}-
-      - name: Run example (run.sh self-bootstraps its venv from requirements.txt)
+      # run.sh sources bootstrap-uv.sh which runs `uv sync --locked` -- that
+      # itself fails if uv.lock is out of sync with pyproject.toml, so no
+      # separate lock-drift gate is needed.
+      - name: Run example
         working-directory: examples/${{ matrix.example }}
         run: ./run.sh
-      - name: requirements.lock is in sync with requirements.txt pins
-        working-directory: examples/${{ matrix.example }}
-        run: |
-          set -uo pipefail
-          # Each '==' pin in requirements.txt must appear verbatim in the lock,
-          # else the SBOM lock has drifted (e.g. a bump landed in the manifest
-          # but the lock was not refreshed). Robust to header/transitive churn:
-          # we only assert the direct pins are present, not a full re-resolve.
-          norm() { sed -E 's/^([^=]+)==/\L\1==/' | tr '_' '-'; }
-          locked="$(grep -oE '^[A-Za-z0-9_.-]+==[^ ;]+' requirements.lock | norm)"
-          fail=0
-          while IFS= read -r pin; do
-            [ -z "$pin" ] && continue
-            if ! printf '%s\n' "$locked" | grep -qxF "$(printf '%s' "$pin" | norm)"; then
-              echo "::error file=examples/${{ matrix.example }}/requirements.lock::'$pin' is pinned in requirements.txt but missing from requirements.lock. Refresh: uv pip compile requirements.txt -o requirements.lock --universal --python-version 3.11"
-              fail=1
-            fi
-          done < <(grep -oE '^[A-Za-z0-9_.-]+==[^ ;]+' requirements.txt)
-          exit "$fail"
 
   tier2:
     name: "tier2: ${{ matrix.example }}"

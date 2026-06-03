@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Set up an isolated venv with pinned deps (idempotent).
+# Sync the locked uv environment (creates .venv).
 source ../bootstrap-uv.sh
 source .venv/bin/activate
 
@@ -20,4 +20,3 @@ echo "[getting_started_py] Exporting ViT_B_16 to NNEF..."
 python export.py
 echo "[getting_started_py] Export complete: vit_b_16.nnef.tgz"
 echo "To run inference, place Grace_Hopper.jpg here and run: python run.py"
-

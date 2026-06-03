@@ -1,0 +1,14 @@
+[project]
+name = "t2n-example-quantization-py"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "torch_to_nnef",
+    "torch==2.7.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch_to_nnef = { path = "../../", editable = true }

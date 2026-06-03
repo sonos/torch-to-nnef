@@ -5,16 +5,14 @@
 #                             packages/nemo-asr, locked by the root uv.lock)
 #                             and the standalone examples/.../nemo_asr_py project
 #   - example Rust crates    : crates.io deps + Cargo.lock for every crate root
-#   - example Python deps    : the requirements.txt pins under examples/
+#   - example Python projects: each example is a uv project (pyproject + uv.lock);
+#                             Dependabot updates each uv.lock natively
 #   - GitHub Actions         : keeps the SHA pins (+ "# vN" comment) current
 #
 # Intentionally NOT handled here (Dependabot cannot):
 #   - git dependencies on sonos/tract (pinned by rev/branch in several example
 #     Cargo.toml files). A separate scheduled job bumps those (Rust-hygiene
 #     step of the initiative).
-#   - examples/**/requirements.lock: these are `uv pip compile` outputs, not a
-#     manifest Dependabot recognises. Dependabot bumps the requirements.txt
-#     pins; the .lock files are refreshed separately.
 version: 2
 updates:
   # ---------------------------------------------------------------------------
@@ -32,20 +30,6 @@ updates:
       include: "scope"
     groups:
       core-python:
-        patterns: ["*"]
-
-  # Standalone example uv project (own uv.lock, outside the workspace).
-  - package-ecosystem: "uv"
-    directory: "/examples/nemo_asr/src/nemo_asr_py"
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 5
-    labels: ["dependencies", "python", "examples"]
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    groups:
-      nemo-asr-py:
         patterns: ["*"]
 
   # ---------------------------------------------------------------------------
@@ -91,24 +75,29 @@ updates:
         patterns: ["*"]
 
   # ---------------------------------------------------------------------------
-  # Example Python deps (requirements.txt pins; .lock refreshed separately).
+  # Example Python projects: each is a uv project; Dependabot updates its
+  # uv.lock natively (no requirements.txt / sidecar lock anymore).
   # ---------------------------------------------------------------------------
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directories:
+      - "/examples/quantization_py"
+      - "/examples/t2n_extra_custom_op"
+      - "/examples/multi_io_py"
       - "/examples/dynamic_axes"
       - "/examples/getting_started_py"
+      - "/examples/vad/silero-jit"
       - "/examples/image_gen"
+      - "/examples/yolo"
       - "/examples/imageclass-wasm"
       - "/examples/llm_wasm"
-      - "/examples/mamba/external_state"
-      - "/examples/multi_io_py"
+      - "/examples/vad/FSMN-wasm"
       - "/examples/nemo_asr"
+      - "/examples/nemo_asr/src/nemo_asr_py"
+      - "/examples/tts/pocket_tts"
       - "/examples/speech_enhancement/deepfilternet"
       - "/examples/speech_enhancement/dpdfnet"
-      - "/examples/tts/pocket_tts"
-      - "/examples/vad/FSMN-wasm"
-      - "/examples/vad/silero-jit"
-      - "/examples/yolo"
+      - "/examples/mamba/external_state"
+      - "/examples/mamba/pulse"
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 10
@@ -117,5 +106,5 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
     groups:
-      examples-pip:
+      examples-python:
         patterns: ["*"]
