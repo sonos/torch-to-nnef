@@ -21,7 +21,7 @@ from torch import nn
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 
-HF_REPO = "runwayml/stable-diffusion-v1-5"
+HF_REPO = "stable-diffusion-v1-5/stable-diffusion-v1-5"
 
 
 class VaeDecoderWrapper(nn.Module):

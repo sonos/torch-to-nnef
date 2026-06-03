@@ -7,7 +7,10 @@ source ../bootstrap-wasm-pack.sh
 source ../bootstrap-uv.sh
 source .venv/bin/activate
 
-t2n_export_llm_to_tract -s "HuggingFaceTB/SmolLM-135M" -e ./dump_model --dump-with-tokenizer-and-conf
+# --force-module-dtype f32: SmolLM ships bf16 weights which mismatch the
+# float rotary/SDPA tensors during export ("q/k/v dtype" RuntimeError); export
+# in f32 to keep one consistent dtype.
+t2n_export_llm_to_tract -s "HuggingFaceTB/SmolLM-135M" -e ./dump_model --dump-with-tokenizer-and-conf --force-module-dtype f32
 
 RUSTFLAGS='--cfg getrandom_backend="wasm_js"' wasm-pack build --target web --out-dir ../../docs/html
 rm ../../docs/html/.gitignore ../../docs/html/*.ts

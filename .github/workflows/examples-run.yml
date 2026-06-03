@@ -86,14 +86,16 @@ jobs:
           - example: llm_wasm
           - example: vad/FSMN-wasm
           - example: tts/pocket_tts
-          # Known-fragile in CI (broken/WIP example, external tract cache, or a
-          # user-supplied asset). Surfaced but non-blocking.
           - example: mamba
-            allow_failure: true
           - example: speech_enhancement/dpdfnet
-            allow_failure: true
+          # nemo_asr: parakeet-0.6b (~2.4GB) + an external tract cache; left
+          # non-blocking until that heavy setup is wired up in CI.
           - example: nemo_asr
             allow_failure: true
+          # getting_started_rs: path bug fixed, but ViT's export emits
+          # tract_transformers ops that the minimal binary (tract-nnef 0.21.13,
+          # with_tract_core only) doesn't register. Needs a tract bump + the
+          # transformers registry; non-blocking until then.
           - example: getting_started_rs
             allow_failure: true
     continue-on-error: ${{ matrix.allow_failure || false }}
