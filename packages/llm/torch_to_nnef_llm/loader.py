@@ -234,6 +234,14 @@ def load_model(
 ):
     """Load a model from a slug, local checkpoint, or custom config."""
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
+    # transformers 5.x defaults to a fused SDPA attention path that (a) passes
+    # mixed-dtype q/k/v (bf16 query vs float key/value) which the SDPA kernel
+    # rejects during the export forward, and (b) exports to the fused
+    # tract_transformers_sdpa op, which diverges from PyTorch on tract. Eager
+    # attention decomposes into core ops that export cleanly and track much
+    # closer (28%-of-elements divergence -> f32 noise on SmolLM).
+    if SemanticVersion.from_str(transformers.__version__) >= "5.0.0":
+        kwargs["attn_implementation"] = "eager"
     if force_module_dtype is not None:
         key = "torch_dtype"
         if SemanticVersion.from_str(transformers.__version__) >= "4.57.0":

@@ -10,6 +10,8 @@ dependencies = [
     "huggingface_hub==0.36.2",
     "accelerate==1.13.0",
     "safetensors==0.7.0",
+    # Needed by t2n's pytorch->onnx->tract check_io path (torch>=2.9 ONNX export).
+    "onnxscript",
 ]
 
 [tool.uv]
