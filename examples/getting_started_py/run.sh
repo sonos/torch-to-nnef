@@ -2,9 +2,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Set up an isolated venv with pinned deps (idempotent).
-source ../bootstrap-uv.sh
-source .venv/bin/activate
+# Install uv if needed, then sync the locked environment (creates .venv).
+command -v uv >/dev/null 2>&1 || { curl -LsSf https://astral.sh/uv/install.sh | sh; export PATH="$HOME/.local/bin:$PATH"; }
+uv sync --locked
 
 # Sample input image for export.py / run.py. Fetch the real one when possible,
 # else synthesize a placeholder: the export only needs a valid JPEG (content is
@@ -13,11 +13,10 @@ if [ ! -f Grace_Hopper.jpg ]; then
   wget -q --tries=3 --timeout=20 -O Grace_Hopper.jpg \
     --user-agent="torch-to-nnef-example/1.0 (+https://github.com/sonos/torch-to-nnef)" \
     https://upload.wikimedia.org/wikipedia/commons/5/55/Grace_Hopper.jpg \
-  || python -c "from PIL import Image; Image.new('RGB', (640, 480), (127, 127, 127)).save('Grace_Hopper.jpg')"
+  || uv run python -c "from PIL import Image; Image.new('RGB', (640, 480), (127, 127, 127)).save('Grace_Hopper.jpg')"
 fi
 
 echo "[getting_started_py] Exporting ViT_B_16 to NNEF..."
-python export.py
+uv run python export.py
 echo "[getting_started_py] Export complete: vit_b_16.nnef.tgz"
 echo "To run inference, place Grace_Hopper.jpg here and run: python run.py"
-
