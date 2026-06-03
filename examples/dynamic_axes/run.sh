@@ -2,8 +2,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Optional: bootstrap a local venv via uv (uncomment if desired)
-# ../bootstrap-uv.sh
+# Set up an isolated venv with pinned deps (idempotent).
+source ../bootstrap-uv.sh
+source .venv/bin/activate
 
 # Sample input image for export_with_batchable.py. Fetch the real one when
 # possible, else synthesize a placeholder: the export only needs a valid JPEG

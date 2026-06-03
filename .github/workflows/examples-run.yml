@@ -10,8 +10,8 @@ name: examples run
 # Two tiers, because the examples are wildly unequal in cost:
 #   tier1 - cheap pure-python exports (toy or small/cacheable models). Runs on
 #           PRs that touch examples / the core package / lockfiles, so a bump is
-#           tested before merge. Installs from requirements.lock (also validating
-#           the lock resolves + installs).
+#           tested before merge. run.sh self-bootstraps its own venv from
+#           requirements.txt (the manifest Dependabot bumps).
 #   tier2 - heavy: wasm-pack builds, large model downloads, tract compiles,
 #           third-party repo clones. Too slow/flaky for PRs, so weekly + manual.
 on:
@@ -64,16 +64,9 @@ jobs:
           key: t1-${{ matrix.example }}-${{ hashFiles(format('examples/{0}/requirements.lock', matrix.example)) }}
           restore-keys: |
             t1-${{ matrix.example }}-
-      - name: Install pinned deps and run example
+      - name: Run example (run.sh self-bootstraps its venv from requirements.txt)
         working-directory: examples/${{ matrix.example }}
-        run: |
-          set -euxo pipefail
-          uv venv --python 3.11 .venv
-          # Install from requirements.txt -- the manifest Dependabot bumps -- so a
-          # dependency PR is actually exercised here, not the unchanged lockfile.
-          uv pip install --python .venv/bin/python -r requirements.txt
-          source .venv/bin/activate
-          ./run.sh
+        run: ./run.sh
       - name: requirements.lock is in sync with requirements.txt pins
         working-directory: examples/${{ matrix.example }}
         run: |
@@ -138,31 +131,9 @@ jobs:
           key: t2-${{ matrix.example }}-${{ github.sha }}
           restore-keys: |
             t2-${{ matrix.example }}-
-      # getting_started_rs consumes the .nnef.tgz produced by getting_started_py.
-      - name: Build prerequisite artifact (getting_started_rs)
-        if: matrix.example == 'getting_started_rs'
-        working-directory: examples/getting_started_py
-        run: |
-          set -euxo pipefail
-          uv venv --python 3.11 .venv
-          uv pip install --python .venv/bin/python -r requirements.lock
-          source .venv/bin/activate
-          ./run.sh
-      - name: Bootstrap + run example
+      # Every run.sh is now self-contained: it sources bootstrap-uv/-rust,
+      # clones any third-party repo (bootstrap.sh), and builds prerequisites
+      # (e.g. getting_started_rs builds the getting_started_py artifact).
+      - name: Run example (self-bootstrapping)
         working-directory: examples/${{ matrix.example }}
-        run: |
-          set -euxo pipefail
-          # third-party repo clone / checkpoint download, if the example has one
-          if [ -f bootstrap.sh ]; then bash bootstrap.sh; fi
-          if grep -q 'bootstrap-uv' run.sh; then
-            # run.sh sources the bootstrap-*.sh scripts itself (venv + rust + wasm-pack)
-            ./run.sh
-          elif [ -f requirements.lock ]; then
-            uv venv --python 3.11 .venv
-            uv pip install --python .venv/bin/python -r requirements.lock
-            source .venv/bin/activate
-            ./run.sh
-          else
-            # pure cargo example (no python deps to install)
-            ./run.sh
-          fi
+        run: ./run.sh
