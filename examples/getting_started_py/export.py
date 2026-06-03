@@ -18,8 +18,11 @@ export_model_to_nnef(
     # (here simply an example of tensor image)
     file_path_export=file_path_export,  # filepath to dump NNEF archive
     inference_target=TractNNEF(  # inference engine to target
-        version=TractNNEF.latest_version(),  # tract version
-        # (to ensure compatible operators)
+        # Pinned to the 0.21 line: attention then decomposes into core NNEF ops
+        # (no `tract_transformers` extension), so the minimal companion example
+        # `getting_started_rs` (tract-nnef 0.21.x, `with_tract_core()` only) can
+        # load the model. A version >= 0.22 would emit a tract_transformers_sdpa op.
+        version="0.21.15",
         check_io=True,  # default False
         # (tract binary will be installed on the machine on fly)
     ),
