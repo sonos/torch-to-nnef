@@ -90,13 +90,14 @@ jobs:
           - example: tts/pocket_tts
           - example: mamba
           - example: speech_enhancement/dpdfnet
-          # nemo_asr: parakeet-0.6b (~2.4GB) + an external tract cache; left
-          # non-blocking until that heavy setup is wired up in CI.
+          # nemo_asr: the NNEF export now passes (tolerance=super). Non-blocking
+          # only because the Rust `cargo test` requires CUDA (are_culibs_present)
+          # which standard CI runners lack -- needs a GPU runner for the full e2e.
           - example: nemo_asr
             allow_failure: true
-          # llm_wasm: --force-module-dtype f32 fixed the dtype error, but the
-          # SmolLM export now fails tract's output parity check (deeper numerical
-          # divergence). Non-blocking until investigated.
+          # llm_wasm: the SmolLM export now passes (transformers<5 + tolerance
+          # super; eager-attn in core covers 5.x). Non-blocking only because the
+          # tract-transformers wasm-pack build OOMs/times out on standard runners.
           - example: llm_wasm
             allow_failure: true
     continue-on-error: ${{ matrix.allow_failure || false }}
