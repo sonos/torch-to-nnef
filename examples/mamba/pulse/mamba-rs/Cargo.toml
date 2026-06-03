@@ -14,7 +14,7 @@ publish = false
 # we need for the pulse pipeline (commit 9ceee1b5c).
 tract-nnef = { git = "https://github.com/sonos/tract", rev = "0c771a4c7" }
 tract-pulse = { git = "https://github.com/sonos/tract", rev = "0c771a4c7" }
-tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
