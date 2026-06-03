@@ -7,6 +7,7 @@ source ../bootstrap-uv.sh
 source .venv/bin/activate
 
 echo "[multi_io_py] Exporting ALBERT multi-IO example..."
-retry python export_albert.py
+hf_pull "albert-base-v2"   # retry the HF download, then export once
+python export_albert.py
 echo "[multi_io_py] Done. See albert.nnef.tgz."
 

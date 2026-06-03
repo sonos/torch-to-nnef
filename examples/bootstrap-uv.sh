@@ -35,6 +35,14 @@ ensure_uv() {
     command_exists uv || { echo "uv installation failed"; exit 1; }
 }
 
+# hf_pull <repo>: pre-download a HuggingFace repo into the local cache, retrying
+# on 429s, so the subsequent export reads from cache. This keeps the retry on
+# the *download* only -- we never retry the export step (which would re-run
+# t2n-internal errors). Requires the venv active (huggingface_hub installed).
+hf_pull() {
+    retry python -c "import sys; from huggingface_hub import snapshot_download; snapshot_download(sys.argv[1])" "$1"
+}
+
 main() {
     ensure_uv
     if [ ! -f pyproject.toml ]; then

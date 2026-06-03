@@ -17,9 +17,9 @@ if [ ! -f Grace_Hopper.jpg ]; then
 fi
 
 echo "[dynamic_axes] Running example exports..."
-# retry: ALBERT weights are fetched from HF (429s on shared CI IPs).
-retry python export_albert_fixed.py
-retry python export_with_batchable.py
+hf_pull "albert-base-v2"   # retry the HF download, then export once
+python export_albert_fixed.py
+python export_with_batchable.py
 python cnn_deepspeech_stream.py
 echo "[dynamic_axes] Done. See generated .nnef.tgz artifacts in this folder."
 
