@@ -2,6 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Set up an isolated venv with pinned deps (idempotent).
+source ../bootstrap-uv.sh
+source .venv/bin/activate
+
 # Sample input image for export.py / run.py. Fetch the real one when possible,
 # else synthesize a placeholder: the export only needs a valid JPEG (content is
 # not asserted), and Wikimedia 429s the shared CI IP pool.
