@@ -1,0 +1,15 @@
+[project]
+name = "t2n-example-speech-enhancement-dpdfnet"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "torch_to_nnef",
+    "einops==0.8.2",
+    "soundfile==0.13.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch_to_nnef = { path = "../../../", editable = true }
