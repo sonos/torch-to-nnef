@@ -7,6 +7,6 @@ source ../bootstrap-uv.sh
 source .venv/bin/activate
 
 echo "[multi_io_py] Exporting ALBERT multi-IO example..."
-python export_albert.py
+retry python export_albert.py
 echo "[multi_io_py] Done. See albert.nnef.tgz."
 

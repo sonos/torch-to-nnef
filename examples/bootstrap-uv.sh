@@ -9,6 +9,24 @@ PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
+# retry <cmd...>: run a command, retrying with exponential backoff. Use it to
+# wrap model-download/export steps -- HuggingFace (and torch hub) frequently
+# 429 the shared CI IP pool; a re-run resumes from the populated cache.
+retry() {
+    local n=1 max="${RETRY_MAX:-5}" delay="${RETRY_DELAY:-15}"
+    while true; do
+        "$@" && return 0
+        if [ "$n" -ge "$max" ]; then
+            echo "retry: '$*' still failing after $max attempts" >&2
+            return 1
+        fi
+        echo "retry: attempt $n/$max failed; sleeping ${delay}s before retry..." >&2
+        sleep "$delay"
+        n=$((n + 1))
+        delay=$((delay * 2))
+    done
+}
+
 ensure_uv() {
     command_exists uv && return 0
     echo "Installing uv..."

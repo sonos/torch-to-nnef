@@ -15,5 +15,5 @@ mkdir -p assets
 rm -rf assets/model
 TRACT_VERSION="0.23.0-dev.2"
 python -c "from torch_to_nnef.inference_target.tract import TractNNEF; TractNNEF('$TRACT_VERSION'); print('TractNNEF $TRACT_VERSION is available')"
-t2n_export_nemo -s "nvidia/parakeet-tdt-0.6b-v3" -e "assets/model" --tract-specific-path "$HOME/.cache/svc/tract/$TRACT_VERSION/tract"
+retry t2n_export_nemo -s "nvidia/parakeet-tdt-0.6b-v3" -e "assets/model" --tract-specific-path "$HOME/.cache/svc/tract/$TRACT_VERSION/tract"
 cd ./src/nemo_asr/ && cargo test --release -- --nocapture && cd ../../

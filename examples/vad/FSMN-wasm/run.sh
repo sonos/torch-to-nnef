@@ -12,7 +12,7 @@ export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--check-cfg=cfg(feature,values(\"inve
 
 # Export preprocessor + encoder NNEF graphs from the HF funasr/fsmn-vad weights.
 rm -rf ./model
-python ./py/export.py --out-dir ./model
+retry python ./py/export.py --out-dir ./model
 
 # Prepare test audio assets (speech + silence)
 echo "Preparing test audio assets..."
