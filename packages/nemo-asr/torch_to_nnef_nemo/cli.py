@@ -115,8 +115,7 @@ def setup_inference_target_from_cli_args(cfg: NemoTractConfig) -> TractNNEF:
     # config default (False) decomposes attention into core ops that match.
     inference_target.reify_sdpa_operator = cfg.sdpa.tract_reify_sdpa
     if cfg.sdpa.tract_reify_sdpa and (
-        not cfg.sdpa.force_sdpa_pytorch
-        and inference_target.version < "0.23.0"
+        not cfg.sdpa.force_sdpa_pytorch and inference_target.version < "0.23.0"
     ):
         LOGGER.warning(
             "Reifying sdpa without forcing pytorch implementation "
