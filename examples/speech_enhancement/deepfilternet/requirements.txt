@@ -1,5 +1,5 @@
 -e ../../..
-torch==2.11.0
+torch==2.12.0
 torchaudio==2.11.0
 # Upstream DeepFilterNet from PyPI -- provides `df.enhance.init_df()` and the
 # pretrained DFN3 checkpoint. grazder's `torch_df_streaming_minimal.py` is
