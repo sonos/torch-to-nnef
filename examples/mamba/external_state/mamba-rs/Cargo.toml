@@ -10,7 +10,7 @@ publish = false
 # main rev before the f32 AMX dispatch regression on M=1, large-N
 # matmuls (LM head). See sibling Cargo.toml for the full story.
 tract-nnef = { git = "https://github.com/sonos/tract", rev = "0c771a4c7" }
-tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
