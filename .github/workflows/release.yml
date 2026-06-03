@@ -20,11 +20,11 @@ jobs:
           echo "current_version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Get Changelog Entry
         id: changelog_reader
-        uses: mindsers/changelog-reader-action@17b72bf66059b7ac310abdc0b511948903e85ea5 # v2.2.0
+        uses: mindsers/changelog-reader-action@1faaf50aa09d5793d9a100819973df801febfb31 # v2.4.0
         with:
           validation_depth: 10
           version: ${{ steps.tag_name.outputs.current_version }}
@@ -50,7 +50,7 @@ jobs:
 
       - name: create github release
         id: create_release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
