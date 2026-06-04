@@ -89,7 +89,11 @@ jobs:
       # unmaintained ignores; bans = duplicate/wildcard policy; sources = only
       # crates.io + allowed git. licenses is intentionally excluded for now
       # (see examples/deny.toml). Single shared policy via --config.
-      - name: cargo-deny check (all example crate roots)
+      # vad/FSMN-wasm is intentionally absent: it depends on getrandom 0.4.2
+      # under two names (a wasm RNG-backend setup) and `cargo metadata` itself
+      # refuses such graphs, so cargo-deny cannot analyze it. It stays covered
+      # by the verify-project job and the examples-run wasm build.
+      - name: cargo-deny check (example crate roots)
         run: |
           set -euo pipefail
           roots=(
@@ -98,7 +102,6 @@ jobs:
             examples/llm_wasm
             examples/yolo
             examples/nemo_asr
-            examples/vad/FSMN-wasm
             examples/mamba/pulse/mamba-rs
             examples/mamba/external_state/mamba-rs
             examples/speech_enhancement/dpdfnet/wav-cleaner-rs
