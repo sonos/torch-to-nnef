@@ -28,6 +28,18 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
+    # t2n's export tracks the torch/transformers internals closely and a major
+    # bump has silently broken exports before (transformers 5.x rewrote
+    # attention). Hold majors of these back so they are taken deliberately,
+    # behind their own tested PR, rather than landing unattended. Minor/patch
+    # bumps still flow.
+    ignore:
+      - dependency-name: "transformers"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torchaudio"
+        update-types: ["version-update:semver-major"]
     groups:
       core-python:
         patterns: ["*"]
@@ -105,6 +117,16 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
+    # Same rationale as the core block: several examples pin a specific
+    # transformers/torch (e.g. llm_wasm on transformers 4.52) precisely because
+    # a major bump breaks their export. Hold majors for a deliberate PR.
+    ignore:
+      - dependency-name: "transformers"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torchaudio"
+        update-types: ["version-update:semver-major"]
     groups:
       examples-python:
         patterns: ["*"]
