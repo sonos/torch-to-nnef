@@ -26,6 +26,12 @@ MODELS = [
 ]
 
 
+# Only these are worth retrying: 429 (rate limit) + transient 5xx. An auth or
+# missing error (401/403/404, e.g. a gated repo without a token) will never
+# succeed on retry, so skip it immediately rather than burning the backoff.
+TRANSIENT = {429, 500, 502, 503, 504}
+
+
 def prefetch(repo_id: str, attempts: int = 5, base_delay: float = 3.0) -> None:
     from huggingface_hub import snapshot_download
     from huggingface_hub.utils import HfHubHTTPError
@@ -37,15 +43,18 @@ def prefetch(repo_id: str, attempts: int = 5, base_delay: float = 3.0) -> None:
             return
         except HfHubHTTPError as e:
             status = getattr(getattr(e, "response", None), "status_code", None)
+            if status not in TRANSIENT:
+                print(f"[prefetch] skip {repo_id}: HTTP {status} (permanent)")
+                return
             print(
                 f"[prefetch] attempt {i}/{attempts} for {repo_id} "
-                f"failed: {status or e}"
+                f"failed: HTTP {status}"
             )
             if i == attempts:
                 print(f"[prefetch] giving up on {repo_id} (best-effort)")
                 return
             time.sleep(base_delay * 2 ** (i - 1))
-        except Exception as e:  # gated/private/offline: skip, test decides
+        except Exception as e:  # offline/unknown: skip, test decides
             print(f"[prefetch] skip {repo_id}: {type(e).__name__}: {e}")
             return
 
