@@ -2,11 +2,14 @@ name: security scan
 
 # Trivy CVE gate + SPDX SBOM for the project's Python dependencies.
 #
-# - Gate: scans the core runtime dependency surface (what `pip install
-#   torch_to_nnef` actually pulls) and fails on fixed HIGH/CRITICAL advisories,
-#   so a red build is always actionable (a version bump exists). Dev, docs and
-#   test tooling are intentionally out of the gate; they are captured in the
-#   SBOM for visibility instead of blocking every PR on tooling CVEs.
+# - Gate: scans the installable runtime surfaces and fails on fixed advisories
+#   (--ignore-unfixed), so a red build is always actionable (a bump exists):
+#     * core (`pip install torch_to_nnef`) and the `llm` extra: HIGH + CRITICAL.
+#     * the `nemo-asr` extra: CRITICAL only. Its 200+ pkg tree is largely pinned
+#       transitively by nemo_toolkit, so HIGH findings there are frequently
+#       unbumpable; gating it on CRITICAL keeps the signal actionable.
+#   Dev, docs and test tooling are intentionally out of the gate; they are
+#   captured in the SBOM instead of blocking every PR on tooling CVEs.
 # - SBOM: emits a comprehensive SPDX document of the full locked workspace and
 #   uploads it as a build artifact.
 #
@@ -51,18 +54,33 @@ jobs:
           key: trivy-db-${{ github.run_id }}
           restore-keys: |
             trivy-db-
-      - name: Export core runtime dependency surface
+      - name: Export dependency surfaces (core + extras)
         run: |
           set -euo pipefail
-          mkdir -p _scan
+          mkdir -p _scan/core _scan/llm _scan/nemo
           uv export --frozen --no-dev --no-emit-workspace \
-            --format requirements-txt > _scan/requirements.txt
-      # --ignore-unfixed: only fail on advisories that have a fixed version, so
-      # the gate is actionable. Trivy reads .trivyignore from the repo root.
-      - name: CVE gate (fixed HIGH/CRITICAL in core runtime deps)
+            --format requirements-txt > _scan/core/requirements.txt
+          uv export --frozen --no-dev --package torch_to_nnef_llm \
+            --format requirements-txt > _scan/llm/requirements.txt
+          uv export --frozen --no-dev --package torch_to_nnef_nemo_asr \
+            --format requirements-txt > _scan/nemo/requirements.txt
+      # --ignore-unfixed: only fail on advisories with a fixed version, so the
+      # gate is always actionable. Trivy reads .trivyignore from the repo root.
+      # Each surface is scanned so all failures surface in one run (no fail-fast).
+      - name: CVE gate
         run: |
-          trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
-            --no-progress --exit-code 1 _scan/requirements.txt
+          set -uo pipefail
+          rc=0
+          scan() {
+            echo "::group::trivy $1 ($2)"
+            trivy fs --scanners vuln --severity "$2" --ignore-unfixed \
+              --no-progress --exit-code 1 "_scan/$1/requirements.txt" || rc=1
+            echo "::endgroup::"
+          }
+          scan core HIGH,CRITICAL
+          scan llm  HIGH,CRITICAL
+          scan nemo CRITICAL
+          exit $rc
       - name: Generate SPDX SBOM (full locked workspace)
         if: always()
         run: |
