@@ -16,7 +16,7 @@ static IMG_WIDTH: usize = 224;
 static IMG_HEIGHT: usize = 224;
 #[wasm_bindgen]
 struct ImageClassifier {
-    model: TypedRunnableModel<TypedModel>,
+    model: TypedRunnableModel,
     classes: Vec<String>,
 }
 
