@@ -60,5 +60,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install tox==4.23.2
 
+      # The zoo suite downloads torchvision pretrained weights (-> ~/.cache/torch)
+      # and albert-base-v2 from Hugging Face (-> ~/.cache/huggingface), and other
+      # envs pull torch.hub models (e.g. silero). Reuse them across runs; key on
+      # the model-defining test so it busts when the set changes.
+      - name: Cache models (torch hub + Hugging Face)
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cache/torch
+            ~/.cache/huggingface
+          key: core-models-${{ hashFiles('tests/test_model_zoo.py', '.github/scripts/hf_prefetch.py') }}
+          restore-keys: |
+            core-models-
+
+      # Warm the HF cache with retries before pytest: the zoo suite pulls
+      # albert-base-v2 at collection time, which intermittently hits HF's per-IP
+      # 429 on shared runners. Best-effort, so it never fails the build.
+      - name: Prefetch HF models for the zoo suite (retry on 429)
+        if: contains(matrix.tox-env, 'zoo')
+        run: |
+          python -m pip install "huggingface_hub>=0.23"
+          python .github/scripts/hf_prefetch.py albert-base-v2
+
       - name: test with tox
         run: tox run -e ${{ matrix.tox-env }}
