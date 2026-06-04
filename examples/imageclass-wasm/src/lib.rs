@@ -29,7 +29,7 @@ impl ImageClassifier {
         let classes_txt = String::from_utf8_lossy(classes_bytes);
         let classes: Vec<String> = classes_txt.split("\n").map(|s| s.to_string()).collect();
         let model = tract_nnef::nnef()
-            .with_tract_core()
+            // tract_core is enabled by default since tract 0.23
             .model_for_read(&mut read)?
             // optimize the model
             .into_optimized()?
@@ -83,7 +83,7 @@ impl ImageClassifier {
 
         // find and display the max value with its index
         let best = result[0]
-            .to_array_view::<f32>()?
+            .to_plain_array_view::<f32>()?
             .iter()
             .cloned()
             .zip(0..)
