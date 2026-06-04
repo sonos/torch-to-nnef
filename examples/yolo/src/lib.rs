@@ -251,7 +251,7 @@ static IMG_WIDTH: usize = 640;
 static IMG_HEIGHT: usize = 640;
 #[wasm_bindgen]
 struct YoloPoser {
-    model: TypedRunnableModel,
+    model: Arc<TypedRunnableModel>,
     min_detection_threshold: f32,
     n_tops: usize,
 }
