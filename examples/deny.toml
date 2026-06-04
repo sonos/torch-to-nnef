@@ -41,15 +41,8 @@ ignore = [
 # --- Licenses ---------------------------------------------------------------
 # Allow the OSI-permissive set the Rust ecosystem actually uses. A copyleft or
 # unknown license in the example dependency graph fails the build and forces a
-# conscious decision rather than silently shipping it.
-#
-# NOTE: the CI job runs `check advisories bans sources` only -- license
-# enforcement is NOT wired in yet. It is deferred to a dedicated license /
-# SPDX-compliance pass, which also resolves the two prerequisites: first-party
-# example crates need `publish = false`, and the sonos/tract git crates
-# (causal_llm, tract-*) carry no license metadata on their feature branches and
-# need `[[licenses.clarify]]` entries. This block is kept here, configured and
-# ready, so enabling it later only means adding `licenses` to the check list.
+# conscious decision rather than silently shipping it. First-party example
+# crates are marked `publish = false` and skipped via `private.ignore` below.
 [licenses]
 version = 2
 confidence-threshold = 0.9
@@ -75,6 +68,17 @@ allow = [
     "BSL-1.0",
     "OpenSSL",
 ]
+
+# causal_llm is an example crate living inside the sonos/tract repo (pulled in
+# by llm_wasm as a git dep) that omits the `license` field. The tract repo is
+# dual MIT/Apache-2.0 (its published crates declare exactly this, and the repo
+# ships LICENSE-MIT + LICENSE-APACHE), so assert that here rather than allow an
+# unlicensed crate through. license-files is empty: the field is simply absent
+# upstream, this is not an ambiguous-detection override.
+[[licenses.clarify]]
+crate = "causal_llm"
+expression = "MIT OR Apache-2.0"
+license-files = []
 
 # --- Bans -------------------------------------------------------------------
 # Duplicate transitive versions are noise across this many independent crates,
