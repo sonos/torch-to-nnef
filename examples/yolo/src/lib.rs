@@ -251,7 +251,7 @@ static IMG_WIDTH: usize = 640;
 static IMG_HEIGHT: usize = 640;
 #[wasm_bindgen]
 struct YoloPoser {
-    model: TypedRunnableModel<TypedModel>,
+    model: Arc<TypedRunnableModel>,
     min_detection_threshold: f32,
     n_tops: usize,
 }
@@ -265,7 +265,7 @@ impl YoloPoser {
         // let classes_txt = String::from_utf8_lossy(classes_bytes);
         // let classes: Vec<String> = classes_txt.split("\n").map(|s| s.to_string()).collect();
         let model = tract_nnef::nnef()
-            .with_tract_core()
+            // tract_core is enabled by default since tract 0.23
             .model_for_read(&mut read)?
             // optimize the model
             .into_optimized()?
@@ -327,7 +327,7 @@ impl YoloPoser {
         web_sys::console::log_1(&"model prediction done".into());
 
         let raw_preds = result[0]
-            .to_array_view::<f32>()?
+            .to_plain_array_view::<f32>()?
             .into_dimensionality::<Ix3>()?
             .permuted_axes((0, 2, 1))
             .to_owned();
