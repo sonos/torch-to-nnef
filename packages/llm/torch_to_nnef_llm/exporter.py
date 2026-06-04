@@ -406,7 +406,10 @@ class LLMExporter:
                 return _load_exporter_from(
                     **exporter_from_kwargs, local_files_only=True
                 )
-            except Exception as exp:  # noqa: BLE001 cache miss -> network load
+            # any local-load failure (cache miss, etc.) -> try the network;
+            # a genuine error resurfaces on that path.
+            # pylint: disable-next=broad-exception-caught
+            except Exception as exp:
                 LOGGER.info(
                     "Local cache miss or load failure (%s); "
                     "fetching from the Hugging Face hub",
