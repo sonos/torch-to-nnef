@@ -69,6 +69,7 @@ def load_tokenizer(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     *,
+    local_files_only: bool = False,
     transformers: InjectedTransformersModule = INJECTED,
 ):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -80,7 +81,9 @@ def load_tokenizer(
     if local_dir is not None:
         local_dir = find_subdir_with_filename_in(local_dir, "tokenizer.json")
     return transformers.AutoTokenizer.from_pretrained(
-        local_dir or tokenizer_slug, trust_remote_code=True
+        local_dir or tokenizer_slug,
+        trust_remote_code=True,
+        local_files_only=local_files_only,
     )
 
 
@@ -171,14 +174,24 @@ def load_peft_model(
 def _from_pretrained(
     slug_or_dir: T.Union[str, Path],
     *,
+    local_files_only: bool = False,
     huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
     transformers: InjectedTransformersModule = INJECTED,
     **kwargs,
 ):
+    kwargs["local_files_only"] = local_files_only
     if "device_map" in kwargs and kwargs["device_map"] is not None:
         device_map = kwargs.pop("device_map")
         if Path(slug_or_dir).exists():
             weights_location = Path(slug_or_dir)
+        elif local_files_only:
+            # Resolve the already-cached snapshot directory without any hub API
+            # call (list_repo_files would hit the rate-limited /tree endpoint).
+            weights_location = Path(
+                huggingface_hub.snapshot_download(
+                    slug_or_dir, local_files_only=True
+                )
+            )
         else:
             hf_repo_files = huggingface_hub.list_repo_files(slug_or_dir)
             weights_location = Path(
@@ -229,6 +242,7 @@ def load_model(
     force_module_dtype: T.Optional[DtypeStr] = None,
     merge_peft: T.Optional[bool] = None,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
+    local_files_only: bool = False,
     *,
     transformers: InjectedTransformersModule = INJECTED,
 ):
@@ -264,7 +278,9 @@ def load_model(
             dir_path = find_subdir_with_filename_in(local_dir, "config.json")
             assert dir_path.is_dir(), dir_path
             assert_model_safetensors_exists(dir_path)
-            hf_model_causal = _from_pretrained(dir_path, **kwargs)
+            hf_model_causal = _from_pretrained(
+                dir_path, local_files_only=local_files_only, **kwargs
+            )
             LOGGER.info(
                 "load '%s' from local directory: %s",
                 hf_model_causal.config.model_type,
@@ -273,7 +289,9 @@ def load_model(
         except (T2NErrorNotFoundFile, OSError):
             hf_model_causal = load_peft_model(local_dir, kwargs)
     elif hf_model_slug is not None:
-        hf_model_causal = _from_pretrained(hf_model_slug, **kwargs)
+        hf_model_causal = _from_pretrained(
+            hf_model_slug, local_files_only=local_files_only, **kwargs
+        )
         LOGGER.info(
             "load default trained model from huggingface: '%s'", hf_model_slug
         )
