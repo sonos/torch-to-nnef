@@ -1,7 +1,8 @@
 # Single rust toolchain for ALL example crates. rustup searches parent
 # directories, so every crate under examples/ inherits this automatically --
 # no per-example rust-toolchain files, no symlinks. Bump this one line every
-# ~6 weeks to track the latest stable rustc (security initiative, step 3).
+# ~6 weeks to track the latest stable rustc (the rustc-freshness workflow opens
+# a tracking issue when this drifts behind stable).
 [toolchain]
 channel = "1.95.0"
 targets = ["wasm32-unknown-unknown"]

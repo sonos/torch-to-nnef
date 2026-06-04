@@ -3,8 +3,8 @@ name: deps check
 # Gate for dependency-related changes (Dependabot PRs, manifest/lockfile edits)
 # that the path-filtered ci-*.yml suites would otherwise leave untested.
 # Deliberately lightweight: schema/consistency/pinning checks, no heavy builds.
-# Deep Rust auditing (cargo-deny) and CVE scanning (Trivy) land here in the
-# later steps of the security initiative.
+# Deep Rust auditing (cargo-deny: advisories/bans/sources) runs here. CVE
+# scanning (Trivy) and license enforcement are planned to land here too.
 on:
   pull_request:
     paths:
@@ -12,6 +12,7 @@ on:
       - "**/requirements*.txt"
       - "**/Cargo.toml"
       - "**/Cargo.lock"
+      - "**/deny.toml"
       - ".github/dependabot.yml"
       - ".github/workflows/**"
       - ".github/scripts/**"
@@ -67,5 +68,45 @@ jobs:
           for d in "${roots[@]}"; do
             echo "::group::$d"
             cargo verify-project --manifest-path "$d/Cargo.toml"
+            echo "::endgroup::"
+          done
+
+  cargo-deny:
+    name: cargo-deny (advisories/bans/sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Install cargo-deny
+        run: |
+          set -euo pipefail
+          VERSION=0.19.8
+          base="https://github.com/EmbarkStudios/cargo-deny/releases/download"
+          asset="cargo-deny-${VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL "${base}/${VERSION}/${asset}" \
+            | tar xz --strip-components=1 -C /usr/local/bin --wildcards '*/cargo-deny'
+          cargo-deny --version
+      # advisories = RUSTSEC vulnerabilities (hard fail) + acknowledged
+      # unmaintained ignores; bans = duplicate/wildcard policy; sources = only
+      # crates.io + allowed git. licenses is intentionally excluded for now
+      # (see examples/deny.toml). Single shared policy via --config.
+      - name: cargo-deny check (all example crate roots)
+        run: |
+          set -euo pipefail
+          roots=(
+            examples/getting_started_rs
+            examples/imageclass-wasm
+            examples/llm_wasm
+            examples/yolo
+            examples/nemo_asr
+            examples/vad/FSMN-wasm
+            examples/mamba/pulse/mamba-rs
+            examples/mamba/external_state/mamba-rs
+            examples/speech_enhancement/dpdfnet/wav-cleaner-rs
+            examples/tts/pocket_tts/cli
+          )
+          for d in "${roots[@]}"; do
+            echo "::group::$d"
+            cargo-deny --manifest-path "$d/Cargo.toml" \
+              check advisories bans sources --config examples/deny.toml
             echo "::endgroup::"
           done

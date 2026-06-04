@@ -1,0 +1,93 @@
+# Shared cargo-deny policy for ALL example crates.
+#
+# There is no Cargo workspace spanning the examples, so the CI job runs
+# cargo-deny per crate root with `--config examples/deny.toml`, pointing every
+# crate at this single source of truth. Bump the example crates' deps via the
+# `examples-cargo` Dependabot group; this file is the gate those bumps clear.
+#
+# Validate locally:  cargo deny --manifest-path examples/<crate>/Cargo.toml \
+#                      check --config examples/deny.toml
+
+[graph]
+# Examples build for the host plus the wasm target (imageclass-wasm, llm_wasm,
+# yolo, FSMN-wasm). Audit both so wasm-only dependencies are not skipped.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "wasm32-unknown-unknown",
+]
+all-features = true
+
+# --- Security advisories: the core of this gate ----------------------------
+# advisories schema v2: a RUSTSEC vulnerability is a hard error by default and
+# unmaintained crates warn. We keep yanked crates as an error too. `ignore` is
+# the documented escape hatch: add `"RUSTSEC-XXXX-NNNN"` with a comment when an
+# advisory is acknowledged and unfixable (e.g. only reachable on an unused
+# feature), so the audit trail lives in git rather than in a CI override.
+[advisories]
+version = 2
+yanked = "deny"
+# Acknowledged, unfixable transitive advisories. Each below is an *unmaintained*
+# notice (crate abandonment), NOT an exploitable vulnerability, and is pulled in
+# transitively by tract / its CLI deps -- there is no upstream-fixed version to
+# bump to. Any actual `vulnerability` advisory is intentionally absent here so it
+# stays a hard CI failure (that is how RUSTSEC-2026-0009 in `time` was caught and
+# fixed by bumping the lockfile). Re-audit when tract drops these dependencies.
+ignore = [
+    "RUSTSEC-2024-0375", # atty unmaintained (transitive via clap-era CLI deps)
+    "RUSTSEC-2024-0436", # paste unmaintained (transitive via tract-linalg)
+    "RUSTSEC-2025-0119", # number_prefix unmaintained (transitive via indicatif)
+]
+
+# --- Licenses ---------------------------------------------------------------
+# Allow the OSI-permissive set the Rust ecosystem actually uses. A copyleft or
+# unknown license in the example dependency graph fails the build and forces a
+# conscious decision rather than silently shipping it.
+#
+# NOTE: the CI job runs `check advisories bans sources` only -- license
+# enforcement is NOT wired in yet. It is deferred to a dedicated license /
+# SPDX-compliance pass, which also resolves the two prerequisites: first-party
+# example crates need `publish = false`, and the sonos/tract git crates
+# (causal_llm, tract-*) carry no license metadata on their feature branches and
+# need `[[licenses.clarify]]` entries. This block is kept here, configured and
+# ready, so enabling it later only means adding `licenses` to the check list.
+[licenses]
+version = 2
+confidence-threshold = 0.9
+# The example crates themselves are path crates that are never published and
+# carry no `license` field; skip them so the policy applies to dependencies
+# only. `unused-allowed-license` is silenced because the allow-list below is a
+# superset shared by all crates, so any single crate leaves some entries unhit.
+private = { ignore = true }
+unused-allowed-license = "allow"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "Unlicense",
+    "BSL-1.0",
+    "OpenSSL",
+]
+
+# --- Bans -------------------------------------------------------------------
+# Duplicate transitive versions are noise across this many independent crates,
+# so warn rather than fail. Wildcards are allowed because several examples
+# depend on tract via a pinned git rev (a legitimate non-semver dependency).
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+
+# --- Sources ----------------------------------------------------------------
+# Only crates.io and GitHub-hosted git deps (tract pulse/STFT branches, etc.)
+# are expected. An unknown registry is a supply-chain red flag and fails.
+[sources]
+unknown-registry = "deny"
+unknown-git = "allow"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
