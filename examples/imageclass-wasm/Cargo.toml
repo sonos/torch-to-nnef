@@ -1,4 +1,5 @@
 [package]
+publish = false  # example crate, never published
 name = "imageclass-wasm"
 version = "0.1.0"
 edition = "2024"
