@@ -13,34 +13,49 @@ shared runners (the suites download small models at collection time).
 import sys
 import time
 
-# Worth retrying: 429 (rate limit) + transient 5xx. Auth/missing (401/403/404,
-# e.g. a gated repo without a token) will never succeed on retry, so skip those
-# immediately rather than burning the backoff.
-TRANSIENT = {429, 500, 502, 503, 504}
+# Auth/missing (401/403/404, e.g. a gated repo without a token) will never
+# succeed on retry, so skip those immediately. Everything else (429 rate limit,
+# transient 5xx, or a connection error with no status) is worth retrying.
+PERMANENT = {401, 403, 404}
+
+
+def _http_status(exc: BaseException) -> int | None:
+    """Find an HTTP status anywhere in the exception's cause chain.
+
+    snapshot_download wraps a rate-limited metadata fetch in a
+    LocalEntryNotFoundError whose cause is the real HfHubHTTPError, so the
+    status we must branch on (e.g. 429) is not on the outermost exception.
+    """
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        status = getattr(getattr(cur, "response", None), "status_code", None)
+        if status is not None:
+            return status
+        cur = cur.__cause__ or cur.__context__
+    return None
 
 
 def prefetch(repo_id: str, attempts: int = 5, base_delay: float = 3.0) -> None:
     from huggingface_hub import snapshot_download
-    from huggingface_hub.utils import HfHubHTTPError
 
     for i in range(1, attempts + 1):
         try:
             snapshot_download(repo_id)
             print(f"[prefetch] ok: {repo_id}")
             return
-        except HfHubHTTPError as e:
-            status = getattr(getattr(e, "response", None), "status_code", None)
-            if status not in TRANSIENT:
+        except Exception as e:
+            status = _http_status(e)
+            if status in PERMANENT:
                 print(f"[prefetch] skip {repo_id}: HTTP {status} (permanent)")
                 return
-            print(f"[prefetch] attempt {i}/{attempts} {repo_id}: HTTP {status}")
+            label = f"HTTP {status}" if status else type(e).__name__
+            print(f"[prefetch] attempt {i}/{attempts} {repo_id}: {label}")
             if i == attempts:
                 print(f"[prefetch] giving up on {repo_id} (best-effort)")
                 return
             time.sleep(base_delay * 2 ** (i - 1))
-        except Exception as e:  # offline/unknown: skip, test decides
-            print(f"[prefetch] skip {repo_id}: {type(e).__name__}: {e}")
-            return
 
 
 def main(argv: list[str]) -> int:
