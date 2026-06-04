@@ -3,8 +3,8 @@ name: deps check
 # Gate for dependency-related changes (Dependabot PRs, manifest/lockfile edits)
 # that the path-filtered ci-*.yml suites would otherwise leave untested.
 # Deliberately lightweight: schema/consistency/pinning checks, no heavy builds.
-# Deep Rust auditing (cargo-deny: advisories/bans/sources) runs here. CVE
-# scanning (Trivy) and license enforcement are planned to land here too.
+# Deep Rust auditing (cargo-deny: advisories/bans/sources/licenses) runs here.
+# Python CVE scanning + SPDX SBOM live in security-scan.yml.
 on:
   pull_request:
     paths:
@@ -72,7 +72,7 @@ jobs:
           done
 
   cargo-deny:
-    name: cargo-deny (advisories/bans/sources)
+    name: cargo-deny (advisories/bans/sources/licenses)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -87,8 +87,8 @@ jobs:
           cargo-deny --version
       # advisories = RUSTSEC vulnerabilities (hard fail) + acknowledged
       # unmaintained ignores; bans = duplicate/wildcard policy; sources = only
-      # crates.io + allowed git. licenses is intentionally excluded for now
-      # (see examples/deny.toml). Single shared policy via --config.
+      # crates.io + allowed git; licenses = OSI-permissive allow-list (first-party
+      # crates are publish=false and skipped). Single shared policy via --config.
       # vad/FSMN-wasm is intentionally absent: it depends on getrandom 0.4.2
       # under two names (a wasm RNG-backend setup) and `cargo metadata` itself
       # refuses such graphs, so cargo-deny cannot analyze it. It stays covered
@@ -110,6 +110,6 @@ jobs:
           for d in "${roots[@]}"; do
             echo "::group::$d"
             cargo-deny --manifest-path "$d/Cargo.toml" \
-              check advisories bans sources --config examples/deny.toml
+              check advisories bans sources licenses --config examples/deny.toml
             echo "::endgroup::"
           done
