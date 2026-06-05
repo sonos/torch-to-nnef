@@ -25,13 +25,9 @@ def _oserror_wrapping_status(status: int) -> OSError:
 
     inner = Exception("http error")
     inner.response = _Resp()  # type: ignore[attr-defined]
-    try:
-        try:
-            raise inner
-        except Exception as e:
-            raise OSError("We couldn't connect to huggingface.co") from e
-    except OSError as oserr:
-        return oserr
+    outer = OSError("We couldn't connect to huggingface.co")
+    outer.__cause__ = inner  # same chain as `raise outer from inner`
+    return outer
 
 
 def test_hf_http_status_walks_cause_chain():
