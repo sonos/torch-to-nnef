@@ -150,6 +150,7 @@ def _load_exporter_from(
     num_logits_to_keep: int = 1,
     merge_peft: T.Optional[bool] = None,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
+    trust_remote_code: bool = True,
 ):
     if (
         is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
@@ -167,11 +168,13 @@ def _load_exporter_from(
         force_module_dtype=force_module_dtype,
         merge_peft=merge_peft,
         device_map=device_map,
+        trust_remote_code=trust_remote_code,
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
         hf_model_slug=hf_model_slug,
         local_dir=local_dir,
+        trust_remote_code=trust_remote_code,
     )
 
     return LLMExporter(
@@ -1030,6 +1033,7 @@ def dump_llm(
     num_logits_to_keep: int = 1,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
     hf_download_n_retries: int = DEFAULT_HF_DOWNLOAD_N_RETRIES,
+    trust_remote_code: bool = True,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model."""
@@ -1042,6 +1046,7 @@ def dump_llm(
         num_logits_to_keep=num_logits_to_keep,
         device_map=device_map,
         hf_download_n_retries=hf_download_n_retries,
+        trust_remote_code=trust_remote_code,
     )
     dump_kwargs = _normalize_dump_kwargs(kwargs)
     exporter.dump(**dump_kwargs)

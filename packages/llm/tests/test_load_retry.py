@@ -134,3 +134,17 @@ def test_load_disabled_when_zero_retries(monkeypatch):
     with pytest.raises(T2NErrorRuntime):
         LLMExporter.load("dummy/slug", hf_download_n_retries=0)
     assert calls["n"] == 1  # no retries when disabled
+
+
+@pytest.mark.parametrize("trust", [True, False])
+def test_load_forwards_trust_remote_code(monkeypatch, trust):
+    """LLMExporter.load threads trust_remote_code down to the loader."""
+    captured: dict = {}
+
+    def fake(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(exp_mod, "_load_exporter_from", fake)
+    LLMExporter.load("dummy/slug", trust_remote_code=trust)
+    assert captured["trust_remote_code"] is trust
