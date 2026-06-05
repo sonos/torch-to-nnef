@@ -7,17 +7,10 @@ name: deps check
 # Actions auditing (zizmor) run here. Python CVE scanning + SPDX SBOM live in
 # security-scan.yml.
 on:
+  # Runs on every PR (no path filter) so its jobs can be required status checks
+  # without freezing PRs that happen not to touch dependency files. The jobs are
+  # cheap and no-op cleanly when nothing relevant changed.
   pull_request:
-    paths:
-      - "**/uv.lock"
-      - "**/requirements*.txt"
-      - "**/Cargo.toml"
-      - "**/Cargo.lock"
-      - "**/deny.toml"
-      - ".github/dependabot.yml"
-      - ".github/workflows/**"
-      - ".github/scripts/**"
-      - ".github/zizmor.yml"
   workflow_dispatch:
 
 permissions:
