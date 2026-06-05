@@ -175,10 +175,14 @@ def _resolve_snapshot_dir(slug: str, huggingface_hub) -> str:
     networked ``snapshot_download`` only on a genuine cache miss (whose
     transient failures the LLMExporter.load retry then covers).
     """
+    # local import: huggingface_hub is an optional extra (injected), so it is
+    # only importable inside this call path which requires it.
+    # pylint: disable-next=import-outside-toplevel
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
     try:
         return huggingface_hub.snapshot_download(slug, local_files_only=True)
-    # pylint: disable-next=broad-exception-caught
-    except Exception:
+    except LocalEntryNotFoundError:
         return huggingface_hub.snapshot_download(slug)
 
 

@@ -48,9 +48,11 @@ class _FakeHub:
         self.calls: list = []
 
     def snapshot_download(self, slug, local_files_only=False):
+        from huggingface_hub.errors import LocalEntryNotFoundError
+
         self.calls.append(local_files_only)
         if local_files_only and not self.cached:
-            raise FileNotFoundError("not cached")
+            raise LocalEntryNotFoundError("not cached")
         return f"/cache/{slug}"
 
 
@@ -64,6 +66,17 @@ def test_resolve_snapshot_cache_miss_falls_back_to_network():
     hub = _FakeHub(cached=False)
     assert _resolve_snapshot_dir("some/model", hub) == "/cache/some/model"
     assert hub.calls == [True, False]  # cache-only attempt then network
+
+
+def test_resolve_snapshot_propagates_non_cache_miss_error():
+    """A genuine error (not a cache miss) must not be swallowed."""
+
+    class _BoomHub:
+        def snapshot_download(self, slug, local_files_only=False):
+            raise PermissionError("cache dir not readable")
+
+    with pytest.raises(PermissionError):
+        _resolve_snapshot_dir("some/model", _BoomHub())
 
 
 def test_load_retries_transient_then_succeeds(monkeypatch):
