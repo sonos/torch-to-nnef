@@ -150,7 +150,6 @@ def _load_exporter_from(
     num_logits_to_keep: int = 1,
     merge_peft: T.Optional[bool] = None,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
-    local_files_only: bool = False,
 ):
     if (
         is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
@@ -168,13 +167,11 @@ def _load_exporter_from(
         force_module_dtype=force_module_dtype,
         merge_peft=merge_peft,
         device_map=device_map,
-        local_files_only=local_files_only,
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
         hf_model_slug=hf_model_slug,
         local_dir=local_dir,
-        local_files_only=local_files_only,
     )
 
     return LLMExporter(
@@ -391,10 +388,6 @@ class LLMExporter:
         Face failure (HTTP 429 rate limit or a 5xx) is retried with exponential
         backoff before giving up; set 0 to disable. Auth/missing errors are not
         retried, and a gated repo still triggers an interactive login.
-
-        The model is loaded local-first: an already-cached model is loaded
-        without any hub network call (immune to rate limiting); only a cache
-        miss falls back to a network download (which is then retried).
         """
         with torch.no_grad():
             exporter_from_kwargs: T.Dict[str, T.Any] = {
@@ -402,19 +395,6 @@ class LLMExporter:
                 "local_dir": local_dir,
                 **kwargs,
             }
-            try:
-                return _load_exporter_from(
-                    **exporter_from_kwargs, local_files_only=True
-                )
-            # any local-load failure (cache miss, etc.) -> try the network;
-            # a genuine error resurfaces on that path.
-            # pylint: disable-next=broad-exception-caught
-            except Exception as exp:
-                LOGGER.info(
-                    "Local cache miss or load failure (%s); "
-                    "fetching from the Hugging Face hub",
-                    type(exp).__name__,
-                )
             attempt = 0
             while True:
                 try:
