@@ -4,6 +4,7 @@ import importlib
 import inspect
 import logging
 import os
+import pickle
 import re
 import typing as T
 from abc import ABC
@@ -484,6 +485,30 @@ class SemanticVersion:
 def torch_version() -> SemanticVersion:
     """Semantic version for torch."""
     return SemanticVersion.from_str(torch.__version__.split("+")[0])
+
+
+def torch_safe_load(f, **kwargs):
+    """``torch.load`` that avoids arbitrary code execution by default.
+
+    Prefers ``weights_only=True`` (loads tensors and primitives only). A file
+    that genuinely needs full unpickling (a pickled ``nn.Module`` or a custom
+    tensor subclass) falls back to ``weights_only=False`` with a warning, since
+    that path executes pickled code: only load files you trust. On torch < 1.13
+    (no ``weights_only`` support) it behaves like a plain ``torch.load``.
+    """
+    if torch_version() < "1.13.0":
+        return torch.load(f, **kwargs)
+    try:
+        return torch.load(f, weights_only=True, **kwargs)
+    except (pickle.UnpicklingError, RuntimeError) as exp:
+        LOGGER.warning(
+            "torch.load of %s requires full unpickling (weights_only=False), "
+            "which executes pickled code; only do this for files you trust "
+            "(%s)",
+            f,
+            type(exp).__name__,
+        )
+        return torch.load(f, weights_only=False, **kwargs)
 
 
 def select_ctx_disable_torch_fn():

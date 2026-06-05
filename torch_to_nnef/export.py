@@ -42,7 +42,12 @@ from torch_to_nnef.torch_graph.ir_naming import (
     DEFAULT_VARNAME_SCHEME,
     VariableNamingScheme,
 )
-from torch_to_nnef.utils import dedup_list, ensure_tuple_io, torch_version
+from torch_to_nnef.utils import (
+    dedup_list,
+    ensure_tuple_io,
+    torch_safe_load,
+    torch_version,
+)
 
 LOGGER = log.getLogger(__name__)
 
@@ -753,7 +758,7 @@ def iter_torch_tensors_from_disk(
     elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):
         # Always load tensors to the requested device (default CPU) to avoid
         # device-specific state and environments lacking CUDA.
-        res = torch.load(store_filepath, map_location=map_location)
+        res = torch_safe_load(store_filepath, map_location=map_location)
         if isinstance(res, torch.nn.Module):
             for key, tensor in res.named_parameters():
                 if filter_key(key):
