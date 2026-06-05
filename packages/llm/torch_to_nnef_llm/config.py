@@ -140,13 +140,15 @@ def register_raw_model_from_slug(model_id, trust_remote_code: bool = True):
     return new_model_id
 
 
-def get_tokenizer_from_slug(mdl_slug):
+def get_tokenizer_from_slug(mdl_slug, trust_remote_code: bool = True):
     tok_slug = mdl_slug
     if mdl_slug in CUSTOM_CONFIGS:
         tok_slug = REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG.get(
             CUSTOM_CONFIGS[mdl_slug].model_type, mdl_slug
         )
-    return AutoTokenizer.from_pretrained(tok_slug, trust_remote_code=True)
+    return AutoTokenizer.from_pretrained(
+        tok_slug, trust_remote_code=trust_remote_code
+    )
 
 
 class HFConfigHelper:

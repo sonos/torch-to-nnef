@@ -69,6 +69,7 @@ def load_tokenizer(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     *,
+    trust_remote_code: bool = True,
     transformers: InjectedTransformersModule = INJECTED,
 ):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -80,7 +81,7 @@ def load_tokenizer(
     if local_dir is not None:
         local_dir = find_subdir_with_filename_in(local_dir, "tokenizer.json")
     return transformers.AutoTokenizer.from_pretrained(
-        local_dir or tokenizer_slug, trust_remote_code=True
+        local_dir or tokenizer_slug, trust_remote_code=trust_remote_code
     )
 
 
@@ -248,11 +249,26 @@ def load_model(
     force_module_dtype: T.Optional[DtypeStr] = None,
     merge_peft: T.Optional[bool] = None,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
+    trust_remote_code: bool = True,
     *,
     transformers: InjectedTransformersModule = INJECTED,
 ):
-    """Load a model from a slug, local checkpoint, or custom config."""
-    kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
+    """Load a model from a slug, local checkpoint, or custom config.
+
+    ``trust_remote_code`` is forwarded to transformers. When True (the default,
+    needed by models whose architecture ships custom code on the Hub), loading
+    a model **executes arbitrary Python from its repository**: only export
+    models you trust, or pass ``trust_remote_code=False`` (CLI
+    ``--no-trust-remote-code``) to refuse it.
+    """
+    if trust_remote_code:
+        LOGGER.warning(
+            "trust_remote_code is enabled: loading '%s' may execute arbitrary "
+            "code from the model repository. Pass --no-trust-remote-code to "
+            "refuse it (standard architectures load fine without it).",
+            hf_model_slug or local_dir,
+        )
+    kwargs: T.Dict[str, T.Any] = {"trust_remote_code": trust_remote_code}
     # transformers 5.x defaults to a fused SDPA attention path that (a) passes
     # mixed-dtype q/k/v (bf16 query vs float key/value) which the SDPA kernel
     # rejects during the export forward, and (b) exports to the fused

@@ -159,6 +159,17 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--trust-remote-code",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="forward trust_remote_code to transformers. When enabled "
+            "(default, required by models whose architecture ships custom "
+            "code on the Hub), loading a model EXECUTES ARBITRARY CODE from "
+            "its repository. Pass --no-trust-remote-code to refuse it "
+            "(standard architectures load fine without it).",
+        )
+
+        parser.add_argument(
             "--device-map",
             help="**device_map** as in huggingface library 'accelerate'."
             " This allow to place different parts of a model, "
