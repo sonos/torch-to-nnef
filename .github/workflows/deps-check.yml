@@ -3,8 +3,9 @@ name: deps check
 # Gate for dependency-related changes (Dependabot PRs, manifest/lockfile edits)
 # that the path-filtered ci-*.yml suites would otherwise leave untested.
 # Deliberately lightweight: schema/consistency/pinning checks, no heavy builds.
-# Deep Rust auditing (cargo-deny: advisories/bans/sources/licenses) runs here.
-# Python CVE scanning + SPDX SBOM live in security-scan.yml.
+# Deep Rust auditing (cargo-deny: advisories/bans/sources/licenses) and GitHub
+# Actions auditing (zizmor) run here. Python CVE scanning + SPDX SBOM live in
+# security-scan.yml.
 on:
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - ".github/dependabot.yml"
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - ".github/zizmor.yml"
   workflow_dispatch:
 
 permissions:
@@ -27,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       - name: Validate .github/dependabot.yml
         run: uv run --no-project --with pyyaml python .github/scripts/check_dependabot.py
@@ -38,6 +42,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       - name: Workspace lock up to date with pyproject
         run: uv lock --check
@@ -50,6 +56,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
       - name: cargo verify-project (all example crate roots)
         run: |
           set -euo pipefail
@@ -76,6 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
       - name: Install cargo-deny
         run: |
           set -euo pipefail
@@ -113,3 +123,21 @@ jobs:
               check advisories bans sources licenses --config examples/deny.toml
             echo "::endgroup::"
           done
+
+  zizmor:
+    name: zizmor (GitHub Actions security audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      # Fail on medium+ findings (excessive permissions, template injection,
+      # credential persistence, ...). Informational advisories (e.g.
+      # use-trusted-publishing) are surfaced but non-blocking. Offline: no GH
+      # token needed since actions are already SHA-pinned. Config in
+      # .github/zizmor.yml; version pinned for reproducibility.
+      - name: Run zizmor
+        run: |
+          uv tool run --from zizmor==1.25.2 zizmor \
+            --min-severity=medium --offline .github/workflows/
