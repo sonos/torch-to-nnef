@@ -5,9 +5,10 @@ with a few retries and backoff, so the collection-time ``from_pretrained`` calls
 hit the cache instead of racing Hugging Face's per-IP rate limit (HTTP 429) on
 shared CI runners.
 
-Best-effort by design: a model that cannot be fetched is logged and skipped,
-never failing the step (the test will still attempt its own download). This can
-only help, never introduce a failure.
+Best-effort for HF download failures: a model that cannot be fetched after
+retries is logged and skipped (the test will still attempt its own download),
+so this only helps. Only HF request errors are handled; an unexpected
+(non-request) error is left to propagate rather than be masked.
 
 The slugs mirror the *real-download* entries in ``torch_to_nnef_llm.config``;
 the ``*_debug`` slugs there are synthetic local configs and are intentionally
@@ -16,6 +17,9 @@ absent. Keep this list in sync if the suite starts exercising a new hub model.
 
 import sys
 import time
+
+from huggingface_hub import snapshot_download
+from huggingface_hub.errors import HfHubHTTPError
 
 # Real HF repos pulled by tests/ (see torch_to_nnef_llm.config slug enums).
 MODELS = [
@@ -51,14 +55,16 @@ def _http_status(exc: BaseException) -> "int | None":
 
 
 def prefetch(repo_id: str, attempts: int = 5, base_delay: float = 3.0) -> None:
-    from huggingface_hub import snapshot_download
-
     for i in range(1, attempts + 1):
         try:
             snapshot_download(repo_id)
             print(f"[prefetch] ok: {repo_id}")
             return
-        except Exception as e:
+        # HfHubHTTPError is the base of every HF HTTP error (429/5xx + auth/404,
+        # and the LocalEntryNotFoundError that wraps a rate-limited fetch), and
+        # imports without the requests/httpx backend (which the minimal prefetch
+        # env lacks). A non-HF error is unexpected and is left to propagate.
+        except HfHubHTTPError as e:
             status = _http_status(e)
             if status in PERMANENT:
                 print(f"[prefetch] skip {repo_id}: HTTP {status} (permanent)")
