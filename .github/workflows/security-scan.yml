@@ -18,13 +18,9 @@ name: security scan
 # otherwise changed. Acknowledged/unfixable findings go in `.trivyignore` (read
 # automatically) with a rationale, the same audit-trail pattern as cargo-deny.
 on:
+  # Runs on every PR (no path filter) so the CVE gate can be a required status
+  # check without freezing PRs that don't touch dependency files.
   pull_request:
-    paths:
-      - "**/uv.lock"
-      - "**/pyproject.toml"
-      - "**/requirements*.txt"
-      - ".trivyignore"
-      - ".github/workflows/security-scan.yml"
   schedule:
     - cron: "0 6 * * 1" # Mondays 06:00 UTC
   workflow_dispatch:
