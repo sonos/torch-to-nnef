@@ -21,7 +21,7 @@ from torch_to_nnef_llm.config import (
     OpenELMSlugs,
     PHISlugs,
 )
-from torch_to_nnef_llm.exporter import dump_llm
+from torch_to_nnef_llm.exporter import DEFAULT_HF_DOWNLOAD_N_RETRIES, dump_llm
 
 LOGGER = logging.getLogger(__name__)
 
@@ -147,6 +147,15 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "(if 0 all are kept) "
             "by default for classical inference setting it to 1 is fine, "
             "in case of speculative-decoding it may be more (typically 2 or 3)",
+        )
+
+        parser.add_argument(
+            "--hf-download-n-retries",
+            type=int,
+            default=DEFAULT_HF_DOWNLOAD_N_RETRIES,
+            help="number of retries (exponential backoff) on transient "
+            "Hugging Face download failures (HTTP 429 rate limit / 5xx); "
+            "set 0 to disable",
         )
 
         parser.add_argument(

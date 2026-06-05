@@ -166,6 +166,26 @@ def load_peft_model(
         return hf_model_causal
 
 
+def _resolve_snapshot_dir(slug: str, huggingface_hub) -> str:
+    """Return the local snapshot dir for ``slug``, cache-first.
+
+    ``list_repo_files`` has no cache mode and hits the rate-limited ``/tree``
+    endpoint even for an already-cached model, so prefer ``snapshot_download``
+    with ``local_files_only=True`` (no hub call when cached) and fall back to a
+    networked ``snapshot_download`` only on a genuine cache miss (whose
+    transient failures the LLMExporter.load retry then covers).
+    """
+    # local import: huggingface_hub is an optional extra (injected), so it is
+    # only importable inside this call path which requires it.
+    # pylint: disable-next=import-outside-toplevel
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    try:
+        return huggingface_hub.snapshot_download(slug, local_files_only=True)
+    except LocalEntryNotFoundError:
+        return huggingface_hub.snapshot_download(slug)
+
+
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def _from_pretrained(
@@ -180,10 +200,9 @@ def _from_pretrained(
         if Path(slug_or_dir).exists():
             weights_location = Path(slug_or_dir)
         else:
-            hf_repo_files = huggingface_hub.list_repo_files(slug_or_dir)
             weights_location = Path(
-                huggingface_hub.hf_hub_download(slug_or_dir, hf_repo_files[-1])
-            ).parent
+                _resolve_snapshot_dir(str(slug_or_dir), huggingface_hub)
+            )
 
         with init_empty_weights():
             model = transformers.AutoModelForCausalLM.from_pretrained(
