@@ -43,7 +43,11 @@ from torch.overrides import get_default_nowrap_functions
 from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef.tensor.opaque import OpaqueTensor
 from torch_to_nnef.tensor.updater import ModTensorUpdater
-from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
+from torch_to_nnef.utils import (
+    select_ctx_disable_torch_fn,
+    torch_safe_load,
+    torch_version,
+)
 
 AUTO_DEVICE_MAP_KEY = "t2n_auto"
 ON_DISK_DEVICE_MAP_KEY = "t2n_offload_disk"
@@ -345,7 +349,7 @@ class OffloadedTensor(OpaqueTensor):
             return torch.load(self.offload_path, **load_kwargs).to(
                 self.target_device
             )
-        return torch.load(self.offload_path).to(self.target_device)
+        return torch_safe_load(self.offload_path).to(self.target_device)
 
     def _to_base_tensor(self) -> torch.Tensor:
         return self.reload()
@@ -505,7 +509,9 @@ def load_state_dict(
             dtype casting in memory directly)
     """
     if not checkpoint_file.name.endswith(".safetensors"):
-        return torch.load(checkpoint_file, map_location=torch.device("cpu"))
+        return torch_safe_load(
+            checkpoint_file, map_location=torch.device("cpu")
+        )
     # pylint: disable-next=import-outside-toplevel
     import safetensors
 
