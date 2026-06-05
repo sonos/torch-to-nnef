@@ -1,0 +1,14 @@
+# Code owners for security-critical configuration.
+#
+# Changes to these paths require review from a code owner. This only becomes a
+# hard gate once "Require review from Code Owners" is enabled in branch
+# protection; repo admins bypass it (per repo policy), which also means the sole
+# owner is never blocked on their own PRs.
+#
+# Scope is deliberately narrow: only the machinery that protects everything else
+# (CI workflows + the gate configs). Regular code under torch_to_nnef/ and
+# packages/ uses normal review.
+
+/.github/             @JulienBalianSonos
+/examples/deny.toml   @JulienBalianSonos
+/SECURITY.md          @JulienBalianSonos
