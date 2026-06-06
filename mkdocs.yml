@@ -117,6 +117,7 @@ theme:
 
 nav:
   - Home: index.md
+  - '🚀 Live demos': demos.md
   - '📖 Tutorials':
     - '1. Getting started': "tutos/1_getting_started.md"
     - '2. NNEF archive': "tutos/2_nnef_archive.md"
