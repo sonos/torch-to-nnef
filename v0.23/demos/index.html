@@ -9,25 +9,25 @@
       
       
       
-        <link rel="prev" href="../6_quantization/">
+        <link rel="prev" href="..">
       
       
-        <link rel="next" href="../8_custom_operator/">
+        <link rel="next" href="../tutos/1_getting_started/">
       
       
-      <link rel="icon" href="../../img/t2n_ico.png">
+      <link rel="icon" href="../img/t2n_ico.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
     
     
       
-        <title>7. Offloaded tensors - Torch → NNEF documentation</title>
+        <title>🚀 Live demos - Torch → NNEF documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -46,11 +46,11 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../../style.css">
+      <link rel="stylesheet" href="../style.css">
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#7-offloaded-tensors" class="md-skip">
+        <a href="#live-demos" class="md-skip">
           Skip to content
         </a>
       
@@ -97,7 +97,7 @@
  - add "documentation" as fixed header topic
 -->
 
-<script type="text/javascript" src="../../html/sync_sender_colorscheme.js"></script>
+<script type="text/javascript" src="../html/sync_sender_colorscheme.js"></script>
 <!-- Determine classes -->
 
 
@@ -113,14 +113,14 @@
 
     <!-- Link to home -->
     <a
-      href="../.."
+      href=".."
       title="Torch → NNEF documentation"
       class="md-header__button md-logo"
       aria-label="Torch → NNEF documentation"
       data-md-component="logo"
     >
-      <img class="logo-img" src="../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
-<img class="logo-img" src="../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
+      <img class="logo-img" src="../img/torch_to_nnef.png#only-light"  alt="logo-light" />
+<img class="logo-img" src="../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
     </a>
 
     <!-- Button to open drawer -->
@@ -140,7 +140,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              7. Offloaded tensors
+              🚀 Live demos
             
           </span>
         </div>
@@ -282,9 +282,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="Torch → NNEF documentation" class="md-nav__button md-logo" aria-label="Torch → NNEF documentation" data-md-component="logo">
-      <img class="logo-img" src="../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
-<img class="logo-img" src="../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
+    <a href=".." title="Torch → NNEF documentation" class="md-nav__button md-logo" aria-label="Torch → NNEF documentation" data-md-component="logo">
+      <img class="logo-img" src="../img/torch_to_nnef.png#only-light"  alt="logo-light" />
+<img class="logo-img" src="../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
     </a>
     Torch → NNEF documentation
   </label>
@@ -310,7 +310,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   
@@ -329,10 +329,19 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../demos/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -343,6 +352,7 @@
   
 
       </a>
+      
     </li>
   
 
@@ -351,20 +361,18 @@
       
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -380,7 +388,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             📖 Tutorials
@@ -394,7 +402,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../1_getting_started/" class="md-nav__link">
+      <a href="../tutos/1_getting_started/" class="md-nav__link">
         
   
   
@@ -417,7 +425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../2_nnef_archive/" class="md-nav__link">
+      <a href="../tutos/2_nnef_archive/" class="md-nav__link">
         
   
   
@@ -440,7 +448,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../3_multi_inputs_outputs/" class="md-nav__link">
+      <a href="../tutos/3_multi_inputs_outputs/" class="md-nav__link">
         
   
   
@@ -463,7 +471,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../4_dynamic_axes/" class="md-nav__link">
+      <a href="../tutos/4_dynamic_axes/" class="md-nav__link">
         
   
   
@@ -486,7 +494,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../5_llm/" class="md-nav__link">
+      <a href="../tutos/5_llm/" class="md-nav__link">
         
   
   
@@ -509,7 +517,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../6_quantization/" class="md-nav__link">
+      <a href="../tutos/6_quantization/" class="md-nav__link">
         
   
   
@@ -529,32 +537,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    7. Offloaded tensors
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../tutos/7_offloaded_tensor/" class="md-nav__link">
         
   
   
@@ -565,86 +551,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;OffloadedTensor
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" OffloadedTensor">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.is_meta" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;is_meta
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.from_original_tensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_original_tensor
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.to" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;to
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.update_values" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;update_values
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.compress.offloaded_tensor_qtensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;offloaded_tensor_qtensor
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -657,7 +563,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../8_custom_operator/" class="md-nav__link">
+      <a href="../tutos/8_custom_operator/" class="md-nav__link">
         
   
   
@@ -680,7 +586,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../9_peft/" class="md-nav__link">
+      <a href="../tutos/9_peft/" class="md-nav__link">
         
   
   
@@ -703,7 +609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../10_nemo/" class="md-nav__link">
+      <a href="../tutos/10_nemo/" class="md-nav__link">
         
   
   
@@ -726,7 +632,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../11_remodeler/" class="md-nav__link">
+      <a href="../tutos/11_remodeler/" class="md-nav__link">
         
   
   
@@ -749,7 +655,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../12_jit_only_models/" class="md-nav__link">
+      <a href="../tutos/12_jit_only_models/" class="md-nav__link">
         
   
   
@@ -779,7 +685,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../export_api/" class="md-nav__link">
+      <a href="../export_api/" class="md-nav__link">
         
   
   
@@ -877,7 +783,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/" class="md-nav__link">
         
   
   
@@ -900,7 +806,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/collect_env/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/collect_env/" class="md-nav__link">
         
   
   
@@ -923,7 +829,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/compress/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/compress/" class="md-nav__link">
         
   
   
@@ -946,7 +852,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/console/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/console/" class="md-nav__link">
         
   
   
@@ -969,7 +875,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/dtypes/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/dtypes/" class="md-nav__link">
         
   
   
@@ -992,7 +898,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/exceptions/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/exceptions/" class="md-nav__link">
         
   
   
@@ -1015,7 +921,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/export/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/export/" class="md-nav__link">
         
   
   
@@ -1076,7 +982,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/inference_target/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/inference_target/" class="md-nav__link">
         
   
   
@@ -1099,7 +1005,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/inference_target/base/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/inference_target/base/" class="md-nav__link">
         
   
   
@@ -1122,7 +1028,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/inference_target/khronos/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/inference_target/khronos/" class="md-nav__link">
         
   
   
@@ -1145,7 +1051,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/inference_target/tract/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/inference_target/tract/" class="md-nav__link">
         
   
   
@@ -1176,7 +1082,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/log/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/log/" class="md-nav__link">
         
   
   
@@ -1199,7 +1105,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/model_wrapper/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/model_wrapper/" class="md-nav__link">
         
   
   
@@ -1222,7 +1128,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/nnef_graph/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/nnef_graph/" class="md-nav__link">
         
   
   
@@ -1283,7 +1189,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/" class="md-nav__link">
         
   
   
@@ -1344,7 +1250,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/" class="md-nav__link">
         
   
   
@@ -1367,7 +1273,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/activation/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/activation/" class="md-nav__link">
         
   
   
@@ -1390,7 +1296,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/attn/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/attn/" class="md-nav__link">
         
   
   
@@ -1413,7 +1319,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/axes_change/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/axes_change/" class="md-nav__link">
         
   
   
@@ -1436,7 +1342,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/complex/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/complex/" class="md-nav__link">
         
   
   
@@ -1459,7 +1365,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/concat/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/concat/" class="md-nav__link">
         
   
   
@@ -1482,7 +1388,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/expand/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/expand/" class="md-nav__link">
         
   
   
@@ -1505,7 +1411,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/fft/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/fft/" class="md-nav__link">
         
   
   
@@ -1528,7 +1434,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/loss/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/loss/" class="md-nav__link">
         
   
   
@@ -1551,7 +1457,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/math/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/math/" class="md-nav__link">
         
   
   
@@ -1574,7 +1480,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/matmul/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/matmul/" class="md-nav__link">
         
   
   
@@ -1597,7 +1503,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/norm/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/norm/" class="md-nav__link">
         
   
   
@@ -1620,7 +1526,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/other/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/other/" class="md-nav__link">
         
   
   
@@ -1643,7 +1549,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/pad/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/pad/" class="md-nav__link">
         
   
   
@@ -1666,7 +1572,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/pool/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/pool/" class="md-nav__link">
         
   
   
@@ -1689,7 +1595,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/qops/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/qops/" class="md-nav__link">
         
   
   
@@ -1712,7 +1618,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/reducer/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/reducer/" class="md-nav__link">
         
   
   
@@ -1735,7 +1641,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/rnn/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/rnn/" class="md-nav__link">
         
   
   
@@ -1758,7 +1664,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/selector/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/selector/" class="md-nav__link">
         
   
   
@@ -1781,7 +1687,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/split/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/split/" class="md-nav__link">
         
   
   
@@ -1804,7 +1710,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/tensor_build/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/tensor_build/" class="md-nav__link">
         
   
   
@@ -1827,7 +1733,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/aten/unary/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/aten/unary/" class="md-nav__link">
         
   
   
@@ -1896,7 +1802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/custom_extractors/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/custom_extractors/" class="md-nav__link">
         
   
   
@@ -1919,7 +1825,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/custom_extractors/base/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/custom_extractors/base/" class="md-nav__link">
         
   
   
@@ -1942,7 +1848,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/custom_extractors/rnn/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/custom_extractors/rnn/" class="md-nav__link">
         
   
   
@@ -2011,7 +1917,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/extras/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/extras/" class="md-nav__link">
         
   
   
@@ -2034,7 +1940,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/extras/scan_ops/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/extras/scan_ops/" class="md-nav__link">
         
   
   
@@ -2065,7 +1971,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/fragment/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/fragment/" class="md-nav__link">
         
   
   
@@ -2088,7 +1994,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/helper/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/helper/" class="md-nav__link">
         
   
   
@@ -2111,7 +2017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/op/quantized/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/op/quantized/" class="md-nav__link">
         
   
   
@@ -2180,7 +2086,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/remodeler/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/remodeler/" class="md-nav__link">
         
   
   
@@ -2203,7 +2109,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/remodeler/adapter/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/remodeler/adapter/" class="md-nav__link">
         
   
   
@@ -2226,7 +2132,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/remodeler/dyn_axes/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/remodeler/dyn_axes/" class="md-nav__link">
         
   
   
@@ -2249,7 +2155,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/remodeler/inspect_utils/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/remodeler/inspect_utils/" class="md-nav__link">
         
   
   
@@ -2272,7 +2178,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/remodeler/rich_render/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/remodeler/rich_render/" class="md-nav__link">
         
   
   
@@ -2295,7 +2201,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/remodeler/schema/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/remodeler/schema/" class="md-nav__link">
         
   
   
@@ -2318,7 +2224,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/remodeler/serialize/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/remodeler/serialize/" class="md-nav__link">
         
   
   
@@ -2387,7 +2293,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/" class="md-nav__link">
         
   
   
@@ -2410,7 +2316,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/named/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/named/" class="md-nav__link">
         
   
   
@@ -2433,7 +2339,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/offload/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/offload/" class="md-nav__link">
         
   
   
@@ -2456,7 +2362,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/opaque/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/opaque/" class="md-nav__link">
         
   
   
@@ -2517,7 +2423,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/quant/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/quant/" class="md-nav__link">
         
   
   
@@ -2540,7 +2446,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/quant/base/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/quant/base/" class="md-nav__link">
         
   
   
@@ -2563,7 +2469,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/quant/qtract/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/quant/qtract/" class="md-nav__link">
         
   
   
@@ -2594,7 +2500,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/updater/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/updater/" class="md-nav__link">
         
   
   
@@ -2617,7 +2523,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/tensor/utils/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/tensor/utils/" class="md-nav__link">
         
   
   
@@ -2686,7 +2592,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/" class="md-nav__link">
         
   
   
@@ -2709,7 +2615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/harden/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/harden/" class="md-nav__link">
         
   
   
@@ -2732,7 +2638,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/ir_data/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/ir_data/" class="md-nav__link">
         
   
   
@@ -2755,7 +2661,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/ir_graph/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/ir_graph/" class="md-nav__link">
         
   
   
@@ -2778,7 +2684,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/ir_helpers/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/ir_helpers/" class="md-nav__link">
         
   
   
@@ -2801,7 +2707,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/ir_module_tracer/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/ir_module_tracer/" class="md-nav__link">
         
   
   
@@ -2824,7 +2730,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/ir_naming/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/ir_naming/" class="md-nav__link">
         
   
   
@@ -2847,7 +2753,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/ir_op/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/ir_op/" class="md-nav__link">
         
   
   
@@ -2870,7 +2776,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/jit_inline/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/jit_inline/" class="md-nav__link">
         
   
   
@@ -2893,7 +2799,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/jit_passes/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/jit_passes/" class="md-nav__link">
         
   
   
@@ -2916,7 +2822,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/jit_utils/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/jit_utils/" class="md-nav__link">
         
   
   
@@ -2939,7 +2845,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/torch_graph/torch_const/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/torch_graph/torch_const/" class="md-nav__link">
         
   
   
@@ -2970,7 +2876,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/torch_to_nnef/utils/" class="md-nav__link">
+      <a href="../reference/torch_to_nnef/utils/" class="md-nav__link">
         
   
   
@@ -3046,7 +2952,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/guidelines/" class="md-nav__link">
+      <a href="../contributing/guidelines/" class="md-nav__link">
         
   
   
@@ -3069,7 +2975,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/extras_api/" class="md-nav__link">
+      <a href="../contributing/extras_api/" class="md-nav__link">
         
   
   
@@ -3092,7 +2998,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/internal_design/" class="md-nav__link">
+      <a href="../contributing/internal_design/" class="md-nav__link">
         
   
   
@@ -3115,7 +3021,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/supported_operators/" class="md-nav__link">
+      <a href="../contributing/supported_operators/" class="md-nav__link">
         
   
   
@@ -3138,7 +3044,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/add_new_aten_op/" class="md-nav__link">
+      <a href="../contributing/add_new_aten_op/" class="md-nav__link">
         
   
   
@@ -3161,7 +3067,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/debugging/" class="md-nav__link">
+      <a href="../contributing/debugging/" class="md-nav__link">
         
   
   
@@ -3191,7 +3097,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../why_nnef/" class="md-nav__link">
+      <a href="../why_nnef/" class="md-nav__link">
         
   
   
@@ -3213,7 +3119,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../backstory/" class="md-nav__link">
+      <a href="../backstory/" class="md-nav__link">
         
   
   
@@ -3235,7 +3141,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../CHANGELOG/" class="md-nav__link">
+      <a href="../CHANGELOG/" class="md-nav__link">
         
   
   
@@ -3270,74 +3176,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;OffloadedTensor
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" OffloadedTensor">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.is_meta" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;is_meta
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.from_original_tensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_original_tensor
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.to" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;to
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.update_values" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;update_values
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.compress.offloaded_tensor_qtensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;offloaded_tensor_qtensor
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -3355,368 +3193,46 @@
   
 
 
-<h1 id="7-offloaded-tensors">7. Offloaded Tensors</h1>
-<div class="admonition abstract">
-<p class="admonition-title">Goals</p>
-<p>At the end of this tutorial you will be able to:</p>
-<ol>
-<li><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16h-2v-1H8v1H6v-1H2v5h20v-5h-4zm2-8h-3V6c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v4h4v-2h2v2h8v-2h2v2h4v-4c0-1.1-.9-2-2-2m-5 0H9V6h6z"/></svg></span> Use offloaded tensors when wished</li>
-</ol>
+<h1 id="live-demos">Live demos</h1>
+<p>Every model below was exported from PyTorch with <code>torch_to_nnef</code>, then runs <strong>entirely in your browser</strong>: no server, no upload, no API call. The inference is powered by <a href="https://github.com/sonos/tract/"><strong>tract</strong></a>, the neural network engine developed openly by <a href="https://sonos.com">SONOS</a>, compiled to WebAssembly.</p>
+<div class="admonition tip">
+<p class="admonition-title">Same engine, everywhere</p>
+<p>The exact NNEF archives driving these demos are the kind you produce by following the <a href="../tutos/1_getting_started/">tutorials</a>. The very same files run on server, desktop, mobile, and embedded targets through tract. WASM here is just one deployment of the portable artifact.</p>
 </div>
-<div class="admonition example">
-<p class="admonition-title">Prerequisite</p>
-<ul class="task-list">
-<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> PyTorch and Python basics</li>
-<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 5 min to read this page</li>
-</ul>
-</div>
-<p>Offload tensors have been developed to allow to manipulate and export more
-easily large neural network models.</p>
-<p>Recall that if you only want to export a LLM model offloaded you can look at <a href="../5_llm/">our
-related LLM tutorial</a> and do not need to look at what happen behind.</p>
-<p>This class is defined as such:</p>
+<p>Click any card to launch its demo in a new tab (each one only downloads its model when you open it):</p>
 <div class="grid cards">
 <ul>
 <li>
-
-
-<div class="doc doc-object doc-class">
-
-
-
-<h3 id="torch_to_nnef.tensor.offload.OffloadedTensor" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">torch_to_nnef.tensor.offload.OffloadedTensor</span>
-
-
-</h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">OffloadedTensor</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">offload_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">offloaded_tensor_type</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Type</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">force_gc_collect</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="            OpaqueTensor (torch_to_nnef.tensor.opaque.OpaqueTensor)" href="../../reference/torch_to_nnef/tensor/opaque/#torch_to_nnef.tensor.opaque.OpaqueTensor">OpaqueTensor</a></code></p>
-
-
-        <p>Tensor subclass that maintains data on disk.</p>
-<p>It hold an virtual internal memory storage (permanent)
-and a temporary instantiation at each operation accessing it
-on targeted device.</p>
-
-
-<details class="warning" open>
-  <summary>Warning</summary>
-  <p>we recommend to version of PyTorch &gt; 1.12 for best compatibility.</p>
-</details>
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h4 id="torch_to_nnef.tensor.offload.OffloadedTensor.is_meta" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">is_meta</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">is_meta</span><span class="p">:</span> <span class="nb">bool</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Whether the tensor is on the meta device.</p>
-<p>Always False as the tensor is (off|re)loaded from disk.</p>
-    </div>
-
-</div>
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h4 id="torch_to_nnef.tensor.offload.OffloadedTensor.from_original_tensor" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">from_original_tensor</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
-  </span>
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">from_original_tensor</span><span class="p">(</span><span class="n">tensor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">offload_dir</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">suffix_log_msg</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Take a torch.Tensor or OpaqueTensor and offload it to disk.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td><code>tensor</code></td>
-            <td>
-                  <code><span title="torch.Tensor">Tensor</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>the torch.Tensor or torch_to_nnef.tensor.OpaqueTensor
-to dump on disk</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code>name</code></td>
-            <td>
-                  <code><span title="str">str</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>the name of the tensor that will be used to create
-the filename store on disk</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code>offload_dir</code></td>
-            <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="pathlib.Path">Path</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The directory where this file will be stored (temporarly)</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code>suffix_log_msg</code></td>
-            <td>
-                  <code><span title="str">str</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Added message log suffix for context</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;&#39;</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h4 id="torch_to_nnef.tensor.offload.OffloadedTensor.to" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">to</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">to</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Change the target device when reloaded in memory.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h4 id="torch_to_nnef.tensor.offload.OffloadedTensor.update_values" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">update_values</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">update_values</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">strict_shape</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">strict_dtype</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Replace offloaded tensor by new 'values' tensor.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td><code>values</code></td>
-            <td>
-                  <code><span title="torch.Tensor">Tensor</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The tensor that will replace it on disk
-assertion are made to ensure same shape, dtype
-as prior</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code>strict_shape</code></td>
-            <td>
-                  <code><span title="bool">bool</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>if True (default) the shape of the new tensor
-must be the same as the prior one</p>
-              </div>
-            </td>
-            <td>
-                  <code>True</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code>strict_dtype</code></td>
-            <td>
-                  <code><span title="bool">bool</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>if True (default) the dtype of the new tensor
-must be the same as the prior one</p>
-              </div>
-            </td>
-            <td>
-                  <code>True</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-    </div>
-
-</div>
-
-
-
-  </div>
-
-    </div>
-
-</div></li>
-</ul>
-</div>
-<p>You can directly load any <em>.safetensor</em> or <em>.pt</em> into this object that will mimic classical
-<code>torch.Tensor</code> except that each access will load the Tensor from disk and remove it from RAM as
-soon as those are not needed, allowing to manipulate very large model bit by bit.
-It is composable with other <code>torch_to_nnef.tensor.opaque.OpaqueTensor</code> such as <code>QTensor</code>.</p>
-<p>To load from disk without overhead,
-you can call the <code>t2n_load_checkpoint_and_dispatch</code> with appropriate options like in the following example:</p>
-<div class="language-python highlight"><span class="filename">example of offload usage from disk (extracted from LLM exporter)</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">torch_to_nnef.tensor.offload</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">ON_DISK_DEVICE_MAP_KEY</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">t2n_load_checkpoint_and_dispatch</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">torch_to_nnef.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">init_empty_weights</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="kn">from</span><span class="w"> </span><span class="nn">transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">AutoModelForCausalLM</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="kn">import</span><span class="w"> </span><span class="nn">huggingface_hub</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">slug</span> <span class="o">=</span> <span class="s2">&quot;meta-llama/Llama-3.2-1B-Instruct&quot;</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">with</span> <span class="n">init_empty_weights</span><span class="p">():</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="c1"># model instantiation with empty tensors</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="c1"># this can be come from any library (here transformers)</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">model</span> <span class="o">=</span> <span class="n">AutoModelForCausalLM</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">slug</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="n">hf_repo_files</span> <span class="o">=</span> <span class="n">huggingface_hub</span><span class="o">.</span><span class="n">list_repo_files</span><span class="p">(</span><span class="n">slug</span><span class="p">)</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="n">weights_location</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">huggingface_hub</span><span class="o">.</span><span class="n">hf_hub_download</span><span class="p">(</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        <span class="n">slug</span><span class="p">,</span> <span class="n">hf_repo_files</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="p">)</span>  <span class="c1"># assume at least 1 file is in targeted repo</span>
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="c1"># here model tensors are properly loaded into</span>
-</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="n">t2n_load_checkpoint_and_dispatch</span><span class="p">(</span>
-</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>    <span class="n">model</span><span class="p">,</span>
-</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>    <span class="n">weights_location</span><span class="p">,</span>
-</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>    <span class="n">device_map</span><span class="o">=</span><span class="n">ON_DISK_DEVICE_MAP_KEY</span><span class="p">,</span>
-</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>    <span class="n">offload_dir</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="s2">&quot;offload_t2n&quot;</span><span class="p">)),</span>
-</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="p">)</span>
-</span></code></pre></div>
-<p>These <code>OffloadedTensor</code> are also very useful to implement into quantization techniques to
-support very large model quantization with a calibration based on observed values like Hessian from activation.
-Indeed if we think of the Hessian example: these square matrices can be pretty large especially
-when multiplied by the number of activations on a big neural network.</p>
-<p>If you only wish to maintain QTensor into OffloadedTensor if original float
-tensor was offloaded you can just use the helper:</p>
-<div class="grid cards">
-<ul>
+<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m8.5 13.5 2.5 3 3.5-4.5 4.5 6H5m16 1V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2"/></svg></span> <strong>Image classifier</strong></p>
+<hr />
+<p><code>EfficientNet-B0</code> labelling an image, fully client-side.</p>
+<p><a href="../html/demo_image_classifier.html" target="_blank"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.22 19.03a.75.75 0 0 1 0-1.06L18.19 13H3.75a.75.75 0 0 1 0-1.5h14.44l-4.97-4.97a.749.749 0 0 1 .326-1.275.75.75 0 0 1 .734.215l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0"/></svg></span> Launch demo</a></p>
+</li>
 <li>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="torch_to_nnef.compress.offloaded_tensor_qtensor" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">torch_to_nnef.compress.offloaded_tensor_qtensor</span>
-
-
-</h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">offloaded_tensor_qtensor</span><span class="p">(</span><span class="n">q_fn</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">suffix_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Maintains a QTensor offloaded if original tensor is offloaded.</p>
-
-    </div>
-
-</div></li>
+<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.5 5.5c1.09 0 2-.92 2-2a2 2 0 0 0-2-2c-1.11 0-2 .88-2 2 0 1.08.89 2 2 2M9.89 19.38l1-4.38L13 17v6h2v-7.5l-2.11-2 .61-3A7.3 7.3 0 0 0 19 13v-2c-1.91 0-3.5-1-4.31-2.42l-1-1.58c-.4-.62-1-1-1.69-1-.31 0-.5.08-.81.08L6 8.28V13h2V9.58l1.79-.7L8.19 17l-4.9-1-.4 2z"/></svg></span> <strong>Pose estimator</strong></p>
+<hr />
+<p><code>YOLO</code> human pose estimation running on a still image.</p>
+<p><a href="../html/demo_pose_estimation.html" target="_blank"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.22 19.03a.75.75 0 0 1 0-1.06L18.19 13H3.75a.75.75 0 0 1 0-1.5h14.44l-4.97-4.97a.749.749 0 0 1 .326-1.275.75.75 0 0 1 .734.215l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0"/></svg></span> Launch demo</a></p>
+</li>
+<li>
+<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3 3 3 0 0 1-3-3V5a3 3 0 0 1 3-3m7 9c0 3.53-2.61 6.44-6 6.93V21h-2v-3.07c-3.39-.49-6-3.4-6-6.93h2a5 5 0 0 0 5 5 5 5 0 0 0 5-5z"/></svg></span> <strong>Voice activity detection</strong></p>
+<hr />
+<p><code>FSMN</code> VAD with dynamic, streamable input over live audio.</p>
+<p><a href="../html/demo_vad.html" target="_blank"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.22 19.03a.75.75 0 0 1 0-1.06L18.19 13H3.75a.75.75 0 0 1 0-1.5h14.44l-4.97-4.97a.749.749 0 0 1 .326-1.275.75.75 0 0 1 .734.215l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0"/></svg></span> Launch demo</a></p>
+</li>
+<li>
+<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 6v2H3V6zM3 18h9v-2H3zm0-5h18v-2H3z"/></svg></span> <strong>Poem generator</strong></p>
+<hr />
+<p>A small <code>LLM</code> generating text token by token, in-browser.</p>
+<p><a href="../html/demo_poem_generator.html" target="_blank"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.22 19.03a.75.75 0 0 1 0-1.06L18.19 13H3.75a.75.75 0 0 1 0-1.5h14.44l-4.97-4.97a.749.749 0 0 1 .326-1.275.75.75 0 0 1 .734.215l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0"/></svg></span> Launch demo</a></p>
+</li>
 </ul>
 </div>
-<p>If this is a new tensor just use the <code>OffloadedTensor.from_original_tensor</code> defined upper.</p>
+<div class="admonition note">
+<p class="admonition-title">Performance disclaimer</p>
+<p>These models are not trained by SONOS, so prediction quality is the responsibility of their original authors. The WASM builds are unoptimized (no SIMD WASM, no WebGPU kernels), so speed here understates what tract reaches on native targets. They exist to demonstrate portability, not peak performance.</p>
+</div>
+<p>Curious how they are built? Each demo's source lives under the project's <a href="https://github.com/sonos/torch-to-nnef/tree/main/examples"><code>examples/</code> directory</a>, and the step-by-step exports are covered in the <a href="../tutos/1_getting_started/">tutorials</a>. That directory holds many more than the WASM demos above (quantization, text-to-speech, NeMo ASR, Mamba, image generation, multi-input/output models, custom operators, and Rust integration samples), making it the best place to browse end-to-end, runnable usage.</p>
 
 
 
@@ -3739,7 +3255,7 @@ tensor was offloaded you can just use the helper:</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 25, 2025 12:52:02 UTC">July 25, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="June 6, 2026 21:42:53 UTC">June 6, 2026</span>
   </span>
 
     
@@ -3749,7 +3265,7 @@ tensor was offloaded you can just use the helper:</p>
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 9, 2025 07:36:05 UTC">July 9, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="June 6, 2026 21:41:09 UTC">June 6, 2026</span>
   </span>
 
     
@@ -3791,9 +3307,9 @@ tensor was offloaded you can just use the helper:</p>
         
           
           <a
-            href="../6_quantization/"
+            href=".."
             class="md-footer__link md-footer__link--prev"
-            aria-label="Previous: 6. Quantization"
+            aria-label="Previous: Home"
           >
             <div class="md-footer__button md-icon">
               
@@ -3804,7 +3320,7 @@ tensor was offloaded you can just use the helper:</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                6. Quantization
+                Home
               </div>
             </div>
           </a>
@@ -3814,16 +3330,16 @@ tensor was offloaded you can just use the helper:</p>
         
           
           <a
-            href="../8_custom_operator/"
+            href="../tutos/1_getting_started/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: 8. Custom operators"
+            aria-label="Next: 1. Getting started"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                8. Custom operators
+                1. Getting started
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -3840,7 +3356,7 @@ tensor was offloaded you can just use the helper:</p>
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
         <a href="https://www.sonos.com/">
-            <img src="../../img/SONOS.png" style="height:32px;margin: 16px;" alt="SONOS">
+            <img src="../img/SONOS.png" style="height:32px;margin: 16px;" alt="SONOS">
         </a>
       <div class="md-copyright">
   
@@ -3898,10 +3414,10 @@ tensor was offloaded you can just use the helper:</p>
     
     
       
-      <script id="__config" type="application/json">{"base": "../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"base": "..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      <script src="../assets/javascripts/bundle.56ea9cef.min.js"></script>
       
     
   </body>
