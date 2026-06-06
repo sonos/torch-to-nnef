@@ -3078,6 +3078,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.utils.torch_safe_load" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;torch_safe_load
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.utils.torch_version" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;torch_version
@@ -3567,6 +3576,15 @@
   <a href="#torch_to_nnef.utils.require_extra" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;require_extra
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.utils.torch_safe_load" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;torch_safe_load
     </span>
   </a>
   
@@ -4333,6 +4351,30 @@ the input is falsy.</p>
     <div class="doc doc-contents ">
 
         <p>Lazily import an optional dependency and raise a error if missing.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.utils.torch_safe_load" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">torch_safe_load</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">torch_safe_load</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>torch.load</code> that avoids arbitrary code execution by default.</p>
+<p>Prefers <code>weights_only=True</code> (loads tensors and primitives only). A file
+that genuinely needs full unpickling (a pickled <code>nn.Module</code> or a custom
+tensor subclass) falls back to <code>weights_only=False</code> with a warning, since
+that path executes pickled code: only load files you trust. On torch &lt; 1.13
+(no <code>weights_only</code> support) it behaves like a plain <code>torch.load</code>.</p>
 
     </div>
 
