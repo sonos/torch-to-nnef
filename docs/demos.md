@@ -48,4 +48,4 @@ Click any card to launch its demo in a new tab (each one only downloads its mode
 
     These models are not trained by SONOS, so prediction quality is the responsibility of their original authors. The WASM builds are unoptimized (no SIMD WASM, no WebGPU kernels), so speed here understates what tract reaches on native targets. They exist to demonstrate portability, not peak performance.
 
-Curious how they are built? Each demo's source lives under the project's [`examples/` directory](https://github.com/sonos/torch-to-nnef/tree/main/examples), and the step-by-step exports are covered in the [tutorials](tutos/1_getting_started.md).
+Curious how they are built? Each demo's source lives under the project's [`examples/` directory](https://github.com/sonos/torch-to-nnef/tree/main/examples), and the step-by-step exports are covered in the [tutorials](tutos/1_getting_started.md). That directory holds many more than the WASM demos above (quantization, text-to-speech, NeMo ASR, Mamba, image generation, multi-input/output models, custom operators, and Rust integration samples), making it the best place to browse end-to-end, runnable usage.
