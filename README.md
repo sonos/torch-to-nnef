@@ -7,6 +7,8 @@ Export any PyTorch model to [NNEF](https://registry.khronos.org/NNEF/specs/1.0/n
 
 `torch_to_nnef` traces a vanilla `nn.Module` (any internal tensor type, quantized models included) and produces a portable NNEF archive. Unlike the protobuf used by ONNX, the NNEF graph is human-readable text with weights kept aside as separate files, so you can open it and review exactly which ops got serialized. [tract](https://github.com/sonos/tract/), the inference engine developed openly by [SONOS](https://sonos.com), is the primary supported target: it gets extended operator coverage and an optional `check_io` step that compares tract outputs against PyTorch at export time.
 
+> 🚀 **See it run:** [live browser demos](https://sonos.github.io/torch-to-nnef/latest/demos/) (image classifier, pose estimation, voice activity detection, LLM) exported with `torch_to_nnef` and running through tract compiled to WASM, no install required.
+
 ## Quickstart
 
 ```bash
@@ -72,6 +74,7 @@ PyTorch >= 1.10.0 on Linux and macOS, against the last two major tract releases 
 The full documentation has step by step tutorials (from a first image classifier to LLM export), the export API reference, and the list of supported operators:
 
 - [Getting started](https://sonos.github.io/torch-to-nnef/latest/tutos/1_getting_started/) : export, check, and run a real model end to end
+- [Live demos](https://sonos.github.io/torch-to-nnef/latest/demos/) : exported models running in your browser via tract WASM
 - [Export API](https://sonos.github.io/torch-to-nnef/latest/export_api/)
 - [Supported operators](https://sonos.github.io/torch-to-nnef/latest/contributing/supported_operators/)
 - [Why NNEF?](https://sonos.github.io/torch-to-nnef/latest/why_nnef/)
