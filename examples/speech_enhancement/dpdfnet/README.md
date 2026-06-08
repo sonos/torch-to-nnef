@@ -150,12 +150,11 @@ flushes the last samples.
 
 - **Static batch size = 1**. DPDFNet is a per-frame streaming model;
   batched inference is unusual. The export uses static axes.
-- **No tract pulse-mode**. The artifact is per-frame with explicit
-  state I/O; the Rust wrapper threads state in a loop. Tract's pulse
-  declutter could in principle compile the per-frame graph into a
-  `model.run(audio_buffer) -> clean_buffer` call, which would
-  eliminate the per-frame call overhead. Out of scope here; would
-  benefit from tract upstream work.
+- **Per-frame variant threads state by hand**. The `export.py` artifact
+  is per-frame with explicit state I/O; `wav-cleaner-rs` threads state in
+  a loop. For the streaming alternative that lets tract's pulse declutter
+  compile a `model.run(audio_buffer) -> clean_buffer` call and buffer
+  state internally, see `export_pulse.py` + `wav-cleaner-pulse/` below.
 
 ## Files
 
@@ -163,11 +162,17 @@ flushes the last samples.
 examples/speech_enhancement/dpdfnet/
   bootstrap.sh         clone DPDFNet repo + download HF checkpoint
   export.py            wrap any DPDFNet variant + STFT + iFFT, export to NNEF
+  export_pulse.py      streaming-axis export: STFT + NN + iSTFT + OLA + GRU
+                       state folded into one pulse-mode NNEF artifact
   bench.py             tract per-op profile + NN/DSP split (manifest-aware)
   requirements.txt     pip deps (einops, soundfile, in-repo t2n)
   README.md            this file
   wav-cleaner-rs/      minimal tract-nnef Rust binary, WAV in / WAV out;
                        reads the sidecar manifest so it handles every variant
+    Cargo.toml
+    src/main.rs
+  wav-cleaner-pulse/   pulse-mode wrapper: tract buffers state internally,
+                       fed chunk by chunk (pinned to a sonos/tract main rev)
     Cargo.toml
     src/main.rs
 ```
