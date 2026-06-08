@@ -22,7 +22,9 @@ def main() -> int:
     errors: list[str] = []
     files = sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml"))
     for path in files:
-        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
             match = USES.search(line)
             if not match:
                 continue
@@ -31,14 +33,20 @@ def main() -> int:
                 continue  # local action
             if ref.startswith("docker://"):
                 if "@sha256:" not in ref:
-                    errors.append((path, lineno, ref, "docker ref not pinned by @sha256:"))
+                    errors.append(
+                        (path, lineno, ref, "docker ref not pinned by @sha256:")
+                    )
                 continue
             if "@" not in ref:
-                errors.append((path, lineno, ref, "no @ref (must be a commit SHA)"))
+                errors.append(
+                    (path, lineno, ref, "no @ref (must be a commit SHA)")
+                )
                 continue
             tag = ref.split("@", 1)[1]
             if not SHA40.match(tag):
-                errors.append((path, lineno, ref, "not pinned to a 40-char commit SHA"))
+                errors.append(
+                    (path, lineno, ref, "not pinned to a 40-char commit SHA")
+                )
 
     for path, lineno, ref, why in errors:
         print(f"::error file={path},line={lineno}::{ref} -> {why}")
