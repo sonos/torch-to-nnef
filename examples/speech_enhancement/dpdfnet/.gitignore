@@ -8,7 +8,4 @@ bench_work/
 *.log
 __pycache__/
 wav-cleaner-rs/target/
-wav-cleaner-rs/Cargo.lock
 wav-cleaner-pulse/target/
-wav-cleaner-pulse/Cargo.lock
-*.json
