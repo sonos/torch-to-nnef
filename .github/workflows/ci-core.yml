@@ -8,6 +8,8 @@ on:
       - "tests/**"
       - "packages/**"
       - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ci-core.yml"
   pull_request:
     branches: [main]
     paths:
@@ -15,18 +17,25 @@ on:
       - "tests/**"
       - "packages/**"
       - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ci-core.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Create matrix
         id: create_matrix
-        uses: fabiocaccamo/create-matrix-action@v3
+        uses: fabiocaccamo/create-matrix-action@842c9dabf1cec0ba7417f30ec26ce2290b951ef0 # v7
         with:
           matrix: |
             python-version {3.10}, tox-env {"torch_1_13"}
@@ -46,8 +55,10 @@ jobs:
         include: ${{fromJson(needs.prepare.outputs.matrix)}}
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -55,6 +66,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install tox==4.23.2
+
+      # The zoo suite downloads torchvision pretrained weights (-> ~/.cache/torch)
+      # and albert-base-v2 from Hugging Face (-> ~/.cache/huggingface), and other
+      # envs pull torch.hub models (e.g. silero). Reuse them across runs; key on
+      # the model-defining test so it busts when the set changes.
+      - name: Cache models (torch hub + Hugging Face)
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cache/torch
+            ~/.cache/huggingface
+          key: core-models-${{ hashFiles('tests/test_model_zoo.py', '.github/scripts/hf_prefetch.py') }}
+          restore-keys: |
+            core-models-
+
+      # Warm the HF cache with retries before pytest: the zoo suite pulls
+      # albert-base-v2 at collection time, which intermittently hits HF's per-IP
+      # 429 on shared runners. Best-effort, so it never fails the build.
+      - name: Prefetch HF models for the zoo suite (retry on 429)
+        if: contains(matrix.tox-env, 'zoo')
+        run: |
+          python -m pip install "huggingface_hub>=0.23"
+          python .github/scripts/hf_prefetch.py albert-base-v2
 
       - name: test with tox
         run: tox run -e ${{ matrix.tox-env }}

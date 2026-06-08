@@ -1,4 +1,0 @@
--e ../../../
-torch==2.7.0
-transformers==4.53.2
-sentencepiece==0.2.0

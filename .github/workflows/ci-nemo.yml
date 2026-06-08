@@ -6,23 +6,32 @@ on:
     paths:
       - "packages/nemo-asr/**"
       - "torch_to_nnef/**"
+      - "uv.lock"
+      - ".github/workflows/ci-nemo.yml"
   pull_request:
     branches: [main]
     paths:
       - "packages/nemo-asr/**"
       - "torch_to_nnef/**"
+      - "uv.lock"
+      - ".github/workflows/ci-nemo.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Create matrix
         id: create_matrix
-        uses: fabiocaccamo/create-matrix-action@v3
+        uses: fabiocaccamo/create-matrix-action@842c9dabf1cec0ba7417f30ec26ce2290b951ef0 # v7
         with:
           matrix: |
             python-version {3.12}, tox-env {"nemo_tract_2_5_3"}
@@ -40,8 +49,10 @@ jobs:
         include: ${{fromJson(needs.prepare.outputs.matrix)}}
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
 

@@ -6,23 +6,32 @@ on:
     paths:
       - "packages/llm/**"
       - "torch_to_nnef/**"
+      - "uv.lock"
+      - ".github/workflows/ci-llm.yml"
   pull_request:
     branches: [main]
     paths:
       - "packages/llm/**"
       - "torch_to_nnef/**"
+      - "uv.lock"
+      - ".github/workflows/ci-llm.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Create matrix
         id: create_matrix
-        uses: fabiocaccamo/create-matrix-action@v3
+        uses: fabiocaccamo/create-matrix-action@842c9dabf1cec0ba7417f30ec26ce2290b951ef0 # v7
         with:
           matrix: |
             python-version {3.12}, tox-env {"cli_transformers_4_50_0", "cli_transformers_4_52_0"}
@@ -40,8 +49,10 @@ jobs:
         include: ${{fromJson(needs.prepare.outputs.matrix)}}
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -49,6 +60,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install tox==4.23.2
+
+      # Reuse downloaded HF models across runs so most runs need no network at
+      # all; key on the prefetch list + slug definitions so it busts when the
+      # set of models changes. Model blobs are python-agnostic, so the matrix
+      # jobs share one entry.
+      - name: Cache Hugging Face models
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/huggingface
+          key: hf-llm-${{ hashFiles('packages/llm/tests/prefetch_hf_models.py', 'packages/llm/torch_to_nnef_llm/config.py') }}
+          restore-keys: |
+            hf-llm-
+
+      # Warm the cache with retries before pytest: the suite downloads several
+      # tiny models at collection time, which intermittently hits HF's per-IP
+      # 429 on shared runners. Best-effort, so it never fails the build.
+      - name: Prefetch HF models (retry on 429)
+        run: |
+          python -m pip install "huggingface_hub>=0.23"
+          python packages/llm/tests/prefetch_hf_models.py
 
       - name: test with tox
         run: cd packages/llm && tox run -e ${{ matrix.tox-env }}

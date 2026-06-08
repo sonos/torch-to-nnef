@@ -1,0 +1,65 @@
+name: rustc freshness
+
+# Track the latest stable rustc on a ~6-week cadence (the Rust release
+# cadence). Rather than a blind timer, this runs weekly and only acts when
+# examples/rust-toolchain.toml has actually drifted behind the current stable
+# release, so it self-adjusts to the real schedule.
+#
+# It opens (once) a tracking issue rather than an auto-PR on purpose: opening a
+# PR from Actions depends on an org-level setting and a third-party action,
+# both of which are avoidable supply-chain surface for a security workflow. A
+# maintainer bumps the single channel line (and re-checks the tract git revs
+# while there) and the issue auto-closes on the next run once in sync.
+on:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: pinned rustc vs latest stable
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TITLE: "Bump examples rust-toolchain to latest stable rustc"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Compare pinned toolchain to latest stable
+        run: |
+          set -euo pipefail
+          latest=$(curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml \
+            | awk '/^\[pkg.rust\]/{f=1} f && /^version = /{gsub(/[",]/,""); print $3; exit}')
+          current=$(awk -F'"' '/^channel/{print $2; exit}' examples/rust-toolchain.toml)
+          echo "pinned=$current latest-stable=$latest"
+          if [ -z "$latest" ]; then echo "could not resolve latest stable"; exit 1; fi
+
+          existing=$(gh issue list --state open --search "$TITLE in:title" \
+            --json number --jq '.[0].number // empty')
+
+          if [ "$current" = "$latest" ]; then
+            echo "rust-toolchain is current."
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" \
+                --comment "examples/rust-toolchain.toml is now on $current (latest stable). Auto-closing."
+            fi
+            exit 0
+          fi
+
+          echo "::warning::pinned rustc $current is behind latest stable $latest"
+          body=$(printf '%s\n' \
+            "\`examples/rust-toolchain.toml\` pins **$current**; latest stable is **$latest**." \
+            "" \
+            "Bump the single \`channel\` line, then run the examples-run workflow to confirm the crates still build. While here, re-check the pinned \`sonos/tract\` git revs/branches for updates (Dependabot does not track git-branch deps)." \
+            "" \
+            "Tracked automatically by \`.github/workflows/rustc-freshness.yml\`; this issue closes itself once the pin matches latest stable.")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still behind: pinned $current, latest stable $latest."
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi

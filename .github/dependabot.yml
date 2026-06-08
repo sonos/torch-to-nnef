@@ -1,0 +1,132 @@
+# Dependabot config for the torch-to-nnef security initiative.
+#
+# Covers:
+#   - main Python packages  : the uv workspace (core + packages/llm +
+#                             packages/nemo-asr, locked by the root uv.lock)
+#                             and the standalone examples/.../nemo_asr_py project
+#   - example Rust crates    : crates.io deps + Cargo.lock for every crate root
+#   - example Python projects: each example is a uv project (pyproject + uv.lock);
+#                             Dependabot updates each uv.lock natively
+#   - GitHub Actions         : keeps the SHA pins (+ "# vN" comment) current
+#
+# Intentionally NOT handled here (Dependabot cannot):
+#   - git dependencies on sonos/tract (pinned by rev/branch in several example
+#     Cargo.toml files). A separate scheduled job bumps those (Rust-hygiene
+#     step of the initiative).
+version: 2
+updates:
+  # ---------------------------------------------------------------------------
+  # Main packages: torch_to_nnef (core) + packages/llm + packages/nemo-asr form
+  # a single uv workspace locked by the root uv.lock.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "python", "core"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # t2n's export tracks the torch/transformers internals closely and a major
+    # bump has silently broken exports before (transformers 5.x rewrote
+    # attention). Hold majors of these back so they are taken deliberately,
+    # behind their own tested PR, rather than landing unattended. Minor/patch
+    # bumps still flow.
+    ignore:
+      - dependency-name: "transformers"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torchaudio"
+        update-types: ["version-update:semver-major"]
+    groups:
+      core-python:
+        patterns: ["*"]
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions (we SHA-pin; Dependabot bumps the SHA and the "# vN" comment)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # ---------------------------------------------------------------------------
+  # Example Rust crates (crates.io deps + Cargo.lock; git/tract deps untouched).
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "cargo"
+    directories:
+      - "/examples/getting_started_rs"
+      - "/examples/imageclass-wasm"
+      - "/examples/llm_wasm"
+      - "/examples/yolo"
+      - "/examples/nemo_asr"
+      - "/examples/vad/FSMN-wasm"
+      - "/examples/mamba/pulse/mamba-rs"
+      - "/examples/mamba/external_state/mamba-rs"
+      - "/examples/speech_enhancement/dpdfnet/wav-cleaner-rs"
+      - "/examples/tts/pocket_tts/cli"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "rust", "examples"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      examples-cargo:
+        patterns: ["*"]
+
+  # ---------------------------------------------------------------------------
+  # Example Python projects: each is a uv project; Dependabot updates its
+  # uv.lock natively (no requirements.txt / sidecar lock anymore).
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "uv"
+    directories:
+      - "/examples/quantization_py"
+      - "/examples/t2n_extra_custom_op"
+      - "/examples/multi_io_py"
+      - "/examples/dynamic_axes"
+      - "/examples/getting_started_py"
+      - "/examples/vad/silero-jit"
+      - "/examples/image_gen"
+      - "/examples/yolo"
+      - "/examples/imageclass-wasm"
+      - "/examples/llm_wasm"
+      - "/examples/vad/FSMN-wasm"
+      - "/examples/nemo_asr"
+      - "/examples/nemo_asr/src/nemo_asr_py"
+      - "/examples/tts/pocket_tts"
+      - "/examples/speech_enhancement/deepfilternet"
+      - "/examples/speech_enhancement/dpdfnet"
+      - "/examples/mamba/external_state"
+      - "/examples/mamba/pulse"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "python", "examples"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Same rationale as the core block: several examples pin a specific
+    # transformers/torch (e.g. llm_wasm on transformers 4.52) precisely because
+    # a major bump breaks their export. Hold majors for a deliberate PR.
+    ignore:
+      - dependency-name: "transformers"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torchaudio"
+        update-types: ["version-update:semver-major"]
+    groups:
+      examples-python:
+        patterns: ["*"]

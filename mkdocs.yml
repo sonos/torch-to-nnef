@@ -141,4 +141,5 @@ nav:
     - 'Debugging': contributing/debugging.md
   - 'Why NNEF': why_nnef.md
   - Backstory: backstory.md
+  - 'Live demos': demos.md
   - Changelog: CHANGELOG.md

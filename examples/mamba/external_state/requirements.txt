@@ -1,3 +1,0 @@
-torch>=2.5
-transformers>=4.55
-huggingface_hub>=0.24

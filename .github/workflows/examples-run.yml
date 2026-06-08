@@ -1,0 +1,131 @@
+name: examples run
+
+# End-to-end validation of the examples by actually running their run.sh.
+# This is the verification the path-filtered ci-*.yml suites don't provide:
+# the tox matrix pins its own torch/transformers and never installs from the
+# example lockfiles, and nothing else builds/runs the examples. So dependency
+# bumps (Dependabot or manual) currently land unexercised. Running run.sh fixes
+# that -- the export path executes against the *pinned* deps.
+#
+# Two tiers, because the examples are wildly unequal in cost:
+#   tier1 - cheap pure-python exports (toy or small/cacheable models). Runs on
+#           PRs that touch examples / the core package / lockfiles, so a bump is
+#           tested before merge. run.sh runs `uv sync --locked` (each example is
+#           a uv project), which also enforces uv.lock <-> pyproject consistency.
+#   tier2 - heavy: wasm-pack builds, large model downloads, tract compiles,
+#           third-party repo clones. Too slow/flaky for PRs, so weekly + manual.
+on:
+  pull_request:
+    paths:
+      - "examples/**"
+      - "torch_to_nnef/**"
+      - "packages/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/examples-run.yml"
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: examples-run-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tier1:
+    name: "tier1: ${{ matrix.example }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - quantization_py
+          - t2n_extra_custom_op
+          - getting_started_py
+          - multi_io_py
+          - dynamic_axes
+          - vad/silero-jit
+          - getting_started_rs
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Cache model / build artifacts
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/torch
+            ~/.cache/uv
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: t1-${{ matrix.example }}-${{ hashFiles(format('examples/{0}/uv.lock', matrix.example)) }}
+          restore-keys: |
+            t1-${{ matrix.example }}-
+      # run.sh sources bootstrap-uv.sh which runs `uv sync --locked` -- that
+      # itself fails if uv.lock is out of sync with pyproject.toml, so no
+      # separate lock-drift gate is needed.
+      - name: Run example
+        working-directory: examples/${{ matrix.example }}
+        run: ./run.sh
+
+  tier2:
+    name: "tier2: ${{ matrix.example }}"
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - example: image_gen
+          - example: speech_enhancement/deepfilternet
+          - example: imageclass-wasm
+          - example: yolo
+          - example: vad/FSMN-wasm
+          - example: tts/pocket_tts
+          - example: mamba
+          - example: speech_enhancement/dpdfnet
+          # nemo_asr: the NNEF export now passes (tolerance=super). Non-blocking
+          # only because the Rust `cargo test` requires CUDA (are_culibs_present)
+          # which standard CI runners lack -- needs a GPU runner for the full e2e.
+          - example: nemo_asr
+            allow_failure: true
+          # llm_wasm: the SmolLM export now passes (transformers<5 + tolerance
+          # super; eager-attn in core covers 5.x). Non-blocking only because the
+          # tract-transformers wasm-pack build OOMs/times out on standard runners.
+          - example: llm_wasm
+            allow_failure: true
+    continue-on-error: ${{ matrix.allow_failure || false }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Cache cargo + model artifacts
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cache/huggingface
+            ~/.cache/torch
+            ~/.cache/uv
+          key: t2-${{ matrix.example }}-${{ github.sha }}
+          restore-keys: |
+            t2-${{ matrix.example }}-
+      # Every run.sh is now self-contained: it sources bootstrap-uv/-rust,
+      # clones any third-party repo (bootstrap.sh), and builds prerequisites
+      # (e.g. getting_started_rs builds the getting_started_py artifact).
+      - name: Run example (self-bootstrapping)
+        working-directory: examples/${{ matrix.example }}
+        run: ./run.sh

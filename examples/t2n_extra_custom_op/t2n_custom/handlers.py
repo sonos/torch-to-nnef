@@ -27,7 +27,12 @@ if (
             return torch.empty_like(x, device="meta")
 
         lib.impl("my_relu", _my_relu_cpu, "CPU")
-        lib.impl_abstract("my_relu", _my_relu_meta)
+        # `Library.impl_abstract` was renamed to `torch.library.register_fake`
+        # in torch 2.4 and removed later; keep the old path for torch 2.0-2.3.
+        if hasattr(torch.library, "register_fake"):
+            torch.library.register_fake("t2n_extra::my_relu", _my_relu_meta)
+        else:
+            lib.impl_abstract("my_relu", _my_relu_meta)
 
 
 # 2) Register the export handler that maps the IR node to NNEF.

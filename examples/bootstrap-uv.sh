@@ -1,77 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# -----------------------------
-# Configuration
-# -----------------------------
-PYTHON_VERSION="${PYTHON_VERSION:-3.11.8}"
-VENV_DIR=".venv"
+# Bootstrap the current example's uv project: ensure uv is installed, then
+# `uv sync --locked` to materialise the exact locked environment (.venv) from
+# pyproject.toml + uv.lock. Source this from an example's run.sh, then either
+# `source .venv/bin/activate` or use `uv run`.
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 
-# -----------------------------
-# Utilities
-# -----------------------------
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
-install_uv() {
+# retry <cmd...>: run a command, retrying with exponential backoff. Use it to
+# wrap model-download/export steps -- HuggingFace (and torch hub) frequently
+# 429 the shared CI IP pool; a re-run resumes from the populated cache.
+retry() {
+    local n=1 max="${RETRY_MAX:-5}" delay="${RETRY_DELAY:-15}"
+    while true; do
+        "$@" && return 0
+        if [ "$n" -ge "$max" ]; then
+            echo "retry: '$*' still failing after $max attempts" >&2
+            return 1
+        fi
+        echo "retry: attempt $n/$max failed; sleeping ${delay}s before retry..." >&2
+        sleep "$delay"
+        n=$((n + 1))
+        delay=$((delay * 2))
+    done
+}
+
+ensure_uv() {
+    command_exists uv && return 0
     echo "Installing uv..."
-    # Use pipefail to surface curl or installer failures
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.local/bin:$PATH"
-
-    if ! command_exists uv; then
-        echo "uv installation failed"
-        exit 1
-    fi
+    command_exists uv || { echo "uv installation failed"; exit 1; }
 }
 
-ensure_uv() { command_exists uv || install_uv; }
-
-# -----------------------------
-# Ensure Python toolchain
-# -----------------------------
-ensure_python() {
-    echo "Installing Python $PYTHON_VERSION (if needed)..."
-    uv python install "$PYTHON_VERSION"
+# hf_pull <repo>: pre-download a HuggingFace repo into the local cache, retrying
+# on 429s, so the subsequent export reads from cache. This keeps the retry on
+# the *download* only -- we never retry the export step (which would re-run
+# t2n-internal errors). Requires the venv active (huggingface_hub installed).
+hf_pull() {
+    retry python -c "import sys; from huggingface_hub import snapshot_download; snapshot_download(sys.argv[1])" "$1"
 }
 
-# -----------------------------
-# Create venv (idempotent)
-# -----------------------------
-create_venv() {
-    if [ ! -d "$VENV_DIR" ]; then
-        echo "Creating virtual environment..."
-        uv venv --python "$PYTHON_VERSION" "$VENV_DIR"
-    fi
-}
-
-# -----------------------------
-# Install requirements
-# -----------------------------
-install_requirements() {
-    if [ ! -f requirements.txt ]; then
-        echo "requirements.txt not found"
-        exit 1
-    fi
-
-    echo "Installing dependencies from requirements.txt..."
-    uv pip install \
-        --python "$VENV_DIR/bin/python" \
-        --requirement requirements.txt
-}
-
-# -----------------------------
-# Main
-# -----------------------------
 main() {
     ensure_uv
-    ensure_python
-    create_venv
-    install_requirements
-
-    echo ""
-    echo "Environment ready."
-    echo "Activate with:"
-    echo "  . $VENV_DIR/bin/activate"
+    if [ ! -f pyproject.toml ]; then
+        echo "no pyproject.toml in $(pwd); this example is not a uv project"
+        exit 1
+    fi
+    echo "Syncing locked environment (uv sync --locked)..."
+    uv sync --locked --python "$PYTHON_VERSION"
+    echo "Environment ready (.venv). Activate with: . .venv/bin/activate"
 }
 
 main "$@"

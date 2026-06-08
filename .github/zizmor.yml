@@ -1,0 +1,12 @@
+# zizmor configuration (https://docs.zizmor.sh/configuration/).
+#
+# The CI gate (deps-check.yml) runs `zizmor --min-severity=medium`, so
+# informational advisories (e.g. use-trusted-publishing on release.yml, which
+# needs a PyPI trusted-publisher set up first) are surfaced but non-blocking.
+rules:
+  artipacked:
+    ignore:
+      # doc.yml's checkout credential is required: `mike deploy --push` pushes
+      # the built docs to the gh-pages branch with it. persist-credentials is
+      # set true explicitly there.
+      - doc.yml

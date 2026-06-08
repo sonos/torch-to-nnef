@@ -1,0 +1,136 @@
+name: deps check
+
+# Gate for dependency-related changes (Dependabot PRs, manifest/lockfile edits)
+# that the path-filtered ci-*.yml suites would otherwise leave untested.
+# Deliberately lightweight: schema/consistency/pinning checks, no heavy builds.
+# Deep Rust auditing (cargo-deny: advisories/bans/sources/licenses) and GitHub
+# Actions auditing (zizmor) run here. Python CVE scanning + SPDX SBOM live in
+# security-scan.yml.
+on:
+  # Runs on every PR (no path filter) so its jobs can be required status checks
+  # without freezing PRs that happen not to touch dependency files. The jobs are
+  # cheap and no-op cleanly when nothing relevant changed.
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    name: dependabot config + action pinning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Validate .github/dependabot.yml
+        run: uv run --no-project --with pyyaml python .github/scripts/check_dependabot.py
+      - name: Enforce SHA-pinned GitHub Actions
+        run: python3 .github/scripts/check_actions_pinned.py
+
+  uv-lock:
+    name: uv lockfiles consistent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Workspace lock up to date with pyproject
+        run: uv lock --check
+      - name: Standalone nemo_asr_py lock up to date
+        working-directory: examples/nemo_asr/src/nemo_asr_py
+        run: uv lock --check
+
+  cargo:
+    name: example Cargo manifests valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: cargo verify-project (all example crate roots)
+        run: |
+          set -euo pipefail
+          roots=(
+            examples/getting_started_rs
+            examples/imageclass-wasm
+            examples/llm_wasm
+            examples/yolo
+            examples/nemo_asr
+            examples/vad/FSMN-wasm
+            examples/mamba/pulse/mamba-rs
+            examples/mamba/external_state/mamba-rs
+            examples/speech_enhancement/dpdfnet/wav-cleaner-rs
+            examples/tts/pocket_tts/cli
+          )
+          for d in "${roots[@]}"; do
+            echo "::group::$d"
+            cargo verify-project --manifest-path "$d/Cargo.toml"
+            echo "::endgroup::"
+          done
+
+  cargo-deny:
+    name: cargo-deny (advisories/bans/sources/licenses)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Install cargo-deny
+        run: |
+          set -euo pipefail
+          VERSION=0.19.8
+          base="https://github.com/EmbarkStudios/cargo-deny/releases/download"
+          asset="cargo-deny-${VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL "${base}/${VERSION}/${asset}" \
+            | tar xz --strip-components=1 -C /usr/local/bin --wildcards '*/cargo-deny'
+          cargo-deny --version
+      # advisories = RUSTSEC vulnerabilities (hard fail) + acknowledged
+      # unmaintained ignores; bans = duplicate/wildcard policy; sources = only
+      # crates.io + allowed git; licenses = OSI-permissive allow-list (first-party
+      # crates are publish=false and skipped). Single shared policy via --config.
+      # vad/FSMN-wasm is intentionally absent: it depends on getrandom 0.4.2
+      # under two names (a wasm RNG-backend setup) and `cargo metadata` itself
+      # refuses such graphs, so cargo-deny cannot analyze it. It stays covered
+      # by the verify-project job and the examples-run wasm build.
+      - name: cargo-deny check (example crate roots)
+        run: |
+          set -euo pipefail
+          roots=(
+            examples/getting_started_rs
+            examples/imageclass-wasm
+            examples/llm_wasm
+            examples/yolo
+            examples/nemo_asr
+            examples/mamba/pulse/mamba-rs
+            examples/mamba/external_state/mamba-rs
+            examples/speech_enhancement/dpdfnet/wav-cleaner-rs
+            examples/tts/pocket_tts/cli
+          )
+          for d in "${roots[@]}"; do
+            echo "::group::$d"
+            cargo-deny --manifest-path "$d/Cargo.toml" \
+              check advisories bans sources licenses --config examples/deny.toml
+            echo "::endgroup::"
+          done
+
+  zizmor:
+    name: zizmor (GitHub Actions security audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      # Fail on medium+ findings (excessive permissions, template injection,
+      # credential persistence, ...). Informational advisories (e.g.
+      # use-trusted-publishing) are surfaced but non-blocking. Offline: no GH
+      # token needed since actions are already SHA-pinned. Config in
+      # .github/zizmor.yml; version pinned for reproducibility.
+      - name: Run zizmor
+        run: |
+          uv tool run --from zizmor==1.25.2 zizmor \
+            --min-severity=medium --offline .github/workflows/

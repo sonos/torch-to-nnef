@@ -1,4 +1,5 @@
 [package]
+publish = false  # example crate, never published
 name = "vad-wasm"
 version = "0.1.0"
 edition = "2024"
@@ -12,7 +13,7 @@ tract-rs = { package = "tract", git = "https://github.com/sonos/tract.git", rev 
 # transitively (0.3 via rand 0.9 / half, 0.4 via rand 0.10 / rand_distr).
 # Without these, the wasm32 build fails with `backends::inner_u64 not found`
 # because the crate cannot pick a backend.
-getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom = { version = "0.4", features = ["wasm_js"] }
 getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 ndarray = "0.17"
 wasm-bindgen = "0.2"

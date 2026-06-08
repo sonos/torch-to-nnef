@@ -2,7 +2,7 @@ use tract_nnef::prelude::*;
 
 fn main() -> TractResult<()> {
     let model = tract_nnef::nnef()
-        .with_tract_core()
+        // tract_core is enabled by default since tract 0.23
         .model_for_path("./vit_b_16.nnef.tgz")?
         // optimize the model
         .into_optimized()?
@@ -25,7 +25,7 @@ fn main() -> TractResult<()> {
 
     // find and display the max value with its index
     let best = result[0]
-        .to_array_view::<f32>()?
+        .to_plain_array_view::<f32>()?
         .iter()
         .cloned()
         .zip(0..)

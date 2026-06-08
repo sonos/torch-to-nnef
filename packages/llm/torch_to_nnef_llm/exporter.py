@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import typing as T
 from collections import Counter
 from pathlib import Path
@@ -115,6 +116,32 @@ def _normalize_dump_kwargs(kwargs: T.Dict[str, T.Any]) -> T.Dict[str, T.Any]:
     return dump_kwargs
 
 
+#: Default number of retries for transient Hugging Face download failures.
+DEFAULT_HF_DOWNLOAD_N_RETRIES = 5
+
+#: HTTP statuses worth retrying: rate limit + transient server errors. Auth or
+#: missing (401/403/404) never recover on retry and are left to fail.
+_TRANSIENT_HF_HTTP = frozenset({429, 500, 502, 503, 504})
+
+
+def _hf_http_status(exc: BaseException) -> T.Optional[int]:
+    """Find an HTTP status anywhere in the exception's cause chain.
+
+    A rate-limited Hugging Face fetch surfaces here as an OSError whose cause
+    chain holds the real HfHubHTTPError, so the status we must branch on (e.g.
+    429) is not on the outermost exception.
+    """
+    seen: T.Set[int] = set()
+    cur: T.Optional[BaseException] = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        status = getattr(getattr(cur, "response", None), "status_code", None)
+        if status is not None:
+            return status
+        cur = cur.__cause__ or cur.__context__
+    return None
+
+
 def _load_exporter_from(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
@@ -123,6 +150,7 @@ def _load_exporter_from(
     num_logits_to_keep: int = 1,
     merge_peft: T.Optional[bool] = None,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
+    trust_remote_code: bool = True,
 ):
     if (
         is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
@@ -140,11 +168,13 @@ def _load_exporter_from(
         force_module_dtype=force_module_dtype,
         merge_peft=merge_peft,
         device_map=device_map,
+        trust_remote_code=trust_remote_code,
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
         hf_model_slug=hf_model_slug,
         local_dir=local_dir,
+        trust_remote_code=trust_remote_code,
     )
 
     return LLMExporter(
@@ -351,28 +381,53 @@ class LLMExporter:
         model_slug: T.Optional[str] = None,
         local_dir: T.Optional[Path] = None,
         *,
+        hf_download_n_retries: int = DEFAULT_HF_DOWNLOAD_N_RETRIES,
         huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
         **kwargs,
     ):
-        """Load from either huggingface model slug hub or local_dir."""
+        """Load from either huggingface model slug hub or local_dir.
+
+        ``hf_download_n_retries`` bounds how many times a *transient* Hugging
+        Face failure (HTTP 429 rate limit or a 5xx) is retried with exponential
+        backoff before giving up; set 0 to disable. Auth/missing errors are not
+        retried, and a gated repo still triggers an interactive login.
+        """
         with torch.no_grad():
             exporter_from_kwargs: T.Dict[str, T.Any] = {
                 "hf_model_slug": model_slug,
                 "local_dir": local_dir,
                 **kwargs,
             }
-            try:
-                exporter = _load_exporter_from(**exporter_from_kwargs)
-            except OSError as exp:
-                if "gated repo" in exp.args[0]:
-                    print(exp.args[0])
-                    huggingface_hub.login()
-                    exporter = _load_exporter_from(**exporter_from_kwargs)
-                else:
+            attempt = 0
+            while True:
+                try:
+                    return _load_exporter_from(**exporter_from_kwargs)
+                except OSError as exp:
+                    msg = exp.args[0] if exp.args else ""
+                    if isinstance(msg, str) and "gated repo" in msg:
+                        print(msg)
+                        huggingface_hub.login()
+                        return _load_exporter_from(**exporter_from_kwargs)
+                    status = _hf_http_status(exp)
+                    if (
+                        status in _TRANSIENT_HF_HTTP
+                        and attempt < hf_download_n_retries
+                    ):
+                        attempt += 1
+                        delay = min(2.0 * 2 ** (attempt - 1), 60.0)
+                        LOGGER.warning(
+                            "Hugging Face download failed with HTTP %s; "
+                            "retry %d/%d in %.0fs",
+                            status,
+                            attempt,
+                            hf_download_n_retries,
+                            delay,
+                        )
+                        time.sleep(delay)
+                        continue
                     raise T2NErrorRuntime(
                         "OSError while loading model"
                     ) from exp
-        return exporter
 
     def check_wrapper_io(self):
         """Check the wrapper gives same outputs compared to vanilla model."""
@@ -977,6 +1032,8 @@ def dump_llm(
     merge_peft: T.Optional[bool] = None,
     num_logits_to_keep: int = 1,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
+    hf_download_n_retries: int = DEFAULT_HF_DOWNLOAD_N_RETRIES,
+    trust_remote_code: bool = True,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model."""
@@ -988,6 +1045,8 @@ def dump_llm(
         merge_peft=merge_peft,
         num_logits_to_keep=num_logits_to_keep,
         device_map=device_map,
+        hf_download_n_retries=hf_download_n_retries,
+        trust_remote_code=trust_remote_code,
     )
     dump_kwargs = _normalize_dump_kwargs(kwargs)
     exporter.dump(**dump_kwargs)
