@@ -155,6 +155,22 @@ flushes the last samples.
   a loop. For the streaming alternative that lets tract's pulse declutter
   compile a `model.run(audio_buffer) -> clean_buffer` call and buffer
   state internally, see `export_pulse.py` + `wav-cleaner-pulse/` below.
+- **Pulse export is mask-only and an approximation of the full model.**
+  `export_pulse.py` drops the `df_op` deep-filter head and swaps
+  `center=True` STFT/iSTFT for `center=False` (tract pulse can't pulse a
+  `reflect` pad). DPRNN variants additionally front-pad one hop and drop
+  the `conv_lookahead` shift (pure causal). The pulsed graph is validated
+  **bit-exact against its own batched run** (modulo a fixed algorithmic
+  delay), i.e. pulsification is faithful; it is not bit-identical to the
+  per-frame `export.py` artifact.
+- **DPRNN pulse needs an unreleased tract.** The Scan-body and
+  `MultiBroadcastTo` pulsification fixes are on tract main, but the pulse
+  `Delay`-name dedup (a Concat fed by two differently-delayed pulse paths)
+  is not upstream yet. Until it lands and `wav-cleaner-pulse` is repinned,
+  DPRNN streaming needs a tract build carrying that fix. Also note the
+  recorded `pulse.delay` property under-reports the true delay, so the
+  `wav-cleaner-pulse` warm-up drain leaves a small fixed output latency
+  offset (correct audio, shifted in time).
 
 ## Files
 

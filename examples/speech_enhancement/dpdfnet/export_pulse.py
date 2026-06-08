@@ -27,9 +27,14 @@ Limitations:
 * Tract pulse can't pulse a ``reflect`` pad, so ``center=False``
   STFT/iSTFT replacements are installed in place of the upstream
   ``center=True`` ones.
-* Streams the *baseline* variant (``dprnn_num_blocks=0``). The
-  DPRNN variants hit an unrelated tract pulse Scan-body warmup
-  limitation: tracked in :doc:`README.md` "Known limits".
+* Streams every variant: baseline (``dprnn_num_blocks=0``) and the
+  DPRNN variants (``--dprnn-num-blocks 2/8``). DPRNN streaming needed
+  two extra fix-ups (one-hop front-pad so all paths agree on a single
+  ``STREAM/hop`` frame count, and dropping the non-pulsable
+  ``conv_lookahead`` shift; see ``build``) plus a tract build carrying
+  the pulse Delay-name dedup and Scan/broadcast pulsification fixes.
+  Validated bit-exact (pulsed == batched, modulo a fixed algorithmic
+  delay).
 
 ``ErbNorm`` / ``SpecNorm`` keep their per-frame EMA: their forwards
 are routed through ``t2n_extra::exp_{mean,unit}_norm`` (lowered to
@@ -245,15 +250,24 @@ class StftCenterFalse(torch.nn.Module):
     semantics with no padding.
     """
 
-    def __init__(self, src) -> None:
+    def __init__(self, src, pre_pad: int = 0) -> None:
         super().__init__()
         self.n_fft = src.n_fft
         self.win_len = src.win_len
         self.hop = src.hop
         self.normalized = src.normalized
+        # Front-pad the waveform by ``pre_pad`` samples before framing. Used
+        # by the DPRNN variants (``pre_pad = hop``) so ``center=False`` emits
+        # ``STREAM/hop`` frames instead of ``STREAM/hop - 1``; that single
+        # frame-count expression is what the DPRNN time reshape / GRU scan
+        # already assume, so the whole graph agrees on one symbolic frame
+        # count and pulsifies (see module docstring + README).
+        self.pre_pad = pre_pad
         self.register_buffer("w", src.w.clone())
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.pre_pad:
+            x = torch.nn.functional.pad(x, (self.pre_pad, 0))
         return torch.stft(
             x,
             n_fft=self.n_fft,
@@ -269,12 +283,16 @@ class StftCenterFalse(torch.nn.Module):
 class IstftCenterFalse(torch.nn.Module):
     """Drop-in for the model's ``Istft`` using ``center=False``."""
 
-    def __init__(self, src) -> None:
+    def __init__(self, src, post_crop: int = 0) -> None:
         super().__init__()
         self.n_fft = src.n_fft_inv
         self.win_len = src.win_len_inv
         self.hop = src.hop_inv
         self.normalized = src.normalized
+        # Mirror ``StftCenterFalse.pre_pad``: drop the ``post_crop`` leading
+        # output samples that the front-pad introduced, so the enhanced
+        # stream stays sample-aligned with the input.
+        self.post_crop = post_crop
         self.register_buffer("w", src.w_inv.clone())
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -285,7 +303,7 @@ class IstftCenterFalse(torch.nn.Module):
         # under ``_modules`` / ``_buffers`` introspection.
         _, _as_complex = _import_dpdfnet()
         x = _as_complex(x)
-        return torch.istft(
+        out = torch.istft(
             x,
             n_fft=self.n_fft,
             win_length=self.win_len,
@@ -294,6 +312,9 @@ class IstftCenterFalse(torch.nn.Module):
             normalized=self.normalized,
             center=False,
         )
+        if self.post_crop:
+            out = out[..., self.post_crop:]
+        return out
 
 
 class DPDFNetMaskOnly(torch.nn.Module):
@@ -318,9 +339,11 @@ class DPDFNetMaskOnly(torch.nn.Module):
         return self.inner.apply_istft(spec_e)
 
 
-def build(checkpoint: Path) -> torch.nn.Module:
+def build(checkpoint: Path, dprnn_num_blocks: int = 0) -> torch.nn.Module:
     dpdfnet_cls, _ = _import_dpdfnet()
-    model = dpdfnet_cls(dprnn_num_blocks=0, **COMMON_KWARGS).eval()
+    model = dpdfnet_cls(
+        dprnn_num_blocks=dprnn_num_blocks, **COMMON_KWARGS
+    ).eval()
     raw = torch.load(checkpoint, map_location="cpu", weights_only=False)
     state = raw.get("state_dict", raw)
     state = {
@@ -339,8 +362,26 @@ def build(checkpoint: Path) -> torch.nn.Module:
         num_feat=model.nb_df,
         alpha=model.spec_norm.alpha,
     )
-    model.stft = StftCenterFalse(model.stft)
-    model.istft = IstftCenterFalse(model.istft)
+    if dprnn_num_blocks > 0:
+        # DPRNN variants: the dual-path RNN reshapes/scans the time axis, so
+        # every frame-count expression in the graph must agree symbolically
+        # for tract to pulsify the GRU scans. Two extra fix-ups vs baseline:
+        #   * front-pad one hop so center=False emits `STREAM/hop` frames,
+        #     the count the DPRNN time reshape assumes (StftCenterFalse.pre_pad
+        #     / IstftCenterFalse.post_crop);
+        #   * drop the `conv_lookahead` feature shift, which lowers to a
+        #     non-linear `min(hop_frames, lookahead)` slice that cannot pulse.
+        #     This makes the encoder purely causal (no look-ahead), which is
+        #     the correct behaviour for a real-time stream anyway.
+        # Validated bit-exact (pulsed == batched, modulo algorithmic delay).
+        hop = model.stft.hop
+        model.stft = StftCenterFalse(model.stft, pre_pad=hop)
+        model.istft = IstftCenterFalse(model.istft, post_crop=hop)
+        model.pad_feat = torch.nn.Identity()
+        model.pad_spec = torch.nn.Identity()
+    else:
+        model.stft = StftCenterFalse(model.stft)
+        model.istft = IstftCenterFalse(model.istft)
     return DPDFNetMaskOnly(model).eval()
 
 
@@ -351,23 +392,40 @@ def main() -> None:
         type=Path,
         default=HERE / "_checkpoints" / "baseline.pth",
         help=(
-            "Baseline checkpoint (`dprnn_num_blocks=0`). Run "
-            "`./bootstrap.sh baseline` to fetch it."
+            "Checkpoint path. Baseline is `_checkpoints/baseline.pth` "
+            "(`./bootstrap.sh baseline`); DPRNN variants e.g. "
+            "`_checkpoints/dpdfnet2.pth` (`./bootstrap.sh dpdfnet2`)."
+        ),
+    )
+    ap.add_argument(
+        "--dprnn-num-blocks",
+        type=int,
+        default=0,
+        help=(
+            "Number of DPRNN blocks (0 = baseline). Must match the "
+            "checkpoint variant (dpdfnet2 -> 2, dpdfnet8 -> 8). "
+            "DPRNN variants need a tract build carrying the pulse "
+            "Delay-name and Scan/broadcast pulsification fixes."
         ),
     )
     ap.add_argument(
         "--out",
         type=Path,
-        default=HERE / "baseline_pulse.nnef.tgz",
-        help="Output NNEF artifact path.",
+        default=None,
+        help=(
+            "Output NNEF artifact path "
+            "(default: <checkpoint stem>_pulse.nnef.tgz)."
+        ),
     )
     args = ap.parse_args()
     if not args.checkpoint.exists():
         raise SystemExit(
-            f"missing {args.checkpoint}; run `./bootstrap.sh baseline`"
+            f"missing {args.checkpoint}; run `./bootstrap.sh <variant>`"
         )
+    if args.out is None:
+        args.out = HERE / f"{args.checkpoint.stem}_pulse.nnef.tgz"
 
-    wrapped = build(args.checkpoint)
+    wrapped = build(args.checkpoint, dprnn_num_blocks=args.dprnn_num_blocks)
 
     torch.manual_seed(0)
     audio = torch.randn(1, 16_000, dtype=torch.float32) * 0.1
