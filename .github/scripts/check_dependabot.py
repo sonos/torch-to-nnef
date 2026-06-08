@@ -38,7 +38,9 @@ def main() -> int:
         dirs = upd.get("directories") or [upd.get("directory")]
         for d in dirs:
             if d is None:
-                errors.append(f"{eco}: entry has neither `directory` nor `directories`")
+                errors.append(
+                    f"{eco}: entry has neither `directory` nor `directories`"
+                )
                 continue
             path = os.path.join("." + d, manifest)
             if not os.path.exists(path):
@@ -49,7 +51,10 @@ def main() -> int:
     if errors:
         print(f"\n{len(errors)} dependabot.yml problem(s).")
         return 1
-    print("dependabot.yml OK: version 2 and all referenced directories have manifests.")
+    print(
+        "dependabot.yml OK: "
+        "version 2 and all referenced directories have manifests."
+    )
     return 0
 
 

@@ -1,3 +1,4 @@
+import os
 import tarfile
 import tempfile
 from copy import deepcopy
@@ -42,7 +43,12 @@ def check_no_dup_dat(inference_target, path):
         with cd(td):
             # Robustly extract regardless of .tar or .tgz
             with tarfile.open(path, "r:*") as tf:
-                tf.extractall(td)
+                for entry in tf:
+                    if os.path.isabs(entry.name) or ".." in entry.name:
+                        raise ValueError(
+                            f"Illegal tar archive entry: '{entry.name}'"
+                        )
+                    tf.extract(entry, td)
             dats = list(td.glob("*.dat"))
             if len(dats) != 2:
                 names = [_.name for _ in dats]
