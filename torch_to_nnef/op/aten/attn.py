@@ -24,6 +24,40 @@ def reify_with_tract_transformers_sdpa(i: InferenceTarget) -> bool:
     )
 
 
+def _broadcast_mask_query_axis(
+    op_helper, attn_mask_node, attn_mask_tensor, query_node
+):
+    """Expand an additive attention mask along the query axis.
+
+    PyTorch broadcasts the attention mask against the `(.., L, S)` score
+    matrix, so masks derived from a key-padding mask carry a size-1 query
+    axis (e.g. `[B, H, 1, S]`). tract's `tract_transformers_sdpa`
+    (FlashSDPA) does not broadcast that axis at eval time and raises an
+    incompatible-shape error, so tile the mask up to the query length when
+    both dims are statically known.
+    """
+    mask_shape = attn_mask_node.shape
+    if mask_shape is None or len(mask_shape) < 2:
+        return attn_mask_tensor
+    mask_q = mask_shape[-2]
+    query_len = query_node.shape[-2]
+    if not (isinstance(mask_q, int) and isinstance(query_len, int)):
+        return attn_mask_tensor
+    if mask_q != 1 or query_len <= 1:
+        return attn_mask_tensor
+    repeats = [1] * len(mask_shape)
+    repeats[-2] = query_len
+    new_shape = list(mask_shape)
+    new_shape[-2] = query_len
+    return op_helper.add_intermediate_op(
+        src=attn_mask_tensor,
+        op_type="tile",
+        attrs={"repeats": repeats},
+        new_shape=new_shape,
+        suffix="sdpa_mask_qbroadcast",
+    )
+
+
 @OP_REGISTRY.register()
 def scaled_dot_product_attention(
     g, node, name_to_tensor, inference_target, **kwargs
@@ -89,6 +123,13 @@ def scaled_dot_product_attention(
         attn_mask_tensor = get_or_add_tensor_variable_in_nnef(
             g, attn_mask_node, name_to_tensor
         )
+        if reify_tract_spda:
+            attn_mask_tensor = _broadcast_mask_query_axis(
+                kwargs["op_helper"],
+                attn_mask_node,
+                attn_mask_tensor,
+                query_node,
+            )
         inputs.append(attn_mask_tensor)
     else:
         assert attn_mask_node.data is None

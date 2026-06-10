@@ -24,7 +24,11 @@
 - **`examples/vad/silero-jit/`**: end-to-end demo of the JIT-only export path on a real artifact, gated in CI via the `silero_vad_demo` tox env.
 - **Tutorial**: `docs/tutos/12_jit_only_models.md` covers both the auto-detection path and the manual chain.
 
+### Changed
+- Officially supported tract versions bumped to 0.23.0 and 0.22.1 (0.21.15 dropped).
+
 ### Fixed
+- Reified `scaled_dot_product_attention` (`tract_transformers_sdpa`) now tiles a size-1 query axis on the attention mask up to the query length. tract 0.23.0's `FlashSDPA` does not broadcast that axis at eval time, so key-padding masks (e.g. torchaudio Conformer) raised an incompatible-shape error.
 - Parser bugs surfaced by JIT-only export (each was latent in main):
   - `slice_` recognizes `prim::Constant[NoneType]` for begin/end (Python's `t[:]`).
   - `div` wraps scalar division result in a 0-d tensor before `.to(dtype)`.
