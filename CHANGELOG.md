@@ -29,6 +29,7 @@
 
 ### Fixed
 - Reified `scaled_dot_product_attention` (`tract_transformers_sdpa`) now tiles a size-1 query axis on the attention mask up to the query length. tract 0.23.0's `FlashSDPA` does not broadcast that axis at eval time, so key-padding masks (e.g. torchaudio Conformer) raised an incompatible-shape error.
+- Nearest 2-D upsample with static shapes now lowers via the rank-generic reshape/tile path instead of `deconv`. The deconv lowering emits a broadcast `Mul` that tract 0.23.0's `OptMatMul` fuse pass mis-substitutes when an adjacent conv consumes the upsample output (e.g. VAE-style decoder). The deconv path is kept for the dynamic-axes case.
 - Parser bugs surfaced by JIT-only export (each was latent in main):
   - `slice_` recognizes `prim::Constant[NoneType]` for begin/end (Python's `t[:]`).
   - `div` wraps scalar division result in a 0-d tensor before `.to(dtype)`.

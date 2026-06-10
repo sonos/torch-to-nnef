@@ -363,13 +363,21 @@ def upsample_nearest_nd(node, op_helper, **kwargs):
             },
         )
         return []
-    if spatial_rank != 2:
+    static_shapes = not (
+        isinstance(op_helper.inference_target, TractNNEF)
+        and op_helper.inference_target.has_dynamic_axes
+    )
+    if spatial_rank != 2 or static_shapes:
         # Rank-generic nearest upsample: insert a size-1 axis after
         # each spatial axis, tile it by the scale, then collapse back.
         # `(..., d, 1) -> tile by s -> (..., d, s) -> reshape (..., d*s)`
         # is the standard reshape/tile trick for nearest-neighbour
         # replication; works on any rank and bypasses the rank-4
-        # restriction of the deconv path.
+        # restriction of the deconv path. It needs static spatial dims,
+        # so the deconv path below still handles the dynamic-axes case.
+        # Preferred over deconv: the deconv lowering emits a broadcast
+        # `Mul` that tract 0.23.0's `OptMatMul` fuse pass mis-substitutes
+        # when an adjacent conv consumes the upsample output.
         in_shape = [int(d) for d in input_node.shape]
         expanded = list(in_shape[:leading])
         for axis_i in range(spatial_rank):
