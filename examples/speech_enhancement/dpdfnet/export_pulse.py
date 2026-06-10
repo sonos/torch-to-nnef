@@ -313,7 +313,7 @@ class IstftCenterFalse(torch.nn.Module):
             center=False,
         )
         if self.post_crop:
-            out = out[..., self.post_crop:]
+            out = out[..., self.post_crop :]
         return out
 
 
