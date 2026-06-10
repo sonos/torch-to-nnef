@@ -741,7 +741,7 @@ dependencies = [
 [[package]]
 name = "tract-core"
 version = "0.23.1-pre"
-source = "git+https://github.com/sonos/tract.git?rev=ea8b0a8216d6009a51d10e9e85d8f886634fd3bd#ea8b0a8216d6009a51d10e9e85d8f886634fd3bd"
+source = "git+https://github.com/sonos/tract.git?rev=56c47497fc10110a0da385f4cc913d738cfc9073#56c47497fc10110a0da385f4cc913d738cfc9073"
 dependencies = [
  "anyhow",
  "anymap3",
@@ -770,7 +770,7 @@ dependencies = [
 [[package]]
 name = "tract-data"
 version = "0.23.1-pre"
-source = "git+https://github.com/sonos/tract.git?rev=ea8b0a8216d6009a51d10e9e85d8f886634fd3bd#ea8b0a8216d6009a51d10e9e85d8f886634fd3bd"
+source = "git+https://github.com/sonos/tract.git?rev=56c47497fc10110a0da385f4cc913d738cfc9073#56c47497fc10110a0da385f4cc913d738cfc9073"
 dependencies = [
  "anyhow",
  "downcast-rs",
@@ -794,9 +794,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tract-extra"
+version = "0.23.1-pre"
+source = "git+https://github.com/sonos/tract.git?rev=56c47497fc10110a0da385f4cc913d738cfc9073#56c47497fc10110a0da385f4cc913d738cfc9073"
+dependencies = [
+ "tract-nnef",
+ "tract-pulse",
+]
+
+[[package]]
 name = "tract-linalg"
 version = "0.23.1-pre"
-source = "git+https://github.com/sonos/tract.git?rev=ea8b0a8216d6009a51d10e9e85d8f886634fd3bd#ea8b0a8216d6009a51d10e9e85d8f886634fd3bd"
+source = "git+https://github.com/sonos/tract.git?rev=56c47497fc10110a0da385f4cc913d738cfc9073#56c47497fc10110a0da385f4cc913d738cfc9073"
 dependencies = [
  "byteorder",
  "cc",
@@ -819,7 +828,7 @@ dependencies = [
 [[package]]
 name = "tract-nnef"
 version = "0.23.1-pre"
-source = "git+https://github.com/sonos/tract.git?rev=ea8b0a8216d6009a51d10e9e85d8f886634fd3bd#ea8b0a8216d6009a51d10e9e85d8f886634fd3bd"
+source = "git+https://github.com/sonos/tract.git?rev=56c47497fc10110a0da385f4cc913d738cfc9073#56c47497fc10110a0da385f4cc913d738cfc9073"
 dependencies = [
  "byteorder",
  "erased-serde",
@@ -840,7 +849,7 @@ dependencies = [
 [[package]]
 name = "tract-pulse"
 version = "0.23.1-pre"
-source = "git+https://github.com/sonos/tract.git?rev=ea8b0a8216d6009a51d10e9e85d8f886634fd3bd#ea8b0a8216d6009a51d10e9e85d8f886634fd3bd"
+source = "git+https://github.com/sonos/tract.git?rev=56c47497fc10110a0da385f4cc913d738cfc9073#56c47497fc10110a0da385f4cc913d738cfc9073"
 dependencies = [
  "downcast-rs",
  "dyn-eq",
@@ -855,7 +864,7 @@ dependencies = [
 [[package]]
 name = "tract-pulse-opl"
 version = "0.23.1-pre"
-source = "git+https://github.com/sonos/tract.git?rev=ea8b0a8216d6009a51d10e9e85d8f886634fd3bd#ea8b0a8216d6009a51d10e9e85d8f886634fd3bd"
+source = "git+https://github.com/sonos/tract.git?rev=56c47497fc10110a0da385f4cc913d738cfc9073#56c47497fc10110a0da385f4cc913d738cfc9073"
 dependencies = [
  "downcast-rs",
  "dyn-eq",
@@ -866,7 +875,7 @@ dependencies = [
 [[package]]
 name = "tract-transformers"
 version = "0.23.1-pre"
-source = "git+https://github.com/sonos/tract.git?rev=ea8b0a8216d6009a51d10e9e85d8f886634fd3bd#ea8b0a8216d6009a51d10e9e85d8f886634fd3bd"
+source = "git+https://github.com/sonos/tract.git?rev=56c47497fc10110a0da385f4cc913d738cfc9073#56c47497fc10110a0da385f4cc913d738cfc9073"
 dependencies = [
  "float-ord",
  "rayon",
@@ -911,6 +920,7 @@ version = "0.1.0"
 dependencies = [
  "hound",
  "tract-core",
+ "tract-extra",
  "tract-nnef",
  "tract-pulse",
  "tract-pulse-opl",

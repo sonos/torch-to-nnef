@@ -5,15 +5,17 @@ edition = "2021"
 description = "Read a WAV, run pulsed DPDFNet (NNEF/tract pulse-mode) chunk by chunk, write a clean WAV."
 publish = false
 
-# Pinned to sonos/tract main, which now carries the `Fft::axes_mapping`
-# natural mapping the streaming-axis-on-Fft path needs (merged via
-# PR https://github.com/sonos/tract/pull/2261). Repin to a published
-# `tract-*` version once one ships with that change.
+# Pinned to the head of the sonos/tract `fix/pulse-sync-inputs-dup-delay-name`
+# branch (rev 56c47497). On top of the `Fft::axes_mapping` natural mapping from
+# PR https://github.com/sonos/tract/pull/2261, it fixes pulse `sync_inputs`
+# emitting duplicate Delay node names, which the DPDFNet pulse path hits.
+# Repin to a published `tract-*` version once one ships with these changes.
 [dependencies]
-tract-nnef = { git = "https://github.com/sonos/tract.git", rev = "ea8b0a8216d6009a51d10e9e85d8f886634fd3bd" }
-tract-pulse = { git = "https://github.com/sonos/tract.git", rev = "ea8b0a8216d6009a51d10e9e85d8f886634fd3bd" }
-tract-pulse-opl = { git = "https://github.com/sonos/tract.git", rev = "ea8b0a8216d6009a51d10e9e85d8f886634fd3bd" }
-tract-core = { git = "https://github.com/sonos/tract.git", rev = "ea8b0a8216d6009a51d10e9e85d8f886634fd3bd" }
+tract-nnef = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+tract-pulse = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+tract-pulse-opl = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+tract-core = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+tract-extra = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
 hound = "3.5"
 
 [profile.release]

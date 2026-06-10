@@ -17,6 +17,7 @@ use std::time::Instant;
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
 use std::sync::Arc;
 
+use tract_extra::WithTractExtra;
 use tract_nnef::prelude::*;
 use tract_pulse::model::{PulsedModel, PulsedModelExt};
 use tract_pulse::WithPulse;
@@ -128,7 +129,7 @@ fn load_pulsed(
     model_path: &Path,
     pulse: usize,
 ) -> TractResult<(Arc<TypedRunnableModel>, usize)> {
-    let nnef = tract_nnef::nnef().with_pulse();
+    let nnef = tract_nnef::nnef().with_pulse().with_tract_extra();
     let typed = nnef.model_for_path(model_path)?;
     let sym = typed.symbols.sym(STREAM_SYMBOL);
     let pulsed = PulsedModel::new(&typed, sym, &(pulse as i64).to_dim())?;
