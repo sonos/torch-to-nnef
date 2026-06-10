@@ -146,6 +146,44 @@ output is 16-bit PCM. State is threaded automatically; an extra two
 frames of silence are appended at the tail so the overlap-add buffer
 flushes the last samples.
 
+### Pulse streaming (`wav-cleaner-pulse`)
+
+The pulse path swaps the hand-threaded state loop for tract's pulse
+declutter: the graph exposes a single `STREAM` axis on `audio`, and
+tract buffers STFT / overlap-add / GRU state internally, so the wrapper
+just feeds fixed-size chunks.
+
+```bash
+# from the repo root
+cd examples/speech_enhancement/dpdfnet
+
+# 1-2. install deps + bootstrap a checkpoint (same as the per-frame path)
+./bootstrap.sh dpdfnet2
+
+# 3. export the pulse-mode NNEF. --dprnn-num-blocks must match the
+#    variant (baseline -> 0, dpdfnet2 -> 2, dpdfnet8 -> 8). Output goes
+#    to <checkpoint stem>_pulse.nnef.tgz next to the checkpoint.
+python export_pulse.py \
+    --checkpoint _checkpoints/dpdfnet2.pth \
+    --dprnn-num-blocks 2
+
+# 4. build + run the pulse wrapper. --pulse is the chunk size in samples
+#    (default 320 = 2 hops at 16 kHz); 16 kHz mono in, 16-bit PCM out.
+cd wav-cleaner-pulse
+cargo build --release
+./target/release/wav-cleaner-pulse \
+    --model ../dpdfnet2_pulse.nnef.tgz \
+    --in ../test_16k.wav \
+    --out ../clean_pulse_16k.wav \
+    --pulse 320
+```
+
+`wav-cleaner-pulse` registers the pulse and `tract_extra` op families
+(`with_pulse().with_tract_extra()`); the latter carries the
+`exp_{mean,unit}_norm` EMA-norm state across pulses. The recorded
+`pulse.delay` under-reports the true delay, so a small fixed output
+latency offset remains (correct audio, shifted in time).
+
 ## Known limits
 
 - **Static batch size = 1**. DPDFNet is a per-frame streaming model;
@@ -164,12 +202,13 @@ flushes the last samples.
   delay), i.e. pulsification is faithful; it is not bit-identical to the
   per-frame `export.py` artifact.
 - **DPRNN pulse needs an unreleased tract.** The Scan-body and
-  `MultiBroadcastTo` pulsification fixes are on tract main, but the pulse
-  `Delay`-name dedup (a Concat fed by two differently-delayed pulse paths)
-  is not upstream yet. Until it lands and `wav-cleaner-pulse` is repinned,
-  DPRNN streaming needs a tract build carrying that fix. Also note the
-  recorded `pulse.delay` property under-reports the true delay, so the
-  `wav-cleaner-pulse` warm-up drain leaves a small fixed output latency
+  `MultiBroadcastTo` pulsification fixes plus the pulse `Delay`-name dedup
+  (a Concat fed by two differently-delayed pulse paths) are not in a
+  published `tract-*` release yet, so `wav-cleaner-pulse` pins
+  `sonos/tract` at the `fix/pulse-sync-inputs-dup-delay-name` rev that
+  carries them (see its `Cargo.toml`). Repin to a published version once
+  one ships. Also note the recorded `pulse.delay` property under-reports
+  the true delay, so the warm-up drain leaves a small fixed output latency
   offset (correct audio, shifted in time).
 
 ## Files
@@ -188,7 +227,7 @@ examples/speech_enhancement/dpdfnet/
     Cargo.toml
     src/main.rs
   wav-cleaner-pulse/   pulse-mode wrapper: tract buffers state internally,
-                       fed chunk by chunk (pinned to a sonos/tract main rev)
+                       fed chunk by chunk (pinned to a sonos/tract pulse-fix rev)
     Cargo.toml
     src/main.rs
 ```
