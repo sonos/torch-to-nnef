@@ -3198,6 +3198,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Changed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
@@ -3264,7 +3273,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -3306,7 +3315,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -3408,7 +3417,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_2" class="md-nav__link">
+  <a href="#changed_3" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -3450,7 +3459,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_3" class="md-nav__link">
+  <a href="#changed_4" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -6835,6 +6844,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Changed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
@@ -6901,7 +6919,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -6943,7 +6961,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -7045,7 +7063,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_2" class="md-nav__link">
+  <a href="#changed_3" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -7087,7 +7105,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_3" class="md-nav__link">
+  <a href="#changed_4" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -10464,8 +10482,14 @@
 <li><strong><code>examples/vad/silero-jit/</code></strong>: end-to-end demo of the JIT-only export path on a real artifact, gated in CI via the <code>silero_vad_demo</code> tox env.</li>
 <li><strong>Tutorial</strong>: <code>docs/tutos/12_jit_only_models.md</code> covers both the auto-detection path and the manual chain.</li>
 </ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>Officially supported tract versions bumped to 0.23.0 and 0.22.1 (0.21.15 dropped).</li>
+</ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li>Reified <code>scaled_dot_product_attention</code> (<code>tract_transformers_sdpa</code>) now tiles a size-1 query axis on the attention mask up to the query length. tract 0.23.0's <code>FlashSDPA</code> does not broadcast that axis at eval time, so key-padding masks (e.g. torchaudio Conformer) raised an incompatible-shape error.</li>
+<li>Nearest 2-D upsample with static shapes now lowers via the rank-generic reshape/tile path instead of <code>deconv</code>. The deconv lowering emits a broadcast <code>Mul</code> that tract 0.23.0's <code>OptMatMul</code> fuse pass mis-substitutes when an adjacent conv consumes the upsample output (e.g. VAE-style decoder). The deconv path is kept for the dynamic-axes case.</li>
 <li>Parser bugs surfaced by JIT-only export (each was latent in main):</li>
 <li><code>slice_</code> recognizes <code>prim::Constant[NoneType]</code> for begin/end (Python's <code>t[:]</code>).</li>
 <li><code>div</code> wraps scalar division result in a 0-d tensor before <code>.to(dtype)</code>.</li>
@@ -10494,7 +10518,7 @@
 <li>Parakeet V3 and MarbleNet VAD export tests for NeMo.</li>
 <li>Runtime warning when STFT is used with tract 0.21.14/0.21.15 (known slice-fusion bug).</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li>Officially supported tract versions bumped to 0.22.1 and 0.21.15.</li>
 <li>LLM CI matrix now tests transformers 5.0.0 and 5.5.0 on Python 3.13 (replaces 4.55.0).</li>
@@ -10514,7 +10538,7 @@
 <li>tract 0.22.1 on linux x86_64: <code>OptMatMulPack</code> tries to pack F32 tensors as PackedF16 when <code>force_f32_attention=True</code>.</li>
 </ul>
 <h2 id="0230-2026-04-10">[0.23.0] - 2026-04-10</h2>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li>Split into 3 independent packages in a uv workspace monorepo:</li>
 <li><code>torch_to_nnef</code> (core) -- base export library, Python &gt;=3.9</li>
@@ -10588,7 +10612,7 @@
 <li>Tract option: <code>--tract-reify-sdpa</code> to reify SDP attention for improved tract optimizations.</li>
 <li>Versioning: new SemVer 2.0 utilities (<code>SemanticVersion</code>) and helpers integrated; enables correct prerelease/build handling and consistent version comparisons across the codebase.</li>
 </ul>
-<h3 id="changed_2">Changed</h3>
+<h3 id="changed_3">Changed</h3>
 <ul>
 <li>NNEF export artifacts: honoring <code>.nnef.tgz</code> as an intent for the final archive while always writing to the base <code>.nnef</code> path internally; consistent selection of directory (<code>compression=None</code>), <code>.tar</code> (<code>0</code>), or <code>.tgz</code> (<code>1..9</code>).</li>
 <li>Writer: explicit <code>archive_format</code> for predictable <code>.tar</code> vs <code>.tgz</code> emission; avoids unnecessary fragment extensions for Tract targets.</li>
@@ -10616,7 +10640,7 @@
 <li>Analysis tooling for debugging batch-mode encoder issues and SDPA operator behavior</li>
 <li>Support for runtime config in nemo tract rust example to better control the runner.</li>
 </ul>
-<h3 id="changed_3">Changed</h3>
+<h3 id="changed_4">Changed</h3>
 <ul>
 <li>Export performance significantly improved via shape inference speculation system - avoiding redundant model executions during export by guessing shapes for common operations</li>
 <li>NeMo evaluation framework restructured with modular dataset handling, manifest comparison tools, and batch alignment verification utilities</li>
