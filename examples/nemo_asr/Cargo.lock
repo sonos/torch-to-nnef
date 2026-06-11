@@ -527,7 +527,6 @@ checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
- "zlib-rs",
 ]
 
 [[package]]
@@ -1076,46 +1075,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "ndarray"
-version = "0.17.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "520080814a7a6b4a6e9070823bb24b4531daac8c4627e08ba5de8c5ef2f2752d"
-dependencies = [
- "matrixmultiply",
- "num-complex",
- "num-integer",
- "num-traits",
- "portable-atomic",
- "portable-atomic-util",
- "rawpointer",
-]
-
-[[package]]
 name = "ndarray-npy"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b313788c468c49141a9d9b6131fc15f403e6ef4e8446a0b2e18f664ddb278a9"
 dependencies = [
  "byteorder",
- "ndarray 0.16.1",
+ "ndarray",
  "num-complex",
  "num-traits",
  "py_literal",
- "zip 2.4.2",
-]
-
-[[package]]
-name = "ndarray-npy"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58e8a348bca0075000d999d750420d74434fd0d3e0993b456554f885e7657a11"
-dependencies = [
- "byteorder",
- "ndarray 0.17.2",
- "num-complex",
- "num-traits",
- "py_literal",
- "zip 6.0.0",
+ "zip",
 ]
 
 [[package]]
@@ -1126,7 +1096,7 @@ dependencies = [
  "hound",
  "itertools 0.14.0",
  "log",
- "ndarray-npy 0.10.0",
+ "ndarray-npy",
  "serde",
  "serde_json",
  "test-log",
@@ -2030,7 +2000,7 @@ dependencies = [
  "boow",
  "flate2",
  "half",
- "ndarray 0.16.1",
+ "ndarray",
 ]
 
 [[package]]
@@ -2048,7 +2018,7 @@ dependencies = [
  "lazy_static",
  "log",
  "maplit",
- "ndarray 0.16.1",
+ "ndarray",
  "num-complex",
  "num-integer",
  "num-traits",
@@ -2094,7 +2064,7 @@ dependencies = [
  "lazy_static",
  "libm",
  "maplit",
- "ndarray 0.16.1",
+ "ndarray",
  "nom",
  "nom-language",
  "num-integer",
@@ -2149,7 +2119,7 @@ dependencies = [
  "cudarc",
  "lazy_static",
  "log",
- "ndarray-npy 0.9.1",
+ "ndarray-npy",
  "nu-ansi-term 0.46.0",
  "py_literal",
  "rand 0.8.6",
@@ -2293,7 +2263,7 @@ dependencies = [
  "half",
  "icu_normalizer",
  "icu_properties",
- "ndarray 0.16.1",
+ "ndarray",
  "serde_json",
  "tract-api",
  "tract-cuda",
@@ -2601,26 +2571,6 @@ dependencies = [
  "thiserror",
  "zopfli",
 ]
-
-[[package]]
-name = "zip"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb2a05c7c36fde6c09b08576c9f7fb4cda705990f73b58fe011abf7dfb24168b"
-dependencies = [
- "arbitrary",
- "crc32fast",
- "flate2",
- "indexmap 2.13.0",
- "memchr",
- "zopfli",
-]
-
-[[package]]
-name = "zlib-rs"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3be3d40e40a133f9c916ee3f9f4fa2d9d63435b5fbe1bfc6d9dae0aa0ada1513"
 
 [[package]]
 name = "zmij"
