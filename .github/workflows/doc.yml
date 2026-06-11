@@ -46,9 +46,12 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        # No caching: this workflow now runs on `v*` tags (a publishing trigger),
-        # where a restored cache could be poisoned from a lower-privilege run
-        # (zizmor cache-poisoning). release.yml follows the same no-cache pattern.
+        with:
+          # No caching: this workflow now runs on `v*` tags (a publishing
+          # trigger), where a restored cache could be poisoned from a
+          # lower-privilege run (zizmor cache-poisoning). release.yml follows
+          # the same no-cache pattern.
+          enable-cache: false
 
       - name: Install dependencies
         run: |
