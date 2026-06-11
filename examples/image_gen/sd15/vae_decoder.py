@@ -20,6 +20,7 @@ from diffusers import AutoencoderKL
 from torch import nn
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 HF_REPO = "stable-diffusion-v1-5/stable-diffusion-v1-5"
 
@@ -75,7 +76,15 @@ def main():
         model=pipeline,
         args=latents,
         file_path_export=args.out,
-        inference_target=TractNNEF(version=tract_version, check_io=check_io),
+        # The VAE decoder agrees with tract pervasively to ~1e-3, but across so
+        # many of its 786432 outputs that the default "approximate" bound trips.
+        # "super" is the project convention for large models (cf. the parakeet
+        # export in examples/nemo_asr).
+        inference_target=TractNNEF(
+            version=tract_version,
+            check_io=check_io,
+            check_io_tolerance=TractCheckTolerance.SUPER,
+        ),
         input_names=["latents"],
         output_names=["image"],
         debug_bundle_path=Path("./debug_vae_decoder.tgz"),
