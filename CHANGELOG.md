@@ -1,9 +1,27 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
-## [Unreleased]
+## [0.24.0] - 2026-06-11
 
 ### Added
+- **ATen operator coverage expanded from 636 to 762 supported operators (+126)** across ~40 batched PRs. Highlights by family:
+  - Elementwise math: `frac`, `signbit`, `erfc`, `tanhshrink`, `ldexp`, `addcdiv`, `sgn`, `logaddexp`/`logaddexp2`, `copysign`, `sinc`, `isclose`, plus a `logsumexp` fragment.
+  - FFT: `fft_rfft`, `fft_fftn`, `fft_ifftn`, `fft_irfft` (Hermitian reconstruction), `fftfreq`, and Hamming/Blackman/Kaiser/Hann/Bartlett windows.
+  - Fused matmul: `addbmm`, `addmv`, `addr` (with `bias_addmm` alias), `chain_matmul`, `bilinear`.
+  - Scans: `cummax`, `cummin`, `cumprod`, `logcumsumexp`.
+  - Scatter family: `scatter_add`, `scatter_reduce`, `select_scatter`, `slice_scatter`.
+  - Patch ops: `im2col` (`F.unfold`), `col2im` (`F.fold`), and `Tensor.unfold`.
+  - Special functions: `i0`, `special_i0e`, `i1`, `lgamma`, `mvlgamma`, `digamma`.
+  - Distances and losses: `cdist`, `pdist`, `pairwise_distance`, `cross`, `tensordot`, plus an l1/huber/smooth_l1/hinge/triplet-margin loss family and `numpy_T`.
+  - Complex: `complex` constructor, `polar`, `angle`, `conj`/`conj_physical`.
+  - Shape utilities: `meshgrid`, `tensor_split`, `broadcast_tensors`, `column_stack`, `dstack`, `v|h|dsplit`, `movedim`, `channel_shuffle`, `pixel_*`, `count_nonzero`, matrix-transpose and `flip` aliases.
+  - Misc: `bitwise_left_shift`/`bitwise_right_shift`, `instance_norm`, `max_pool1d_with_indices`, `max_pool2d_with_indices`, `renorm`, `take`/`take_along_dim`, `index_*`, `aminmax`, `var`/`std`/`var_mean`/`std_mean`, `diagonal` (offset support), `vander`, `logspace`, `linspace`, `trilu_indices`, `gru_cell`/`rnn_tanh_cell`/`rnn_relu_cell`.
+- **Python 3.14 support** added; **Python 3.9 dropped** (EOL).
+- New end-to-end export examples with zoo tests: Sana mini DiT, Flux-Schnell transformer (MM-DiT), Pocket-TTS (Mimi decoder + flow_net), Mamba selective-scan (external-state and pulse-mode), and a FunASR FSMN-VAD demo (pulsed==batch parity).
+- **`force_norm_in_f32`** for `layer_norm` (fp16 export stability, used by Pocket-TTS).
+- LLM loader robustness: local-first model loading (use the HF cache without a hub call) and configurable retries on transient HF download failures (`hf_download_n_retries`).
+- `map_location` for `iter_torch_tensors_from_disk` (skips non-tensors).
+- Hypothesis-driven proptest coverage for primitive ops.
 - External custom op support via `t2n_extra` handlers (extensible):
   - `torch_to_nnef.op.extras.register("<name>")` handler API.
   - Auto-loading of handler modules in `export_model_to_nnef` via:
@@ -29,9 +47,10 @@
 - **`examples/speech_enhancement/dpdfnet/export_pulse.py`** and companion `wav-cleaner-pulse/` Rust wrapper: streaming-friendly DPDFNet export that folds the rolling STFT, NN, iSTFT, OLA, and GRU state into a single streaming-axis NNEF artifact, with tract pulse mode handling buffering and state downstream.
 
 ### Changed
+- **Breaking: artifact output is suffix-steered.** `export_model_to_nnef` now selects the output form from the path suffix (`None` -> directory, `0` -> `.tar`, `1..9` -> `.tgz` at the matching compression level; default `0`) and returns the path to the produced artifact. Callers relying on the previous fixed output shape must update accordingly.
+- **`trust_remote_code` is now opt-out** (LLM): the exporters default to trusting remote code (matching prior behaviour) but emit a warning, and a new `--no-trust-remote-code` CLI flag disables it for untrusted Hugging Face repositories.
+- **Python 3.14 supported, Python 3.9 dropped** (EOL).
 - **View-tagged complex IR is now an enforced invariant.** `TorchToNGraphExtractor.build_nnef_graph` promotes every complex IR tensor to rank N+1 with a trailing axis of size 2 carrying `(real, imag)`, unconditionally and once up-front. Producer handlers (`_fft`, `stft`, `fft_rfft`, `complex`, `polar`, …) no longer re-promote `node.outputs[0].shape`; consumer handlers (`fft_irfft`, `transpose`, `pick_axis`, …) rely on the uniform invariant `complex_dtype => IR rank == storage rank == logical_rank + 1`. The previous `shape[-1] == 2` heuristic misfired on logical complex tensors whose last axis happened to be 2 (e.g. `fft.fft` of `float32[2,2]`, `fft.rfft(x, dim=0)` on a length-2 signal). Side effect: `torch.complex(r, i)` and `torch.polar(a, p)` outputs now correctly survive chaining into `torch.fft.fft`/`fft.ifft`.
-
-### Changed
 - Officially supported tract versions bumped to 0.23.0 and 0.22.1 (0.21.15 dropped).
 
 ### Fixed
@@ -44,6 +63,13 @@
   - `prim::TupleUnpack` output names are normalised through `cleanup_data_name`, fixing dotted SSA-name lookups (e.g. `h0.1`).
 - `constant_pad_nd` with a negative entry on a dynamic axis: the decomposed `slice` now uses `dyn_slice_begin` (open-ended) instead of a concrete-`end` `slice`, so the streaming-axis symbolic dim survives the crop. Without this, the cropped axis collapsed to a fixed size and any downstream broadcast against a streaming sibling failed under pulse mode (surfaced by DPDFNet's causal `pad_feat`).
 - `flatten` of a view-tagged complex tensor emitted the reshape with the complex `dtype`, which has no NNEF datum type and raised `KeyError` at serialization; it now emits the real component dtype (the storage is real `(..., 2)`). `permute` of a view-tagged complex tensor now builds the full storage-rank axes list with the trailing `(re, imag)` axis kept fixed, matching the `transpose` handler instead of relying on NNEF's append-remaining-axes behaviour.
+
+### Security
+- **Checkpoints load `weights_only`-first** (core): `torch_safe_load` attempts a `weights_only=True` load before any fallback, avoiding arbitrary code execution from pickled checkpoints.
+- **Archive extraction is path-traversal safe**: extraction now refuses members that would write outside the target directory.
+- **Coordinated disclosure policy**: added `SECURITY.md` (private vulnerability reporting via GitHub).
+- **CI security gates**: CodeQL SAST (security-extended), TruffleHog secret scanning (PRs + weekly history sweep), Trivy, `cargo-deny`, dependency review, and CODEOWNERS on security-critical config.
+- **Dependency CVE patches**: bumped `onnx` (1.21.0), `sentencepiece` (0.2.1), `urllib3` (2.7.0), `pillow` (12.2.0), `nemo-toolkit` (2.7.3), `GitPython` (3.1.50), and `cryptography`/`pyarrow`/`protobuf` to address high-severity CVEs (RCE, OOB read/write, TOCTOU, path traversal, decompression bomb). Example lockfiles bumped `tar`/`time`/`mako`/`nltk`/`pyarrow` for the same reasons.
 
 ## [0.23.2] - 2026-04-21
 
