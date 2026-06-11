@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="./uPlot.iife.min.js"></script>
+    <link rel="stylesheet" href="./uPlot.min.css">
+    <link rel="stylesheet" href="./theme.css">
+    <link rel="stylesheet" href="./vad/demo_vad.css">
+    <script src="./sync_receiver_colorscheme.js"></script>
+    <script type="module" src="./vad/index.js"></script>
+  </head>
+  <body>
+    <div class="container page" id="page">
+      <div id="vad-preview" class="card">
+        <div id="vad-prestart">
+          <div class="card-content">
+            <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> Voice Activity Detection</span>
+            <p>
+              This demo runs a Voice Activity Detection (VAD) model based on FunASR
+              <a href="https://huggingface.co/funasr/fsmn-vad" target="_blank" rel="noopener noreferrer">FSMN-VAD</a>
+              (<a href="https://arxiv.org/abs/1803.05030" target="_blank" rel="noopener noreferrer">Deep-FSMN paper</a>).
+              VAD estimates the probability that speech is present in short audio frames. FSMN-VAD is a
+              lightweight (0.4M params) strictly causal architecture: its "memory" is a depthwise
+              convolution over past frames (no lookahead), making it a natural fit for streaming and for
+              tract's <em>pulse</em> transform.
+            </p>
+            <div class="card-panel teal lighten-5" style="margin-top:8px;">
+              <span class="black-text">
+                <strong>Did you know?</strong> In tract, a <em>pulse</em> is a small, fixed‑size
+                chunk on the time axis (here: 4 frames). The engine streams these pulses through
+                the graph, carrying just enough internal state to run <em>causally</em> without
+                replaying history. Latency is thus bounded by the pulse size (ops must be
+                streamable or have a small look‑ahead).
+              </span>
+            </div>
+            <div class="modes" style="margin-top:8px;">
+              <span style="color:#666;">Modes:</span>
+              <ul class="browser-default" style="margin:6px 0 0 18px;">
+                <li><strong>Pulsed</strong>: low‑latency streaming using the current pulse size.</li>
+                <li><strong>Batch</strong>: larger context per step for reference parity.</li>
+                <li><strong>Both</strong>: plots both scores side‑by‑side for comparison.</li>
+              </ul>
+            </div>
+            <p style="margin-top:8px;">
+              <em>Dev notes:</em> see <a href="https://github.com/sonos/torch-to-nnef/blob/main/docs/html/vad/README.md" target="_blank" rel="noopener noreferrer">VAD module README</a>
+              for local wasm build and serve instructions.
+            </p>
+            <!-- Plot placeholder: chart renders here, just after the intro/dev notes -->
+            <div id="vad-plot" class="vad-plot" style="margin-top:8px;"></div>
+            <div id="error-container" class="card-panel red lighten-4" style="display:none;">
+              <span id="error"></span>
+            </div>
+          </div>
+          <div class="card-action" id="controls-container">
+            <div id="modes-row">
+              <span style="color:#666;">Mode:</span>
+              <label style="display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="vad-mode" value="pulsed" checked>
+                <span>Pulsed</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="vad-mode" value="batch">
+                <span>Batch</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="vad-mode" value="both">
+                <span>Both</span>
+              </label>
+            </div>
+            <div id="actions-row">
+              <button id="vad-click" class="btn btn-large blue darken-3 waves-effect waves-light"><i class="material-icons left">mic</i>From Microphone</button>
+              <span class="file-group">
+                <input type="file" id="file-audio" accept="audio/*" style="display:none;" />
+                <button id="run-file" class="btn btn-large blue darken-3 waves-effect waves-light"><i class="material-icons left">folder_open</i>Run File</button>
+              </span>
+            </div>
+            <div id="stats-row">
+              <span id="file-stats">&nbsp;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="loading">
+      <div class="centered">
+        <div class="progress">
+          <div class="indeterminate"></div>
+        </div>
+        <h4>
+          <span class="card-title">👀 <span style="color:teal">Live Demo: </span> Voice Activity Detection</span>
+        </h4>
+        <h5 id="loadstatus">downloading model</h5>
+      </div>
+    </div>
+  </body>
+  <script>
+    // Initial state before module toggles visibility
+    (function(){
+      var p = document.getElementById('page');
+      var l = document.getElementById('loading');
+      if (p) p.style.display = 'none';
+      if (l) l.style.display = 'flex';
+    })();
+  </script>
+  <script>
+    // Resize notifications for embedding if this page is inside an iframe
+    (function(){
+      const sendHeight = () => {
+        const height = document.documentElement.scrollHeight;
+        try { window.parent.postMessage({ type: 'resize', height, ref: 'vad' }, '*'); } catch {}
+      };
+      window.addEventListener('load', sendHeight);
+      try { new ResizeObserver(sendHeight).observe(document.body); } catch {}
+    })();
+  </script>
+</html>
