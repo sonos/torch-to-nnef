@@ -3,15 +3,11 @@ name: Deploy T2N docs
 # Controls when the action will run.
 on:
   push:
-    branches: [main]
-    # Mirror doc-check.yml's PR trigger so a doc-only merge to main always
-    # redeploys. The "10. Nemo ASR" tutorial is a symlink into examples/, so
-    # an examples/ change can also change a doc page.
-    paths:
-      - "**.md"
-      - "mkdocs.yml"
-      - "docs/**"
-      - "examples/**"
+    # Deploy docs only on a tagged version release, not on every merge to main,
+    # so the published docs track the latest packaged release (see release.yml,
+    # which builds/publishes on the same `v*` tags).
+    tags:
+      - "v*"
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
