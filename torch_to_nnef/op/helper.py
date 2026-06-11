@@ -296,6 +296,21 @@ def add_tensor_variable_node_as_nnef_tensor(
     return nnef_tensor_ref
 
 
+def _is_view_tagged_complex_nnef(nnef_tensor) -> bool:
+    """Mirror of t2n IR's view-tagged complex check at the NNEF tensor level."""
+    if not hasattr(nnef_tensor, "shape") or not hasattr(nnef_tensor, "dtype"):
+        return False
+    try:
+        is_complex = np.issubdtype(nnef_tensor.dtype, np.complexfloating)
+    except TypeError:
+        return False
+    return (
+        is_complex
+        and len(nnef_tensor.shape) >= 2
+        and nnef_tensor.shape[-1] == 2
+    )
+
+
 def maybe_align_inputs_ranks(
     g: NGraph,
     inputs: T.Sequence[NTensor],
@@ -312,6 +327,57 @@ def maybe_align_inputs_ranks(
     instead of PyTorch expansion which happen in opposite direction.
 
     """
+    # If any input is a view-tagged complex tensor (trailing-2 axis
+    # carrying re/im), the real-valued co-inputs need a trailing-1 axis
+    # so their logical axes align with the complex's logical axes
+    # before the regular left-aligned rank padding kicks in. Otherwise
+    # element-wise ops like `mul`, `add`, `div` mis-broadcast the
+    # complex tensor's freq / time axes against the real tensor's
+    # storage axes.
+    any_complex_view_tagged = any(
+        _is_view_tagged_complex_nnef(t) for t in inputs
+    )
+    if any_complex_view_tagged:
+        inputs_list = list(inputs)
+        for idx, t in enumerate(inputs_list):
+            if _is_view_tagged_complex_nnef(t):
+                continue
+            # Fail-fast on the latent foot-gun: a real co-input whose
+            # last axis is already 2 is ambiguous -- we can't tell
+            # whether the user meant the 2 to broadcast against the
+            # complex's logical axes or against the (re, imag) pair
+            # itself. The trailing-1 unsqueeze below would silently
+            # mis-broadcast in the former case. Force the user to be
+            # explicit (manually unsqueeze or reshape) before the op.
+            if (
+                isinstance(t.shape, (list, tuple))
+                and len(t.shape) >= 1
+                and t.shape[-1] == 2
+            ):
+                raise T2NErrorNotImplemented(
+                    f"{op_type}: real input {t.name!r} ends in a length-2 "
+                    "axis while another input is view-tagged complex. The "
+                    "auto-aligner cannot tell whether the trailing 2 is a "
+                    "logical axis or t2n's complex pair; unsqueeze / reshape "
+                    "the real input explicitly before this op."
+                )
+            # Real co-input: append a trailing-1 axis.
+            new_shape = list(t.shape) + [1]
+            aligned = NTensor(
+                g,
+                name=f"{t.name}_complex_align",
+                dtype=t.dtype,
+                shape=tuple(new_shape),
+            )
+            NOperation(
+                g,
+                type="unsqueeze",
+                attribs={"axes": [len(t.shape)]},
+                inputs=t,
+                outputs=aligned,
+            )
+            inputs_list[idx] = aligned
+        inputs = inputs_list if isinstance(inputs, list) else tuple(inputs_list)
     tensors_ranks = [len(_.shape) for _ in inputs]
     if len(set(tensors_ranks)) > 1:
         all_inputs_shapes_are_scalar_like = all(
@@ -457,6 +523,16 @@ def pick_axis(input_node, rank: int) -> int:
         base_rank = len(input_node.data)
     else:
         base_rank = input_node.rank
+        # Complex IR tensors are uniformly view-tagged (storage rank =
+        # logical_rank + 1, trailing axis = 2; see
+        # `TorchToNGraphExtractor.build_nnef_graph`). PyTorch's negative
+        # dims index the logical view, so resolve `-1` against
+        # `rank - 1` rather than the trailing (re, imag) axis.
+        if getattr(input_node, "dtype", None) in (
+            torch.complex64,
+            torch.complex128,
+        ):
+            base_rank -= 1
     return base_rank + rank
 
 
@@ -985,10 +1061,49 @@ class OpHelper:
                 inputs[idx] = out
         if nnef_op_type not in OPS_IMPLICIT_CAST_BY_OUTPUT_DTYPE:
             return inputs
+        # Skip the implicit cast when the output dtype is complex: tract
+        # has no native complex datum type; t2n carries complex via a
+        # trailing-2 real axis instead, so emitting a `tract_core_cast`
+        # to `complexf64` here would crash tract at load time.
+        if node.outputs[0].dtype in (torch.complex64, torch.complex128):
+            return inputs
         final_dtype = TORCH_TO_NUMPY_DTYPE[node.outputs[0].dtype]
         inputs = list(inputs)
         for idx, inp in enumerate(inputs):
             if inp.dtype != final_dtype:
+                # Don't emit a `tract_core_cast` from t2n's view-tagged
+                # complex (real `(..., 2)` storage tagged as complex64)
+                # to a real dtype: the storage IS already real, only
+                # the NNEF dtype tag needs updating. Tract has no
+                # complex datum type, so the cast would either crash
+                # at load or produce wrong values.
+                try:
+                    inp_is_complex = np.issubdtype(
+                        inp.dtype, np.complexfloating
+                    )
+                except TypeError:
+                    inp_is_complex = False
+                if inp_is_complex and np.issubdtype(final_dtype, np.floating):
+                    # The storage is already real (view-tagged complex
+                    # stores `(..., 2)` floats); only the dtype tag
+                    # needs updating. Create a fresh NTensor instead of
+                    # mutating `inp` in place -- the input may be
+                    # shared with other consumers that still expect the
+                    # complex tag.
+                    retagged = NTensor(
+                        self.g,
+                        name=f"{inp.name}_as_{numpy_dtype_to_tract_str(final_dtype)}",
+                        dtype=final_dtype,
+                        shape=tuple(inp.shape),
+                    )
+                    NOperation(
+                        self.g,
+                        type="copy",
+                        inputs=inp,
+                        outputs=retagged,
+                    )
+                    inputs[idx] = retagged
+                    continue
                 to_str = numpy_dtype_to_tract_str(final_dtype)
                 out = self.add_single_output_op_from_nnef_tensors(
                     node=node,

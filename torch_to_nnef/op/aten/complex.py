@@ -103,11 +103,11 @@ def complex(  # pylint: disable=redefined-builtin
     if tract_complex_support(inference_target):
         raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
     real_node, imag_node = node.inputs
-    # Clear the trace's complex64 marker on the IR output: we actually
-    # emit a real `(..., 2)` tensor, and downstream implicit-cast logic
-    # otherwise tries to coerce the real inputs to `complexf64`.
-    node.outputs[0].dtype = torch.float32
-    node.outputs[0].shape = list(real_node.shape) + [2]
+    # The IR output is view-tagged complex (rank N+1, trailing 2, dtype
+    # complex) thanks to the pre-pass in `build_nnef_graph`. The NNEF
+    # `complex` fragment writes the trailing-2 real storage into that
+    # slot. Implicit-cast logic in `OpHelper` already skips coercing
+    # real inputs to a complex datum when the op's output is complex.
     real_ref = op_helper.get_or_add_tensor_variable_in_nnef(real_node)
     imag_ref = op_helper.get_or_add_tensor_variable_in_nnef(imag_node)
     op_helper.add_single_output_op_from_nnef_tensors(
@@ -234,13 +234,11 @@ def polar(node, op_helper, inference_target, **kwargs):
     if tract_complex_support(inference_target):
         raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
     abs_node, angle_node = node.inputs
-    # The fragment writes a real `(..., 2)` tensor; clear the trace's
-    # `complex64` marker on the output node so downstream implicit-cast
-    # logic doesn't try to coerce the real inputs to `complexf64`
-    # (tract has no such dtype). Same for the shape: the trace carries
-    # the bare complex shape, we actually emit `(..., 2)`.
-    node.outputs[0].dtype = torch.float32
-    node.outputs[0].shape = list(abs_node.shape) + [2]
+    # The IR output is view-tagged complex (rank N+1, trailing 2, dtype
+    # complex) thanks to the pre-pass in `build_nnef_graph`. The NNEF
+    # `polar` fragment writes `(abs*cos, abs*sin)` into the trailing
+    # axis. Implicit-cast logic already skips real-to-complex coercion
+    # for ops with complex outputs.
     abs_ref = op_helper.get_or_add_tensor_variable_in_nnef(abs_node)
     angle_ref = op_helper.get_or_add_tensor_variable_in_nnef(angle_node)
     op_helper.add_single_output_op_from_nnef_tensors(

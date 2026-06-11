@@ -205,6 +205,29 @@ class TorchToNGraphExtractor:
 
     def build_nnef_graph(self):
         LOGGER.info("start to translate internal IR to NNEF Graph object")
+        # Promote every complex-dtype IR tensor to the view-tagged layout
+        # used across t2n (IR rank = logical_rank + 1, trailing axis of
+        # size 2 carrying re/im, dtype complex64/128). PyTorch's tracer
+        # reports complex tensors at the logical rank; generic ops like
+        # `mul`, `add`, `transpose` that copy `node.outputs[0].shape`
+        # from the tracer would otherwise leak rank-N tensors into a
+        # NNEF graph whose storage is rank N+1. Running this once up
+        # front lets every downstream emitter rely on the invariant
+        # `complex_dtype => IR rank == storage rank == logical + 1`.
+        #
+        # The promotion is unconditional: heuristics on `shape[-1] == 2`
+        # are unsafe because a logical complex tensor whose last axis
+        # happens to be 2 (e.g. `rfft` of a length-2 signal) is then
+        # indistinguishable from an already-tagged one. Producer
+        # handlers (`fft`, `stft`, `complex`, `polar`, ...) must
+        # therefore NOT re-promote `node.outputs[0].shape` themselves.
+        for tv in self._torch_ir_graph.data_nodes:
+            if (
+                isinstance(tv, TensorVariable)
+                and tv.dtype in (torch.complex64, torch.complex128)
+                and isinstance(tv.shape, list)
+            ):
+                tv.shape = list(tv.shape) + [2]
         null = NTensor(
             self.g,
             name="",

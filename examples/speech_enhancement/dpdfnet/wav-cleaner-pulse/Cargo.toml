@@ -1,0 +1,24 @@
+[package]
+name = "wav-cleaner-pulse"
+version = "0.1.0"
+edition = "2021"
+description = "Read a WAV, run pulsed DPDFNet (NNEF/tract pulse-mode) chunk by chunk, write a clean WAV."
+publish = false
+
+# Pinned to the head of the sonos/tract `fix/pulse-sync-inputs-dup-delay-name`
+# branch (rev 56c47497). On top of the `Fft::axes_mapping` natural mapping from
+# PR https://github.com/sonos/tract/pull/2261, it fixes pulse `sync_inputs`
+# emitting duplicate Delay node names, which the DPDFNet pulse path hits.
+# Repin to a published `tract-*` version once one ships with these changes.
+[dependencies]
+tract-nnef = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+tract-pulse = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+tract-pulse-opl = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+tract-core = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+tract-extra = { git = "https://github.com/sonos/tract.git", rev = "56c47497fc10110a0da385f4cc913d738cfc9073" }
+hound = "3.5"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

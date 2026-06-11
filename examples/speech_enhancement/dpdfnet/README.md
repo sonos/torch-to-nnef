@@ -146,16 +146,70 @@ output is 16-bit PCM. State is threaded automatically; an extra two
 frames of silence are appended at the tail so the overlap-add buffer
 flushes the last samples.
 
+### Pulse streaming (`wav-cleaner-pulse`)
+
+The pulse path swaps the hand-threaded state loop for tract's pulse
+declutter: the graph exposes a single `STREAM` axis on `audio`, and
+tract buffers STFT / overlap-add / GRU state internally, so the wrapper
+just feeds fixed-size chunks.
+
+```bash
+# from the repo root
+cd examples/speech_enhancement/dpdfnet
+
+# 1-2. install deps + bootstrap a checkpoint (same as the per-frame path)
+./bootstrap.sh dpdfnet2
+
+# 3. export the pulse-mode NNEF. --dprnn-num-blocks must match the
+#    variant (baseline -> 0, dpdfnet2 -> 2, dpdfnet8 -> 8). Output goes
+#    to <checkpoint stem>_pulse.nnef.tgz next to the checkpoint.
+python export_pulse.py \
+    --checkpoint _checkpoints/dpdfnet2.pth \
+    --dprnn-num-blocks 2
+
+# 4. build + run the pulse wrapper. --pulse is the chunk size in samples
+#    (default 320 = 2 hops at 16 kHz); 16 kHz mono in, 16-bit PCM out.
+cd wav-cleaner-pulse
+cargo build --release
+./target/release/wav-cleaner-pulse \
+    --model ../dpdfnet2_pulse.nnef.tgz \
+    --in ../test_16k.wav \
+    --out ../clean_pulse_16k.wav \
+    --pulse 320
+```
+
+`wav-cleaner-pulse` registers the pulse and `tract_extra` op families
+(`with_pulse().with_tract_extra()`); the latter carries the
+`exp_{mean,unit}_norm` EMA-norm state across pulses. The recorded
+`pulse.delay` under-reports the true delay, so a small fixed output
+latency offset remains (correct audio, shifted in time).
+
 ## Known limits
 
 - **Static batch size = 1**. DPDFNet is a per-frame streaming model;
   batched inference is unusual. The export uses static axes.
-- **No tract pulse-mode**. The artifact is per-frame with explicit
-  state I/O; the Rust wrapper threads state in a loop. Tract's pulse
-  declutter could in principle compile the per-frame graph into a
-  `model.run(audio_buffer) -> clean_buffer` call, which would
-  eliminate the per-frame call overhead. Out of scope here; would
-  benefit from tract upstream work.
+- **Per-frame variant threads state by hand**. The `export.py` artifact
+  is per-frame with explicit state I/O; `wav-cleaner-rs` threads state in
+  a loop. For the streaming alternative that lets tract's pulse declutter
+  compile a `model.run(audio_buffer) -> clean_buffer` call and buffer
+  state internally, see `export_pulse.py` + `wav-cleaner-pulse/` below.
+- **Pulse export is mask-only and an approximation of the full model.**
+  `export_pulse.py` drops the `df_op` deep-filter head and swaps
+  `center=True` STFT/iSTFT for `center=False` (tract pulse can't pulse a
+  `reflect` pad). DPRNN variants additionally front-pad one hop and drop
+  the `conv_lookahead` shift (pure causal). The pulsed graph is validated
+  **bit-exact against its own batched run** (modulo a fixed algorithmic
+  delay), i.e. pulsification is faithful; it is not bit-identical to the
+  per-frame `export.py` artifact.
+- **DPRNN pulse needs an unreleased tract.** The Scan-body and
+  `MultiBroadcastTo` pulsification fixes plus the pulse `Delay`-name dedup
+  (a Concat fed by two differently-delayed pulse paths) are not in a
+  published `tract-*` release yet, so `wav-cleaner-pulse` pins
+  `sonos/tract` at the `fix/pulse-sync-inputs-dup-delay-name` rev that
+  carries them (see its `Cargo.toml`). Repin to a published version once
+  one ships. Also note the recorded `pulse.delay` property under-reports
+  the true delay, so the warm-up drain leaves a small fixed output latency
+  offset (correct audio, shifted in time).
 
 ## Files
 
@@ -163,11 +217,17 @@ flushes the last samples.
 examples/speech_enhancement/dpdfnet/
   bootstrap.sh         clone DPDFNet repo + download HF checkpoint
   export.py            wrap any DPDFNet variant + STFT + iFFT, export to NNEF
+  export_pulse.py      streaming-axis export: STFT + NN + iSTFT + OLA + GRU
+                       state folded into one pulse-mode NNEF artifact
   bench.py             tract per-op profile + NN/DSP split (manifest-aware)
   requirements.txt     pip deps (einops, soundfile, in-repo t2n)
   README.md            this file
   wav-cleaner-rs/      minimal tract-nnef Rust binary, WAV in / WAV out;
                        reads the sidecar manifest so it handles every variant
+    Cargo.toml
+    src/main.rs
+  wav-cleaner-pulse/   pulse-mode wrapper: tract buffers state internally,
+                       fed chunk by chunk (pinned to a sonos/tract pulse-fix rev)
     Cargo.toml
     src/main.rs
 ```

@@ -246,6 +246,41 @@ test_suite.add(
 )
 
 
+# `Tensor.unfold` over a streaming axis: the handler dispatches to the
+# `unfold` NNEF fragment (Conv1d-with-identity-kernel), which tract
+# pulsifies via its existing `Conv` pulsifier. Without this dispatch
+# the static slice-stack form would emit slices with absolute end
+# points that tract can't pulse. Two cases:
+#   - rank-2 input, unfold over last axis (no permutation needed).
+#   - rank-3 input, unfold over middle axis (handler must thread perms).
+class UnfoldOverStreamLast(nn.Module):
+    def forward(self, x):  # x: (B, T) -> (B, T-2, 3)
+        return x.unfold(1, 3, 1)
+
+
+class UnfoldOverStreamMiddle(nn.Module):
+    def forward(self, x):  # x: (B, T, F) -> (B, T-2, F, 3)
+        return x.unfold(1, 3, 1)
+
+
+test_suite.add(
+    torch.arange(2 * 12, dtype=torch.float32).reshape(2, 12),
+    UnfoldOverStreamLast(),
+    inference_conditions=ge_tract_0_21_5,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
+    ),
+)
+test_suite.add(
+    torch.arange(2 * 12 * 4, dtype=torch.float32).reshape(2, 12, 4),
+    UnfoldOverStreamMiddle(),
+    inference_conditions=ge_tract_0_21_5,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
+    ),
+)
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,

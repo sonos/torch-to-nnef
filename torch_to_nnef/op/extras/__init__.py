@@ -55,4 +55,5 @@ def t2n_extra_to_nnef_tensor_and_ops(
 
 
 # Import side-effect: register the bundled handlers.
-from torch_to_nnef.op.extras import scan_ops  # noqa: E402, F401
+from torch_to_nnef.op.extras import exp_norm  # noqa: E402, F401, I001
+from torch_to_nnef.op.extras import scan_ops  # noqa: E402, F401, I001

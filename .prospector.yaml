@@ -62,3 +62,7 @@ ignore-paths:
   - examples/llm_wasm/target
   - examples/getting_started_rs/target
   - examples/nemo_asr/target
+  # DPDFNet third-party reference clone pulled by ``bootstrap.sh``;
+  # never committed (see the example's ``.gitignore``).
+  - examples/speech_enhancement/dpdfnet/_dpdfnet_clone
+  - examples/speech_enhancement/dpdfnet/wav-cleaner-pulse/target

@@ -1,4 +1,5 @@
 from copy import deepcopy
+from functools import partial
 
 import pytest
 import torch
@@ -8,6 +9,7 @@ from torchaudio import transforms
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
+    change_dynamic_axes,
     check_model_io_test,
 )
 from tests.wrapper import UnaryPrimitive
@@ -190,6 +192,14 @@ add_test(torch.arange(8.0).reshape(2, 4), MyRFFT())
 add_test(torch.arange(12.0).reshape(3, 4), MyRFFT(dim=0))
 add_test(torch.arange(8.0).reshape(2, 4), MyIRFFT())
 add_test(torch.arange(12.0).reshape(3, 4), MyIRFFT(dim=0))
+# Regression: complex IR tensors whose *logical* last axis equals 2 used
+# to be mis-detected as already view-tagged, so the pre-pass + handlers
+# skipped the trailing-2 promotion. The result was an IR/storage rank
+# mismatch -- the second FFT in MyFFT([2,2]) was emitted on the wrong
+# axis, and `fft.irfft(fft.rfft(x, dim=0), dim=0)` on a length-2 input
+# tripped tract's deser bounds check. Both should now export cleanly.
+add_test(torch.arange(2.0), MyRFFT(dim=0))
+add_test(torch.arange(2.0), MyIRFFT(dim=0))
 add_test(torch.arange(24.0).reshape(2, 3, 4), MyFFTN(dims=[1, 2]))
 add_test(torch.arange(24.0).reshape(2, 3, 4), MyIFFTN(dims=[1, 2]))
 add_test(torch.arange(8.0), MyHammingWindowScaled(8, "hamming"))
@@ -239,12 +249,32 @@ class MyImag(nn.Module):
         return torch.imag(torch.view_as_complex(x))
 
 
+class MyComplexThenFFT(nn.Module):
+    """Chain `torch.complex` into `torch.fft.fft`.
+
+    Locks in that `complex` (and by symmetry `polar`) leave the output's
+    view-tagged dtype/shape alone so the downstream FFT handler doesn't
+    re-pad the trailing complex axis. Regression for the pre-pass
+    invariant.
+    """
+
+    def forward(self, real, imag):
+        return torch.view_as_real(torch.fft.fft(torch.complex(real, imag)))
+
+
 add_test(
     (
         torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
         torch.tensor([[0.5, -1.0], [-2.0, 1.5]]),
     ),
     MyComplex(),
+)
+add_test(
+    (
+        torch.tensor([[1.0, 2.0, -0.5], [3.0, 4.0, 0.25]]),
+        torch.tensor([[0.5, -1.0, 0.1], [-2.0, 1.5, -0.3]]),
+    ),
+    MyComplexThenFFT(),
 )
 add_test(
     torch.tensor([[[1.0, 2.0], [3.0, -1.5]], [[-0.5, 0.7], [2.0, -2.0]]]),
@@ -346,6 +376,188 @@ test_suite.add(
         center=True,
     ),
     inference_conditions=_cond_stft_ge_0_22,
+)
+
+
+class MyISTFT(nn.Module):
+    """`stft -> istft` round-trip on a real signal.
+
+    Locks in the iSTFT handler: builds a one-sided complex spectrum via
+    `torch.stft(return_complex=True)`, then reconstructs the signal via
+    `torch.istft`. With a COLA-satisfying window (Hann at hop=n_fft/2)
+    the round-trip is the identity modulo a small symmetric crop and
+    floating-point error -- the same coverage that fed the DPDFNet
+    pulse-mode pipeline regression.
+    """
+
+    def __init__(
+        self,
+        n_fft: int = 8,
+        hop_length: int = 4,
+        center: bool = True,
+        window_name: str = "hann",
+    ):
+        super().__init__()
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.center = center
+        if window_name == "hann":
+            window = torch.hann_window(n_fft, dtype=torch.float32)
+        elif window_name == "hamming":
+            window = torch.hamming_window(n_fft, dtype=torch.float32)
+        elif window_name == "sqrt_hann":
+            # sqrt(Hann) satisfies w^2-COLA at hop = n_fft / 2 (plain Hann
+            # does not -- it's only w-COLA there). Required for the
+            # dynamic-axes istft branch.
+            window = torch.hann_window(n_fft, dtype=torch.float32).sqrt()
+        else:
+            raise ValueError(window_name)
+        self.register_buffer("window", window)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        spec = torch.stft(
+            input=x,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.n_fft,
+            window=self.window,
+            center=self.center,
+            normalized=False,
+            onesided=True,
+            return_complex=True,
+        )
+        return torch.istft(
+            spec,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.n_fft,
+            window=self.window,
+            center=self.center,
+            normalized=False,
+            onesided=True,
+            return_complex=False,
+        )
+
+
+# Hann at hop=n_fft/2 — the canonical COLA case.
+test_suite.add(
+    torch.sin(torch.arange(64, dtype=torch.float32) * 0.5).unsqueeze(0),
+    MyISTFT(n_fft=8, hop_length=4),
+    inference_conditions=_cond_stft_ge_0_22,
+)
+# Hamming window — different scale but still COLA-satisfying at hop=n_fft/2.
+test_suite.add(
+    torch.sin(torch.arange(64, dtype=torch.float32) * 0.5).unsqueeze(0),
+    MyISTFT(n_fft=8, hop_length=4, window_name="hamming"),
+    inference_conditions=_cond_stft_ge_0_22,
+)
+# `center=False` with Hamming (non-vanishing at the boundaries; Hann
+# would fail torch's "window overlap add min" check here): covers the
+# no-crop finalize branch of the istft handler.
+test_suite.add(
+    torch.sin(torch.arange(64, dtype=torch.float32) * 0.5).unsqueeze(0),
+    MyISTFT(n_fft=8, hop_length=4, center=False, window_name="hamming"),
+    inference_conditions=_cond_stft_ge_0_22,
+)
+# Rank-3 input (no batch) — synthetic batch axis added by the handler.
+test_suite.add(
+    torch.sin(torch.arange(64, dtype=torch.float32) * 0.5),
+    MyISTFT(n_fft=8, hop_length=4),
+    inference_conditions=_cond_stft_ge_0_22,
+)
+# Multi-batch input (B>1) — exercises the OLA chain shape threading.
+test_suite.add(
+    torch.sin(torch.arange(3 * 64, dtype=torch.float32) * 0.5).reshape(3, 64),
+    MyISTFT(n_fft=8, hop_length=4),
+    inference_conditions=_cond_stft_ge_0_22,
+)
+# Dynamic-axes istft with sqrt(Hann): exercises the COLA-constant
+# divisor branch (the export bakes a scalar instead of a full-length
+# vector). Plain Hann at hop=n_fft/2 fails the w^2-COLA check; sqrt-Hann
+# is the canonical w^2-COLA window at that hop.
+test_suite.add(
+    torch.sin(torch.arange(64, dtype=torch.float32) * 0.5).unsqueeze(0),
+    MyISTFT(n_fft=8, hop_length=4, window_name="sqrt_hann"),
+    inference_conditions=_cond_stft_ge_0_22,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes={"input_0": {1: "STREAM"}}
+    ),
+)
+
+
+class MyComplexTranspose(nn.Module):
+    """Transpose a complex tensor's logical axes.
+
+    Exercises the view-tagged complex `transpose` handler: the IR carries
+    the trailing-2 axis as storage, but PyTorch's transpose only sees
+    the logical (freq, time) axes -- the handler must build a storage
+    permutation that swaps those two and leaves the complex axis alone.
+    """
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        c = torch.view_as_complex(x)
+        return torch.view_as_real(c.transpose(0, 1))
+
+
+test_suite.add(
+    torch.arange(3 * 5 * 2, dtype=torch.float32).reshape(3, 5, 2),
+    MyComplexTranspose(),
+    inference_conditions=cond_tract_gt_0_20_7,
+)
+# Same shape under dynamic axes on logical axis 0: the streaming dim
+# survives the storage permutation so the transpose's downstream
+# consumers still see a symbolic axis.
+test_suite.add(
+    torch.arange(3 * 5 * 2, dtype=torch.float32).reshape(3, 5, 2),
+    MyComplexTranspose(),
+    inference_conditions=lambda i: (
+        isinstance(i, TractNNEF) and i.version >= "0.21.5"
+    ),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes={"input_0": {0: "S"}}
+    ),
+)
+
+
+class MyComplexPermute(nn.Module):
+    """Permute a complex tensor's logical axes.
+
+    Exercises the view-tagged complex `permute` handler: PyTorch only
+    permutes the logical axes, so the handler must apply the permutation
+    to the storage axes and leave the trailing (re/im) axis fixed at the
+    end. Without that, the emitted `transpose` axes list is one shorter
+    than the storage rank.
+    """
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        c = torch.view_as_complex(x)
+        return torch.view_as_real(c.permute(2, 0, 1))
+
+
+test_suite.add(
+    torch.arange(2 * 3 * 5 * 2, dtype=torch.float32).reshape(2, 3, 5, 2),
+    MyComplexPermute(),
+    inference_conditions=cond_tract_gt_0_20_7,
+)
+
+
+class MyComplexFlatten(nn.Module):
+    """Flatten a complex tensor's logical axes (above the re/im axis).
+
+    Exercises the view-tagged complex `flatten` handler: the storage is
+    real `(..., 2)`, so the emitted reshape must carry the real component
+    dtype, not the (unserializable) complex dtype.
+    """
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        c = torch.view_as_complex(x)
+        return torch.view_as_real(torch.flatten(c, 0, 1))
+
+
+test_suite.add(
+    torch.arange(2 * 3 * 5 * 2, dtype=torch.float32).reshape(2, 3, 5, 2),
+    MyComplexFlatten(),
+    inference_conditions=cond_tract_gt_0_20_7,
 )
 
 

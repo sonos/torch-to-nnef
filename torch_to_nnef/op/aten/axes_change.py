@@ -4,7 +4,11 @@ import nnef
 import torch
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.exceptions import T2NErrorNotImplemented
+from torch_to_nnef.dtypes import TORCH_TO_NUMPY_DTYPE
+from torch_to_nnef.exceptions import (
+    T2NErrorInvalidArgument,
+    T2NErrorNotImplemented,
+)
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import (
     is_complex_dtype_and_complex_only_supported_as_lastdim,
@@ -179,9 +183,31 @@ def transpose(g, node, name_to_tensor, inference_target, **kwargs):
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
         input_node.dtype, inference_target
     ):
-        raise T2NErrorNotImplemented(
-            "complex transpose without tract complex feature flag"
+        # View-tagged complex: IR rank = logical_rank + 1, complex axis
+        # at `rank - 1`. PyTorch's transpose only sees the logical view,
+        # so dim0/dim1 (already resolved via `pick_axis` against the
+        # logical rank) must not be the complex axis.
+        complex_axis = input_node.rank - 1
+        if complex_axis in (dim0, dim1):
+            raise T2NErrorNotImplemented(
+                f"complex transpose touching the trailing (re/im) "
+                f"axis: input={input_node.export_name} "
+                f"ir_shape={input_node.shape} dim0={dim0} dim1={dim1}"
+            )
+        new_dims_ranks = list(range(input_node.rank))
+        new_dims_ranks[dim0], new_dims_ranks[dim1] = dim1, dim0
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "transpose",
+            inputs=get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            ),
+            attrs={"axes": new_dims_ranks},
+            pass_quantization_params=True,
         )
+        return
 
     new_dims_ranks = []
     for _ in range(node.outputs[0].rank):
@@ -206,9 +232,27 @@ def transpose(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def permute(g, node, name_to_tensor, **kwargs):
+def permute(g, node, name_to_tensor, inference_target, **kwargs):
     """Map PyTorch: 'aten:permute' to NNEF."""
     (input_node, dims_node) = node.inputs
+    axes = [pick_axis(input_node, _) for _ in dims_node.data]
+
+    if is_complex_dtype_and_complex_only_supported_as_lastdim(
+        input_node.dtype, inference_target
+    ):
+        # View-tagged complex: IR rank = logical_rank + 1, complex axis
+        # at `rank - 1`. PyTorch's permute only sees the logical view, so
+        # the trailing (re/im) axis stays fixed at the end (mirrors the
+        # `transpose` handling above).
+        complex_axis = input_node.rank - 1
+        if complex_axis in axes:
+            raise T2NErrorNotImplemented(
+                f"complex permute touching the trailing (re/im) "
+                f"axis: input={input_node.export_name} "
+                f"ir_shape={input_node.shape} axes={axes}"
+            )
+        axes = axes + [complex_axis]
+
     add_single_output_op(
         g,
         node,
@@ -217,7 +261,7 @@ def permute(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axes": [pick_axis(input_node, _) for _ in dims_node.data]},
+        attrs={"axes": axes},
         pass_quantization_params=True,
     )
 
@@ -280,16 +324,30 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
     """
     (input_node, start_dim, end_dim) = node.inputs
     onode = node.outputs[0]
-    if is_complex_dtype_and_complex_only_supported_as_lastdim(
-        input_node.dtype, inference_target
-    ):
-        raise T2NErrorNotImplemented(
-            "complex flatten without tract complex feature flag"
-        )
     raw_start = start_dim.data if start_dim.data is not None else 0
     raw_end = end_dim.data if end_dim.data is not None else -1
     axis_start = pick_axis(input_node, raw_start)
     axis_end = pick_axis(input_node, raw_end)
+    out_np_dtype = onode.np_dtype
+    if is_complex_dtype_and_complex_only_supported_as_lastdim(
+        input_node.dtype, inference_target
+    ):
+        # Complex tensors are stored as (..., 2) real. A logical flatten
+        # that stays strictly above the trailing complex axis maps 1:1
+        # to a real flatten with the same axis_start/axis_count; the
+        # trailing 2-axis is preserved.
+        complex_axis = input_node.rank - 1
+        if axis_end >= complex_axis:
+            raise T2NErrorNotImplemented(
+                "complex flatten touching the complex (re/im) axis"
+            )
+        # The NNEF storage is real; emit the real component dtype rather
+        # than the (unserializable) complex dtype.
+        out_np_dtype = TORCH_TO_NUMPY_DTYPE[
+            torch.float64
+            if input_node.dtype == torch.complex128
+            else torch.float32
+        ]
     axis_count = axis_end - axis_start + 1
     add_single_output_op(
         g,
@@ -300,7 +358,7 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
             g, input_node, name_to_tensor
         ),
         attrs={
-            "dtype": onode.np_dtype,
+            "dtype": out_np_dtype,
             "shape": [-1],
             "axis_start": axis_start,
             "axis_count": axis_count,
@@ -1276,35 +1334,13 @@ def meshgrid(node, op_helper, inference_target, **kwargs):
     return ["tract_core"]
 
 
-@OP_REGISTRY.register()
-def unfold(node, op_helper, **kwargs):
-    """Map PyTorch `aten::unfold` (Tensor.unfold) to NNEF.
+def _unfold_via_slice_stack(node, op_helper, *, input_node, axis, size, step):
+    """Static-shape unfold: `n_windows` slices + `stack` (+ transpose).
 
-    Signature: `unfold(self, dimension, size, step)`. Extracts overlapping
-    windows of length `size` along `dimension`, advancing by `step`.
-    The result has rank `R + 1`: the `dimension` axis becomes
-    `n_windows = (D - size) // step + 1`, and a new trailing axis of
-    length `size` is appended.
-
-    Decomposed as `n_windows` `slice` ops along `dimension` followed by
-    a `stack` along that same axis; if `dimension` is not the last
-    axis of the input, an extra `transpose` moves the size axis to the
-    end (matching torch's "appended-at-back" layout).
+    Used when every dim is statically known, including the unfold axis.
+    Cheap (slices are no-op views in tract) and produces a graph that
+    reads naturally.
     """
-    input_node, dim_node, size_node, step_node = node.inputs
-    if not isinstance(dim_node, PythonConstant):
-        raise T2NErrorNotImplemented("unfold requires a static dimension")
-    if not isinstance(size_node, PythonConstant) or not isinstance(
-        step_node, PythonConstant
-    ):
-        raise T2NErrorNotImplemented("unfold requires static size and step")
-    axis = pick_axis(input_node, dim_node.data)
-    size = int(size_node.data)
-    step = int(step_node.data)
-    if size <= 0 or step <= 0:
-        raise T2NErrorNotImplemented(
-            f"unfold needs positive size/step; got size={size}, step={step}"
-        )
     dim_size = int(input_node.shape[axis])
     if dim_size < size:
         raise T2NErrorNotImplemented(
@@ -1313,7 +1349,6 @@ def unfold(node, op_helper, **kwargs):
     n_windows = (dim_size - size) // step + 1
     input_rank = input_node.rank
     inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
-    # Emit one slice per window and stack along `axis`.
     window_refs = []
     for j in range(n_windows):
         begin = j * step
@@ -1331,11 +1366,6 @@ def unfold(node, op_helper, **kwargs):
                 output_tensor_name_suffix=f"_unfold_w{j}",
             )
         )
-    # After stack, shape is (..., n_windows, size, *rest_after_axis).
-    # Torch wants size at the back; if `axis` is already the last input
-    # axis then the size axis lands at the end naturally and we emit the
-    # final tensor directly from `stack`. Otherwise emit `stack` to an
-    # intermediate and `transpose` it to move the size axis to the end.
     if axis + 1 == input_rank:
         op_helper.add_single_output_op_from_nnef_tensors(
             node,
@@ -1364,6 +1394,139 @@ def unfold(node, op_helper, **kwargs):
         attrs={"axes": perm},
     )
     return []
+
+
+def _unfold_via_conv_fragment(
+    g, node, name_to_tensor, op_helper, *, input_node, axis, size, step
+):
+    """Streaming-friendly unfold: emit the `unfold` fragment.
+
+    The fragment lowers to a 1D convolution with an identity kernel of
+    shape ``(size, 1, size)`` -- each output channel picks a different
+    position within the window. Tract's `Conv` pulsifier handles
+    streaming natively, so the unfold axis can be symbolic (`STREAM`).
+
+    Limitation: only the unfold axis itself may be symbolic; every
+    other dim must be a static int (the collapse-to-batch reshape
+    requires a known product).
+    """
+    rank = input_node.rank
+    in_shape = list(input_node.shape)
+    other_dims = []
+    static_prod = 1
+    for i, d in enumerate(in_shape):
+        if i == axis:
+            continue
+        if not isinstance(d, int):
+            raise T2NErrorNotImplemented(
+                f"unfold: non-axis dim {i} is symbolic ({d!r}); only the "
+                f"unfold axis itself may be symbolic in current export"
+            )
+        other_dims.append(d)
+        static_prod *= d
+
+    # Identity kernel (size, 1, size): kernel[k, 0, j] = delta(j == k).
+    kernel_const = PythonConstant(
+        name=f"{node.outputs[0].export_name}_unfold_kernel",
+        data=torch.eye(size, dtype=torch.float32).unsqueeze(1),
+    )
+    kernel_ref = get_or_add_tensor_variable_in_nnef(
+        g, kernel_const, name_to_tensor
+    )
+
+    # See `op/fragment/unfold.nnef` for the full derivation of these.
+    perm_in = [i for i in range(rank) if i != axis] + [axis]
+    shape_pre_conv = [static_prod, 1, -1]
+    shape_post_conv = other_dims + [size, -1]
+    perm_out = (
+        list(range(axis)) + [rank] + list(range(axis, rank - 1)) + [rank - 1]
+    )
+
+    input_ref = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unfold",
+        inputs=[input_ref, kernel_ref],
+        attrs={
+            "perm_in": perm_in,
+            "shape_pre_conv": shape_pre_conv,
+            "shape_post_conv": shape_post_conv,
+            "perm_out": perm_out,
+            "stride": step,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["unfold"]
+
+
+@OP_REGISTRY.register(torch_op_ids=["unfold", "unfold_copy"])
+def unfold(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map PyTorch `aten::unfold` (Tensor.unfold) to NNEF.
+
+    Signature: `unfold(self, dimension, size, step)`. Extracts overlapping
+    windows of length `size` along `dimension`, advancing by `step`.
+    Output has rank `R + 1`: the `dimension` axis becomes
+    `n_windows = (D - size) // step + 1`, and a new trailing axis of
+    length `size` is appended.
+
+    Dispatch:
+    - **Static export** (no `dynamic_axes` configured): emit
+      `n_windows` slices + `stack` (cheap; slices fold away in tract's
+      optimiser).
+    - **Any dynamic-axes export**: emit the `unfold` NNEF fragment,
+      which lowers to a Conv1d with an identity kernel of shape
+      `(size, 1, size)`. Tract's existing `Conv` pulsifier handles
+      the streaming case natively -- no new tract op needed.
+
+      We don't try to prove that *this particular* unfold's axis is
+      the streaming one: the IR shape stays concrete until NNEF emit,
+      and tracking the streaming axis through reshape/transpose
+      chains would require a full provenance pass. The Conv1d path
+      is correct in both static and streaming evaluation, so under
+      ``dynamic_axes`` we route there unconditionally. The cost is a
+      handful of multiply-by-1 ops that tract folds away.
+    """
+    input_node, dim_node, size_node, step_node = node.inputs
+    if not isinstance(dim_node, PythonConstant):
+        raise T2NErrorNotImplemented("unfold requires a static dimension")
+    if not isinstance(size_node, PythonConstant) or not isinstance(
+        step_node, PythonConstant
+    ):
+        raise T2NErrorNotImplemented("unfold requires static size and step")
+    axis = pick_axis(input_node, dim_node.data)
+    size = int(size_node.data)
+    step = int(step_node.data)
+    if size <= 0 or step <= 0:
+        raise T2NErrorInvalidArgument(
+            f"unfold needs positive size/step; got size={size}, step={step}"
+        )
+    rank = input_node.rank
+    if axis < 0 or axis >= rank:
+        raise T2NErrorInvalidArgument(
+            f"unfold dim={dim_node.data} out of bounds for rank-{rank} input"
+        )
+
+    if getattr(inference_target, "has_dynamic_axes", False):
+        return _unfold_via_conv_fragment(
+            g,
+            node,
+            name_to_tensor,
+            op_helper,
+            input_node=input_node,
+            axis=axis,
+            size=size,
+            step=step,
+        )
+    return _unfold_via_slice_stack(
+        node,
+        op_helper,
+        input_node=input_node,
+        axis=axis,
+        size=size,
+        step=step,
+    )
 
 
 def _as_pair(node_value, name: str):

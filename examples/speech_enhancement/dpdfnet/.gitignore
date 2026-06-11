@@ -8,3 +8,4 @@ bench_work/
 *.log
 __pycache__/
 wav-cleaner-rs/target/
+wav-cleaner-pulse/target/

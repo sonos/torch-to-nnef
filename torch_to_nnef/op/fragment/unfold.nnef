@@ -1,0 +1,53 @@
+extension tract_registry tract_core;
+
+# `unfold` -- materialise a sliding window of `size` elements over a
+# single axis of `input`, with stride `step`. Matches
+# `torch.Tensor.unfold(dim, size, step)` semantics:
+#
+#     output[..., t, ..., k] = input[..., t * step + k, ...]
+#     for 0 <= k < size, 0 <= t < (axis_len - size) / step + 1
+#
+# The output rank is `input.rank + 1`: the unfolded axis is replaced
+# by the number-of-windows axis, and a new trailing axis carries the
+# `size`-element window contents.
+#
+# Lowered as a 1D convolution with an identity kernel of shape
+# `(size, 1, size)`: each kernel row picks a different offset within
+# the window, so the conv's output channels carry the window contents.
+# That lets tract's existing `Conv` pulsifier handle streaming
+# automatically -- when the unfolded axis is the pulse stream axis,
+# `into_pulse()` inserts the right delay chain under the hood, no
+# special op required.
+#
+# The body is deliberately rank-agnostic: the per-call-site handler
+# pre-computes `perm_in`, `shape_pre_conv`, `shape_post_conv`,
+# `perm_out` so the fragment itself never has to introspect rank.
+
+fragment unfold(
+    input: tensor<scalar>,
+    # (size, 1, size) identity kernel; computed and fed by the handler
+    # because NNEF fragments cannot synthesise constants on their own.
+    kernel: tensor<scalar>,
+    # Move the unfold axis to position rank-1 so it becomes the conv's
+    # length axis.
+    perm_in: integer[],
+    # Collapse the other axes into a single batch axis, with channel=1
+    # and length=unfold_axis_size. Use `-1` on the length to allow a
+    # streaming unfold-axis.
+    shape_pre_conv: integer[],
+    # Re-expand the batch axis back to the original non-unfold dims,
+    # with N as the new "channels" axis and L_out as the trailing axis
+    # (also `-1` under streaming).
+    shape_post_conv: integer[],
+    # Restore the requested axis ordering: L_out lands at the original
+    # unfold position, N lands at the new trailing position.
+    perm_out: integer[],
+    stride: integer
+) -> ( output: tensor<scalar> )
+{
+    permuted     = transpose(input, axes = perm_in);
+    flat         = reshape(permuted, shape = shape_pre_conv);
+    convolved    = conv(flat, kernel, stride = [stride], padding = [(0, 0)]);
+    unflattened  = reshape(convolved, shape = shape_post_conv);
+    output       = transpose(unflattened, axes = perm_out);
+}
