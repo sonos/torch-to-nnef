@@ -2239,6 +2239,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extras/exp_norm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exp_norm
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extras/scan_ops/" class="md-nav__link">
         
   
@@ -4237,7 +4260,7 @@ matrix transpose. Equivalent to <code>permute([N-1, N-2, ..., 0])</code>.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">permute</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">permute</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4451,7 +4474,7 @@ symbolic dims).</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">unfold</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">unfold</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4459,13 +4482,24 @@ symbolic dims).</p>
         <p>Map PyTorch <code>aten::unfold</code> (Tensor.unfold) to NNEF.</p>
 <p>Signature: <code>unfold(self, dimension, size, step)</code>. Extracts overlapping
 windows of length <code>size</code> along <code>dimension</code>, advancing by <code>step</code>.
-The result has rank <code>R + 1</code>: the <code>dimension</code> axis becomes
+Output has rank <code>R + 1</code>: the <code>dimension</code> axis becomes
 <code>n_windows = (D - size) // step + 1</code>, and a new trailing axis of
 length <code>size</code> is appended.</p>
-<p>Decomposed as <code>n_windows</code> <code>slice</code> ops along <code>dimension</code> followed by
-a <code>stack</code> along that same axis; if <code>dimension</code> is not the last
-axis of the input, an extra <code>transpose</code> moves the size axis to the
-end (matching torch's "appended-at-back" layout).</p>
+<p>Dispatch:
+- <strong>Static export</strong> (no <code>dynamic_axes</code> configured): emit
+  <code>n_windows</code> slices + <code>stack</code> (cheap; slices fold away in tract's
+  optimiser).
+- <strong>Any dynamic-axes export</strong>: emit the <code>unfold</code> NNEF fragment,
+  which lowers to a Conv1d with an identity kernel of shape
+  <code>(size, 1, size)</code>. Tract's existing <code>Conv</code> pulsifier handles
+  the streaming case natively -- no new tract op needed.</p>
+<p>We don't try to prove that <em>this particular</em> unfold's axis is
+  the streaming one: the IR shape stays concrete until NNEF emit,
+  and tracking the streaming axis through reshape/transpose
+  chains would require a full provenance pass. The Conv1d path
+  is correct in both static and streaming evaluation, so under
+  <code>dynamic_axes</code> we route there unconditionally. The cost is a
+  handful of multiply-by-1 ops that tract folds away.</p>
 
     </div>
 

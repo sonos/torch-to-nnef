@@ -1515,6 +1515,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.fft.istft" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;istft
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.fft.stft" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;stft
@@ -2033,6 +2042,29 @@
   
   <span class="md-ellipsis">
     torch_to_nnef.op.extras
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extras/exp_norm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exp_norm
     
   </span>
   
@@ -3395,6 +3427,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.fft.istft" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;istft
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.fft.stft" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;stft
@@ -3437,6 +3478,9 @@
 </h3>
 
     <div class="doc doc-contents first">
+
+        <p>Aten FFT/STFT/ISTFT handlers mapping to NNEF ops.</p>
+<p>Contains helpers for complex layout handling and tract-core FFT glue.</p>
 
 
 
@@ -3608,6 +3652,38 @@ FFT axis to the first <code>N // 2 + 1</code> bins.</p>
     <div class="doc doc-contents ">
 
         <p>Map <code>aten::fft_rfftfreq(n, d, ...)</code> to a NNEF constant.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.fft.istft" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">istft</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">istft</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:istft' to NNEF.</p>
+<p>Implements <code>torch.istft</code> for the common case (onesided=True,
+normalized=False, return_complex=False, length=None). Decomposition:</p>
+<ol>
+<li>Build the Hermitian-symmetric full spectrum on the freq axis.</li>
+<li>Inverse FFT on the freq axis, divide by n_fft.</li>
+<li>Take the real part (slice the complex axis to [0:1] then squeeze).</li>
+<li>Multiply by <code>window</code> (broadcast on the freq/time-of-frame axis).</li>
+<li>Overlap-add via <code>deconv</code> with an identity kernel of size
+     (n_fft, 1, n_fft) and stride=<code>hop_length</code>.</li>
+<li>Divide by the precomputed OLA of <code>window**2</code> to undo the
+     per-sample window-weight accumulation.</li>
+<li>If <code>center=True</code>, slice off <code>n_fft // 2</code> samples from each end.</li>
+</ol>
 
     </div>
 

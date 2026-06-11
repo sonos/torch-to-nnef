@@ -9,25 +9,25 @@
       
       
       
-        <link rel="prev" href="../console/">
+        <link rel="prev" href="../">
       
       
-        <link rel="next" href="../exceptions/">
+        <link rel="next" href="../scan_ops/">
       
       
-      <link rel="icon" href="../../../img/t2n_ico.png">
+      <link rel="icon" href="../../../../../img/t2n_ico.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
     
     
       
-        <title>torch_to_nnef.dtypes - Torch → NNEF documentation</title>
+        <title>torch_to_nnef.op.extras.exp_norm - Torch → NNEF documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.342714a4.min.css">
       
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -46,11 +46,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../../../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../../../style.css">
+      <link rel="stylesheet" href="../../../../../style.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#torch_to_nnef.dtypes" class="md-skip">
+        <a href="#torch_to_nnef.op.extras.exp_norm" class="md-skip">
           Skip to content
         </a>
       
@@ -97,7 +97,7 @@
  - add "documentation" as fixed header topic
 -->
 
-<script type="text/javascript" src="../../../html/sync_sender_colorscheme.js"></script>
+<script type="text/javascript" src="../../../../../html/sync_sender_colorscheme.js"></script>
 <!-- Determine classes -->
 
 
@@ -113,14 +113,14 @@
 
     <!-- Link to home -->
     <a
-      href="../../.."
+      href="../../../../.."
       title="Torch → NNEF documentation"
       class="md-header__button md-logo"
       aria-label="Torch → NNEF documentation"
       data-md-component="logo"
     >
-      <img class="logo-img" src="../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
-<img class="logo-img" src="../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
+      <img class="logo-img" src="../../../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
+<img class="logo-img" src="../../../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
     </a>
 
     <!-- Button to open drawer -->
@@ -140,7 +140,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              torch_to_nnef.dtypes
+              torch_to_nnef.op.extras.exp_norm
             
           </span>
         </div>
@@ -282,9 +282,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="Torch → NNEF documentation" class="md-nav__button md-logo" aria-label="Torch → NNEF documentation" data-md-component="logo">
-      <img class="logo-img" src="../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
-<img class="logo-img" src="../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
+    <a href="../../../../.." title="Torch → NNEF documentation" class="md-nav__button md-logo" aria-label="Torch → NNEF documentation" data-md-component="logo">
+      <img class="logo-img" src="../../../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
+<img class="logo-img" src="../../../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
     </a>
     Torch → NNEF documentation
   </label>
@@ -310,7 +310,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../.." class="md-nav__link">
+      <a href="../../../../.." class="md-nav__link">
         
   
   
@@ -370,7 +370,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/1_getting_started/" class="md-nav__link">
+      <a href="../../../../../tutos/1_getting_started/" class="md-nav__link">
         
   
   
@@ -393,7 +393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/2_nnef_archive/" class="md-nav__link">
+      <a href="../../../../../tutos/2_nnef_archive/" class="md-nav__link">
         
   
   
@@ -416,7 +416,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/3_multi_inputs_outputs/" class="md-nav__link">
+      <a href="../../../../../tutos/3_multi_inputs_outputs/" class="md-nav__link">
         
   
   
@@ -439,7 +439,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/4_dynamic_axes/" class="md-nav__link">
+      <a href="../../../../../tutos/4_dynamic_axes/" class="md-nav__link">
         
   
   
@@ -462,7 +462,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/5_llm/" class="md-nav__link">
+      <a href="../../../../../tutos/5_llm/" class="md-nav__link">
         
   
   
@@ -485,7 +485,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/6_quantization/" class="md-nav__link">
+      <a href="../../../../../tutos/6_quantization/" class="md-nav__link">
         
   
   
@@ -508,7 +508,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/7_offloaded_tensor/" class="md-nav__link">
+      <a href="../../../../../tutos/7_offloaded_tensor/" class="md-nav__link">
         
   
   
@@ -531,7 +531,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/8_custom_operator/" class="md-nav__link">
+      <a href="../../../../../tutos/8_custom_operator/" class="md-nav__link">
         
   
   
@@ -554,7 +554,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/9_peft/" class="md-nav__link">
+      <a href="../../../../../tutos/9_peft/" class="md-nav__link">
         
   
   
@@ -577,7 +577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/10_nemo/" class="md-nav__link">
+      <a href="../../../../../tutos/10_nemo/" class="md-nav__link">
         
   
   
@@ -600,7 +600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/11_remodeler/" class="md-nav__link">
+      <a href="../../../../../tutos/11_remodeler/" class="md-nav__link">
         
   
   
@@ -623,7 +623,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/12_jit_only_models/" class="md-nav__link">
+      <a href="../../../../../tutos/12_jit_only_models/" class="md-nav__link">
         
   
   
@@ -653,7 +653,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../export_api/" class="md-nav__link">
+      <a href="../../../../../export_api/" class="md-nav__link">
         
   
   
@@ -755,7 +755,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../../" class="md-nav__link">
         
   
   
@@ -778,7 +778,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../collect_env/" class="md-nav__link">
+      <a href="../../../collect_env/" class="md-nav__link">
         
   
   
@@ -801,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../compress/" class="md-nav__link">
+      <a href="../../../compress/" class="md-nav__link">
         
   
   
@@ -824,7 +824,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../console/" class="md-nav__link">
+      <a href="../../../console/" class="md-nav__link">
         
   
   
@@ -844,30 +844,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dtypes
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../../dtypes/" class="md-nav__link">
         
   
   
@@ -878,33 +858,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.dtypes" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;dtypes
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -917,7 +870,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../exceptions/" class="md-nav__link">
+      <a href="../../../exceptions/" class="md-nav__link">
         
   
   
@@ -940,7 +893,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../export/" class="md-nav__link">
+      <a href="../../../export/" class="md-nav__link">
         
   
   
@@ -1001,7 +954,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference_target/" class="md-nav__link">
+      <a href="../../../inference_target/" class="md-nav__link">
         
   
   
@@ -1024,7 +977,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference_target/base/" class="md-nav__link">
+      <a href="../../../inference_target/base/" class="md-nav__link">
         
   
   
@@ -1047,7 +1000,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference_target/khronos/" class="md-nav__link">
+      <a href="../../../inference_target/khronos/" class="md-nav__link">
         
   
   
@@ -1070,7 +1023,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference_target/tract/" class="md-nav__link">
+      <a href="../../../inference_target/tract/" class="md-nav__link">
         
   
   
@@ -1101,7 +1054,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../log/" class="md-nav__link">
+      <a href="../../../log/" class="md-nav__link">
         
   
   
@@ -1124,7 +1077,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../model_wrapper/" class="md-nav__link">
+      <a href="../../../model_wrapper/" class="md-nav__link">
         
   
   
@@ -1147,7 +1100,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nnef_graph/" class="md-nav__link">
+      <a href="../../../nnef_graph/" class="md-nav__link">
         
   
   
@@ -1167,18 +1120,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12" checked>
         
           
           <label class="md-nav__link" for="__nav_4_1_12" id="__nav_4_1_12_label" tabindex="0">
@@ -1194,7 +1149,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1_12">
             <span class="md-nav__icon md-icon"></span>
             <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
@@ -1208,7 +1163,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/" class="md-nav__link">
+      <a href="../../" class="md-nav__link">
         
   
   
@@ -1269,7 +1224,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/" class="md-nav__link">
+      <a href="../../aten/" class="md-nav__link">
         
   
   
@@ -1292,7 +1247,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/activation/" class="md-nav__link">
+      <a href="../../aten/activation/" class="md-nav__link">
         
   
   
@@ -1315,7 +1270,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/attn/" class="md-nav__link">
+      <a href="../../aten/attn/" class="md-nav__link">
         
   
   
@@ -1338,7 +1293,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/axes_change/" class="md-nav__link">
+      <a href="../../aten/axes_change/" class="md-nav__link">
         
   
   
@@ -1361,7 +1316,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/complex/" class="md-nav__link">
+      <a href="../../aten/complex/" class="md-nav__link">
         
   
   
@@ -1384,7 +1339,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/concat/" class="md-nav__link">
+      <a href="../../aten/concat/" class="md-nav__link">
         
   
   
@@ -1407,7 +1362,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/expand/" class="md-nav__link">
+      <a href="../../aten/expand/" class="md-nav__link">
         
   
   
@@ -1430,7 +1385,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/fft/" class="md-nav__link">
+      <a href="../../aten/fft/" class="md-nav__link">
         
   
   
@@ -1453,7 +1408,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/loss/" class="md-nav__link">
+      <a href="../../aten/loss/" class="md-nav__link">
         
   
   
@@ -1476,7 +1431,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/math/" class="md-nav__link">
+      <a href="../../aten/math/" class="md-nav__link">
         
   
   
@@ -1499,7 +1454,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/matmul/" class="md-nav__link">
+      <a href="../../aten/matmul/" class="md-nav__link">
         
   
   
@@ -1522,7 +1477,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/norm/" class="md-nav__link">
+      <a href="../../aten/norm/" class="md-nav__link">
         
   
   
@@ -1545,7 +1500,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/other/" class="md-nav__link">
+      <a href="../../aten/other/" class="md-nav__link">
         
   
   
@@ -1568,7 +1523,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/pad/" class="md-nav__link">
+      <a href="../../aten/pad/" class="md-nav__link">
         
   
   
@@ -1591,7 +1546,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/pool/" class="md-nav__link">
+      <a href="../../aten/pool/" class="md-nav__link">
         
   
   
@@ -1614,7 +1569,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/qops/" class="md-nav__link">
+      <a href="../../aten/qops/" class="md-nav__link">
         
   
   
@@ -1637,7 +1592,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/reducer/" class="md-nav__link">
+      <a href="../../aten/reducer/" class="md-nav__link">
         
   
   
@@ -1660,7 +1615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/rnn/" class="md-nav__link">
+      <a href="../../aten/rnn/" class="md-nav__link">
         
   
   
@@ -1683,7 +1638,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/selector/" class="md-nav__link">
+      <a href="../../aten/selector/" class="md-nav__link">
         
   
   
@@ -1706,7 +1661,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/split/" class="md-nav__link">
+      <a href="../../aten/split/" class="md-nav__link">
         
   
   
@@ -1729,7 +1684,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/tensor_build/" class="md-nav__link">
+      <a href="../../aten/tensor_build/" class="md-nav__link">
         
   
   
@@ -1752,7 +1707,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/unary/" class="md-nav__link">
+      <a href="../../aten/unary/" class="md-nav__link">
         
   
   
@@ -1821,7 +1776,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/custom_extractors/" class="md-nav__link">
+      <a href="../../custom_extractors/" class="md-nav__link">
         
   
   
@@ -1844,7 +1799,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/custom_extractors/base/" class="md-nav__link">
+      <a href="../../custom_extractors/base/" class="md-nav__link">
         
   
   
@@ -1867,7 +1822,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/custom_extractors/rnn/" class="md-nav__link">
+      <a href="../../custom_extractors/rnn/" class="md-nav__link">
         
   
   
@@ -1895,18 +1850,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12_4" checked>
         
           
           <label class="md-nav__link" for="__nav_4_1_12_4" id="__nav_4_1_12_4_label" tabindex="0">
@@ -1922,7 +1879,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1_12_4">
             <span class="md-nav__icon md-icon"></span>
             <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
@@ -1936,7 +1893,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/extras/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -1956,10 +1913,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../op/extras/exp_norm/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exp_norm
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1970,6 +1947,57 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.extras.exp_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;exp_norm
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" exp_norm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.extras.exp_norm.exp_mean_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;exp_mean_norm
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.extras.exp_norm.exp_unit_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;exp_unit_norm
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1982,7 +2010,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/extras/scan_ops/" class="md-nav__link">
+      <a href="../scan_ops/" class="md-nav__link">
         
   
   
@@ -2013,7 +2041,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/fragment/" class="md-nav__link">
+      <a href="../../fragment/" class="md-nav__link">
         
   
   
@@ -2036,7 +2064,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/helper/" class="md-nav__link">
+      <a href="../../helper/" class="md-nav__link">
         
   
   
@@ -2059,7 +2087,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/quantized/" class="md-nav__link">
+      <a href="../../quantized/" class="md-nav__link">
         
   
   
@@ -2128,7 +2156,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/" class="md-nav__link">
+      <a href="../../../remodeler/" class="md-nav__link">
         
   
   
@@ -2151,7 +2179,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/adapter/" class="md-nav__link">
+      <a href="../../../remodeler/adapter/" class="md-nav__link">
         
   
   
@@ -2174,7 +2202,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/dyn_axes/" class="md-nav__link">
+      <a href="../../../remodeler/dyn_axes/" class="md-nav__link">
         
   
   
@@ -2197,7 +2225,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/inspect_utils/" class="md-nav__link">
+      <a href="../../../remodeler/inspect_utils/" class="md-nav__link">
         
   
   
@@ -2220,7 +2248,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/rich_render/" class="md-nav__link">
+      <a href="../../../remodeler/rich_render/" class="md-nav__link">
         
   
   
@@ -2243,7 +2271,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/schema/" class="md-nav__link">
+      <a href="../../../remodeler/schema/" class="md-nav__link">
         
   
   
@@ -2266,7 +2294,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/serialize/" class="md-nav__link">
+      <a href="../../../remodeler/serialize/" class="md-nav__link">
         
   
   
@@ -2335,7 +2363,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/" class="md-nav__link">
+      <a href="../../../tensor/" class="md-nav__link">
         
   
   
@@ -2358,7 +2386,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/named/" class="md-nav__link">
+      <a href="../../../tensor/named/" class="md-nav__link">
         
   
   
@@ -2381,7 +2409,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/offload/" class="md-nav__link">
+      <a href="../../../tensor/offload/" class="md-nav__link">
         
   
   
@@ -2404,7 +2432,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/opaque/" class="md-nav__link">
+      <a href="../../../tensor/opaque/" class="md-nav__link">
         
   
   
@@ -2465,7 +2493,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/quant/" class="md-nav__link">
+      <a href="../../../tensor/quant/" class="md-nav__link">
         
   
   
@@ -2488,7 +2516,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/quant/base/" class="md-nav__link">
+      <a href="../../../tensor/quant/base/" class="md-nav__link">
         
   
   
@@ -2511,7 +2539,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/quant/qtract/" class="md-nav__link">
+      <a href="../../../tensor/quant/qtract/" class="md-nav__link">
         
   
   
@@ -2542,7 +2570,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/updater/" class="md-nav__link">
+      <a href="../../../tensor/updater/" class="md-nav__link">
         
   
   
@@ -2565,7 +2593,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/utils/" class="md-nav__link">
+      <a href="../../../tensor/utils/" class="md-nav__link">
         
   
   
@@ -2634,7 +2662,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/" class="md-nav__link">
+      <a href="../../../torch_graph/" class="md-nav__link">
         
   
   
@@ -2657,7 +2685,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/harden/" class="md-nav__link">
+      <a href="../../../torch_graph/harden/" class="md-nav__link">
         
   
   
@@ -2680,7 +2708,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_data/" class="md-nav__link">
+      <a href="../../../torch_graph/ir_data/" class="md-nav__link">
         
   
   
@@ -2703,7 +2731,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_graph/" class="md-nav__link">
+      <a href="../../../torch_graph/ir_graph/" class="md-nav__link">
         
   
   
@@ -2726,7 +2754,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_helpers/" class="md-nav__link">
+      <a href="../../../torch_graph/ir_helpers/" class="md-nav__link">
         
   
   
@@ -2749,7 +2777,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_module_tracer/" class="md-nav__link">
+      <a href="../../../torch_graph/ir_module_tracer/" class="md-nav__link">
         
   
   
@@ -2772,7 +2800,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_naming/" class="md-nav__link">
+      <a href="../../../torch_graph/ir_naming/" class="md-nav__link">
         
   
   
@@ -2795,7 +2823,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_op/" class="md-nav__link">
+      <a href="../../../torch_graph/ir_op/" class="md-nav__link">
         
   
   
@@ -2818,7 +2846,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/jit_inline/" class="md-nav__link">
+      <a href="../../../torch_graph/jit_inline/" class="md-nav__link">
         
   
   
@@ -2841,7 +2869,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/jit_passes/" class="md-nav__link">
+      <a href="../../../torch_graph/jit_passes/" class="md-nav__link">
         
   
   
@@ -2864,7 +2892,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/jit_utils/" class="md-nav__link">
+      <a href="../../../torch_graph/jit_utils/" class="md-nav__link">
         
   
   
@@ -2887,7 +2915,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/torch_const/" class="md-nav__link">
+      <a href="../../../torch_graph/torch_const/" class="md-nav__link">
         
   
   
@@ -2918,7 +2946,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../utils/" class="md-nav__link">
+      <a href="../../../utils/" class="md-nav__link">
         
   
   
@@ -2994,7 +3022,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/guidelines/" class="md-nav__link">
+      <a href="../../../../../contributing/guidelines/" class="md-nav__link">
         
   
   
@@ -3017,7 +3045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/extras_api/" class="md-nav__link">
+      <a href="../../../../../contributing/extras_api/" class="md-nav__link">
         
   
   
@@ -3040,7 +3068,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/internal_design/" class="md-nav__link">
+      <a href="../../../../../contributing/internal_design/" class="md-nav__link">
         
   
   
@@ -3063,7 +3091,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/supported_operators/" class="md-nav__link">
+      <a href="../../../../../contributing/supported_operators/" class="md-nav__link">
         
   
   
@@ -3086,7 +3114,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/add_new_aten_op/" class="md-nav__link">
+      <a href="../../../../../contributing/add_new_aten_op/" class="md-nav__link">
         
   
   
@@ -3109,7 +3137,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/debugging/" class="md-nav__link">
+      <a href="../../../../../contributing/debugging/" class="md-nav__link">
         
   
   
@@ -3139,7 +3167,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../why_nnef/" class="md-nav__link">
+      <a href="../../../../../why_nnef/" class="md-nav__link">
         
   
   
@@ -3161,7 +3189,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../backstory/" class="md-nav__link">
+      <a href="../../../../../backstory/" class="md-nav__link">
         
   
   
@@ -3183,7 +3211,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../demos/" class="md-nav__link">
+      <a href="../../../../../demos/" class="md-nav__link">
         
   
   
@@ -3205,7 +3233,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../CHANGELOG/" class="md-nav__link">
+      <a href="../../../../../CHANGELOG/" class="md-nav__link">
         
   
   
@@ -3245,11 +3273,35 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.dtypes" class="md-nav__link">
+  <a href="#torch_to_nnef.op.extras.exp_norm" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;dtypes
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;exp_norm
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" exp_norm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.extras.exp_norm.exp_mean_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;exp_mean_norm
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.extras.exp_norm.exp_unit_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;exp_unit_norm
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3269,22 +3321,37 @@
 
 
 
-  <h1><code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dtypes</h1>
+  <h1><code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exp_norm</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<h3 id="torch_to_nnef.dtypes" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.dtypes</span>
+<h3 id="torch_to_nnef.op.extras.exp_norm" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.op.extras.exp_norm</span>
 
 
 </h3>
 
     <div class="doc doc-contents first">
 
-        <p>Module referencing all data types conversions between libraries.</p>
-<p>List of libraries being:PyTorch, Numpy, tract</p>
+        <p>Handlers for <code>t2n_extra::exp_unit_norm</code> / <code>exp_mean_norm</code> ops.</p>
+<p>Both lower to the matching <code>tract_extra_exp_unit_norm</code> /
+<code>tract_extra_exp_mean_norm</code> NNEF ops. Tract's <code>OpPulsifier</code> is already
+registered for <code>ExpUnitNorm</code> (see <code>tract/extra/src/exp_unit_norm.rs</code>),
+so a streaming-axis trace pulses end-to-end.</p>
+<p>DPDFNet's <code>ErbNorm</code> (centring per-frame EMA followed by a fixed-std
+scale) maps to <code>exp_mean_norm</code> with <code>scaling_factor=40.0</code>. <code>SpecNorm</code>
+(per-frame magnitude EMA divided into the complex spectrum) maps to
+<code>exp_unit_norm</code> with <code>complex=True</code>.</p>
+<p>Signatures (matching the eager torch.library declarations in
+example/test code):</p>
+<div class="language-text highlight"><pre><span></span><code>t2n_extra::exp_unit_norm(input, state_init, axis, alpha, epsilon, complex)
+t2n_extra::exp_mean_norm(input, state_init, axis, alpha, scaling_factor)
+</code></pre></div>
+<p><code>state_init</code> has the shape of <code>input</code> with <code>axis</code> removed (and, for
+<code>complex=True</code>, the trailing-2 axis also removed); pass zeros at
+trace time -- the pulsifier overrides <code>skip</code> with the runtime delay.</p>
 
 
 
@@ -3297,6 +3364,61 @@
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.extras.exp_norm.exp_mean_norm" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">exp_mean_norm</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">exp_mean_norm</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Lower <code>t2n_extra::exp_mean_norm</code> to <code>tract_extra_exp_mean_norm</code>.</p>
+<p>Eager signature:</p>
+<div class="language-text highlight"><pre><span></span><code>t2n_extra::exp_mean_norm(input, state_init, axis: int,
+                         alpha: float, scaling_factor: float)
+                         -&gt; Tensor
+</code></pre></div>
+<p>Centres <code>input</code> with a per-time-step EMA mean, then divides by
+<code>scaling_factor</code>. <code>state_init</code>'s shape is <code>input</code> with <code>axis</code>
+removed.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.extras.exp_norm.exp_unit_norm" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">exp_unit_norm</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">exp_unit_norm</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Lower <code>t2n_extra::exp_unit_norm</code> to <code>tract_extra_exp_unit_norm</code>.</p>
+<p>Eager signature (matches the example / test declarations):</p>
+<div class="language-text highlight"><pre><span></span><code>t2n_extra::exp_unit_norm(input, state_init, axis: int,
+                         alpha: float, epsilon: float,
+                         complex: bool) -&gt; Tensor
+</code></pre></div>
+<p>Computes a per-time-step EMA of the input magnitude, then divides
+<code>input</code> by <code>sqrt(state)</code> along <code>axis</code>. <code>state_init</code> is the initial
+hidden state (zeros at trace time); its shape equals <code>input</code> with
+<code>axis</code> removed (and the trailing-2 axis removed for <code>complex=True</code>).</p>
+
+    </div>
+
+</div>
 
 
 
@@ -3350,9 +3472,9 @@
         
           
           <a
-            href="../console/"
+            href="../"
             class="md-footer__link md-footer__link--prev"
-            aria-label="Previous: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;console"
+            aria-label="Previous: torch_to_nnef.op.extras"
           >
             <div class="md-footer__button md-icon">
               
@@ -3363,7 +3485,7 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>console
+                torch_to_nnef.op.extras
               </div>
             </div>
           </a>
@@ -3373,16 +3495,16 @@
         
           
           <a
-            href="../exceptions/"
+            href="../scan_ops/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;exceptions"
+            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;scan_ops"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exceptions
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>scan_ops
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -3399,7 +3521,7 @@
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
         <a href="https://www.sonos.com/">
-            <img src="../../../img/SONOS.png" style="height:32px;margin: 16px;" alt="SONOS">
+            <img src="../../../../../img/SONOS.png" style="height:32px;margin: 16px;" alt="SONOS">
         </a>
       <div class="md-copyright">
   
@@ -3457,10 +3579,10 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      <script src="../../../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
       
     
   </body>

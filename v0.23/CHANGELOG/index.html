@@ -1906,6 +1906,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../reference/torch_to_nnef/op/extras/exp_norm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exp_norm
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../reference/torch_to_nnef/op/extras/scan_ops/" class="md-nav__link">
         
   
@@ -3207,6 +3230,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#changed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Changed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
@@ -3273,7 +3305,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -3315,7 +3347,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_2" class="md-nav__link">
+  <a href="#changed_3" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -3417,7 +3449,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_3" class="md-nav__link">
+  <a href="#changed_4" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -3459,7 +3491,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_4" class="md-nav__link">
+  <a href="#changed_5" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -6853,6 +6885,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#changed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Changed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
@@ -6919,7 +6960,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -6961,7 +7002,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_2" class="md-nav__link">
+  <a href="#changed_3" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -7063,7 +7104,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_3" class="md-nav__link">
+  <a href="#changed_4" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -7105,7 +7146,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_4" class="md-nav__link">
+  <a href="#changed_5" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -10481,8 +10522,16 @@
 <li><strong><code>lstm_cell</code> NNEF fragment</strong> (single-call, grouped-matmul) replaces the per-gate sigmoid/tanh/mul decomposition.</li>
 <li><strong><code>examples/vad/silero-jit/</code></strong>: end-to-end demo of the JIT-only export path on a real artifact, gated in CI via the <code>silero_vad_demo</code> tox env.</li>
 <li><strong>Tutorial</strong>: <code>docs/tutos/12_jit_only_models.md</code> covers both the auto-detection path and the manual chain.</li>
+<li><strong><code>aten::istft</code> handler</strong> for the common case (<code>onesided=True</code>, <code>normalized=False</code>, <code>return_complex=False</code>, <code>length=None</code>). Supports rank-3 <code>(freq, T_frames, 2)</code> and rank-4 <code>(B, freq, T_frames, 2)</code> inputs; raises on rank &gt; 4. Decomposes into Hermitian-symmetric spectrum build, <code>tract_core_fft</code> inverse, window multiply, OLA via <code>deconv</code> with an identity kernel, divide by the window² OLA, and optional <code>center=True</code> crop. Under dynamic axes the window² divisor falls back to a scalar central-region COLA constant; the export verifies that constant actually holds across the central region and raises with a clear message for non-COLA <code>(window, hop)</code> pairs.</li>
+<li><strong><code>t2n_extra::exp_unit_norm</code> / <code>t2n_extra::exp_mean_norm</code> handlers</strong> lowering to the matching <code>tract_extra_exp_*_norm</code> ops (tract's <code>OpPulsifier</code> is already wired, so a streaming-axis trace pulses end-to-end). Powers DPDFNet's <code>ErbNorm</code> / <code>SpecNorm</code> per-frame EMA replacements in <code>examples/speech_enhancement/dpdfnet/export_pulse.py</code>; round-tripped under both static and dynamic axes in <code>tests/test_t2n_extra_exp_norm.py</code>.</li>
+<li><strong>Streaming-friendly <code>aten::unfold</code> handler.</strong> Static unfold axis keeps the existing slice-stack lowering (cheap, no extra compute). When the unfold axis is flagged as a streaming dim (via <code>change_dynamic_axes</code>), the handler emits a new <code>unfold</code> NNEF fragment that lowers to a 1D convolution with an identity kernel of shape <code>(size, 1, size)</code>. Tract's existing <code>Conv</code> pulsifier handles the streaming case natively, so unfold over a <code>STREAM</code> axis works without any tract-side changes. Round-tripped in <code>tests/test_dynamic_axes.py</code> for rank-2 (last axis) and rank-3 (middle axis) inputs.</li>
+<li><strong><code>examples/speech_enhancement/dpdfnet/export_pulse.py</code></strong> and companion <code>wav-cleaner-pulse/</code> Rust wrapper: streaming-friendly DPDFNet export that folds the rolling STFT, NN, iSTFT, OLA, and GRU state into a single streaming-axis NNEF artifact, with tract pulse mode handling buffering and state downstream.</li>
 </ul>
 <h3 id="changed">Changed</h3>
+<ul>
+<li><strong>View-tagged complex IR is now an enforced invariant.</strong> <code>TorchToNGraphExtractor.build_nnef_graph</code> promotes every complex IR tensor to rank N+1 with a trailing axis of size 2 carrying <code>(real, imag)</code>, unconditionally and once up-front. Producer handlers (<code>_fft</code>, <code>stft</code>, <code>fft_rfft</code>, <code>complex</code>, <code>polar</code>, …) no longer re-promote <code>node.outputs[0].shape</code>; consumer handlers (<code>fft_irfft</code>, <code>transpose</code>, <code>pick_axis</code>, …) rely on the uniform invariant <code>complex_dtype =&gt; IR rank == storage rank == logical_rank + 1</code>. The previous <code>shape[-1] == 2</code> heuristic misfired on logical complex tensors whose last axis happened to be 2 (e.g. <code>fft.fft</code> of <code>float32[2,2]</code>, <code>fft.rfft(x, dim=0)</code> on a length-2 signal). Side effect: <code>torch.complex(r, i)</code> and <code>torch.polar(a, p)</code> outputs now correctly survive chaining into <code>torch.fft.fft</code>/<code>fft.ifft</code>.</li>
+</ul>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li>Officially supported tract versions bumped to 0.23.0 and 0.22.1 (0.21.15 dropped).</li>
 </ul>
@@ -10496,6 +10545,7 @@
 <li><code>_convolution_mode</code> accepts list-padding from <code>aten::conv1d/2d/3d</code>.</li>
 <li><code>prim::TupleUnpack</code> output names are normalised through <code>cleanup_data_name</code>, fixing dotted SSA-name lookups (e.g. <code>h0.1</code>).</li>
 <li><code>constant_pad_nd</code> with a negative entry on a dynamic axis: the decomposed <code>slice</code> now uses <code>dyn_slice_begin</code> (open-ended) instead of a concrete-<code>end</code> <code>slice</code>, so the streaming-axis symbolic dim survives the crop. Without this, the cropped axis collapsed to a fixed size and any downstream broadcast against a streaming sibling failed under pulse mode (surfaced by DPDFNet's causal <code>pad_feat</code>).</li>
+<li><code>flatten</code> of a view-tagged complex tensor emitted the reshape with the complex <code>dtype</code>, which has no NNEF datum type and raised <code>KeyError</code> at serialization; it now emits the real component dtype (the storage is real <code>(..., 2)</code>). <code>permute</code> of a view-tagged complex tensor now builds the full storage-rank axes list with the trailing <code>(re, imag)</code> axis kept fixed, matching the <code>transpose</code> handler instead of relying on NNEF's append-remaining-axes behaviour.</li>
 </ul>
 <h2 id="0232-2026-04-21">[0.23.2] - 2026-04-21</h2>
 <h3 id="added_1">Added</h3>
@@ -10518,7 +10568,7 @@
 <li>Parakeet V3 and MarbleNet VAD export tests for NeMo.</li>
 <li>Runtime warning when STFT is used with tract 0.21.14/0.21.15 (known slice-fusion bug).</li>
 </ul>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li>Officially supported tract versions bumped to 0.22.1 and 0.21.15.</li>
 <li>LLM CI matrix now tests transformers 5.0.0 and 5.5.0 on Python 3.13 (replaces 4.55.0).</li>
@@ -10538,7 +10588,7 @@
 <li>tract 0.22.1 on linux x86_64: <code>OptMatMulPack</code> tries to pack F32 tensors as PackedF16 when <code>force_f32_attention=True</code>.</li>
 </ul>
 <h2 id="0230-2026-04-10">[0.23.0] - 2026-04-10</h2>
-<h3 id="changed_2">Changed</h3>
+<h3 id="changed_3">Changed</h3>
 <ul>
 <li>Split into 3 independent packages in a uv workspace monorepo:</li>
 <li><code>torch_to_nnef</code> (core) -- base export library, Python &gt;=3.9</li>
@@ -10612,7 +10662,7 @@
 <li>Tract option: <code>--tract-reify-sdpa</code> to reify SDP attention for improved tract optimizations.</li>
 <li>Versioning: new SemVer 2.0 utilities (<code>SemanticVersion</code>) and helpers integrated; enables correct prerelease/build handling and consistent version comparisons across the codebase.</li>
 </ul>
-<h3 id="changed_3">Changed</h3>
+<h3 id="changed_4">Changed</h3>
 <ul>
 <li>NNEF export artifacts: honoring <code>.nnef.tgz</code> as an intent for the final archive while always writing to the base <code>.nnef</code> path internally; consistent selection of directory (<code>compression=None</code>), <code>.tar</code> (<code>0</code>), or <code>.tgz</code> (<code>1..9</code>).</li>
 <li>Writer: explicit <code>archive_format</code> for predictable <code>.tar</code> vs <code>.tgz</code> emission; avoids unnecessary fragment extensions for Tract targets.</li>
@@ -10640,7 +10690,7 @@
 <li>Analysis tooling for debugging batch-mode encoder issues and SDPA operator behavior</li>
 <li>Support for runtime config in nemo tract rust example to better control the runner.</li>
 </ul>
-<h3 id="changed_4">Changed</h3>
+<h3 id="changed_5">Changed</h3>
 <ul>
 <li>Export performance significantly improved via shape inference speculation system - avoiding redundant model executions during export by guessing shapes for common operations</li>
 <li>NeMo evaluation framework restructured with modular dataset handling, manifest comparison tools, and batch alignment verification utilities</li>
