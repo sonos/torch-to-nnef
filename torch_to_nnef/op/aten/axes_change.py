@@ -4,6 +4,7 @@ import nnef
 import torch
 from nnef_tools.model import Tensor as NTensor
 
+from torch_to_nnef.dtypes import TORCH_TO_NUMPY_DTYPE
 from torch_to_nnef.exceptions import (
     T2NErrorInvalidArgument,
     T2NErrorNotImplemented,
@@ -231,9 +232,27 @@ def transpose(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def permute(g, node, name_to_tensor, **kwargs):
+def permute(g, node, name_to_tensor, inference_target, **kwargs):
     """Map PyTorch: 'aten:permute' to NNEF."""
     (input_node, dims_node) = node.inputs
+    axes = [pick_axis(input_node, _) for _ in dims_node.data]
+
+    if is_complex_dtype_and_complex_only_supported_as_lastdim(
+        input_node.dtype, inference_target
+    ):
+        # View-tagged complex: IR rank = logical_rank + 1, complex axis
+        # at `rank - 1`. PyTorch's permute only sees the logical view, so
+        # the trailing (re/im) axis stays fixed at the end (mirrors the
+        # `transpose` handling above).
+        complex_axis = input_node.rank - 1
+        if complex_axis in axes:
+            raise T2NErrorNotImplemented(
+                f"complex permute touching the trailing (re/im) "
+                f"axis: input={input_node.export_name} "
+                f"ir_shape={input_node.shape} axes={axes}"
+            )
+        axes = axes + [complex_axis]
+
     add_single_output_op(
         g,
         node,
@@ -242,7 +261,7 @@ def permute(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axes": [pick_axis(input_node, _) for _ in dims_node.data]},
+        attrs={"axes": axes},
         pass_quantization_params=True,
     )
 
@@ -309,6 +328,7 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
     raw_end = end_dim.data if end_dim.data is not None else -1
     axis_start = pick_axis(input_node, raw_start)
     axis_end = pick_axis(input_node, raw_end)
+    out_np_dtype = onode.np_dtype
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
         input_node.dtype, inference_target
     ):
@@ -321,6 +341,13 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
             raise T2NErrorNotImplemented(
                 "complex flatten touching the complex (re/im) axis"
             )
+        # The NNEF storage is real; emit the real component dtype rather
+        # than the (unserializable) complex dtype.
+        out_np_dtype = TORCH_TO_NUMPY_DTYPE[
+            torch.float64
+            if input_node.dtype == torch.complex128
+            else torch.float32
+        ]
     axis_count = axis_end - axis_start + 1
     add_single_output_op(
         g,
@@ -331,7 +358,7 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
             g, input_node, name_to_tensor
         ),
         attrs={
-            "dtype": onode.np_dtype,
+            "dtype": out_np_dtype,
             "shape": [-1],
             "axis_start": axis_start,
             "axis_count": axis_count,

@@ -519,6 +519,48 @@ test_suite.add(
 )
 
 
+class MyComplexPermute(nn.Module):
+    """Permute a complex tensor's logical axes.
+
+    Exercises the view-tagged complex `permute` handler: PyTorch only
+    permutes the logical axes, so the handler must apply the permutation
+    to the storage axes and leave the trailing (re/im) axis fixed at the
+    end. Without that, the emitted `transpose` axes list is one shorter
+    than the storage rank.
+    """
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        c = torch.view_as_complex(x)
+        return torch.view_as_real(c.permute(2, 0, 1))
+
+
+test_suite.add(
+    torch.arange(2 * 3 * 5 * 2, dtype=torch.float32).reshape(2, 3, 5, 2),
+    MyComplexPermute(),
+    inference_conditions=cond_tract_gt_0_20_7,
+)
+
+
+class MyComplexFlatten(nn.Module):
+    """Flatten a complex tensor's logical axes (above the re/im axis).
+
+    Exercises the view-tagged complex `flatten` handler: the storage is
+    real `(..., 2)`, so the emitted reshape must carry the real component
+    dtype, not the (unserializable) complex dtype.
+    """
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        c = torch.view_as_complex(x)
+        return torch.view_as_real(torch.flatten(c, 0, 1))
+
+
+test_suite.add(
+    torch.arange(2 * 3 * 5 * 2, dtype=torch.float32).reshape(2, 3, 5, 2),
+    MyComplexFlatten(),
+    inference_conditions=cond_tract_gt_0_20_7,
+)
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
