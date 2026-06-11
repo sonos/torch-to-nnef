@@ -5,11 +5,11 @@ requires-python = ">=3.11"
 dependencies = [
     "torch_to_nnef",
     "torch==2.12.0",
-    "diffusers==0.37.1",
+    "diffusers==0.38.0",
     "transformers==4.57.6",
     "huggingface_hub==0.36.2",
     "accelerate==1.13.0",
-    "safetensors==0.7.0",
+    "safetensors==0.8.0",
     # Needed by t2n's pytorch->onnx->tract check_io path (torch>=2.9 ONNX export).
     "onnxscript",
 ]
