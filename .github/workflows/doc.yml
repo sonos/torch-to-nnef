@@ -3,15 +3,11 @@ name: Deploy T2N docs
 # Controls when the action will run.
 on:
   push:
-    branches: [main]
-    # Mirror doc-check.yml's PR trigger so a doc-only merge to main always
-    # redeploys. The "10. Nemo ASR" tutorial is a symlink into examples/, so
-    # an examples/ change can also change a doc page.
-    paths:
-      - "**.md"
-      - "mkdocs.yml"
-      - "docs/**"
-      - "examples/**"
+    # Deploy docs only on a tagged version release, not on every merge to main,
+    # so the published docs track the latest packaged release (see release.yml,
+    # which builds/publishes on the same `v*` tags).
+    tags:
+      - "v*"
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -51,20 +47,15 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
-          enable-cache: true
-
+          # No caching: this workflow now runs on `v*` tags (a publishing
+          # trigger), where a restored cache could be poisoned from a
+          # lower-privilege run (zizmor cache-poisoning). release.yml follows
+          # the same no-cache pattern.
+          enable-cache: false
 
       - name: Install dependencies
         run: |
           uv sync --group dev
-
-      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          key: mkdocs-material-${{ env.cache_id }}
-          path: ~/.cache
-          restore-keys: |
-            mkdocs-material-
 
       - name: Deploy to GitHub Pages
         run: |
