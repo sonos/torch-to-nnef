@@ -28,7 +28,7 @@ export_model_to_nnef(
     file_path_export="my_model.nnef.tgz",
     # version pins the tract opset to target; check_io downloads that tract
     # build once and asserts its output matches PyTorch on example_input.
-    inference_target=TractNNEF(version="0.21.13", check_io=True),
+    inference_target=TractNNEF(version="0.23.0", check_io=True),
     input_names=["input"],
     output_names=["output"],
 )

@@ -98,7 +98,7 @@ export_model_to_nnef( # (1)!
     # inference engine to target
     inference_target=TractNNEF( # (2)!
         # tract version (to ensure compatible operators)
-        version="0.21.13",
+        version="0.23.0",
         # default False
         # (tract cli will be installed on the machine on fly)
         # and correctness of output compared to PyTorch for the
@@ -156,7 +156,7 @@ We will now check with the tract cli that everything is working as expected.
 Let's first display the help of the command line we downloaded when we checked io between tract and PyTorch (in step 2.)
 
 ```bash title="Setup"
-alias tract=$HOME/.cache/svc/tract/0.21.13/tract
+alias tract=$HOME/.cache/svc/tract/0.23.0/tract
 tract --help
 ```
 
@@ -212,7 +212,7 @@ Then we have the list of custom properties that have been exported by `torch_to_
 * torch_to_nnef_version: ,String 0.18.6
 * torch_version: ,String 2.6.0
 * tract_stage: ,String optimized
-* tract_target_version: ,String 0.21.13
+* tract_target_version: ,String 0.23.0
 * transformers_version: ,String 4.49.0
 * user: ,String tuto
 ```
