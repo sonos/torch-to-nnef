@@ -3216,7 +3216,7 @@
   
 
 
-<h1 id="backstory"><img alt="🍿" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f37f.svg" title=":popcorn:" /> Backstory</h1>
+<h1 id="backstory"><img alt="🍿" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f37f.svg" title=":popcorn:" /> Backstory</h1>
 <p>At <strong>Sonos</strong>, we’ve long been committed to building machine learning solutions that span the full pipeline—from training all the way to inference—delivering smart experiences to millions of users. A core part of this journey has been enabling <strong>on-device neural network computation</strong>, a challenging but critical step in making our products more responsive, private, and reliable.</p>
 <p>To support this goal, we developed and open-sourced <a href="https://github.com/sonos/tract"><strong>tract</strong></a>, a neural network inference engine written entirely in Rust. From the very beginning, tract has used the <strong>NNEF (Neural Network Exchange Format)</strong> as its intermediate model representation. NNEF offered the right mix of practical benefits: it loads quickly, is human-readable, and is easy to extend—ideal for fast iteration and debugging. (We go into more detail about our choice in <a href="../why_nnef/">Why NNEF</a>.)</p>
 <p>Fast forward to early 2022. Like many others working on edge ML, we started experimenting with compression techniques—especially <strong>quantization</strong>. As models ballooned in size and complexity, the need to optimize for limited on-device resources became urgent. We knew that exporting quantized models was going to be essential to keep up with the scale and performance constraints of modern deployments.</p>

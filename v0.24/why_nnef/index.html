@@ -3478,8 +3478,8 @@
   
 
 
-<h1 id="why-use-nnef"><img alt="🧩" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f9e9.svg" title=":jigsaw:" /> Why Use NNEF?</h1>
-<h2 id="wait-what-is-nnef"><img alt="🤔" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f914.svg" title=":thinking:" /> Wait, What Is NNEF?</h2>
+<h1 id="why-use-nnef"><img alt="🧩" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f9e9.svg" title=":jigsaw:" /> Why Use NNEF?</h1>
+<h2 id="wait-what-is-nnef"><img alt="🤔" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f914.svg" title=":thinking:" /> Wait, What Is NNEF?</h2>
 <p>NNEF stands for Neural Network Exchange Format.</p>
 <figure>
     <img align="center" alt="NNEF Idea" src="../img/nnef_idea.jpg" />
@@ -3490,7 +3490,7 @@
     <img align="center" alt="Khronos group" src="../img/khronos.png" style="width: 360px;margin:0;" />
 </figure>
 <p>It is specified by the Khronos Group, an open, non-profit consortium of around 170 member organizations, better known for defining major graphics and compute standards such as WebGL, OpenCL, and Vulkan.</p>
-<h2 id="tools-and-ecosystem"><img alt="🛠" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f6e0.svg" title=":tools:" /> Tools and Ecosystem</h2>
+<h2 id="tools-and-ecosystem"><img alt="🛠" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f6e0.svg" title=":tools:" /> Tools and Ecosystem</h2>
 <p>Beyond the specification itself, Khronos also provides several reference tools to enable partial model conversion (e.g., from TensorFlow or ONNX). However, these tools:</p>
 <ul>
 <li>
@@ -3504,10 +3504,10 @@
 <p class="admonition-title">Note</p>
 <p>We leverage these Khronos tools for final serialization within <code>torch_to_nnef</code> (thanks <strong>Viktor Gyenes &amp; al</strong> for their continued support on <a href="https://github.com/KhronosGroup/NNEF-Tools"><code>NNEF-tools</code></a>).</p>
 </div>
-<h2 id="nnef-inference-support"><img alt="🧠" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f9e0.svg" title=":brain:" /> NNEF Inference Support</h2>
+<h2 id="nnef-inference-support"><img alt="🧠" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f9e0.svg" title=":brain:" /> NNEF Inference Support</h2>
 <p>As of today, the only inference engine (excluding full training frameworks) that natively supports NNEF as a first-class format is <a href="https://github.com/sonos/tract">tract</a> — the open-source neural inference engine developed by Sonos.</p>
 <hr />
-<h2 id="the-good-what-makes-the-nnef-specification-appealing"><img alt="✅" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/2705.svg" title=":white_check_mark:" /> The Good: What Makes the NNEF Specification Appealing</h2>
+<h2 id="the-good-what-makes-the-nnef-specification-appealing"><img alt="✅" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/2705.svg" title=":white_check_mark:" /> The Good: What Makes the NNEF Specification Appealing</h2>
 <ol>
 <li>
 <p><strong>Leverages Existing, Widely-Supported Containers</strong></p>
@@ -3580,7 +3580,7 @@ from model structure (think of video formats vs. codecs).</p>
 <p>Last official update: <strong><code>v1.0.5</code> on 2022-02</strong></p>
 </li>
 </ol>
-<h2 id="nnef-extensions-in-tract"><img alt="🚀" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f680.svg" title=":rocket:" /> NNEF Extensions in tract</h2>
+<h2 id="nnef-extensions-in-tract"><img alt="🚀" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f680.svg" title=":rocket:" /> NNEF Extensions in tract</h2>
 <ol>
 <li>
 <p><strong>Supports Text and Signal Models</strong></p>
@@ -3603,7 +3603,7 @@ from model structure (think of video formats vs. codecs).</p>
 <p>These extensions are encapsulated under the concept of <strong>inference targets</strong> in <code>torch_to_nnef</code>, allowing inference engines to define their own "NNEF flavor"—while retaining a shared <strong>syntax and graph structure and common set of 'specified' operators</strong>.</p>
 </blockquote>
 <hr />
-<h2 id="why-not-onnx-or-other-protocol-buffer-based-formats"><img alt="🤔" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f914.svg" title=":thinking:" /> Why Not ONNX or Other Protocol Buffer-Based Formats?</h2>
+<h2 id="why-not-onnx-or-other-protocol-buffer-based-formats"><img alt="🤔" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f914.svg" title=":thinking:" /> Why Not ONNX or Other Protocol Buffer-Based Formats?</h2>
 <div class="admonition abstract">
 <p class="admonition-title">Abstract</p>
 <p>Let's be clear: <strong>ONNX is a great standard.</strong>
@@ -3651,7 +3651,7 @@ It's <strong>mature</strong>, <strong>widely adopted</strong>, and works well fo
 </li>
 </ol>
 <hr />
-<h2 id="safetensors"><img alt="🆚" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f19a.svg" title=":vs:" /> Safetensors</h2>
+<h2 id="safetensors"><img alt="🆚" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f19a.svg" title=":vs:" /> Safetensors</h2>
 <p><strong>Safetensors</strong> is essentially a secure, structured list of tensors stored in binary—plus minimal metadata.</p>
 <ol>
 <li>
@@ -3677,7 +3677,7 @@ It could just as well have been implemented using <code>tar</code>.</p>
 </li>
 </ul>
 <hr />
-<h2 id="gguf"><img alt="🆚" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f19a.svg" title=":vs:" /> GGUF</h2>
+<h2 id="gguf"><img alt="🆚" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f19a.svg" title=":vs:" /> GGUF</h2>
 <p><strong>GGUF</strong> is similar to <code>.safetensors</code>, but includes a lot of <strong>quantization format definitions</strong>.</p>
 <ol>
 <li>
