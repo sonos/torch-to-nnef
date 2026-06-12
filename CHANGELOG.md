@@ -5,17 +5,17 @@
 
 ### Added
 - **ATen operator coverage expanded from 636 to 762 supported operators (+126)** across ~40 batched PRs. Highlights by family:
-  - Elementwise math: `frac`, `signbit`, `erfc`, `tanhshrink`, `ldexp`, `addcdiv`, `sgn`, `logaddexp`/`logaddexp2`, `copysign`, `sinc`, `isclose`, plus a `logsumexp` fragment.
+  - Elementwise math: `frac`, `signbit`, `erfc`, `tanhshrink`, `ldexp`, `addcdiv`, `sgn`, `logaddexp`/`logaddexp2`, `copysign`, `sinc`, `isclose`, `deg2rad`/`rad2deg`, `float_power`, `positive`, plus a `logsumexp` fragment.
   - FFT: `fft_rfft`, `fft_fftn`, `fft_ifftn`, `fft_irfft` (Hermitian reconstruction), `fftfreq`, and Hamming/Blackman/Kaiser/Hann/Bartlett windows.
   - Fused matmul: `addbmm`, `addmv`, `addr` (with `bias_addmm` alias), `chain_matmul`, `bilinear`.
   - Scans: `cummax`, `cummin`, `cumprod`, `logcumsumexp`.
   - Scatter family: `scatter_add`, `scatter_reduce`, `select_scatter`, `slice_scatter`.
   - Patch ops: `im2col` (`F.unfold`), `col2im` (`F.fold`), and `Tensor.unfold`.
-  - Special functions: `i0`, `special_i0e`, `i1`, `lgamma`, `mvlgamma`, `digamma`.
-  - Distances and losses: `cdist`, `pdist`, `pairwise_distance`, `cross`, `tensordot`, plus an l1/huber/smooth_l1/hinge/triplet-margin loss family and `numpy_T`.
-  - Complex: `complex` constructor, `polar`, `angle`, `conj`/`conj_physical`.
-  - Shape utilities: `meshgrid`, `tensor_split`, `broadcast_tensors`, `column_stack`, `dstack`, `v|h|dsplit`, `movedim`, `channel_shuffle`, `pixel_*`, `count_nonzero`, matrix-transpose and `flip` aliases.
-  - Misc: `bitwise_left_shift`/`bitwise_right_shift`, `instance_norm`, `max_pool1d_with_indices`, `max_pool2d_with_indices`, `renorm`, `take`/`take_along_dim`, `index_*`, `aminmax`, `var`/`std`/`var_mean`/`std_mean`, `diagonal` (offset support), `vander`, `logspace`, `linspace`, `trilu_indices`, `gru_cell`/`rnn_tanh_cell`/`rnn_relu_cell`.
+  - Special functions: `i0`, `special_i0e`, `i1`, `lgamma`, `mvlgamma`, `digamma`, `special_entr`, `special_xlog1py`.
+  - Distances and dot products: `cdist`, `pdist`, `pairwise_distance`, `cross`, `tensordot`, `inner`, `vdot`, plus an l1/huber/smooth_l1/hinge/triplet-margin loss family and `numpy_T`.
+  - Complex: `complex` constructor, `polar`, `angle`, `conj`/`conj_physical`, `real`, `imag`.
+  - Shape utilities: `meshgrid`, `tensor_split`, `broadcast_tensors`, `column_stack`, `dstack`, `v|h|dsplit`, `movedim`, `channel_shuffle`, `pixel_*`, `count_nonzero`, `diag`, `diag_embed`, `diagflat`, `linalg_diagonal`, `block_diag`, `kron`, `cartesian_prod`, `ravel`, matrix-transpose and `flip` aliases.
+  - Misc: `bitwise_left_shift`/`bitwise_right_shift`, `instance_norm`, `max_pool1d_with_indices`, `max_pool2d_with_indices`, `renorm`, `take`/`take_along_dim`, `index_*`, `aminmax`, `var`/`std`/`var_mean`/`std_mean`, `diagonal` (offset support), `vander`, `logspace`, `linspace`, `trilu_indices`, `gru_cell`/`rnn_tanh_cell`/`rnn_relu_cell`, `diff`, `trapezoid`/`trapz`.
 - **Python 3.14 support** added; **Python 3.9 dropped** (EOL).
 - New end-to-end export examples with zoo tests: Sana mini DiT, Flux-Schnell transformer (MM-DiT), Pocket-TTS (Mimi decoder + flow_net), Mamba selective-scan (external-state and pulse-mode), and a FunASR FSMN-VAD demo (pulsed==batch parity).
 - **`force_norm_in_f32`** for `layer_norm` (fp16 export stability, used by Pocket-TTS).
