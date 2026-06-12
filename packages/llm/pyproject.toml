@@ -34,7 +34,7 @@ safetensors = ["safetensors"]
 
 [dependency-groups]
 test = [
-    "pytest>=8.3.3,<9",
+    "pytest>=9.0.3,<10",
     "pytest-cov>=6.0.0,<7",
     "ruff<1.0",
     "peft",
