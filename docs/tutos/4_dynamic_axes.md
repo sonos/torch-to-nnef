@@ -38,7 +38,7 @@ export_model_to_nnef(
     args=input_data_sample,
     file_path_export=file_path_export,
     inference_target=TractNNEF(
-        version="0.21.13",
+        version="0.23.0",
         check_io=True,
         # here we use the first input_names we define
         # and request the first dimension: 0 to have
@@ -175,7 +175,7 @@ export_model_to_nnef(
         dynamic_axes={
             "melbank": {0: "B", 1: "S"},
         },
-        version="0.21.13",
+        version="0.23.0",
         check_io=True,
     ),
     input_names=["melbank"],
@@ -289,7 +289,7 @@ export_model_to_nnef(
             "attention_mask": {0: "B", 1: "S"},
             "token_type_ids": {0: "B", 1: "S"}
         },
-        version="0.21.13",
+        version="0.23.0",
         check_io=True,
     ),
     input_names=input_names,

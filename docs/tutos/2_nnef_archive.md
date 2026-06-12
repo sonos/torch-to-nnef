@@ -81,7 +81,7 @@ fragment tract_core_properties(
 ) -> (properties: (string, tensor<scalar>)[])
 {
   properties = [
-    ("tract_target_version", "0.21.13"),
+    ("tract_target_version", "0.23.0"),
     ("torch_to_nnef_version", "0.18.6"),
 //...
     ("export_cmd", "getting_started.py")

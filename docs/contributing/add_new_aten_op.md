@@ -116,10 +116,10 @@ If you run it as such there should be 2 failed test case. Why 2 ? Because given 
 What if you want to focus on 1 test case ? just run:
 
 ```bash
-T2N_TEST_TRACT_VERSION="0.21.13" py.test tests/test_primitive.py::test_primitive_export
+T2N_TEST_TRACT_VERSION="0.23.0" py.test tests/test_primitive.py::test_primitive_export
 ```
 
-In this case you will test on 0.21.13 version but you can set it to any version
+In this case you will test on 0.23.0 version but you can set it to any version
 released at the time in [tract repository](https://github.com/sonos/tract/releases).
 
 If you are willing to test a specific custom version of tract instead you can directly

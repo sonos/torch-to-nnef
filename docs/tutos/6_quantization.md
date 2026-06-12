@@ -353,7 +353,7 @@ export_model_to_nnef(
     args=input_fp32,
     file_path_export=file_path_export,
     inference_target=TractNNEF(
-        version="0.21.13",
+        version="0.23.0",
         check_io=True,
     ),
     input_names=["input"],
