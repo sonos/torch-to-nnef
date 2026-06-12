@@ -1026,7 +1026,7 @@ requires-dist = [
     { name = "rich", specifier = "==15.0.0" },
     { name = "torch", specifier = "==2.12.*" },
     { name = "torch-to-nnef", extras = ["llm-tract"], editable = "../../" },
-    { name = "transformers", specifier = "==4.52.0" },
+    { name = "transformers", specifier = "==4.53.2" },
 ]
 
 [[package]]
@@ -1217,7 +1217,7 @@ wheels = [
 
 [[package]]
 name = "transformers"
-version = "4.52.0"
+version = "4.53.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
@@ -1231,9 +1231,9 @@ dependencies = [
     { name = "tokenizers" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/51/9bf535e3342722c33fe375cc3c7f5c09c67081e7462a96b29f8018aa53e0/transformers-4.52.0.tar.gz", hash = "sha256:1217ab6c76df7919dbd12fc4ccff4f0c84f8f25ecd1c95c5ea7476895b80990d", size = 8944788, upload-time = "2025-05-20T16:29:43.046Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/67/80f51466ec447028fd84469b208eb742533ce06cc8fad2e3181380199e5c/transformers-4.53.2.tar.gz", hash = "sha256:6c3ed95edfb1cba71c4245758f1b4878c93bf8cde77d076307dacb2cbbd72be2", size = 9201233, upload-time = "2025-07-11T12:39:08.742Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/07/4d/2af465e5d2ac7986c5f8440b473719fafabaf9f2a0cbdfa7d4b4362e1db3/transformers-4.52.0-py3-none-any.whl", hash = "sha256:73df6fad1adfbb64b27ebd604afbbea0a05d6c1e50fb5d6cd1fc32cf9498d995", size = 10460132, upload-time = "2025-05-20T16:29:38.756Z" },
+    { url = "https://files.pythonhosted.org/packages/96/88/beb33a79a382fcd2aed0be5222bdc47f41e4bfe7aaa90ae1374f1d8ea2af/transformers-4.53.2-py3-none-any.whl", hash = "sha256:db8f4819bb34f000029c73c3c557e7d06fc1b8e612ec142eecdae3947a9c78bf", size = 10826609, upload-time = "2025-07-11T12:39:05.461Z" },
 ]
 
 [[package]]
