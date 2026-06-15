@@ -319,9 +319,11 @@ def adaptive_max_poolnd(node, op_helper, **kwargs):
 
 
 # First tract release exposing `tract_core_resize` / `tract_core_grid_sample`
-# (the clean Resize subset + GridSample moved into tract-core). The resize path
-# auto-activates from this version up; bump it if the binding lands later.
-RESIZE_MIN_TRACT_VERSION = "0.23.1"
+# (the clean Resize subset + GridSample moved into tract-core). 0.23.1 already
+# shipped without them and the binding is on the 0.23.2-pre line, so the resize
+# path auto-activates from 0.23.2 up. Confirm against the actual release tag at
+# merge time and bump if it lands later.
+RESIZE_MIN_TRACT_VERSION = "0.23.2"
 
 
 def _is_tract_with_resize(inference_target) -> bool:
