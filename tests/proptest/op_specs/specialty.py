@@ -148,8 +148,106 @@ def _upsample_nearest_nd_sample_st(
     return _draw()
 
 
+def _interpolate_nd_sample_st(
+    spatial_rank: int,
+    mode: str,
+    align_corners: T.Optional[bool],
+) -> st.SearchStrategy[OpSample]:
+    """`F.interpolate(mode=...)` for linear / bicubic / nearest-exact."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        spatial = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=spatial_rank,
+                    max_size=spatial_rank,
+                )
+            )
+        )
+        scale = draw(st.integers(min_value=2, max_value=3))
+        x = draw(
+            tensor_st(
+                (n, c) + spatial,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        class _Up(nn.Module):
+            def forward(self, t):
+                return torch.nn.functional.interpolate(
+                    t,
+                    scale_factor=float(scale),
+                    mode=mode,
+                    align_corners=align_corners,
+                )
+
+        return OpSample(inputs=(x,), module=_Up().eval())
+
+    return _draw()
+
+
+def _grid_sample_sample_st(
+    mode: str,
+    padding_mode: str,
+    align_corners: bool,
+) -> st.SearchStrategy[OpSample]:
+    """`F.grid_sample` on a 2-D feature map with a random sampling grid."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        h = draw(st.integers(min_value=2, max_value=4))
+        w = draw(st.integers(min_value=2, max_value=4))
+        out_h = draw(st.integers(min_value=2, max_value=4))
+        out_w = draw(st.integers(min_value=2, max_value=4))
+        x = draw(
+            tensor_st(
+                (n, c, h, w),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        grid = draw(
+            tensor_st(
+                (n, out_h, out_w, 2),
+                torch.float32,
+                finite=True,
+                domain=Interval(-1.5, 1.5),
+            )
+        )
+
+        class _Grid(nn.Module):
+            def forward(self, t, g):
+                return torch.nn.functional.grid_sample(
+                    t,
+                    g,
+                    mode=mode,
+                    padding_mode=padding_mode,
+                    align_corners=align_corners,
+                )
+
+        return OpSample(inputs=(x, grid), module=_Grid().eval())
+
+    return _draw()
+
+
+# Drafted against tract PR sonos/tract#2363 (tract_core_resize /
+# tract_core_grid_sample). xfail until that lands in a released tract that the
+# proptest harness downloads; then bump RESIZE_MIN_TRACT_VERSION and drop these.
+_RESIZE_XFAIL = "needs released tract with tract_core_resize (sonos/tract#2363)"
+
+
 def _specialty_specs() -> T.List[OpSpec]:
     EXACT = TractCheckTolerance.EXACT
+    APPROX = TractCheckTolerance.APPROXIMATE
     return [
         OpSpec(
             name="embedding",
@@ -175,6 +273,60 @@ def _specialty_specs() -> T.List[OpSpec]:
             name="upsample_nearest3d",
             sample_st=_upsample_nearest_nd_sample_st(spatial_rank=3),
             tolerance=EXACT,
+        ),
+        OpSpec(
+            name="upsample_nearest_exact2d",
+            sample_st=_interpolate_nd_sample_st(2, "nearest-exact", None),
+            tolerance=EXACT,
+            xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="upsample_linear1d",
+            sample_st=_interpolate_nd_sample_st(1, "linear", False),
+            tolerance=APPROX,
+            xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="upsample_bilinear2d",
+            sample_st=_interpolate_nd_sample_st(2, "bilinear", False),
+            tolerance=APPROX,
+            xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="upsample_bilinear2d_align_corners",
+            sample_st=_interpolate_nd_sample_st(2, "bilinear", True),
+            tolerance=APPROX,
+            xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="upsample_trilinear3d",
+            sample_st=_interpolate_nd_sample_st(3, "trilinear", False),
+            tolerance=APPROX,
+            xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="upsample_bicubic2d",
+            sample_st=_interpolate_nd_sample_st(2, "bicubic", False),
+            tolerance=APPROX,
+            xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="grid_sample_bilinear_zeros",
+            sample_st=_grid_sample_sample_st("bilinear", "zeros", False),
+            tolerance=APPROX,
+            xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="grid_sample_nearest_border",
+            sample_st=_grid_sample_sample_st("nearest", "border", True),
+            tolerance=APPROX,
+            xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="grid_sample_bicubic_reflection",
+            sample_st=_grid_sample_sample_st("bicubic", "reflection", False),
+            tolerance=APPROX,
+            xfail_reason=_RESIZE_XFAIL,
         ),
     ]
 
