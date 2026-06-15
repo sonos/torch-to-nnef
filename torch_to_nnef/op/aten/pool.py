@@ -318,10 +318,10 @@ def adaptive_max_poolnd(node, op_helper, **kwargs):
     _adaptive_pool("max_pool", op_helper, node)
 
 
-# Min tract release exposing `tract_core_resize` / `tract_core_grid_sample`
-# (the clean Resize subset + GridSample moved into tract-core). Set to the
-# release that ships the binding once it is published.
-RESIZE_MIN_TRACT_VERSION = "0.24.0"
+# First tract release exposing `tract_core_resize` / `tract_core_grid_sample`
+# (the clean Resize subset + GridSample moved into tract-core). The resize path
+# auto-activates from this version up; bump it if the binding lands later.
+RESIZE_MIN_TRACT_VERSION = "0.23.1"
 
 
 def _is_tract_with_resize(inference_target) -> bool:
@@ -371,7 +371,7 @@ def _emit_core_resize(
     }
 
     scales = getattr(scale_factor_node, "data", None)
-    if scales is not None and all(isinstance(s, float) for s in scales):
+    if scales and all(isinstance(s, float) for s in scales):
         leading = input_rank - len(scales)
         full = [1.0] * leading + [float(s) for s in scales]
         attrs["scales"] = _const_f32_vector(
