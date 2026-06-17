@@ -37,7 +37,7 @@ dependencies = [
     "pydantic==2.13.4",
     "pydantic-core==2.46.4",
     "pygments==2.20.0",
-    "python-multipart==0.0.27",
+    "python-multipart==0.0.31",
     "pyyaml==6.0.3",
     "requests==2.33.1",
     "rich==15.0.0",
