@@ -318,18 +318,119 @@ def adaptive_max_poolnd(node, op_helper, **kwargs):
     _adaptive_pool("max_pool", op_helper, node)
 
 
+# First tract release exposing `tract_core_resize` / `tract_core_grid_sample`
+# (the clean Resize subset + GridSample moved into tract-core). 0.23.1 already
+# shipped without them and the binding is on the 0.23.2-pre line, so the resize
+# path auto-activates from 0.23.2 up. Confirm against the actual release tag at
+# merge time and bump if it lands later.
+RESIZE_MIN_TRACT_VERSION = "0.23.2"
+
+
+def _is_tract_with_resize(inference_target) -> bool:
+    return (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version >= RESIZE_MIN_TRACT_VERSION
+    )
+
+
+def _const_f32_vector(op_helper, name: str, values: T.List[float]):
+    """Add a 1-D f32 constant and return an `nnef.Identifier` to it."""
+    const = PythonConstant(
+        name=name, data=torch.tensor(values, dtype=torch.float32)
+    )
+    ref = op_helper.get_or_add_tensor_variable_in_nnef(const)
+    return nnef.Identifier(ref.name)
+
+
+def _emit_core_resize(
+    node,
+    op_helper,
+    *,
+    interpolator: str,
+    coord_transformer: str,
+    nearest_mode: str = "floor",
+):
+    """Emit `tract_core_resize` for a PyTorch `upsample_*` node.
+
+    `scale_factors`, when present, become a constant full-rank `scales`
+    vector (leading non-spatial axes get scale `1.0`); this stays correct
+    with dynamic input spatial dims since the output dim is
+    `input_dim * scale`. Otherwise the explicit `output_size` becomes a
+    constant full-rank `sizes` vector, which requires statically known
+    non-spatial dims (a fully dynamic case would need runtime `shape_of`).
+    """
+    input_node = node.inputs[0]
+    size_node = node.inputs[1]
+    scale_factor_node = node.inputs[-1]
+    input_rank = input_node.rank
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    out_name = node.outputs[0].name
+
+    attrs = {
+        "interpolator": interpolator,
+        "coord_transformer": coord_transformer,
+        "nearest_mode": nearest_mode,
+    }
+
+    scales = getattr(scale_factor_node, "data", None)
+    if scales and all(isinstance(s, float) for s in scales):
+        leading = input_rank - len(scales)
+        full = [1.0] * leading + [float(s) for s in scales]
+        attrs["scales"] = _const_f32_vector(
+            op_helper, f"{out_name}_resize_scales", full
+        )
+    else:
+        sizes = getattr(size_node, "data", None)
+        if not sizes:
+            raise T2NErrorNotImplemented(
+                "upsample without scale_factor or output_size"
+            )
+        if hasattr(sizes, "tolist"):
+            sizes = sizes.tolist()
+        spatial = [int(s) for s in sizes]
+        leading = input_rank - len(spatial)
+        lead_dims = []
+        for dim in input_node.shape[:leading]:
+            dim_int = (
+                dim if isinstance(dim, int) else getattr(dim, "data", None)
+            )
+            if not isinstance(dim_int, int):
+                raise T2NErrorNotImplemented(
+                    "upsample by output_size needs statically known "
+                    f"non-spatial dims (got shape {input_node.shape}); the "
+                    "dynamic case needs runtime shape_of (not yet supported)"
+                )
+            lead_dims.append(dim_int)
+        full = [float(d) for d in lead_dims] + [float(s) for s in spatial]
+        attrs["sizes"] = _const_f32_vector(
+            op_helper, f"{out_name}_resize_sizes", full
+        )
+
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "tract_core_resize", inputs=inp, attrs=attrs
+    )
+    return ["tract_core"]
+
+
 @OP_REGISTRY.register(
     ["upsample_nearest1d", "upsample_nearest2d", "upsample_nearest3d"]
 )
 def upsample_nearest_nd(node, op_helper, **kwargs):
     """Map PyTorch `aten::upsample_nearest{1,2,3}d` to NNEF.
 
-    All three variants share `(input, output_size, scales)` (with the
-    1-D / 3-D versions packing scales into a single `List[float]`).
-    The implementation is rank-agnostic for the `debox` path (tract
-    >= 0.22 with `upsample_with_debox=True`); the legacy `deconv`
-    fallback only handles the original 2-D case.
+    On tract releases exposing `tract_core_resize` this lowers to a single
+    `resize` (nearest / asymmetric / floor). Older targets fall back to the
+    `debox` path (tract >= 0.22 with `upsample_with_debox=True`), the
+    rank-generic reshape/tile trick, or the legacy 2-D `deconv`.
     """
+    if _is_tract_with_resize(op_helper.inference_target):
+        return _emit_core_resize(
+            node,
+            op_helper,
+            interpolator="nearest",
+            coord_transformer="asymmetric",
+            nearest_mode="floor",
+        )
     (input_node, size_node, scale_factor_node) = node.inputs
     if size_node.data:
         raise T2NErrorNotImplemented("size in upsampling not defined in NNEF")
@@ -444,3 +545,97 @@ def upsample_nearest_nd(node, op_helper, **kwargs):
         force_full_output_tensor_name=node.outputs[0].export_name,
     )
     return []
+
+
+@OP_REGISTRY.register(
+    [
+        "_upsample_nearest_exact1d",
+        "_upsample_nearest_exact2d",
+        "_upsample_nearest_exact3d",
+    ]
+)
+def upsample_nearest_exact_nd(node, op_helper, **kwargs):
+    """Map `aten::_upsample_nearest_exact{1,2,3}d` to `tract_core_resize`.
+
+    The "exact" variant centres samples (half-pixel) and rounds, unlike
+    plain nearest which floors from the asymmetric grid.
+    """
+    if not _is_tract_with_resize(op_helper.inference_target):
+        raise T2NErrorNotImplemented(
+            "_upsample_nearest_exact* needs tract_core_resize "
+            f"(tract >= {RESIZE_MIN_TRACT_VERSION})"
+        )
+    return _emit_core_resize(
+        node,
+        op_helper,
+        interpolator="nearest",
+        coord_transformer="half_pixel",
+        nearest_mode="round_prefer_ceil",
+    )
+
+
+@OP_REGISTRY.register(
+    ["upsample_linear1d", "upsample_bilinear2d", "upsample_trilinear3d"]
+)
+def upsample_linear_nd(node, op_helper, **kwargs):
+    """Map `aten::upsample_{linear1d,bilinear2d,trilinear3d}` to resize.
+
+    `align_corners` selects the coordinate transform; PyTorch's
+    `align_corners=False` matches ONNX `pytorch_half_pixel`.
+    """
+    if not _is_tract_with_resize(op_helper.inference_target):
+        raise T2NErrorNotImplemented(
+            "linear upsample needs tract_core_resize "
+            f"(tract >= {RESIZE_MIN_TRACT_VERSION})"
+        )
+    align_corners = bool(node.inputs[2].data)
+    coord = "align_corners" if align_corners else "pytorch_half_pixel"
+    return _emit_core_resize(
+        node, op_helper, interpolator="linear", coord_transformer=coord
+    )
+
+
+@OP_REGISTRY.register(["upsample_bicubic2d"])
+def upsample_bicubic2d(node, op_helper, **kwargs):
+    """Map `aten::upsample_bicubic2d` to `tract_core_resize` (cubic)."""
+    if not _is_tract_with_resize(op_helper.inference_target):
+        raise T2NErrorNotImplemented(
+            "bicubic upsample needs tract_core_resize "
+            f"(tract >= {RESIZE_MIN_TRACT_VERSION})"
+        )
+    align_corners = bool(node.inputs[2].data)
+    coord = "align_corners" if align_corners else "pytorch_half_pixel"
+    return _emit_core_resize(
+        node, op_helper, interpolator="cubic", coord_transformer=coord
+    )
+
+
+@OP_REGISTRY.register(["grid_sampler", "grid_sampler_2d", "grid_sampler_3d"])
+def grid_sampler(node, op_helper, **kwargs):
+    """Map `aten::grid_sampler{,_2d,_3d}` to `tract_core_grid_sample`.
+
+    `(input, grid, interpolation_mode, padding_mode, align_corners)` with
+    the integer enums decoded to tract's string options.
+    """
+    if not _is_tract_with_resize(op_helper.inference_target):
+        raise T2NErrorNotImplemented(
+            "grid_sampler needs tract_core_grid_sample "
+            f"(tract >= {RESIZE_MIN_TRACT_VERSION})"
+        )
+    input_node, grid_node, interp_node, padding_node, align_node = node.inputs
+    mode = {0: "bilinear", 1: "nearest", 2: "bicubic"}[int(interp_node.data)]
+    padding = {0: "zeros", 1: "border", 2: "reflection"}[int(padding_node.data)]
+    align_corners = bool(align_node.data)
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    grid = op_helper.get_or_add_tensor_variable_in_nnef(grid_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_grid_sample",
+        inputs=[inp, grid],
+        attrs={
+            "mode": mode,
+            "padding_mode": padding,
+            "align_corners": align_corners,
+        },
+    )
+    return ["tract_core"]
