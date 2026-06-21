@@ -47,6 +47,81 @@ TYPE_OPTIONAL_DEVICE_MAP = T.Optional[
 ]
 
 
+# sentinel accepted by `upcast_quant` to dequantize whatever native format the
+# model ships, without naming it.
+UPCAST_ANY = "any"
+
+
+def _native_quant_method(model) -> T.Optional[str]:
+    """The model's native quantization method as a lowercase string
+    (e.g. ``"mxfp4"``, ``"fp8"``, ``"fbgemm_fp8"``), or ``None`` if the model is
+    not pre-quantized. Reads ``config.quantization_config.quant_method``."""
+    qcfg = getattr(getattr(model, "config", None), "quantization_config", None)
+    if qcfg is None:
+        return None
+    qm = getattr(qcfg, "quant_method", None)
+    if qm is None:
+        return None
+    return str(getattr(qm, "value", qm)).lower()
+
+
+def should_upcast(quant_method: T.Optional[str], requested: T.Optional[T.Sequence[str]]) -> bool:
+    """Whether a model quantized with ``quant_method`` should be dequantized
+    given the user's ``requested`` selection.
+
+    Pure decision (no model needed) so it is unit-testable. ``requested`` is the
+    opt-in list of methods to up-cast; the ``"any"`` sentinel matches all.
+    """
+    if quant_method is None or not requested:
+        return False
+    wanted = {str(r).lower() for r in requested}
+    return UPCAST_ANY in wanted or quant_method in wanted
+
+
+def maybe_upcast_native_quant(model, requested: T.Optional[T.Sequence[str]]):
+    """Dequantize a natively-quantized model to dense float so tract can ingest
+    it — opt-in via ``requested``.
+
+    Up-casting is **decompression** (the inverse of tract-side quantization): it
+    turns a model whose weights ship in a tract-unsupported format (fp8, fp4 /
+    mxfp4, nf4, …) into a plain float model. It is needed both to export such a
+    model directly (e.g. to f16) *and* before re-quantizing it to a
+    tract-supported scheme. The actual per-format dequant is delegated to
+    transformers' ``model.dequantize()`` (dispatched to the active quantizer),
+    so this stays generic across formats.
+
+    - not pre-quantized            → returned unchanged.
+    - quantized + method requested → dequantized to dense float.
+    - quantized + not requested    → returned unchanged, with a warning (tract
+      export will likely fail — opt-in means we never dequantize silently).
+    - quantized + a *different*
+      method requested              → error (the user asked to up-cast other
+      formats; this one would still break export, so fail loudly).
+    """
+    quant_method = _native_quant_method(model)
+    if quant_method is None:
+        return model  # dense already; nothing to do
+    if not requested:
+        LOGGER.warning(
+            "model ships native '%s' quantization but --upcast was not "
+            "requested; tract export will likely fail. Pass upcast_quant=['%s'] "
+            "(or ['any']) to dequantize it to float first.",
+            quant_method,
+            quant_method,
+        )
+        return model
+    if not should_upcast(quant_method, requested):
+        raise T2NErrorMisuse(
+            f"model is natively quantized as '{quant_method}', which tract "
+            f"cannot export, but up-cast was only requested for {list(requested)}. "
+            f"Add '{quant_method}' (or 'any') to upcast_quant to dequantize it."
+        )
+    LOGGER.info("up-casting native '%s' quantization to dense float", quant_method)
+    # transformers owns the per-format dequant; this returns a dense float model.
+    model = model.dequantize()
+    return model
+
+
 def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
     """Find a subdir with filename in it."""
     found_dirs = {p.parent for p in dirpath.glob(f"**/{filename}")}
@@ -250,6 +325,7 @@ def load_model(
     merge_peft: T.Optional[bool] = None,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
     trust_remote_code: bool = True,
+    upcast_quant: T.Optional[T.Sequence[str]] = None,
     *,
     transformers: InjectedTransformersModule = INJECTED,
 ):
@@ -328,6 +404,10 @@ def load_model(
                 "no 'Peft' model found: %s (so no merge applied)",
                 hf_model_causal.__class__,
             )
+
+    # Dequantize a natively-quantized model (fp8/mxfp4/…) to dense float BEFORE
+    # the dtype cast below — `.to(dtype)` does not dequantize quantized params.
+    hf_model_causal = maybe_upcast_native_quant(hf_model_causal, upcast_quant)
 
     if force_module_dtype is not None:
         force_dtype = DtypeStr(force_module_dtype).torch_dtype
