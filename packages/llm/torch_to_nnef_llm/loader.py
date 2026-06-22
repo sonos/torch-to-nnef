@@ -138,9 +138,7 @@ def plan_upcast(quant_config, requested: T.Optional[T.Sequence[str]]):
     return ("post", method)
 
 
-def assert_upcast_dense(
-    model, requested: T.Optional[T.Sequence[str]]
-) -> None:
+def assert_upcast_dense(model, requested: T.Optional[T.Sequence[str]]) -> None:
     """Fail loudly if an up-casted model is still (even partially) quantized.
 
     Catches a format that only dequantized some weights here, rather than as an
