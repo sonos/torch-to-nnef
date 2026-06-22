@@ -142,12 +142,13 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         parser.add_argument(
             "--upcast-quant",
             default=None,
-            help="opt-in: dequantize a natively-quantized model (fp8, fp4 / "
-            "mxfp4, nf4, ...) to dense float before export, since tract cannot "
-            "ingest those formats. Comma-separated quant methods to up-cast "
-            "(e.g. 'mxfp4', 'mxfp4,fp8') or 'any' for what the model ships. "
-            "Combine with -dt to pick the float target, and optionally -c to "
-            "then re-quantize to a tract-supported scheme.",
+            help="opt-in: dequantize a natively-quantized model (mxfp4, fp8, "
+            "bitsandbytes, ...) to dense float before export, since tract "
+            "cannot ingest those formats. Comma-separated transformers quant "
+            "methods to up-cast (e.g. 'mxfp4', 'mxfp4,fp8') or 'any' for what "
+            "the model ships; values are the names from transformers' "
+            "QuantizationMethod. Combine with -dt to pick the float target, "
+            "and optionally -c to re-quantize to a tract-supported scheme.",
         )
 
         parser.add_argument(

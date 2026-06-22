@@ -9,10 +9,13 @@ covered here.
 import pytest
 
 from torch_to_nnef.exceptions import T2NErrorMisuse
+from torch_to_nnef_llm import loader
 from torch_to_nnef_llm.loader import (
     UPCAST_ANY,
+    _finish_upcast,
     _native_quant_method,
     _normalize_upcast_request,
+    _plan_and_inject_upcast,
     _quant_method_of,
     assert_upcast_dense,
     plan_upcast,
@@ -69,12 +72,17 @@ def test_normalize_upcast_request():
     # nothing requested -> None
     assert _normalize_upcast_request(None) is None
     assert _normalize_upcast_request([]) is None
-    # valid methods + the "any" sentinel pass through, lowercased
-    assert _normalize_upcast_request(["MXFP4", "fp8"]) == ["mxfp4", "fp8"]
+    # valid methods + the "any" sentinel pass through, lowercased. Use methods
+    # present across the whole supported transformers range (>= 4.35), so this
+    # holds on every cli_transformers_* env (mxfp4/fp8 are 5.x-only).
+    assert _normalize_upcast_request(["BitsAndBytes", "gptq"]) == [
+        "bitsandbytes",
+        "gptq",
+    ]
     assert _normalize_upcast_request(["any"]) == [UPCAST_ANY]
     # a typo fails up-front, with the valid list in the message
     with pytest.raises(T2NErrorMisuse, match="unknown upcast_quant"):
-        _normalize_upcast_request(["mxpf4"])
+        _normalize_upcast_request(["definitely-not-a-real-method"])
 
 
 def test_normalize_upcast_request_requires_transformers_4_38(monkeypatch):
@@ -128,6 +136,83 @@ def test_assert_dense_raises_on_residual_quant():
     # still reports a native method after up-cast → partial dequant
     with pytest.raises(T2NErrorMisuse, match="did not fully"):
         assert_upcast_dense(_Model(_LoadTimeConfig("mxfp4")), ["any"])
-    # or a lingering hf_quantizer even if config was cleared
-    with pytest.raises(T2NErrorMisuse):
+    # a lingering hf_quantizer even if config was cleared: message reads
+    # "active quantizer", not "native 'None'"
+    with pytest.raises(T2NErrorMisuse, match="active quantizer"):
         assert_upcast_dense(_Model(hf_quantizer=object()), ["any"])
+
+
+# --- integration helpers: _plan_and_inject_upcast / _finish_upcast ---
+
+
+class _PostCapableModel:
+    """A post-load-dequantizable model (bnb/higgs style)."""
+
+    def __init__(self):
+        self.config = _Cfg(_PostLoadConfig("bitsandbytes"))
+
+    def dequantize(self):
+        return _Model()  # dense twin (no quantization_config)
+
+
+class _PostUnsupportedModel:
+    """A model whose quantizer has no post-load dequantize (gptq/awq/...)."""
+
+    def __init__(self):
+        self.config = _Cfg(_PostLoadConfig("gptq"))
+
+    def dequantize(self):
+        raise NotImplementedError("gptq has no implementation of dequantize")
+
+
+def test_plan_and_inject_load_time(monkeypatch):
+    qc = _LoadTimeConfig("mxfp4")
+    monkeypatch.setattr(loader, "_peek_quant_config", lambda *a, **k: qc)
+    kwargs = {}
+    plan = _plan_and_inject_upcast("org/m", ["mxfp4"], kwargs, True, object())
+    assert plan == ("load", qc)
+    assert kwargs["quantization_config"] is qc and qc.dequantize is True
+
+
+def test_plan_and_inject_post_and_none(monkeypatch):
+    monkeypatch.setattr(
+        loader,
+        "_peek_quant_config",
+        lambda *a, **k: _PostLoadConfig("bitsandbytes"),
+    )
+    kwargs = {}
+    assert _plan_and_inject_upcast("m", ["any"], kwargs, True, object()) == (
+        "post",
+        "bitsandbytes",
+    )
+    assert "quantization_config" not in kwargs  # post path injects nothing
+    # no request / no source short-circuits without peeking
+    assert _plan_and_inject_upcast(None, ["mxfp4"], {}, True, object()) == (
+        "none",
+        None,
+    )
+    assert _plan_and_inject_upcast("m", None, {}, True, object()) == (
+        "none",
+        None,
+    )
+
+
+def test_finish_upcast_post_success():
+    out = _finish_upcast(_PostCapableModel(), ("post", "bitsandbytes"), ["any"])
+    assert _native_quant_method(out) is None
+
+
+def test_finish_upcast_post_unsupported_raises_clean_error():
+    # the B1 fix: NotImplementedError becomes a clear T2NErrorMisuse
+    with pytest.raises(T2NErrorMisuse, match="cannot be dequantized by"):
+        _finish_upcast(_PostUnsupportedModel(), ("post", "gptq"), ["any"])
+
+
+def test_finish_upcast_warns_when_quantized_but_not_requested(caplog):
+    import logging
+
+    model = _Model(_LoadTimeConfig("mxfp4"))
+    with caplog.at_level(logging.WARNING):
+        out = _finish_upcast(model, ("none", None), None)
+    assert out is model  # left as-is (opt-in)
+    assert any("upcast_quant was not" in r.message for r in caplog.records)

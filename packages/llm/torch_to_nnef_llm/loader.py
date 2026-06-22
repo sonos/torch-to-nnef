@@ -197,11 +197,15 @@ def assert_upcast_dense(model, requested: T.Optional[T.Sequence[str]]) -> None:
     remaining = _native_quant_method(model)
     has_quantizer = getattr(model, "hf_quantizer", None) is not None
     if remaining is not None or has_quantizer:
+        detail = (
+            f"native '{remaining}' quantization"
+            if remaining is not None
+            else "an active quantizer"
+        )
         raise T2NErrorMisuse(
-            "up-cast did not fully dequantize the model: it still reports "
-            f"native '{remaining}' quantization. tract cannot export a "
-            "partially-quantized model; this format may need a different "
-            "dequantization path."
+            f"up-cast did not fully dequantize the model: it still reports "
+            f"{detail}. tract cannot export a partially-quantized model; this "
+            "format may need a different dequantization path."
         )
 
 
@@ -214,6 +218,15 @@ def _peek_quant_config(config_source, trust_remote_code, transformers):
     """
     if config_source is None:
         return None
+    # For a local dir, resolve the same subdir the loader will use (config.json
+    # may be nested), so the peek doesn't miss the plan on those layouts.
+    if isinstance(config_source, Path):
+        try:
+            config_source = find_subdir_with_filename_in(
+                config_source, "config.json"
+            )
+        except T2NErrorNotFoundFile:
+            return None
     try:
         cfg = transformers.AutoConfig.from_pretrained(
             config_source, trust_remote_code=trust_remote_code
@@ -258,7 +271,18 @@ def _finish_upcast(model, plan, requested):
     """
     if plan[0] == "post":
         LOGGER.info("up-casting native '%s' post-load", plan[1])
-        model = model.dequantize()
+        # Only some quantizers (bnb, higgs) implement post-load dequantization;
+        # others raise NotImplementedError. Surface that as a clear T2NError
+        # rather than a cryptic crash from deep inside transformers.
+        try:
+            model = model.dequantize()
+        except NotImplementedError as exc:
+            raise T2NErrorMisuse(
+                f"native '{plan[1]}' quantization cannot be dequantized by "
+                "transformers (no dequantize support), so it cannot be "
+                "exported to tract. Use a checkpoint in a dequantizable format "
+                "(e.g. mxfp4, fp8, bitsandbytes) or an unquantized model."
+            ) from exc
     elif not requested and _native_quant_method(model) is not None:
         method = _native_quant_method(model)
         LOGGER.warning(
