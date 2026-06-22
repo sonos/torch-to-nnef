@@ -1,6 +1,11 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
+## [Unreleased]
+
+### Added
+- LLM export: opt-in **`--upcast-quant`** (loader `upcast_quant=`) to dequantize a natively-quantized model (fp8, fp4 / mxfp4, nf4, …) to dense float before export, since tract cannot ingest those formats. Selectable per quant method (e.g. `mxfp4`, `mxfp4,fp8`) or `any`. Routes by mechanism — load-time `dequantize=True` for mxfp4/fp8/metal, post-load `model.dequantize()` for bnb/higgs — and verifies the result is fully dense. Compose with `-dt` (float target) and `-c` (re-quantize to a tract scheme).
+
 ## [0.24.0] - 2026-06-11
 
 ### Added

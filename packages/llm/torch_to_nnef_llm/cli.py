@@ -145,7 +145,7 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             help="opt-in: dequantize a natively-quantized model (fp8, fp4 / "
             "mxfp4, nf4, ...) to dense float before export, since tract cannot "
             "ingest those formats. Comma-separated quant methods to up-cast "
-            "(e.g. 'mxfp4', 'mxfp4,fp8') or 'any' for whatever the model ships. "
+            "(e.g. 'mxfp4', 'mxfp4,fp8') or 'any' for what the model ships. "
             "Combine with -dt to pick the float target, and optionally -c to "
             "then re-quantize to a tract-supported scheme.",
         )

@@ -70,7 +70,7 @@ def _as_quant_config(raw):
 
 
 def _quant_method_of(quant_config) -> T.Optional[str]:
-    """Lowercased ``quant_method`` of a quantization config object, or ``None``."""
+    """Lowercased ``quant_method`` of a quant config object, or ``None``."""
     if quant_config is None:
         return None
     qm = getattr(quant_config, "quant_method", None)
@@ -80,15 +80,16 @@ def _quant_method_of(quant_config) -> T.Optional[str]:
 
 
 def _native_quant_method(model) -> T.Optional[str]:
-    """The model's native quantization method as a lowercase string, or ``None``
-    if it is not (or no longer) quantized."""
+    """Native quant method of a model, or ``None`` if (no longer) quantized."""
     raw = getattr(getattr(model, "config", None), "quantization_config", None)
     return _quant_method_of(_as_quant_config(raw))
 
 
-def should_upcast(quant_method: T.Optional[str], requested: T.Optional[T.Sequence[str]]) -> bool:
-    """Whether a model quantized with ``quant_method`` should be dequantized
-    given the user's ``requested`` selection.
+def should_upcast(
+    quant_method: T.Optional[str],
+    requested: T.Optional[T.Sequence[str]],
+) -> bool:
+    """Whether a ``quant_method`` model should be dequantized for ``requested``.
 
     Pure decision (no model needed) so it is unit-testable. ``requested`` is the
     opt-in list of methods to up-cast; the ``"any"`` sentinel matches all.
@@ -100,21 +101,22 @@ def should_upcast(quant_method: T.Optional[str], requested: T.Optional[T.Sequenc
 
 
 # How a given quantizer can be dequantized in transformers:
-#   - "load"     : only via the config's ``dequantize=True`` flag, applied
-#                  during ``from_pretrained`` (e.g. mxfp4, fp8, metal).
-#   - "post"     : via ``model.dequantize()`` after load (e.g. bnb, higgs).
+#   - "load": only via the config's ``dequantize=True`` flag, applied during
+#             ``from_pretrained`` (e.g. mxfp4, fp8, metal).
+#   - "post": via ``model.dequantize()`` after load (e.g. bnb, higgs).
 # A config object exposing a ``dequantize`` attribute is load-time; otherwise we
 # attempt the post-load path (and verify the result is actually dense).
 def plan_upcast(quant_config, requested: T.Optional[T.Sequence[str]]):
     """Decide *whether and how* to up-cast, before the real load. Pure.
 
     Returns one of:
-      - ``("none", None)``          — not quantized, or quantized but not
+      - ``("none", None)``         — not quantized, or quantized but not
         requested (caller should warn in the latter case).
-      - ``("load", quant_config)``  — load-time dequant; ``quant_config`` has had
-        ``dequantize=True`` set and should be passed to ``from_pretrained``.
-      - ``("post", method)``        — dequantize via ``model.dequantize()`` after
+      - ``("load", quant_config)`` — load-time dequant; ``quant_config`` has had
+        ``dequantize=True`` set, to pass to ``from_pretrained``.
+      - ``("post", method)``       — dequantize via ``model.dequantize()`` after
         load.
+
     Raises ``T2NErrorMisuse`` if the model is quantized in a format the caller
     did *not* select (it would still break tract export — fail loudly).
     """
@@ -122,7 +124,8 @@ def plan_upcast(quant_config, requested: T.Optional[T.Sequence[str]]):
     if method is None:
         return ("none", None)
     if not requested:
-        return ("none", None)  # opt-in; caller warns that export will likely fail
+        # opt-in; the caller warns that export will likely fail
+        return ("none", None)
     if not should_upcast(method, requested):
         raise T2NErrorMisuse(
             f"model is natively quantized as '{method}', which tract cannot "
@@ -135,27 +138,34 @@ def plan_upcast(quant_config, requested: T.Optional[T.Sequence[str]]):
     return ("post", method)
 
 
-def assert_upcast_dense(model, requested: T.Optional[T.Sequence[str]]) -> None:
-    """After an up-cast was requested, fail loudly if the model is still (even
-    partially) natively quantized — so a format that only dequantized some
-    weights surfaces here, not as an opaque tract error downstream."""
+def assert_upcast_dense(
+    model, requested: T.Optional[T.Sequence[str]]
+) -> None:
+    """Fail loudly if an up-casted model is still (even partially) quantized.
+
+    Catches a format that only dequantized some weights here, rather than as an
+    opaque tract error downstream. No-op when up-cast was not requested.
+    """
     if not requested:
         return
     remaining = _native_quant_method(model)
-    if remaining is not None or getattr(model, "hf_quantizer", None) is not None:
+    has_quantizer = getattr(model, "hf_quantizer", None) is not None
+    if remaining is not None or has_quantizer:
         raise T2NErrorMisuse(
-            "up-cast did not fully dequantize the model: it still reports native "
-            f"'{remaining}' quantization after dequantization. tract cannot "
-            "export a partially-quantized model. This format may need a "
-            "different dequantization path."
+            "up-cast did not fully dequantize the model: it still reports "
+            f"native '{remaining}' quantization. tract cannot export a "
+            "partially-quantized model; this format may need a different "
+            "dequantization path."
         )
 
 
 def _peek_quant_config(config_source, trust_remote_code, transformers):
-    """Read a model's ``quantization_config`` (as a config object) *before*
-    loading the weights, so a load-time dequant flag can be injected into
-    ``from_pretrained``. Returns ``None`` if the source has no quant config or
-    can't be read (the caller then proceeds without load-time up-cast)."""
+    """Read a model's ``quantization_config`` (as a config object) before load.
+
+    Lets a load-time dequant flag be injected into ``from_pretrained``. Returns
+    ``None`` if the source has no quant config or can't be read (the caller then
+    proceeds without load-time up-cast).
+    """
     if config_source is None:
         return None
     try:
@@ -485,8 +495,8 @@ def load_model(
     elif not upcast_quant and _native_quant_method(hf_model_causal) is not None:
         LOGGER.warning(
             "model ships native '%s' quantization but upcast_quant was not "
-            "requested; tract export will likely fail. Pass upcast_quant=['%s'] "
-            "(or ['any']) to dequantize it to float first.",
+            "requested; tract export will likely fail. Pass upcast_quant=['%s']"
+            " (or ['any']) to dequantize it to float first.",
             _native_quant_method(hf_model_causal),
             _native_quant_method(hf_model_causal),
         )

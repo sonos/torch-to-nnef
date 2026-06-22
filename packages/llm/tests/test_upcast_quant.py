@@ -20,8 +20,10 @@ from torch_to_nnef_llm.loader import (
 
 
 class _LoadTimeConfig:
-    """A quant config that supports load-time dequant (has a ``dequantize`` flag),
-    like Mxfp4Config / FineGrainedFP8Config."""
+    """A quant config with a load-time ``dequantize`` flag.
+
+    Like Mxfp4Config / FineGrainedFP8Config.
+    """
 
     def __init__(self, method):
         self.quant_method = method
@@ -96,12 +98,13 @@ def test_plan_quantized_but_other_method_requested_errors():
 
 def test_assert_dense_passes_when_dense():
     assert_upcast_dense(_Model(), ["any"])  # no quant config, no quantizer
-    assert_upcast_dense(_Model(_LoadTimeConfig("mxfp4")), None)  # not requested → skip
+    # not requested → skip
+    assert_upcast_dense(_Model(_LoadTimeConfig("mxfp4")), None)
 
 
 def test_assert_dense_raises_on_residual_quant():
     # still reports a native method after up-cast → partial dequant
-    with pytest.raises(T2NErrorMisuse, match="partially-quantized|did not fully"):
+    with pytest.raises(T2NErrorMisuse, match="did not fully"):
         assert_upcast_dense(_Model(_LoadTimeConfig("mxfp4")), ["any"])
     # or a lingering hf_quantizer even if config was cleared
     with pytest.raises(T2NErrorMisuse):
