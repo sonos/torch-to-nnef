@@ -77,6 +77,15 @@ def test_normalize_upcast_request():
         _normalize_upcast_request(["mxpf4"])
 
 
+def test_normalize_upcast_request_requires_transformers_4_38(monkeypatch):
+    import transformers
+
+    # too-old transformers (no quantizer dequant API) fails up-front, clearly
+    monkeypatch.setattr(transformers, "__version__", "4.37.0")
+    with pytest.raises(T2NErrorMisuse, match="requires transformers >= 4.38"):
+        _normalize_upcast_request(["mxfp4"])
+
+
 def test_should_upcast_matrix():
     assert should_upcast("mxfp4", ["mxfp4"]) is True
     assert should_upcast("mxfp4", ["fp8", "mxfp4"]) is True

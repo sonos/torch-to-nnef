@@ -109,11 +109,26 @@ def _normalize_upcast_request(
     (validated through transformers' own ``QuantizationMethod`` enum, the single
     source of truth, so it stays in sync across versions). Returns the
     lowercased canonical values, or ``None`` when nothing was requested. Raises
-    ``T2NErrorMisuse`` on an unknown method, before any download or model load.
+    ``T2NErrorMisuse`` on an unknown method or a too-old transformers, before
+    any download or model load.
     """
     if not requested:
         return None
     # lazy import: transformers is an optional extra of this package
+    # pylint: disable-next=import-outside-toplevel
+    import transformers
+
+    # up-cast relies on the quantizer dequantization API
+    # (`AutoQuantizationConfig` / `model.dequantize()`), introduced with the
+    # HfQuantizer refactor in transformers 4.38.0. Older versions lack
+    # `transformers.quantizers`, so fail here with a clear message instead of a
+    # cryptic ModuleNotFoundError later.
+    if SemanticVersion.from_str(transformers.__version__) < "4.38.0":
+        raise T2NErrorMisuse(
+            "upcast_quant requires transformers >= 4.38.0 (quantizer "
+            f"dequantization API); installed: {transformers.__version__}. "
+            "Upgrade transformers, or drop upcast_quant."
+        )
     # pylint: disable-next=import-outside-toplevel
     from transformers.utils.quantization_config import QuantizationMethod
 
