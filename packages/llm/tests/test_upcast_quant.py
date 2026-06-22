@@ -12,6 +12,7 @@ from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef_llm.loader import (
     UPCAST_ANY,
     _native_quant_method,
+    _normalize_upcast_request,
     _quant_method_of,
     assert_upcast_dense,
     plan_upcast,
@@ -62,6 +63,18 @@ def test_quant_method_normalization():
     assert _quant_method_of(None) is None
     assert _native_quant_method(_Model()) is None
     assert _native_quant_method(_Model(_LoadTimeConfig("mxfp4"))) == "mxfp4"
+
+
+def test_normalize_upcast_request():
+    # nothing requested -> None
+    assert _normalize_upcast_request(None) is None
+    assert _normalize_upcast_request([]) is None
+    # valid methods + the "any" sentinel pass through, lowercased
+    assert _normalize_upcast_request(["MXFP4", "fp8"]) == ["mxfp4", "fp8"]
+    assert _normalize_upcast_request(["any"]) == [UPCAST_ANY]
+    # a typo fails up-front, with the valid list in the message
+    with pytest.raises(T2NErrorMisuse, match="unknown upcast_quant"):
+        _normalize_upcast_request(["mxpf4"])
 
 
 def test_should_upcast_matrix():

@@ -100,6 +100,40 @@ def should_upcast(
     return UPCAST_ANY in wanted or quant_method in wanted
 
 
+def _normalize_upcast_request(
+    requested: T.Optional[T.Sequence[str]],
+) -> T.Optional[T.List[str]]:
+    """Validate + normalize the requested up-cast methods, up-front.
+
+    Each entry must be the ``"any"`` sentinel or a method transformers knows
+    (validated through transformers' own ``QuantizationMethod`` enum, the single
+    source of truth, so it stays in sync across versions). Returns the
+    lowercased canonical values, or ``None`` when nothing was requested. Raises
+    ``T2NErrorMisuse`` on an unknown method, before any download or model load.
+    """
+    if not requested:
+        return None
+    # lazy import: transformers is an optional extra of this package
+    # pylint: disable-next=import-outside-toplevel
+    from transformers.utils.quantization_config import QuantizationMethod
+
+    normalized: T.List[str] = []
+    for raw in requested:
+        value = str(raw).lower()
+        if value == UPCAST_ANY:
+            normalized.append(value)
+            continue
+        try:
+            normalized.append(QuantizationMethod(value).value)
+        except ValueError as exc:
+            valid = [m.value for m in QuantizationMethod] + [UPCAST_ANY]
+            raise T2NErrorMisuse(
+                f"unknown upcast_quant method '{value}'; valid methods are "
+                f"{valid}"
+            ) from exc
+    return normalized
+
+
 # How a given quantizer can be dequantized in transformers:
 #   - "load": only via the config's ``dequantize=True`` flag, applied during
 #             ``from_pretrained`` (e.g. mxfp4, fp8, metal).
@@ -438,6 +472,8 @@ def load_model(
     models you trust, or pass ``trust_remote_code=False`` (CLI
     ``--no-trust-remote-code``) to refuse it.
     """
+    # validate requested up-cast methods up-front, before any download/load
+    upcast_quant = _normalize_upcast_request(upcast_quant)
     # accept a str path from direct callers (the dump_llm path coerces upstream)
     if local_dir is not None:
         local_dir = Path(local_dir)
