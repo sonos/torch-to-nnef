@@ -9,8 +9,8 @@ Both quantizer mechanisms are covered:
   - **load-time** (fp8 → ``dequantize=True`` at load): needs compute ≥ 8.9
     (e.g. 4090/H100); skips on older GPUs, which auto-dequantize fp8 anyway.
 
-(mxfp4 is the headline format but a *tiny* mxfp4 model can't be serialized —
-transformers' mxfp4 packing assumes gpt-oss-scale dims — so the load-time branch
+(mxfp4 is the headline format but a *tiny* mxfp4 model can't be serialized:
+transformers' mxfp4 packing assumes gpt-oss-scale dims, so the load-time branch
 is exercised here via fp8, which shares the exact same code path.)
 
 Triple-gated so CI never runs them by accident:

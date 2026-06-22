@@ -110,15 +110,14 @@ def plan_upcast(quant_config, requested: T.Optional[T.Sequence[str]]):
     """Decide *whether and how* to up-cast, before the real load. Pure.
 
     Returns one of:
-      - ``("none", None)``         — not quantized, or quantized but not
-        requested (caller should warn in the latter case).
-      - ``("load", quant_config)`` — load-time dequant; ``quant_config`` has had
+      - ``("none", None)``: not quantized, or quantized but not requested
+        (caller should warn in the latter case).
+      - ``("load", quant_config)``: load-time dequant; ``quant_config`` has had
         ``dequantize=True`` set, to pass to ``from_pretrained``.
-      - ``("post", method)``       — dequantize via ``model.dequantize()`` after
-        load.
+      - ``("post", method)``: dequantize via ``model.dequantize()`` after load.
 
     Raises ``T2NErrorMisuse`` if the model is quantized in a format the caller
-    did *not* select (it would still break tract export — fail loudly).
+    did *not* select (it would still break tract export, so fail loudly).
     """
     method = _quant_method_of(quant_config)
     if method is None:
@@ -170,10 +169,58 @@ def _peek_quant_config(config_source, trust_remote_code, transformers):
         cfg = transformers.AutoConfig.from_pretrained(
             config_source, trust_remote_code=trust_remote_code
         )
-    except Exception as exp:  # pragma: no cover - network/path dependent
+    # best-effort: any failure to read the config just means "no load-time plan"
+    except (OSError, ValueError, ImportError, KeyError) as exp:
         LOGGER.warning("could not read config to plan up-cast: %s", exp)
         return None
     return _as_quant_config(getattr(cfg, "quantization_config", None))
+
+
+def _plan_and_inject_upcast(
+    config_source, requested, kwargs, trust_remote_code, transformers
+):
+    """Plan a native-quant up-cast before load; inject the load-time flag.
+
+    For load-time formats (mxfp4/fp8/metal) sets ``quantization_config`` (with
+    ``dequantize=True``) in ``kwargs``. Returns the plan for the post-load step.
+    """
+    if not requested or config_source is None:
+        return ("none", None)
+    quant_config = _peek_quant_config(
+        config_source, trust_remote_code, transformers
+    )
+    method = _quant_method_of(quant_config)
+    if method is None:
+        LOGGER.info("up-cast requested but model is not natively quantized")
+        return ("none", None)
+    plan = plan_upcast(quant_config, requested)
+    if plan[0] == "load":
+        LOGGER.info("up-casting native '%s' at load time", method)
+        kwargs["quantization_config"] = plan[1]
+    return plan
+
+
+def _finish_upcast(model, plan, requested):
+    """Complete the up-cast after load and verify the model is dense.
+
+    "load" formats were already dequantized during ``from_pretrained``; "post"
+    formats (bnb/higgs) dequantize here. A quantized model for which up-cast was
+    not requested is left as-is with a warning (opt-in: never silent).
+    """
+    if plan[0] == "post":
+        LOGGER.info("up-casting native '%s' post-load", plan[1])
+        model = model.dequantize()
+    elif not requested and _native_quant_method(model) is not None:
+        method = _native_quant_method(model)
+        LOGGER.warning(
+            "model ships native '%s' quantization but upcast_quant was not "
+            "requested; tract export will likely fail. Pass upcast_quant=['%s']"
+            " (or ['any']) to dequantize it to float first.",
+            method,
+            method,
+        )
+    assert_upcast_dense(model, requested)
+    return model
 
 
 def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
@@ -421,25 +468,16 @@ def load_model(
 
     custom_config = CUSTOM_CONFIGS.get(hf_model_slug or "")
 
-    # Plan native-quant up-cast (fp8/fp4/mxfp4/… -> dense float) BEFORE loading,
-    # because some formats (mxfp4, fp8, metal) can only be dequantized via the
-    # config's `dequantize=True` flag at `from_pretrained` time, while others
-    # (bnb, higgs) dequantize post-load. Custom (un-initialized) configs are
-    # never pre-quantized, so skip the peek there.
-    upcast_plan = ("none", None)
-    if upcast_quant and custom_config is None:
-        config_source = local_dir if local_dir is not None else hf_model_slug
-        quant_config = _peek_quant_config(
-            config_source, trust_remote_code, transformers
-        )
-        method = _quant_method_of(quant_config)
-        if method is None:
-            LOGGER.info("up-cast requested but model is not natively quantized")
-        else:
-            upcast_plan = plan_upcast(quant_config, upcast_quant)
-            if upcast_plan[0] == "load":
-                LOGGER.info("up-casting native '%s' at load time", method)
-                kwargs["quantization_config"] = upcast_plan[1]
+    # Plan native-quant up-cast (fp8/fp4/mxfp4/... to dense float) before load,
+    # and inject the load-time dequant flag into kwargs when applicable.
+    config_source = local_dir if local_dir is not None else hf_model_slug
+    upcast_plan = _plan_and_inject_upcast(
+        config_source if custom_config is None else None,
+        upcast_quant,
+        kwargs,
+        trust_remote_code,
+        transformers,
+    )
 
     if custom_config is not None:
         hf_model_causal = transformers.AutoModelForCausalLM.from_config(
@@ -483,25 +521,9 @@ def load_model(
                 hf_model_causal.__class__,
             )
 
-    # Native-quant up-cast to dense float, completed BEFORE the dtype cast below
-    # (`.to(dtype)` does not dequantize quantized params):
-    #   - "load" formats were already dequantized during from_pretrained above;
-    #   - "post" formats (bnb/higgs) dequantize here via model.dequantize();
-    #   - then verify the model is actually dense (catches partial dequant).
-    # A model that is quantized but for which up-cast was NOT requested is left
-    # as-is with a warning (opt-in: never dequantize silently).
-    if upcast_plan[0] == "post":
-        LOGGER.info("up-casting native '%s' post-load", upcast_plan[1])
-        hf_model_causal = hf_model_causal.dequantize()
-    elif not upcast_quant and _native_quant_method(hf_model_causal) is not None:
-        LOGGER.warning(
-            "model ships native '%s' quantization but upcast_quant was not "
-            "requested; tract export will likely fail. Pass upcast_quant=['%s']"
-            " (or ['any']) to dequantize it to float first.",
-            _native_quant_method(hf_model_causal),
-            _native_quant_method(hf_model_causal),
-        )
-    assert_upcast_dense(hf_model_causal, upcast_quant)
+    # Finish the up-cast (post-load dequant + dense verification) before the
+    # dtype cast below, since `.to(dtype)` does not dequantize quantized params.
+    hf_model_causal = _finish_upcast(hf_model_causal, upcast_plan, upcast_quant)
 
     if force_module_dtype is not None:
         force_dtype = DtypeStr(force_module_dtype).torch_dtype
