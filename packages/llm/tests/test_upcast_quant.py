@@ -1,8 +1,9 @@
-"""Unit tests for the native-quant up-cast selection logic.
+"""Unit tests for the native-quant up-cast decision logic.
 
-The actual dequantization (``model.dequantize()``) needs real quantized weights
-and GPU kernels (mxfp4/fp8), so only the pure selection / branching is covered
-here; the dequant call itself is delegated to transformers.
+The actual dequantization (load-time ``dequantize=True`` for mxfp4/fp8, or
+post-load ``model.dequantize()`` for bnb/higgs) needs real quantized weights and
+GPU kernels, so only the pure planning / selection / dense-verification is
+covered here.
 """
 
 import pytest
@@ -11,44 +12,54 @@ from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef_llm.loader import (
     UPCAST_ANY,
     _native_quant_method,
-    maybe_upcast_native_quant,
+    _quant_method_of,
+    assert_upcast_dense,
+    plan_upcast,
     should_upcast,
 )
 
 
-class _QConf:
+class _LoadTimeConfig:
+    """A quant config that supports load-time dequant (has a ``dequantize`` flag),
+    like Mxfp4Config / FineGrainedFP8Config."""
+
+    def __init__(self, method):
+        self.quant_method = method
+        self.dequantize = False
+
+
+class _PostLoadConfig:
+    """A quant config with no ``dequantize`` flag (bnb/higgs style)."""
+
+    __slots__ = ("quant_method",)
+
     def __init__(self, method):
         self.quant_method = method
 
 
 class _Cfg:
-    def __init__(self, method=None):
-        if method is not None:
-            self.quantization_config = _QConf(method)
+    def __init__(self, quant_config=None):
+        if quant_config is not None:
+            self.quantization_config = quant_config
 
 
 class _Model:
-    """Minimal stand-in. ``dequantize()`` flips a flag and returns a dense twin."""
-
-    def __init__(self, method=None):
-        self.config = _Cfg(method)
-        self.dequantized = False
-
-    def dequantize(self):
-        dense = _Model(method=None)  # dense: no quantization_config
-        dense.dequantized = True
-        return dense
+    def __init__(self, quant_config=None, hf_quantizer=None):
+        self.config = _Cfg(quant_config)
+        if hf_quantizer is not None:
+            self.hf_quantizer = hf_quantizer
 
 
-def test_native_quant_method_detection():
-    assert _native_quant_method(_Model("mxfp4")) == "mxfp4"
-    assert _native_quant_method(_Model(None)) is None
-    # enum-like value with a .value attribute is normalized + lowercased
+def test_quant_method_normalization():
+    assert _quant_method_of(_LoadTimeConfig("mxfp4")) == "mxfp4"
+
     class _E:
         value = "FbgemmFp8"
-    m = _Model("x")
-    m.config.quantization_config.quant_method = _E()
-    assert _native_quant_method(m) == "fbgemmfp8"
+
+    assert _quant_method_of(_PostLoadConfig(_E())) == "fbgemmfp8"
+    assert _quant_method_of(None) is None
+    assert _native_quant_method(_Model()) is None
+    assert _native_quant_method(_Model(_LoadTimeConfig("mxfp4"))) == "mxfp4"
 
 
 def test_should_upcast_matrix():
@@ -57,30 +68,41 @@ def test_should_upcast_matrix():
     assert should_upcast("mxfp4", [UPCAST_ANY]) is True
     assert should_upcast("mxfp4", ["fp8"]) is False
     assert should_upcast("mxfp4", None) is False
-    assert should_upcast("mxfp4", []) is False
-    assert should_upcast(None, ["any"]) is False  # not quantized
+    assert should_upcast(None, ["any"]) is False
 
 
-def test_dense_model_is_untouched():
-    m = _Model(None)
-    assert maybe_upcast_native_quant(m, ["any"]) is m
+def test_plan_not_quantized_or_not_requested():
+    assert plan_upcast(None, ["any"]) == ("none", None)
+    assert plan_upcast(_LoadTimeConfig("mxfp4"), None) == ("none", None)
+    assert plan_upcast(_LoadTimeConfig("mxfp4"), []) == ("none", None)
 
 
-def test_quantized_but_not_requested_is_kept_with_warning(caplog):
-    m = _Model("mxfp4")
-    out = maybe_upcast_native_quant(m, None)  # opt-in: not requested
-    assert out is m  # unchanged, not dequantized
-    assert any("native 'mxfp4'" in r.message for r in caplog.records)
+def test_plan_load_time_format_sets_flag():
+    qc = _LoadTimeConfig("mxfp4")
+    kind, out = plan_upcast(qc, ["mxfp4"])
+    assert kind == "load"
+    assert out is qc and qc.dequantize is True  # flag set for from_pretrained
 
 
-def test_quantized_and_requested_is_dequantized():
-    m = _Model("mxfp4")
-    out = maybe_upcast_native_quant(m, ["mxfp4"])
-    assert out is not m and out.dequantized is True
-    assert _native_quant_method(out) is None  # now dense
+def test_plan_post_load_format():
+    kind, method = plan_upcast(_PostLoadConfig("bitsandbytes"), ["any"])
+    assert kind == "post" and method == "bitsandbytes"
 
 
-def test_quantized_with_other_method_requested_errors():
-    m = _Model("mxfp4")
+def test_plan_quantized_but_other_method_requested_errors():
     with pytest.raises(T2NErrorMisuse, match="mxfp4"):
-        maybe_upcast_native_quant(m, ["fp8"])
+        plan_upcast(_LoadTimeConfig("mxfp4"), ["fp8"])
+
+
+def test_assert_dense_passes_when_dense():
+    assert_upcast_dense(_Model(), ["any"])  # no quant config, no quantizer
+    assert_upcast_dense(_Model(_LoadTimeConfig("mxfp4")), None)  # not requested → skip
+
+
+def test_assert_dense_raises_on_residual_quant():
+    # still reports a native method after up-cast → partial dequant
+    with pytest.raises(T2NErrorMisuse, match="partially-quantized|did not fully"):
+        assert_upcast_dense(_Model(_LoadTimeConfig("mxfp4")), ["any"])
+    # or a lingering hf_quantizer even if config was cleared
+    with pytest.raises(T2NErrorMisuse):
+        assert_upcast_dense(_Model(hf_quantizer=object()), ["any"])
