@@ -1,21 +1,29 @@
-"""GPU-only, opt-in end-to-end check for native-quant up-cast.
+"""GPU-only, opt-in end-to-end checks for native-quant up-cast.
 
-This exercises the *real* dequant path (not the pure decision logic covered by
-``test_upcast_quant.py``): mint a tiny MXFP4 model, then load it through
-``load_model(..., upcast_quant=["mxfp4"])`` and assert it comes back dense.
+These exercise the *real* dequant paths (not the pure decision logic covered by
+``test_upcast_quant.py``): mint a tiny quantized model, load it through
+``load_model(..., upcast_quant=[...])``, and assert it comes back dense.
 
-It is triple-gated so CI never runs it by accident:
-  1. lives in its own file, which the LLM ``tox`` CI does not collect (that CI
-     only runs ``test_llm_cli.py`` / ``test_load_retry.py``);
-  2. marked ``ci_skip`` so the ``-m "not ci_skip"`` lane deselects it;
-  3. skipped unless ``T2N_RUN_GPU_TESTS=1`` is explicitly set AND CUDA is
-     available — so even a GPU runner won't run it without deliberate opt-in.
+Both quantizer mechanisms are covered:
+  - **post-load** (bnb 4-bit → ``model.dequantize()``): any CUDA GPU.
+  - **load-time** (fp8 → ``dequantize=True`` at load): needs compute ≥ 8.9
+    (e.g. 4090/H100); skips on older GPUs, which auto-dequantize fp8 anyway.
 
-Run it manually on a CUDA box with:
+(mxfp4 is the headline format but a *tiny* mxfp4 model can't be serialized —
+transformers' mxfp4 packing assumes gpt-oss-scale dims — so the load-time branch
+is exercised here via fp8, which shares the exact same code path.)
+
+Triple-gated so CI never runs them by accident:
+  1. own file, not collected by the LLM ``tox`` CI;
+  2. ``ci_skip`` marker → deselected by the ``-m "not ci_skip"`` lane;
+  3. skipped unless ``T2N_RUN_GPU_TESTS=1`` AND CUDA is available.
+
+Run manually on a CUDA box with:
     T2N_RUN_GPU_TESTS=1 pytest tests/test_upcast_quant_gpu.py -v
 """
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -35,53 +43,97 @@ def _cuda_available() -> bool:
         return False
 
 
-@pytest.mark.skipif(
-    not _OPT_IN,
-    reason="opt-in GPU e2e test; set T2N_RUN_GPU_TESTS=1 to run",
-)
-@pytest.mark.skipif(not _cuda_available(), reason="requires CUDA")
-def test_load_model_upcasts_mxfp4_to_dense(tmp_path):
-    """Mint a tiny MXFP4 gpt-oss, then up-cast it to dense float on load."""
-    import torch
-    from transformers import AutoModelForCausalLM, GptOssConfig
-    from transformers.utils.quantization_config import Mxfp4Config
+def _cuda_ge_8_9() -> bool:
+    try:
+        import torch
 
-    # tiny gpt-oss (~0.4M params): 2 layers, 4 MoE experts, small dims.
-    cfg = GptOssConfig(
-        hidden_size=64,
-        intermediate_size=128,
+        if not torch.cuda.is_available():
+            return False
+        major, minor = torch.cuda.get_device_capability()
+        return (major, minor) >= (8, 9)
+    except Exception:
+        return False
+
+
+def _tiny_llama_dir(tmp_path: Path) -> Path:
+    from transformers import AutoModelForCausalLM, LlamaConfig
+
+    cfg = LlamaConfig(
+        hidden_size=256,
+        intermediate_size=512,
         num_hidden_layers=2,
-        num_attention_heads=4,
-        num_key_value_heads=2,
-        num_local_experts=4,
-        num_experts_per_tok=2,
+        num_attention_heads=8,
+        num_key_value_heads=8,
         vocab_size=512,
         max_position_embeddings=128,
     )
-    dense_dir = tmp_path / "dense"
-    AutoModelForCausalLM.from_config(cfg).save_pretrained(dense_dir)
+    d = tmp_path / "dense"
+    AutoModelForCausalLM.from_config(cfg).save_pretrained(d)
+    return d
 
-    # mint: quantize to MXFP4 (needs CUDA + triton kernels) and save.
-    quant_dir = tmp_path / "mxfp4"
-    quantized = AutoModelForCausalLM.from_pretrained(
-        dense_dir, quantization_config=Mxfp4Config(), device_map="cuda"
-    )
-    assert _native_quant_method(quantized) == "mxfp4"
-    quantized.save_pretrained(quant_dir)
-    del quantized
-    torch.cuda.empty_cache()
 
-    # the actual up-cast under test: load with the load-time dequant flag.
-    model = load_model(
-        local_dir=quant_dir,
-        upcast_quant=["mxfp4"],
-        force_module_dtype="bf16",
-    )
+def _assert_dense_and_runs(model, vocab_size=512):
+    import torch
 
-    # it must come back fully dense (no native quant, no lingering quantizer).
     assert _native_quant_method(model) is None
     assert getattr(model, "hf_quantizer", None) is None
-    # and still run a forward pass (dense, exportable).
-    model = model.to("cpu")
-    out = model(torch.tensor([[1, 2, 3]]))
-    assert out.logits.shape[-1] == cfg.vocab_size
+    out = model.to("cpu")(torch.tensor([[1, 2, 3]]))
+    assert out.logits.shape[-1] == vocab_size
+
+
+pytestmark_opt = pytest.mark.skipif(
+    not _OPT_IN, reason="opt-in GPU e2e; set T2N_RUN_GPU_TESTS=1"
+)
+
+
+@pytestmark_opt
+@pytest.mark.skipif(not _cuda_available(), reason="requires CUDA")
+def test_upcast_bnb_4bit_post_load(tmp_path):
+    """Post-load dequant branch: bnb-4bit → model.dequantize() → dense."""
+    import torch
+    from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+
+    pytest.importorskip("bitsandbytes")
+    src = _tiny_llama_dir(tmp_path)
+    q = AutoModelForCausalLM.from_pretrained(
+        src,
+        quantization_config=BitsAndBytesConfig(load_in_4bit=True),
+        device_map="cuda",
+    )
+    assert _native_quant_method(q) == "bitsandbytes"
+    qdir = tmp_path / "bnb"
+    q.save_pretrained(qdir)
+    del q
+    torch.cuda.empty_cache()
+
+    model = load_model(
+        local_dir=qdir, upcast_quant=["bitsandbytes"], force_module_dtype="bf16"
+    )
+    _assert_dense_and_runs(model)
+
+
+@pytestmark_opt
+@pytest.mark.skipif(
+    not _cuda_ge_8_9(),
+    reason="fp8 needs compute >= 8.9 (older GPUs auto-dequantize fp8)",
+)
+def test_upcast_fp8_load_time(tmp_path):
+    """Load-time dequant branch: fp8 → dequantize=True at load → dense."""
+    import torch
+    from transformers import AutoModelForCausalLM
+    from transformers.utils.quantization_config import FineGrainedFP8Config
+
+    src = _tiny_llama_dir(tmp_path)
+    q = AutoModelForCausalLM.from_pretrained(
+        src, quantization_config=FineGrainedFP8Config(), device_map="cuda"
+    )
+    assert _native_quant_method(q) == "fp8"
+    qdir = tmp_path / "fp8"
+    q.save_pretrained(qdir)
+    del q
+    torch.cuda.empty_cache()
+
+    model = load_model(
+        local_dir=qdir, upcast_quant=["fp8"], force_module_dtype="bf16"
+    )
+    _assert_dense_and_runs(model)

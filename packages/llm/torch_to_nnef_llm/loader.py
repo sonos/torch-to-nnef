@@ -391,6 +391,9 @@ def load_model(
     models you trust, or pass ``trust_remote_code=False`` (CLI
     ``--no-trust-remote-code``) to refuse it.
     """
+    # accept a str path from direct callers (the dump_llm path coerces upstream)
+    if local_dir is not None:
+        local_dir = Path(local_dir)
     if trust_remote_code:
         LOGGER.warning(
             "trust_remote_code is enabled: loading '%s' may execute arbitrary "
