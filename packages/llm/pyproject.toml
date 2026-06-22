@@ -103,25 +103,25 @@ basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==4.50.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py"]]
+commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py"]]
 
 [tool.tox.env.cli_transformers_4_52_0]
 basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==4.52.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py"]]
+commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py"]]
 
 [tool.tox.env.cli_transformers_5_0_0]
 basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==5.0.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py"]]
+commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py"]]
 
 [tool.tox.env.cli_transformers_5_5_0]
 basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==5.5.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py"]]
+commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py"]]

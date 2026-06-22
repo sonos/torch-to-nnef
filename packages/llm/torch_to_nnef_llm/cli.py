@@ -140,6 +140,18 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--upcast-quant",
+            default=None,
+            help="opt-in: dequantize a natively-quantized model (mxfp4, fp8, "
+            "bitsandbytes, ...) to dense float before export, since tract "
+            "cannot ingest those formats. Comma-separated transformers quant "
+            "methods to up-cast (e.g. 'mxfp4', 'mxfp4,fp8') or 'any' for what "
+            "the model ships; values are the names from transformers' "
+            "QuantizationMethod. Combine with -dt to pick the float target, "
+            "and optionally -c to re-quantize to a tract-supported scheme.",
+        )
+
+        parser.add_argument(
             "--num-logits-to-keep",
             type=int,
             default=1,
@@ -313,6 +325,11 @@ def main():
     del kwargs["verbose"]
     if kwargs["device_map"] is not None and "{" in kwargs["device_map"]:
         kwargs["device_map"] = json.loads(kwargs["device_map"])
+    # comma-separated CLI string -> list of quant methods for the loader
+    if kwargs.get("upcast_quant"):
+        kwargs["upcast_quant"] = [
+            m.strip() for m in kwargs["upcast_quant"].split(",") if m.strip()
+        ]
     dump_llm(
         **kwargs,
         log_level=log_level,
