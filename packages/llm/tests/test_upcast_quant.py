@@ -80,6 +80,8 @@ def test_normalize_upcast_request():
         "gptq",
     ]
     assert _normalize_upcast_request(["any"]) == [UPCAST_ANY]
+    # a bare string is treated as one method, not iterated per-character
+    assert _normalize_upcast_request("gptq") == ["gptq"]
     # a typo fails up-front, with the valid list in the message
     with pytest.raises(T2NErrorMisuse, match="unknown upcast_quant"):
         _normalize_upcast_request(["definitely-not-a-real-method"])
@@ -206,6 +208,41 @@ def test_finish_upcast_post_unsupported_raises_clean_error():
     # the B1 fix: NotImplementedError becomes a clear T2NErrorMisuse
     with pytest.raises(T2NErrorMisuse, match="cannot be dequantized by"):
         _finish_upcast(_PostUnsupportedModel(), ("post", "gptq"), ["any"])
+
+
+class _FakeAutoConfig:
+    def __init__(self, quantization_config):
+        self.quantization_config = quantization_config
+
+
+class _FakeTransformers:
+    """Minimal stand-in exposing only what `_peek_quant_config` touches."""
+
+    def __init__(self, quantization_config):
+        self._qc = quantization_config
+
+    class _AutoConfig:
+        pass
+
+    @property
+    def AutoConfig(self):  # noqa: N802 (mirrors transformers.AutoConfig)
+        qc = self._qc
+        ns = type("AutoConfig", (), {})
+
+        def from_pretrained(*_a, **_k):
+            return _FakeAutoConfig(qc)
+
+        ns.from_pretrained = staticmethod(from_pretrained)
+        return ns
+
+
+def test_peek_quant_config_resilient_to_unknown_method():
+    from torch_to_nnef_llm.loader import _peek_quant_config
+
+    # a quant_method this transformers version doesn't know makes
+    # AutoQuantizationConfig.from_dict raise; the peek must swallow it -> None
+    tf = _FakeTransformers({"quant_method": "not-a-real-quant-method"})
+    assert _peek_quant_config("some/slug", True, tf) is None
 
 
 def test_finish_upcast_warns_when_quantized_but_not_requested(caplog):

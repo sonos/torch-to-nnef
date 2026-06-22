@@ -114,6 +114,10 @@ def _normalize_upcast_request(
     """
     if not requested:
         return None
+    # a bare string is a common caller mistake; treat it as a single method
+    # rather than iterating it per-character.
+    if isinstance(requested, str):
+        requested = [requested]
     # lazy import: transformers is an optional extra of this package
     # pylint: disable-next=import-outside-toplevel
     import transformers
@@ -227,15 +231,17 @@ def _peek_quant_config(config_source, trust_remote_code, transformers):
             )
         except T2NErrorNotFoundFile:
             return None
+    # best-effort: any failure to read/parse the config (incl. a quant_method
+    # this transformers version doesn't know, which makes `from_dict` raise)
+    # just means "no load-time plan" rather than an error.
     try:
         cfg = transformers.AutoConfig.from_pretrained(
             config_source, trust_remote_code=trust_remote_code
         )
-    # best-effort: any failure to read the config just means "no load-time plan"
+        return _as_quant_config(getattr(cfg, "quantization_config", None))
     except (OSError, ValueError, ImportError, KeyError) as exp:
         LOGGER.warning("could not read config to plan up-cast: %s", exp)
         return None
-    return _as_quant_config(getattr(cfg, "quantization_config", None))
 
 
 def _plan_and_inject_upcast(
@@ -271,12 +277,13 @@ def _finish_upcast(model, plan, requested):
     """
     if plan[0] == "post":
         LOGGER.info("up-casting native '%s' post-load", plan[1])
-        # Only some quantizers (bnb, higgs) implement post-load dequantization;
-        # others raise NotImplementedError. Surface that as a clear T2NError
-        # rather than a cryptic crash from deep inside transformers.
+        # Only some quantizers (bnb, higgs) implement post-load dequant; others
+        # raise NotImplementedError, and transformers raises ValueError if the
+        # model turned out not to carry a live quantizer. Surface either as a
+        # clear T2NError instead of a cryptic crash from inside transformers.
         try:
             model = model.dequantize()
-        except NotImplementedError as exc:
+        except (NotImplementedError, ValueError) as exc:
             raise T2NErrorMisuse(
                 f"native '{plan[1]}' quantization cannot be dequantized by "
                 "transformers (no dequantize support), so it cannot be "
