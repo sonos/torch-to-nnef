@@ -4,12 +4,12 @@ import pytest
 import torch
 from torch import nn
 
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.custom_extractors import MoEFFN
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     check_model_io_test,
-    cond_tract_gt_0_22_0,
 )
 
 
@@ -44,9 +44,18 @@ class MoEFFNWithBiasWrapper(nn.Module):
 
 
 def _skip_if_unsupported(inference_target):
-    if not cond_tract_gt_0_22_0(inference_target):
+    # tract_moe_ffn first ships in tract > 0.23.0 (the feat/moe-ffn-operator
+    # work, built locally as 0.23.2-pre). Every release currently in
+    # OFFICIAL_SUPPORTED_VERSIONS (<= 0.23.0) lacks the op, so default CI must
+    # skip these; run them by pointing T2N_TEST_TRACT_PATH at a tract build
+    # that has the op. Bump this threshold once a release ships it.
+    if not (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version > "0.23.0"
+    ):
         pytest.skip(
-            "MoE export requires tract > 0.22.0; skipping for official releases"
+            "tract_moe_ffn requires tract > 0.23.0 (op is not in a release "
+            "yet); set T2N_TEST_TRACT_PATH to a build that has it"
         )
 
 

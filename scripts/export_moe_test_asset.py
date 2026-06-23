@@ -8,6 +8,7 @@ Usage:
     .venv/bin/python scripts/export_moe_test_asset.py /path/to/output_dir
 """
 import logging
+import os
 import shutil
 import sys
 import tempfile
@@ -23,6 +24,7 @@ from transformers.models.qwen3_moe.modeling_qwen3_moe import (
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 from torch_to_nnef.exceptions import T2NError
+from torch_to_nnef.inference_target.tract import TractCli
 
 
 class Qwen3TinyMoE(nn.Module):
@@ -36,12 +38,35 @@ class Qwen3TinyMoE(nn.Module):
             num_experts=4,
             num_experts_per_tok=2,
             hidden_act="silu",
+            # real Qwen3-MoE checkpoints renormalize the top-k gates; the
+            # adapter rejects norm_topk_prob=False (the config default).
+            norm_topk_prob=True,
         )
         self.moe = Qwen3MoeSparseMoeBlock(cfg)
+        # transformers MoE experts allocate weights with torch.empty
+        # (uninitialized); a standalone block must be seeded or the reference
+        # output is NaN.
+        torch.manual_seed(0)
+        with torch.no_grad():
+            for p in self.moe.parameters():
+                nn.init.normal_(p, std=0.02)
 
     def forward(self, x):
         # Qwen3MoeSparseMoeBlock expects [batch, seq, hidden]
         return self.moe(x)
+
+
+def _inference_target() -> TractNNEF:
+    # Prefer a tract build that has tract_moe_ffn (the op is unreleased); fall
+    # back to the latest official version (export still writes the asset even
+    # if the post-export IO check then fails).
+    tract_path = os.environ.get("T2N_TEST_TRACT_PATH")
+    if tract_path:
+        cli = TractCli(Path(tract_path))
+        return TractNNEF(
+            cli.version, specific_tract_binary_path=Path(tract_path)
+        )
+    return TractNNEF.latest()
 
 
 def main():
@@ -62,6 +87,7 @@ def main():
 
     with torch.no_grad():
         ref_output = model(test_input)
+    assert torch.isfinite(ref_output).all(), "reference output is not finite"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "qwen3_moe_tiny.nnef"
@@ -70,7 +96,7 @@ def main():
                 model=model,
                 args=(test_input,),
                 file_path_export=export_path,
-                inference_target=TractNNEF.latest(),
+                inference_target=_inference_target(),
                 input_names=["input_0"],
                 output_names=["output_0"],
                 compression_level=None,
