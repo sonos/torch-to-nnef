@@ -306,6 +306,14 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
         if not hasattr(m, "shared_expert"):
             return None
         se = m.shared_expert
+        # The converter emits the shared expert as silu-SwiGLU; reject any
+        # other activation rather than silently exporting wrong maths.
+        act = getattr(se, "act_fn", None)
+        if act is not None and "silu" not in type(act).__name__.lower():
+            raise T2NErrorNotImplemented(
+                "shared expert activation "
+                f"{type(act).__name__} is unsupported (only SiLU/SwiGLU)"
+            )
         return {
             "gate_proj": se.gate_proj.weight.detach(),
             "up_proj": se.up_proj.weight.detach(),
