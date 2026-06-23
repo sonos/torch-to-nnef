@@ -61,6 +61,32 @@ class _MoEWeightAdapter:
     def normalize_gates(self, m: nn.Module) -> bool:
         return True
 
+    # Optional biases (None unless the arch has them, e.g. gpt-oss).
+    def gate_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        """Router bias [E]."""
+        return None
+
+    def expert_w1_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        """Gate projection bias [E, H]."""
+        return None
+
+    def expert_w2_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        """Down projection bias [E, D]."""
+        return None
+
+    def expert_w3_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        """Up projection bias [E, H]."""
+        return None
+
+    # Optional clamped-SwiGLU params (gpt-oss). When act_limit is not None the
+    # op uses the clamped activation: gate.clamp(max=limit) /
+    # up.clamp(+-limit) / glu = gate*sigmoid(alpha*gate) / out = (up+1)*glu.
+    def act_alpha(self, m: nn.Module) -> T.Optional[float]:
+        return None
+
+    def act_limit(self, m: nn.Module) -> T.Optional[float]:
+        return None
+
 
 class _MoEFFNAdapter(_MoEWeightAdapter):
     """Adapter for our reference MoEFFN wrapper."""
@@ -142,15 +168,90 @@ class _MixtralAdapter(_MoEWeightAdapter):
         return m.top_k
 
 
-class _GptOssAdapter(_MixtralAdapter):
+class _GptOssAdapter(_MoEWeightAdapter):
     """Adapter for transformers GPT-OSS MoE block.
 
-    Same ModuleList-of-experts layout as Mixtral.
-    Expert attributes may differ; override as needed.
+    Handles the modern GptOssMLP (transformers >=4.55: a `router` plus a fused
+    `GptOssExperts`) and the older `GptOssSparseMoeBlock` name. gpt-oss differs
+    from the generic op in several ways the adapter normalizes:
+    - the router carries a bias and lives on `m.router` (older: `m.gate`)
+    - experts fuse the gate and up projections INTERLEAVED inside gate_up_proj
+      [E, D, 2H] (gate = [..., 0::2], up = [..., 1::2]), and carry biases
+    - the activation is a clamped SwiGLU with alpha / limit and a (up + 1) term
     """
 
+    @staticmethod
+    def _router(m: nn.Module) -> nn.Module:
+        return m.router if hasattr(m, "router") else m.gate
+
+    def _d_model(self, m: nn.Module) -> int:
+        return self.gate_weight(m).shape[1]
+
+    def _gate_up(self, m: nn.Module) -> torch.Tensor:
+        """gate_up_proj oriented as [E, D, 2H] (contracted axis = D)."""
+        gu = m.experts.gate_up_proj.detach()
+        d_model = self._d_model(m)
+        if gu.shape[1] != d_model and gu.shape[2] == d_model:
+            gu = gu.transpose(-1, -2)
+        return gu
+
+    def gate_weight(self, m: nn.Module) -> torch.Tensor:
+        return self._router(m).weight.detach()
+
+    def gate_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        b = getattr(self._router(m), "bias", None)
+        return b.detach() if b is not None else None
+
+    def expert_w1(self, m: nn.Module) -> torch.Tensor:
+        # gate (activated) branch: interleaved even columns -> [E, D, H]
+        return self._gate_up(m)[:, :, 0::2].contiguous()
+
+    def expert_w3(self, m: nn.Module) -> torch.Tensor:
+        # up branch: interleaved odd columns -> [E, D, H]
+        return self._gate_up(m)[:, :, 1::2].contiguous()
+
+    def expert_w2(self, m: nn.Module) -> torch.Tensor:
+        # down_proj is [E, H, D] already (op's w2 layout); orient defensively
+        dp = m.experts.down_proj.detach()
+        d_model = self._d_model(m)
+        if dp.shape[2] != d_model and dp.shape[1] == d_model:
+            dp = dp.transpose(-1, -2)
+        return dp.contiguous()
+
+    def _gate_up_bias(
+        self, m: nn.Module
+    ) -> T.Tuple[T.Optional[torch.Tensor], T.Optional[torch.Tensor]]:
+        b = getattr(m.experts, "gate_up_proj_bias", None)
+        if b is None:
+            return None, None
+        b = b.detach()  # [E, 2H] interleaved
+        return b[:, 0::2].contiguous(), b[:, 1::2].contiguous()
+
+    def expert_w1_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        return self._gate_up_bias(m)[0]
+
+    def expert_w3_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        return self._gate_up_bias(m)[1]
+
+    def expert_w2_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        b = getattr(m.experts, "down_proj_bias", None)
+        return b.detach() if b is not None else None
+
     def top_k(self, m: nn.Module) -> int:
+        r = self._router(m)
+        if hasattr(r, "top_k"):
+            return r.top_k
         return m.top_k
+
+    def normalize_gates(self, m: nn.Module) -> bool:
+        # gpt-oss softmaxes the top-k router logits.
+        return True
+
+    def act_alpha(self, m: nn.Module) -> T.Optional[float]:
+        return float(getattr(m.experts, "alpha", 1.702))
+
+    def act_limit(self, m: nn.Module) -> T.Optional[float]:
+        return float(getattr(m.experts, "limit", 7.0))
 
 
 class _QwenMoEAdapter(_MoEWeightAdapter):
@@ -193,7 +294,8 @@ _ADAPTER_BY_CLASSNAME: T.Dict[str, T.Type[_MoEWeightAdapter]] = {
     # Mixtral / Mistral
     "MixtralSparseMoeBlock": _MixtralAdapter,
     "MistralSparseMoeBlock": _MixtralAdapter,
-    # GPT-OSS
+    # GPT-OSS (transformers >=4.55 renamed the block to GptOssMLP)
+    "GptOssMLP": _GptOssAdapter,
     "GptOssSparseMoeBlock": _GptOssAdapter,
     # Qwen 2 / 3 / 3.5 MoE
     "Qwen2MoeSparseMoeBlock": _QwenMoEAdapter,
@@ -355,32 +457,79 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
         "normalize_gates": adapter.normalize_gates(moe),
     }
 
+    # Optional biases. tract maps the call's positional inputs onto the op's
+    # parameter order (x, wg, w1, w2, w3, wg_bias, w1_bias, w3_bias, w2_bias),
+    # so biases must follow w3 contiguously. Every arch that has biases
+    # (gpt-oss) also has w3, so this stays a valid prefix.
+    gate_bias = adapter.gate_bias(moe)
+    w1_bias = adapter.expert_w1_bias(moe)
+    w3_bias = adapter.expert_w3_bias(moe)
+    w2_bias = adapter.expert_w2_bias(moe)
+    has_bias = any(
+        b is not None for b in (gate_bias, w1_bias, w3_bias, w2_bias)
+    )
+    if has_bias and not is_swiglu:
+        raise T2NErrorNotImplemented(
+            "MoE biases are only supported alongside a SwiGLU (w3) gate; "
+            f"got biases without w3 for {type(moe).__name__}"
+        )
+    if has_bias:
+        # Emit in the op's positional order; a missing bias would break the
+        # positional mapping, but gpt-oss provides all four.
+        for missing, label in (
+            (gate_bias, "wg_bias"),
+            (w1_bias, "w1_bias"),
+            (w3_bias, "w3_bias"),
+            (w2_bias, "w2_bias"),
+        ):
+            if missing is None:
+                raise T2NErrorNotImplemented(
+                    f"partial MoE bias set: {label} is missing while other "
+                    "biases are present (positional mapping needs all four)"
+                )
+        inputs.append(_add_weight("wg_bias", gate_bias))
+        inputs.append(_add_weight("w1_bias", w1_bias))
+        inputs.append(_add_weight("w3_bias", w3_bias))
+        inputs.append(_add_weight("w2_bias", w2_bias))
+
+    act_alpha = adapter.act_alpha(moe)
+    act_limit = adapter.act_limit(moe)
+    if act_alpha is not None:
+        attrs["act_alpha"] = act_alpha
+    if act_limit is not None:
+        attrs["act_limit"] = act_limit
+
+    # tract_moe_ffn is single-output (the routed hidden states). Some modules
+    # (e.g. gpt-oss GptOssMLP) also return router_scores as a second output,
+    # but transformers discards it at inference (`hidden_states, _ = mlp(...)`)
+    # so it has no consumers. Map only node.outputs[0] and ignore any trailing
+    # router output.
+    if len(node.outputs) > 1:
+        LOGGER.debug(
+            "%s has %d outputs; mapping output[0] and ignoring the "
+            "inference-unused router output(s)",
+            type(moe).__name__,
+            len(node.outputs),
+        )
+
     # tract_moe_ffn takes intentionally heterogeneous-rank inputs: x is
     # [T, D] (or [B, S, D]), the gate is [E, D], and the expert weights are
     # [E, D, H]. The generic rank-aligner would left-pad the lower-rank
     # operands with a leading 1 to match the 3D weights, turning a 2D x into
     # [1, T, D] and producing a 3D output that no longer matches the 2D
     # PyTorch reference. Disable it so the op sees the ranks it expects.
-    if len(node.outputs) == 1:
-        helper.add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            nnef_op_type="tract_moe_ffn",
-            inputs=inputs,
-            attrs=attrs,
-            force_consistent_inputs_shapes=False,
-        )
-    else:
-        helper.add_multi_output_op(
-            g,
-            node,
-            name_to_tensor,
-            nnef_op_type="tract_moe_ffn",
-            inputs=inputs,
-            attrs=attrs,
-            force_consistent_inputs_shapes=False,
-        )
+    out0 = helper.add_tensor_variable_node_as_nnef_tensor(
+        g, node.outputs[0], name_to_tensor, prevent_variable=True
+    )
+    helper.cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="tract_moe_ffn",
+        inputs=tuple(inputs),
+        outputs=(out0,),
+        attribs=attrs,
+        force_consistent_inputs_shapes=False,
+    )
 
     return ["tract_transformers"]
 
@@ -463,6 +612,10 @@ def _register_all_transformers_moe():
         (
             "transformers.models.mixtral.modeling_mixtral",
             "MixtralSparseMoeBlock",
+        ),
+        (
+            "transformers.models.gpt_oss.modeling_gpt_oss",
+            "GptOssMLP",
         ),
         (
             "transformers.models.gpt_oss.modeling_gpt_oss",

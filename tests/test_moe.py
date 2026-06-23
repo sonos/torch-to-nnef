@@ -111,3 +111,54 @@ def test_moe_ffn_top1(inference_target):
         output_names=["output"],
         inference_target=inference_target,
     )
+
+
+class _GptOssMoEWrapper(nn.Module):
+    """Wrap a single GptOssMLP block, returning only routed hidden states.
+
+    gpt-oss exercises the op's extra features: a router bias, fused
+    interleaved gate/up projections with biases, and the clamped SwiGLU
+    activation (alpha / limit / (up + 1)).
+    """
+
+    def __init__(self, mlp):
+        super().__init__()
+        self.mlp = mlp
+
+    def forward(self, x):
+        # GptOssMLP returns (hidden_states, router_scores); router_scores is
+        # discarded at inference, mirroring transformers' decoder layer.
+        return self.mlp(x)[0]
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_gpt_oss(inference_target):
+    """Export a tiny gpt-oss MoE block (biases + clamped SwiGLU)."""
+    _skip_if_unsupported(inference_target)
+    gpt_oss = pytest.importorskip(
+        "transformers.models.gpt_oss.modeling_gpt_oss",
+        reason="transformers too old for gpt-oss",
+    )
+    if not hasattr(gpt_oss, "GptOssMLP"):
+        pytest.skip("this transformers version has no GptOssMLP")
+
+    cfg = gpt_oss.GptOssConfig(
+        hidden_size=16,
+        intermediate_size=8,
+        num_local_experts=4,
+        num_experts_per_tok=2,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        num_key_value_heads=1,
+        vocab_size=32,
+    )
+    mlp = gpt_oss.GptOssMLP(cfg).eval()
+    model = _GptOssMoEWrapper(mlp).eval()
+    # GptOssMLP expects a 3D [batch, seq, hidden] input.
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(1, 6, 16),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=inference_target,
+    )
