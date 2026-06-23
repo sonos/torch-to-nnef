@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a tiny Qwen3-MoE NNEF model + reference I/O for tract Rust integration tests.
+"""Export a tiny Qwen3-MoE NNEF model + reference I/O for tract tests.
 
 Produces a directory with graph.nnef + .dat weight files + io.npz.
 
@@ -21,7 +21,7 @@ from transformers.models.qwen3_moe.modeling_qwen3_moe import (
     Qwen3MoeSparseMoeBlock,
 )
 
-from torch_to_nnef import export_model_to_nnef, TractNNEF
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 from torch_to_nnef.exceptions import T2NError
 
 
