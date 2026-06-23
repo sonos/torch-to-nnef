@@ -10,8 +10,8 @@ Supports (transformers):
 All variants are normalized to the same tract_moe_ffn signature:
     inputs:  x [T,D], wg [E,D], w1 [E,D,H], w2 [E,H,D], w3 [E,D,H],
              optional biases (wg_bias, w1_bias, w3_bias, w2_bias)
-    attrs:   k (int), activation (str), normalize_gates (bool),
-             optional act_alpha / act_limit (clamped SwiGLU)
+    attrs:   k (int), activation (str), gate (softmax_topk | softmax_all |
+             sigmoid | raw), optional act_alpha / act_limit (clamped SwiGLU)
     output:  y [T,D]
 A shared expert (Qwen2 / Qwen3.5) is emitted as a standard NNEF subgraph
 added on top of the routed output, not baked into the op.
@@ -63,8 +63,14 @@ class _MoEWeightAdapter:
     def activation(self, m: nn.Module) -> str:
         return "swiglu"
 
-    def normalize_gates(self, m: nn.Module) -> bool:
-        return True
+    def gate(self, m: nn.Module) -> str:
+        """How router logits become top-k gate weights (tract_moe_ffn `gate`).
+
+        One of: "softmax_topk" (softmax over the top-k logits), "softmax_all"
+        (softmax over all experts, gather top-k, no renormalization),
+        "sigmoid" (per-expert sigmoid), "raw" (raw top-k logits).
+        """
+        return "softmax_topk"
 
     # Optional biases (None unless the arch has them, e.g. gpt-oss).
     def gate_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
@@ -129,8 +135,10 @@ class _MoEFFNAdapter(_MoEWeightAdapter):
     def activation(self, m: nn.Module) -> str:
         return m.activation_name
 
-    def normalize_gates(self, m: nn.Module) -> bool:
-        return m.normalize_gates
+    def gate(self, m: nn.Module) -> str:
+        # MoEFFN's normalize_gates softmaxes the top-k logits; otherwise it
+        # uses the raw top-k logits.
+        return "softmax_topk" if m.normalize_gates else "raw"
 
 
 class _MixtralAdapter(_MoEWeightAdapter):
@@ -257,9 +265,9 @@ class _GptOssAdapter(_MoEWeightAdapter):
             return r.top_k
         return m.top_k
 
-    def normalize_gates(self, m: nn.Module) -> bool:
+    def gate(self, m: nn.Module) -> str:
         # gpt-oss softmaxes the top-k router logits.
-        return True
+        return "softmax_topk"
 
     def act_alpha(self, m: nn.Module) -> T.Optional[float]:
         return float(getattr(m.experts, "alpha", 1.702))
@@ -321,24 +329,17 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
             "router": m.shared_expert_gate.weight.detach(),
         }
 
-    def normalize_gates(self, m: nn.Module) -> bool:
-        # Qwen routers softmax over ALL experts then take the top-k. When
-        # norm_topk_prob is True they also renormalize the top-k weights, which
-        # is mathematically identical to softmaxing over the top-k logits (the
-        # op's normalize_gates=True). norm_topk_prob=False keeps the raw
-        # softmax-over-all weights, which the op cannot express. Real
-        # Qwen3-MoE checkpoints set norm_topk_prob=True.
+    def gate(self, m: nn.Module) -> str:
+        # Qwen / OLMoE routers softmax over ALL experts then take the top-k.
+        # With norm_topk_prob the top-k weights are renormalized, which is
+        # identical to softmaxing over the top-k logits ("softmax_topk").
+        # Without it, the raw softmax-over-all weights are kept ("softmax_all",
+        # e.g. OLMoE-1B-7B).
         router = getattr(m, "gate", None)
         norm = getattr(router, "norm_topk_prob", None)
         if norm is None:
             norm = getattr(m, "norm_topk_prob", True)
-        if not norm:
-            raise T2NErrorNotImplemented(
-                "Qwen MoE with norm_topk_prob=False is unsupported: the op "
-                "renormalizes the top-k gates (equivalent to "
-                "norm_topk_prob=True), which real Qwen3-MoE checkpoints use."
-            )
-        return True
+        return "softmax_topk" if norm else "softmax_all"
 
 
 # ---------------------------------------------------------------------------
@@ -513,7 +514,7 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     attrs = {
         "k": adapter.top_k(moe),
         "activation": adapter.activation(moe),
-        "normalize_gates": adapter.normalize_gates(moe),
+        "gate": adapter.gate(moe),
     }
 
     # Optional biases. tract maps the call's positional inputs onto the op's
