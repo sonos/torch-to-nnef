@@ -277,7 +277,8 @@ def test_moe_ffn_olmoe(inference_target):
         intermediate_size=32,
         num_experts=4,
         num_experts_per_tok=2,
-        norm_topk_prob=True,
+        # OLMoE-1B-7B ships with norm_topk_prob=False -> "softmax_all" gating.
+        norm_topk_prob=False,
     )
     block = olmoe.OlmoeSparseMoeBlock(cfg)
     _init_moe_weights(block)
