@@ -87,6 +87,15 @@ class _MoEWeightAdapter:
     def act_limit(self, m: nn.Module) -> T.Optional[float]:
         return None
 
+    # Optional always-on shared expert (e.g. Qwen2-MoE / Qwen3.5-MoE):
+    #   out = routed_experts(x) + sigmoid(shared_gate(x)) * shared_mlp(x)
+    # Returns the raw nn.Linear weights ([out, in], used directly as NNEF
+    # linear filters) or None when the arch has no shared expert.
+    def shared_expert(
+        self, m: nn.Module
+    ) -> T.Optional[T.Dict[str, torch.Tensor]]:
+        return None
+
 
 class _MoEFFNAdapter(_MoEWeightAdapter):
     """Adapter for our reference MoEFFN wrapper."""
@@ -283,6 +292,21 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
         if hasattr(m, "top_k"):
             return m.top_k
         return m.gate.top_k
+
+    def shared_expert(
+        self, m: nn.Module
+    ) -> T.Optional[T.Dict[str, torch.Tensor]]:
+        # Qwen2-MoE / Qwen3.5-MoE add a sigmoid-gated shared expert; Qwen3-MoE
+        # has none (no shared_expert attribute).
+        if not hasattr(m, "shared_expert"):
+            return None
+        se = m.shared_expert
+        return {
+            "gate_proj": se.gate_proj.weight.detach(),
+            "up_proj": se.up_proj.weight.detach(),
+            "down_proj": se.down_proj.weight.detach(),
+            "router": m.shared_expert_gate.weight.detach(),
+        }
 
     def normalize_gates(self, m: nn.Module) -> bool:
         # Qwen routers softmax over ALL experts then take the top-k. When
@@ -531,24 +555,105 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
             len(node.outputs),
         )
 
+    # pylint: disable-next=import-outside-toplevel
+    from nnef_tools.model import Tensor as NTensor
+
+    shared = adapter.shared_expert(moe)
+
+    out0 = helper.add_tensor_variable_node_as_nnef_tensor(
+        g, node.outputs[0], name_to_tensor, prevent_variable=True
+    )
+    base = node.outputs[0].name
+    np_dtype = input_tensor.dtype
+    x_shape = list(input_tensor.shape)
+
+    def _mk(suffix, shape):
+        return NTensor(
+            g, name=f"{base}_{suffix}", dtype=np_dtype, shape=tuple(shape)
+        )
+
+    def _emit(op_type, op_inputs, out_t, attribs=None, as_list=False):
+        # Most ops (sigmoid/mul/add) take positional inputs; tract_core_einsum
+        # reads its operands from a single list-valued `inputs=[...]` argument.
+        helper.cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type=op_type,
+            inputs=list(op_inputs) if as_list else tuple(op_inputs),
+            outputs=(out_t,),
+            attribs=attribs or {},
+            force_consistent_inputs_shapes=False,
+        )
+        return out_t
+
+    def _linear(x_t, weight_t, out_t):
+        # x @ weight^T with weight [out, in]; NNEF `linear` lowers to a matmul
+        # that requires equal input ranks, so use einsum to handle the 3D
+        # activation against the 2D weight (and accumulate in f32).
+        rank = len(x_shape)
+        if rank == 3:
+            expr = "bij,oj->bio"
+        elif rank == 2:
+            expr = "ij,oj->io"
+        else:
+            raise T2NErrorNotImplemented(
+                f"shared expert linear expects rank 2 or 3 input, got {rank}"
+            )
+        return _emit(
+            "tract_core_einsum",
+            [x_t, weight_t],
+            out_t,
+            attribs={"expr": expr, "acc": "f32", "output": ""},
+            as_list=True,
+        )
+
+    # The routed experts go to the final output directly, unless a shared
+    # expert must be added on top (Qwen2 / Qwen3.5), in which case they go to
+    # an intermediate tensor.
+    routed = _mk("routed", out0.shape) if shared is not None else out0
+
     # tract_moe_ffn takes intentionally heterogeneous-rank inputs: x is
     # [T, D] (or [B, S, D]), the gate is [E, D], and the expert weights are
     # [E, D, H]. The generic rank-aligner would left-pad the lower-rank
     # operands with a leading 1 to match the 3D weights, turning a 2D x into
     # [1, T, D] and producing a 3D output that no longer matches the 2D
     # PyTorch reference. Disable it so the op sees the ranks it expects.
-    out0 = helper.add_tensor_variable_node_as_nnef_tensor(
-        g, node.outputs[0], name_to_tensor, prevent_variable=True
-    )
     helper.cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
         graph=g,
         type="tract_moe_ffn",
         inputs=tuple(inputs),
-        outputs=(out0,),
+        outputs=(routed,),
         attribs=attrs,
         force_consistent_inputs_shapes=False,
     )
+
+    if shared is not None:
+        # out = routed + sigmoid(x @ Wg^T) * down(silu(x @ Wgate^T) * x @ Wup^T)
+        # All weights are raw nn.Linear [out, in], used as NNEF linear filters
+        # (linear computes x @ filter^T) so no transpose is needed.
+        d_model = x_shape[-1]
+        hs = shared["gate_proj"].shape[0]
+        hs_shape = x_shape[:-1] + [hs]
+        d_shape = x_shape[:-1] + [d_model]
+        one_shape = x_shape[:-1] + [1]
+
+        w_gate = _add_weight("se_gate_proj", shared["gate_proj"])
+        w_up = _add_weight("se_up_proj", shared["up_proj"])
+        w_down = _add_weight("se_down_proj", shared["down_proj"])
+        w_router = _add_weight("se_router", shared["router"])
+
+        gate_h = _linear(input_tensor, w_gate, _mk("se_gate_h", hs_shape))
+        up_h = _linear(input_tensor, w_up, _mk("se_up_h", hs_shape))
+        gate_sig = _emit("sigmoid", (gate_h,), _mk("se_gate_sig", hs_shape))
+        silu_g = _emit("mul", (gate_h, gate_sig), _mk("se_silu", hs_shape))
+        inter = _emit("mul", (silu_g, up_h), _mk("se_inter", hs_shape))
+        shared_out = _linear(inter, w_down, _mk("se_out", d_shape))
+        logit = _linear(input_tensor, w_router, _mk("se_logit", one_shape))
+        gate = _emit("sigmoid", (logit,), _mk("se_gate", one_shape))
+        gated = _emit("mul", (gate, shared_out), _mk("se_gated", d_shape))
+        _emit("add", (routed, gated), out0)
+        return ["tract_transformers", "tract_core"]
 
     return ["tract_transformers"]
 
