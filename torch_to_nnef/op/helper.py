@@ -695,6 +695,7 @@ def add_multi_output_op(
     attrs=None,
     ensure_tuple=True,
     output_tensor_name_suffix: str = "",
+    force_consistent_inputs_shapes: bool = True,
 ):
     if len(node.outputs) == 1:
         LOGGER.debug(
@@ -721,6 +722,7 @@ def add_multi_output_op(
         inputs=inputs,
         outputs=tuple(output_tensors),
         attribs=attrs or {},
+        force_consistent_inputs_shapes=force_consistent_inputs_shapes,
     )
     return output_tensors
 
