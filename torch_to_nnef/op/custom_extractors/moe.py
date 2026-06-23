@@ -1,15 +1,20 @@
 """MoE FFN export to tract_moe_ffn operator (tract_transformers extension).
 
-Supports:
+Supports (transformers):
 - MoEFFN (reference wrapper)
-- MixtralSparseMoeBlock (transformers)
-- GptOssSparseMoeBlock (transformers, GPT-OSS)
-- Qwen3_5MoeSparseMoeBlock (transformers, shared expert decomposed outside)
+- MixtralSparseMoeBlock / MistralSparseMoeBlock
+- GptOssMLP (router + expert biases, interleaved gate/up, clamped SwiGLU)
+- Qwen2/Qwen3/Qwen3.5 MoE (Qwen2 & 3.5 shared expert decomposed outside)
+- OlmoeSparseMoeBlock
 
 All variants are normalized to the same tract_moe_ffn signature:
-    inputs:  x [T,D], wg [E,D], w1 [E,D,H], w2 [E,H,D], w3 [E,D,H]
-    attrs:   k (int), activation (str), normalize_gates (bool)
+    inputs:  x [T,D], wg [E,D], w1 [E,D,H], w2 [E,H,D], w3 [E,D,H],
+             optional biases (wg_bias, w1_bias, w3_bias, w2_bias)
+    attrs:   k (int), activation (str), normalize_gates (bool),
+             optional act_alpha / act_limit (clamped SwiGLU)
     output:  y [T,D]
+A shared expert (Qwen2 / Qwen3.5) is emitted as a standard NNEF subgraph
+added on top of the routed output, not baked into the op.
 """
 
 import logging
@@ -344,6 +349,9 @@ _ADAPTER_BY_CLASSNAME: T.Dict[str, T.Type[_MoEWeightAdapter]] = {
     "Qwen2MoeSparseMoeBlock": _QwenMoEAdapter,
     "Qwen3MoeSparseMoeBlock": _QwenMoEAdapter,
     "Qwen3_5MoeSparseMoeBlock": _QwenMoEAdapter,
+    # OLMoE shares the Qwen layout (fused [E, 2H, D] experts, softmax top-k
+    # router with norm_topk_prob, no shared expert).
+    "OlmoeSparseMoeBlock": _QwenMoEAdapter,
 }
 
 
@@ -756,6 +764,10 @@ def _register_all_transformers_moe():
         (
             "transformers.models.qwen3_5_moe.modeling_qwen3_5_moe",
             "Qwen3_5MoeSparseMoeBlock",
+        ),
+        (
+            "transformers.models.olmoe.modeling_olmoe",
+            "OlmoeSparseMoeBlock",
         ),
     ]
     for import_path, class_name in _candidates:

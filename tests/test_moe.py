@@ -250,6 +250,33 @@ def test_moe_ffn_mixtral(inference_target):
 
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_olmoe(inference_target):
+    """Export a tiny OLMoE block (Qwen-like fused experts, no shared expert)."""
+    _skip_if_unsupported(inference_target)
+    olmoe = pytest.importorskip(
+        "transformers.models.olmoe.modeling_olmoe",
+        reason="transformers too old for olmoe",
+    )
+    cfg = olmoe.OlmoeConfig(
+        hidden_size=16,
+        intermediate_size=32,
+        num_experts=4,
+        num_experts_per_tok=2,
+        norm_topk_prob=True,
+    )
+    block = olmoe.OlmoeSparseMoeBlock(cfg)
+    _init_moe_weights(block)
+    model = _BlockWrapper(block.eval()).eval()
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(1, 5, 16),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=inference_target,
+    )
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_moe_ffn_qwen2_shared_expert(inference_target):
     """Export a tiny Qwen2 MoE block with its always-on shared expert."""
     _skip_if_unsupported(inference_target)
