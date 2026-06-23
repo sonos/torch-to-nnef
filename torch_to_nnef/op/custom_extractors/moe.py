@@ -355,6 +355,12 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
         "normalize_gates": adapter.normalize_gates(moe),
     }
 
+    # tract_moe_ffn takes intentionally heterogeneous-rank inputs: x is
+    # [T, D] (or [B, S, D]), the gate is [E, D], and the expert weights are
+    # [E, D, H]. The generic rank-aligner would left-pad the lower-rank
+    # operands with a leading 1 to match the 3D weights, turning a 2D x into
+    # [1, T, D] and producing a 3D output that no longer matches the 2D
+    # PyTorch reference. Disable it so the op sees the ranks it expects.
     if len(node.outputs) == 1:
         helper.add_single_output_op(
             g,
@@ -363,6 +369,7 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
             nnef_op_type="tract_moe_ffn",
             inputs=inputs,
             attrs=attrs,
+            force_consistent_inputs_shapes=False,
         )
     else:
         helper.add_multi_output_op(
@@ -372,6 +379,7 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
             nnef_op_type="tract_moe_ffn",
             inputs=inputs,
             attrs=attrs,
+            force_consistent_inputs_shapes=False,
         )
 
     return ["tract_transformers"]
