@@ -284,6 +284,25 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
             return m.top_k
         return m.gate.top_k
 
+    def normalize_gates(self, m: nn.Module) -> bool:
+        # Qwen routers softmax over ALL experts then take the top-k. When
+        # norm_topk_prob is True they also renormalize the top-k weights, which
+        # is mathematically identical to softmaxing over the top-k logits (the
+        # op's normalize_gates=True). norm_topk_prob=False keeps the raw
+        # softmax-over-all weights, which the op cannot express. Real
+        # Qwen3-MoE checkpoints set norm_topk_prob=True.
+        router = getattr(m, "gate", None)
+        norm = getattr(router, "norm_topk_prob", None)
+        if norm is None:
+            norm = getattr(m, "norm_topk_prob", True)
+        if not norm:
+            raise T2NErrorNotImplemented(
+                "Qwen MoE with norm_topk_prob=False is unsupported: the op "
+                "renormalizes the top-k gates (equivalent to "
+                "norm_topk_prob=True), which real Qwen3-MoE checkpoints use."
+            )
+        return True
+
 
 # ---------------------------------------------------------------------------
 # Adapter dispatch
