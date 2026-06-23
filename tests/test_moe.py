@@ -221,3 +221,57 @@ def test_moe_ffn_qwen3(inference_target):
         output_names=["output"],
         inference_target=inference_target,
     )
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_mixtral(inference_target):
+    """Export a tiny Mixtral MoE block (the canonical fused MoE)."""
+    _skip_if_unsupported(inference_target)
+    mixtral = pytest.importorskip(
+        "transformers.models.mixtral.modeling_mixtral",
+        reason="transformers too old for mixtral",
+    )
+    cfg = mixtral.MixtralConfig(
+        hidden_size=16,
+        intermediate_size=32,
+        num_local_experts=4,
+        num_experts_per_tok=2,
+    )
+    block = mixtral.MixtralSparseMoeBlock(cfg)
+    _init_moe_weights(block)
+    model = _BlockWrapper(block.eval()).eval()
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(1, 5, 16),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=inference_target,
+    )
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_qwen2_shared_expert(inference_target):
+    """Export a tiny Qwen2 MoE block with its always-on shared expert."""
+    _skip_if_unsupported(inference_target)
+    qwen2 = pytest.importorskip(
+        "transformers.models.qwen2_moe.modeling_qwen2_moe",
+        reason="transformers too old for qwen2-moe",
+    )
+    cfg = qwen2.Qwen2MoeConfig(
+        hidden_size=16,
+        moe_intermediate_size=32,
+        shared_expert_intermediate_size=64,
+        num_experts=4,
+        num_experts_per_tok=2,
+        norm_topk_prob=True,
+    )
+    block = qwen2.Qwen2MoeSparseMoeBlock(cfg)
+    _init_moe_weights(block)
+    model = _BlockWrapper(block.eval()).eval()
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(1, 5, 16),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=inference_target,
+    )
