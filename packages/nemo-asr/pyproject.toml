@@ -133,15 +133,16 @@ commands_pre = [
         "-c",
         "uv pip install -i https://download.pytorch.org/whl/cpu torch==2.6.* torchaudio==2.6.*",
     ],
-    # Then install nemo's deps from PyPI. nemo[asr]==2.7.2 now requires
-    # setuptools>=79 (via nv-one-logger) and a py3.13-capable numba, neither of
-    # which lives on the torch CPU index; resolving against PyPI picks valid
-    # versions (numba 0.65.x, setuptools 82.x). torch is already installed above
-    # and satisfies the constraint, so it stays the CPU build.
+    # Then install nemo's deps from PyPI (torch is already installed above and
+    # satisfies the constraint, so it stays the CPU build). Pin numpy<2.5: a
+    # py3.13-capable numba (>=0.61, here 0.65.x) requires numpy<2.5, but the
+    # test dependency-group pre-installs numpy 2.5.0; without this constraint uv
+    # keeps 2.5.0 and backtracks to the ancient numba 0.53.1 / llvmlite 0.36.0,
+    # which cannot build on Python 3.13. numpy 2.4.x satisfies matplotlib too.
     [
         "bash",
         "-c",
-        "export PATH={envtmpdir}/bin:$PATH && uv pip install 'nemo_toolkit[asr]==2.7.2'",
+        "export PATH={envtmpdir}/bin:$PATH && uv pip install 'nemo_toolkit[asr]==2.7.2' 'numpy<2.5'",
     ],
     [
         "uv",
