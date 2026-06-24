@@ -7,6 +7,7 @@ from functools import partial, wraps
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.utils import (
     INJECTED,
     SemanticVersion,
@@ -21,6 +22,10 @@ from torch_to_nnef_llm._optional_types import (
 from torch_to_nnef_llm.models.handlers.base import ArchitectureHandler
 
 LOGGER = logging.getLogger(__name__)
+
+# Sentinel for `num_logits_to_keep`: expose logits_to_keep as a runtime input
+# instead of baking the slice at trace time.
+DYNAMIC_LOGITS_TO_KEEP = "dynamic"
 
 
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
@@ -254,6 +259,12 @@ def update_forward_signature(self):
         new_params[kv_iname] = inspect.Parameter(
             kv_iname, kind, annotation=torch.Tensor
         )
+    if getattr(self, "dynamic_logits_to_keep", False):
+        # runtime scalar driving the all-position logits gather; must be the
+        # last input so kv caches keep their positions in `*args`.
+        new_params["logits_to_keep"] = inspect.Parameter(
+            "logits_to_keep", kind, annotation=torch.Tensor
+        )
 
     self._forward = self.forward
 
@@ -304,14 +315,32 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         model,
         handler: ArchitectureHandler,
         with_dyn_cache: bool = True,
-        num_logits_to_keep: int = 1,
+        num_logits_to_keep: T.Union[int, str] = 1,
         force_causal_mask: T.Optional[bool] = None,
     ):
         super().__init__()
         self.model = model
         self.handler = handler
         self.with_dyn_cache = with_dyn_cache
-        self.num_logits_to_keep = num_logits_to_keep
+        # DYNAMIC_LOGITS_TO_KEEP exposes logits_to_keep as a runtime input
+        # instead of baking the slice: the model emits all positions and
+        # gathers the requested tail at run time (1 for decode, k+1 for
+        # speculative). Internally we ask the HF model for all positions (== 0)
+        # and do the gather ourselves.
+        if (
+            isinstance(num_logits_to_keep, str)
+            and num_logits_to_keep != DYNAMIC_LOGITS_TO_KEEP
+        ):
+            raise T2NErrorInvalidArgument(
+                "num_logits_to_keep string must be "
+                f"'{DYNAMIC_LOGITS_TO_KEEP}', got '{num_logits_to_keep}'"
+            )
+        self.dynamic_logits_to_keep = (
+            num_logits_to_keep == DYNAMIC_LOGITS_TO_KEEP
+        )
+        self.num_logits_to_keep = (
+            0 if self.dynamic_logits_to_keep else int(num_logits_to_keep)
+        )
         sign = inspect.signature(model.forward)
         fkwargs = {}
         if "logits_to_keep" in sign.parameters:
@@ -320,10 +349,12 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             fkwargs["num_logits_to_keep"] = self.num_logits_to_keep
         else:
             if self.model.config.model_type == "openelm":
+                # use the normalized int (0 in dynamic mode -> all positions,
+                # then forward() gathers); the raw arg may be "dynamic".
                 self.model.transformer.register_forward_hook(
                     partial(
                         _slice_hidden_state_to_lasts,
-                        num_logits_to_keep=num_logits_to_keep,
+                        num_logits_to_keep=self.num_logits_to_keep,
                     )
                 )
             else:
@@ -349,6 +380,11 @@ class BaseCausal(TorchToNNEFWrappedLLM):
 
     @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
+        logits_to_keep = None
+        if self.dynamic_logits_to_keep:
+            # last input is the runtime row count; the rest are kv caches
+            *args, logits_to_keep = args
+            args = tuple(args)
         inputs = (input_ids, *args)
         model_inputs = self.handler.build_forward_inputs(
             inputs=inputs,
@@ -365,6 +401,14 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             model_inputs=model_inputs,
             num_logits_to_keep=self.num_logits_to_keep,
         )
+        if logits_to_keep is not None:
+            # the model emitted all positions (num_logits_to_keep == 0); gather
+            # the last `logits_to_keep` rows. A data-dependent gather (not a
+            # slice) is what survives tracing and exports to tract.
+            logits = outputs[0]
+            seq = logits.shape[1]
+            idx = torch.arange(seq - logits_to_keep, seq, device=logits.device)
+            outputs = (logits.index_select(1, idx), *outputs[1:])
         kvs = outputs[1:]
         assert len(args) == len(kvs), f"{len(args)} == {len(kvs)}"
         # key values, (32 tensors) of shape (1, 3, S, 64)

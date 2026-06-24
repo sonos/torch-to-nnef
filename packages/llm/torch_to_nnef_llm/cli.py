@@ -22,8 +22,16 @@ from torch_to_nnef_llm.config import (
     PHISlugs,
 )
 from torch_to_nnef_llm.exporter import DEFAULT_HF_DOWNLOAD_N_RETRIES, dump_llm
+from torch_to_nnef_llm.models.base import DYNAMIC_LOGITS_TO_KEEP
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _num_logits_to_keep(value: str) -> T.Union[int, str]:
+    """Accept an int row count or DYNAMIC_LOGITS_TO_KEEP (runtime input)."""
+    if value == DYNAMIC_LOGITS_TO_KEEP:
+        return value
+    return int(value)
 
 
 def parser_cli(  # pylint: disable=too-many-positional-arguments
@@ -153,12 +161,13 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
 
         parser.add_argument(
             "--num-logits-to-keep",
-            type=int,
+            type=_num_logits_to_keep,
             default=1,
-            help="num_logits_to_keep: int number of token to keep "
-            "(if 0 all are kept) "
-            "by default for classical inference setting it to 1 is fine, "
-            "in case of speculative-decoding it may be more (typically 2 or 3)",
+            help="number of token logits to keep. An int slices the last N "
+            "positions at export (1 is fine for classical inference, 0 keeps "
+            "all). 'dynamic' instead exposes logits_to_keep as a runtime input "
+            "so one export serves both prefill (1) and speculative decode "
+            "(k+1) without re-exporting.",
         )
 
         parser.add_argument(
