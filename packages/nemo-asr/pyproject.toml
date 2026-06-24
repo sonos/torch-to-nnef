@@ -126,10 +126,22 @@ commands_pre = [
         "-c",
         "real=$(command -v cmake) && mkdir -p {envtmpdir}/bin && printf '#!/bin/bash\\nexec \"%s\" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \"$@\"\\n' \"$real\" > {envtmpdir}/bin/cmake && chmod +x {envtmpdir}/bin/cmake",
     ],
+    # Install torch/torchaudio from the CPU-only index FIRST and alone, so they
+    # resolve to the CPU builds (no ~GBs of nvidia CUDA deps).
     [
         "bash",
         "-c",
-        "export PATH={envtmpdir}/bin:$PATH && uv pip install -i https://download.pytorch.org/whl/cpu torch==2.6.* torchaudio==2.6.* 'nemo_toolkit[asr]==2.7.2'",
+        "uv pip install -i https://download.pytorch.org/whl/cpu torch==2.6.* torchaudio==2.6.*",
+    ],
+    # Then install nemo's deps from PyPI. nemo[asr]==2.7.2 now requires
+    # setuptools>=79 (via nv-one-logger) and a py3.13-capable numba, neither of
+    # which lives on the torch CPU index; resolving against PyPI picks valid
+    # versions (numba 0.65.x, setuptools 82.x). torch is already installed above
+    # and satisfies the constraint, so it stays the CPU build.
+    [
+        "bash",
+        "-c",
+        "export PATH={envtmpdir}/bin:$PATH && uv pip install 'nemo_toolkit[asr]==2.7.2'",
     ],
     [
         "uv",
