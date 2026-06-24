@@ -22,13 +22,14 @@ from torch_to_nnef_llm.config import (
     PHISlugs,
 )
 from torch_to_nnef_llm.exporter import DEFAULT_HF_DOWNLOAD_N_RETRIES, dump_llm
+from torch_to_nnef_llm.models.base import DYNAMIC_LOGITS_TO_KEEP
 
 LOGGER = logging.getLogger(__name__)
 
 
 def _num_logits_to_keep(value: str) -> T.Union[int, str]:
-    """Accept an int row count or the literal 'dynamic' (runtime input)."""
-    if value == "dynamic":
+    """Accept an int row count or DYNAMIC_LOGITS_TO_KEEP (runtime input)."""
+    if value == DYNAMIC_LOGITS_TO_KEEP:
         return value
     return int(value)
 

@@ -7,6 +7,7 @@ from functools import partial, wraps
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.utils import (
     INJECTED,
     SemanticVersion,
@@ -21,6 +22,10 @@ from torch_to_nnef_llm._optional_types import (
 from torch_to_nnef_llm.models.handlers.base import ArchitectureHandler
 
 LOGGER = logging.getLogger(__name__)
+
+# Sentinel for `num_logits_to_keep`: expose logits_to_keep as a runtime input
+# instead of baking the slice at trace time.
+DYNAMIC_LOGITS_TO_KEEP = "dynamic"
 
 
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
@@ -317,11 +322,22 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         self.model = model
         self.handler = handler
         self.with_dyn_cache = with_dyn_cache
-        # "dynamic" exposes logits_to_keep as a runtime input instead of baking
-        # the slice: the model emits all positions and gathers the requested
-        # tail at run time (1 for decode, k+1 for speculative). Internally we
-        # ask the HF model for all positions (== 0) and do the gather ourselves.
-        self.dynamic_logits_to_keep = num_logits_to_keep == "dynamic"
+        # DYNAMIC_LOGITS_TO_KEEP exposes logits_to_keep as a runtime input
+        # instead of baking the slice: the model emits all positions and
+        # gathers the requested tail at run time (1 for decode, k+1 for
+        # speculative). Internally we ask the HF model for all positions (== 0)
+        # and do the gather ourselves.
+        if (
+            isinstance(num_logits_to_keep, str)
+            and num_logits_to_keep != DYNAMIC_LOGITS_TO_KEEP
+        ):
+            raise T2NErrorInvalidArgument(
+                "num_logits_to_keep string must be "
+                f"'{DYNAMIC_LOGITS_TO_KEEP}', got '{num_logits_to_keep}'"
+            )
+        self.dynamic_logits_to_keep = (
+            num_logits_to_keep == DYNAMIC_LOGITS_TO_KEEP
+        )
         self.num_logits_to_keep = (
             0 if self.dynamic_logits_to_keep else int(num_logits_to_keep)
         )
