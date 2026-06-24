@@ -3,8 +3,6 @@ from functools import partial
 
 import pytest
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
 from tests.utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
@@ -13,6 +11,8 @@ from tests.utils import (  # noqa: E402
     set_seed,
     transformers_tract_export_test_condition,
 )
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from torch_to_nnef.utils import torch_version
 from torch_to_nnef_llm.config import HFConfigHelper, LlamaSlugs
 from torch_to_nnef_llm.exporter import LLMExporter
