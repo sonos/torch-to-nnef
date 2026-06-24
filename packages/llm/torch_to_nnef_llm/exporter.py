@@ -147,7 +147,7 @@ def _load_exporter_from(
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
     force_inputs_dtype: T.Optional[DtypeStr] = None,
-    num_logits_to_keep: int = 1,
+    num_logits_to_keep: T.Union[int, str] = 1,
     merge_peft: T.Optional[bool] = None,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
     trust_remote_code: bool = True,
@@ -197,7 +197,7 @@ class LLMExporter:
         local_dir: T.Optional[Path] = None,
         force_module_dtype: T.Optional[DtypeStr] = None,
         force_inputs_dtype: T.Optional[DtypeStr] = None,
-        num_logits_to_keep: int = 1,
+        num_logits_to_keep: T.Union[int, str] = 1,
     ):
         """Init LLMExporter.
 
@@ -212,10 +212,11 @@ class LLMExporter:
                 Force PyTorch dtype in parameters.
             force_inputs_dtype:
                 Force PyTorch dtype in inputs of the models.
-            num_logits_to_keep: int number of token to keep (if 0 all are kept)
-                by default for classical inference setting it to 1 is fine,
-                in case of speculative decoding it may be more
-                (typically 2 or 3)
+            num_logits_to_keep: number of token logits to keep. An int slices
+                the last N positions at trace time (0 keeps all). The string
+                "dynamic" instead exposes `logits_to_keep` as a runtime scalar
+                input, so one export serves cheap prefill (pass 1) and
+                speculative decode (pass k+1) without re-exporting.
 
         """
         self.hf_model_causal = hf_model_causal
@@ -312,7 +313,7 @@ class LLMExporter:
         n_past_input_tokens: int = 2,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ):
-        return self.model_infos.handler.build_input_spec(
+        input_spec = self.model_infos.handler.build_input_spec(
             tokenizer=self.tokenizer,
             config_helper=self.model_infos,
             inputs_dtype=self.inputs_dtype,
@@ -321,6 +322,15 @@ class LLMExporter:
             n_past_input_tokens=n_past_input_tokens,
             real_kv_cache=real_kv_cache,
         )
+        if getattr(self.wrapped_model, "dynamic_logits_to_keep", False):
+            # extra trailing scalar input feeding the all-position logits
+            # gather; example value 1 mirrors a regular single-token decode.
+            input_spec.inputs = (
+                *input_spec.inputs,
+                torch.tensor(1, dtype=torch.int64),
+            )
+            input_spec.input_names = [*input_spec.input_names, "logits_to_keep"]
+        return input_spec
 
     def _prepare_hf_model_inputs(
         self,
@@ -478,7 +488,13 @@ class LLMExporter:
                 "(which copied graph and could have been quantized in meantime)"
             )
         else:
-            err_check("logits", wrapped_outs[0], outs["logits"])
+            ref_logits = outs["logits"]
+            if getattr(self.wrapped_model, "dynamic_logits_to_keep", False):
+                # wrapped output gathered the last rows; HF emitted all of
+                # them, so compare against the matching tail.
+                kept = wrapped_outs[0].shape[1]
+                ref_logits = ref_logits[:, -kept:, :]
+            err_check("logits", wrapped_outs[0], ref_logits)
             for kv_name, ref, cand in zip(
                 out_cache_names, out_pkv, wrapped_outs[1:], strict=False
             ):
@@ -1032,7 +1048,7 @@ def dump_llm(
     force_module_dtype: T.Optional[DtypeStr] = None,
     force_inputs_dtype: T.Optional[DtypeStr] = None,
     merge_peft: T.Optional[bool] = None,
-    num_logits_to_keep: int = 1,
+    num_logits_to_keep: T.Union[int, str] = 1,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
     hf_download_n_retries: int = DEFAULT_HF_DOWNLOAD_N_RETRIES,
     trust_remote_code: bool = True,
