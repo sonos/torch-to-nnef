@@ -498,6 +498,84 @@ class MoEFFN(nn.Module):
 # ---------------------------------------------------------------------------
 
 
+def _emit_shared_expert(
+    g,
+    name_to_tensor,
+    shared,
+    input_tensor,
+    routed,
+    out0,
+    x_shape,
+    add_weight,
+    mk,
+):
+    """Graft a shared expert on top of the routed MoE output (Qwen2 / Qwen3.5).
+
+    out = routed + sigmoid(x @ Wr^T) * down(silu(x @ Wg^T) * (x @ Wu^T)).
+    All weights are raw nn.Linear [out, in], used as NNEF linear filters
+    (linear computes x @ filter^T) so no transpose is needed.
+    """
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.op import helper
+
+    def emit(op_type, op_inputs, out_t, attribs=None, as_list=False):
+        # Most ops (sigmoid/mul/add) take positional inputs; tract_core_einsum
+        # reads its operands from a single list-valued `inputs=[...]` argument.
+        helper.cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type=op_type,
+            inputs=list(op_inputs) if as_list else tuple(op_inputs),
+            outputs=(out_t,),
+            attribs=attribs or {},
+            force_consistent_inputs_shapes=False,
+        )
+        return out_t
+
+    def linear(x_t, weight_t, out_t):
+        # x @ weight^T with weight [out, in]; NNEF `linear` lowers to a matmul
+        # that requires equal input ranks, so use einsum to handle the 3D
+        # activation against the 2D weight (and accumulate in f32).
+        rank = len(x_shape)
+        if rank == 3:
+            expr = "bij,oj->bio"
+        elif rank == 2:
+            expr = "ij,oj->io"
+        else:
+            raise T2NErrorNotImplemented(
+                f"shared expert linear expects rank 2 or 3 input, got {rank}"
+            )
+        return emit(
+            "tract_core_einsum",
+            [x_t, weight_t],
+            out_t,
+            attribs={"expr": expr, "acc": "f32", "output": ""},
+            as_list=True,
+        )
+
+    d_model = x_shape[-1]
+    hs = shared["gate_proj"].shape[0]
+    hs_shape = x_shape[:-1] + [hs]
+    d_shape = x_shape[:-1] + [d_model]
+    one_shape = x_shape[:-1] + [1]
+
+    w_gate = add_weight("se_gate_proj", shared["gate_proj"])
+    w_up = add_weight("se_up_proj", shared["up_proj"])
+    w_down = add_weight("se_down_proj", shared["down_proj"])
+    w_router = add_weight("se_router", shared["router"])
+
+    gate_h = linear(input_tensor, w_gate, mk("se_gate_h", hs_shape))
+    up_h = linear(input_tensor, w_up, mk("se_up_h", hs_shape))
+    gate_sig = emit("sigmoid", (gate_h,), mk("se_gate_sig", hs_shape))
+    silu_g = emit("mul", (gate_h, gate_sig), mk("se_silu", hs_shape))
+    inter = emit("mul", (silu_g, up_h), mk("se_inter", hs_shape))
+    shared_out = linear(inter, w_down, mk("se_out", d_shape))
+    logit = linear(input_tensor, w_router, mk("se_logit", one_shape))
+    gate = emit("sigmoid", (logit,), mk("se_gate", one_shape))
+    gated = emit("mul", (gate, shared_out), mk("se_gated", d_shape))
+    emit("add", (routed, gated), out0)
+
+
 def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     """Emit tract_moe_ffn for any supported MoE module."""
     if not isinstance(inference_target, TractNNEF):
@@ -619,41 +697,6 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
             g, name=f"{base}_{suffix}", dtype=np_dtype, shape=tuple(shape)
         )
 
-    def _emit(op_type, op_inputs, out_t, attribs=None, as_list=False):
-        # Most ops (sigmoid/mul/add) take positional inputs; tract_core_einsum
-        # reads its operands from a single list-valued `inputs=[...]` argument.
-        helper.cast_and_add_nnef_operation(
-            name_to_tensor=name_to_tensor,
-            graph=g,
-            type=op_type,
-            inputs=list(op_inputs) if as_list else tuple(op_inputs),
-            outputs=(out_t,),
-            attribs=attribs or {},
-            force_consistent_inputs_shapes=False,
-        )
-        return out_t
-
-    def _linear(x_t, weight_t, out_t):
-        # x @ weight^T with weight [out, in]; NNEF `linear` lowers to a matmul
-        # that requires equal input ranks, so use einsum to handle the 3D
-        # activation against the 2D weight (and accumulate in f32).
-        rank = len(x_shape)
-        if rank == 3:
-            expr = "bij,oj->bio"
-        elif rank == 2:
-            expr = "ij,oj->io"
-        else:
-            raise T2NErrorNotImplemented(
-                f"shared expert linear expects rank 2 or 3 input, got {rank}"
-            )
-        return _emit(
-            "tract_core_einsum",
-            [x_t, weight_t],
-            out_t,
-            attribs={"expr": expr, "acc": "f32", "output": ""},
-            as_list=True,
-        )
-
     # The routed experts go to the final output directly, unless a shared
     # expert must be added on top (Qwen2 / Qwen3.5), in which case they go to
     # an intermediate tensor.
@@ -676,30 +719,17 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     )
 
     if shared is not None:
-        # out = routed + sigmoid(x @ Wg^T) * down(silu(x @ Wgate^T) * x @ Wup^T)
-        # All weights are raw nn.Linear [out, in], used as NNEF linear filters
-        # (linear computes x @ filter^T) so no transpose is needed.
-        d_model = x_shape[-1]
-        hs = shared["gate_proj"].shape[0]
-        hs_shape = x_shape[:-1] + [hs]
-        d_shape = x_shape[:-1] + [d_model]
-        one_shape = x_shape[:-1] + [1]
-
-        w_gate = _add_weight("se_gate_proj", shared["gate_proj"])
-        w_up = _add_weight("se_up_proj", shared["up_proj"])
-        w_down = _add_weight("se_down_proj", shared["down_proj"])
-        w_router = _add_weight("se_router", shared["router"])
-
-        gate_h = _linear(input_tensor, w_gate, _mk("se_gate_h", hs_shape))
-        up_h = _linear(input_tensor, w_up, _mk("se_up_h", hs_shape))
-        gate_sig = _emit("sigmoid", (gate_h,), _mk("se_gate_sig", hs_shape))
-        silu_g = _emit("mul", (gate_h, gate_sig), _mk("se_silu", hs_shape))
-        inter = _emit("mul", (silu_g, up_h), _mk("se_inter", hs_shape))
-        shared_out = _linear(inter, w_down, _mk("se_out", d_shape))
-        logit = _linear(input_tensor, w_router, _mk("se_logit", one_shape))
-        gate = _emit("sigmoid", (logit,), _mk("se_gate", one_shape))
-        gated = _emit("mul", (gate, shared_out), _mk("se_gated", d_shape))
-        _emit("add", (routed, gated), out0)
+        _emit_shared_expert(
+            g,
+            name_to_tensor,
+            shared,
+            input_tensor,
+            routed,
+            out0,
+            x_shape,
+            _add_weight,
+            _mk,
+        )
         return ["tract_transformers", "tract_core"]
 
     return ["tract_transformers"]
