@@ -450,7 +450,12 @@ class LLMExporter:
             _,
         ) = self.generate_inputs_io_names_and_dynaxes()
         wrapped_outs = self.wrapped_model(*inputs)
-        model_inputs = self._prepare_hf_model_inputs(inputs)
+        hf_inputs = inputs
+        if getattr(self.wrapped_model, "dynamic_logits_to_keep", False):
+            # drop the trailing logits_to_keep scalar; the HF model builds its
+            # kv cache from input_ids + caches only.
+            hf_inputs = inputs[:-1]
+        model_inputs = self._prepare_hf_model_inputs(hf_inputs)
         outs = self.hf_model_causal(
             return_dict=True,
             **model_inputs,
@@ -520,8 +525,17 @@ class LLMExporter:
         input_names = input_spec.input_names
         output_names = input_spec.output_names
         dynamic_axes = input_spec.dynamic_axes
-        assert len(inputs) == len(input_names) == len(output_names), (
-            f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
+        # dynamic logits_to_keep adds one extra input with no matching output
+        n_extra_inputs = (
+            1
+            if getattr(self.wrapped_model, "dynamic_logits_to_keep", False)
+            else 0
+        )
+        assert len(inputs) == len(input_names), (
+            f"{len(inputs)} == {len(input_names)}"
+        )
+        assert len(inputs) - n_extra_inputs == len(output_names), (
+            f"{len(inputs)} - {n_extra_inputs} == {len(output_names)}"
         )
         return (
             inputs,

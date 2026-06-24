@@ -349,10 +349,12 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             fkwargs["num_logits_to_keep"] = self.num_logits_to_keep
         else:
             if self.model.config.model_type == "openelm":
+                # use the normalized int (0 in dynamic mode -> all positions,
+                # then forward() gathers); the raw arg may be "dynamic".
                 self.model.transformer.register_forward_hook(
                     partial(
                         _slice_hidden_state_to_lasts,
-                        num_logits_to_keep=num_logits_to_keep,
+                        num_logits_to_keep=self.num_logits_to_keep,
                     )
                 )
             else:

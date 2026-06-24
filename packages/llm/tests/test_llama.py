@@ -3,6 +3,8 @@ from functools import partial
 
 import pytest
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from tests.utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
@@ -11,10 +13,9 @@ from tests.utils import (  # noqa: E402
     set_seed,
     transformers_tract_export_test_condition,
 )
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
 from torch_to_nnef.utils import torch_version
 from torch_to_nnef_llm.config import HFConfigHelper, LlamaSlugs
+from torch_to_nnef_llm.exporter import LLMExporter
 from torch_to_nnef_llm.models.base import BaseCausal
 
 set_seed(int(os.environ.get("SEED", 25)))
@@ -126,3 +127,25 @@ def test_llama_dynamic_logits_to_keep(num_logits_to_keep, inference_target):
         ],
         output_names=["logits", "out_cache_key_0", "out_cache_value_0"],
     )
+
+
+@pytest.mark.skipif(
+    torch_version() <= "1.13.0", reason="export needs torch > 1.13.0"
+)
+def test_llama_dynamic_logits_to_keep_export_spec():
+    """The LLMExporter spec path adds logits_to_keep as a plain input.
+
+    Guards the real CLI export path (generate_inputs_io_names_and_dynaxes),
+    which check_model_io_test bypasses: the extra scalar must be an input with
+    no matching output and no dynamic axis.
+    """
+    exporter = LLMExporter(
+        causal_llama, tokenizer, num_logits_to_keep="dynamic"
+    )
+    inputs, input_names, output_names, dynamic_axes = (
+        exporter.generate_inputs_io_names_and_dynaxes()
+    )
+    assert input_names[-1] == "logits_to_keep"
+    assert len(inputs) == len(input_names) == len(output_names) + 1
+    assert "logits_to_keep" not in output_names
+    assert "logits_to_keep" not in dynamic_axes
