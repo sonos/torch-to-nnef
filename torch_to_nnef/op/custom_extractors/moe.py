@@ -342,6 +342,33 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
         return "softmax_topk" if norm else "softmax_all"
 
 
+class _GraniteMoEAdapter(_MoEWeightAdapter):
+    """Adapter for transformers GraniteMoeMoE (IBM Granite MoE).
+
+    Same maths as Qwen (concatenated fused gate/up, softmax over top-k logits,
+    SiLU SwiGLU), only the attribute names differ: the fused experts live in
+    `input_linear` [E, 2H, D] / `output_linear` [E, D, H] and the router is
+    `router.layer` with `router.top_k`.
+    """
+
+    def gate_weight(self, m: nn.Module) -> torch.Tensor:
+        return m.router.layer.weight.detach()
+
+    def expert_w1(self, m: nn.Module) -> torch.Tensor:
+        half = m.input_linear.weight.detach().shape[1] // 2
+        return m.input_linear.weight.detach()[:, :half, :].transpose(-1, -2)
+
+    def expert_w3(self, m: nn.Module) -> torch.Tensor:
+        half = m.input_linear.weight.detach().shape[1] // 2
+        return m.input_linear.weight.detach()[:, half:, :].transpose(-1, -2)
+
+    def expert_w2(self, m: nn.Module) -> torch.Tensor:
+        return m.output_linear.weight.detach().transpose(-1, -2)
+
+    def top_k(self, m: nn.Module) -> int:
+        return m.router.top_k
+
+
 # ---------------------------------------------------------------------------
 # Adapter dispatch
 # ---------------------------------------------------------------------------
@@ -361,6 +388,9 @@ _ADAPTER_BY_CLASSNAME: T.Dict[str, T.Type[_MoEWeightAdapter]] = {
     # OLMoE shares the Qwen layout (fused [E, 2H, D] experts, softmax top-k
     # router with norm_topk_prob, no shared expert).
     "OlmoeSparseMoeBlock": _QwenMoEAdapter,
+    # IBM Granite MoE: same maths, different attribute names.
+    "GraniteMoeMoE": _GraniteMoEAdapter,
+    "GraniteMoeSharedMoE": _GraniteMoEAdapter,
 }
 
 
@@ -777,6 +807,14 @@ def _register_all_transformers_moe():
         (
             "transformers.models.olmoe.modeling_olmoe",
             "OlmoeSparseMoeBlock",
+        ),
+        (
+            "transformers.models.granitemoe.modeling_granitemoe",
+            "GraniteMoeMoE",
+        ),
+        (
+            "transformers.models.granitemoeshared.modeling_granitemoeshared",
+            "GraniteMoeSharedMoE",
         ),
     ]
     for import_path, class_name in _candidates:
