@@ -293,6 +293,33 @@ class OffloadedTensor(OpaqueTensor):
         self.update_values(new_data, strict_shape=False, strict_dtype=False)
         return self
 
+    def set_(self, source: torch.Tensor, *args, **kwargs):
+        """Implement tensor-style storage replacement for offloaded payloads.
+
+        ``OffloadedTensor`` uses a meta tensor as its in-memory shell, so
+        PyTorch's native ``Tensor.set_`` cannot replace its storage with a CPU
+        tensor. Route the common ``param.set_(new_tensor)`` form through the
+        offload store instead. This is important for quantizers that update a
+        weight in-place before replacing it with a QTensor.
+        """
+        if args or kwargs:
+            raise T2NErrorMisuse(
+                "OffloadedTensor.set_ only supports set_(tensor)"
+            )
+        if not isinstance(source, torch.Tensor):
+            raise T2NErrorMisuse(
+                "OffloadedTensor.set_ expects a tensor source, "
+                f"got {type(source)}"
+            )
+        self.update_values(source, strict_shape=False, strict_dtype=False)
+        return self
+
+    @staticmethod
+    def _unwrap_offloaded_value(values: torch.Tensor) -> torch.Tensor:
+        while isinstance(values, OffloadedTensor):
+            values = values.reload()
+        return values
+
     def update_values(
         self,
         values: torch.Tensor,
@@ -313,6 +340,8 @@ class OffloadedTensor(OpaqueTensor):
                 if True (default) the dtype of the new tensor
                 must be the same as the prior one
         """
+        values = self._unwrap_offloaded_value(values)
+        old_offload_path = self.offload_path
         if strict_shape:
             assert self.elem.shape == values.shape
         if strict_dtype:
@@ -332,7 +361,10 @@ class OffloadedTensor(OpaqueTensor):
                 values.shape, dtype=values.dtype, device="meta"
             )
 
+        self.offloaded_tensor_type = type(values)
         OffloadedTensor._save(values, self.offload_dir, self._name)
+        if old_offload_path != self.offload_path and old_offload_path.exists():
+            old_offload_path.unlink()
         LOGGER.debug("updated values: '%s'", self._name)
 
     @classmethod

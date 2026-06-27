@@ -6557,6 +6557,9 @@ dependencies = [
 test = [
     { name = "coverage", extra = ["toml"] },
     { name = "matplotlib" },
+    { name = "numpy", version = "2.0.2", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version < '3.13'" },
+    { name = "numpy", version = "2.1.3", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.13' and sys_platform != 'linux'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.13' and sys_platform == 'linux'" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -6576,6 +6579,7 @@ requires-dist = [
 test = [
     { name = "coverage", extras = ["toml"] },
     { name = "matplotlib" },
+    { name = "numpy", specifier = "<2.4" },
     { name = "pytest", specifier = ">=9.0.3,<10" },
     { name = "pytest-cov", specifier = ">=6.0.0,<7" },
     { name = "ruff", specifier = "<1.0" },

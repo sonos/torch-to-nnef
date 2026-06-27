@@ -108,3 +108,39 @@ def test_offload_change_dtype():
         offloaded_value = offloaded_value.to(torch.float16)
         assert offloaded_value.dtype == torch.float16
         assert offloaded_value.reload().dtype == torch.float16
+
+
+@skipif_limited_offload_support
+def test_offload_set_updates_payload():
+    with tempfile.TemporaryDirectory() as td:
+        offloaded_value = OffloadedTensor.from_original_tensor(
+            torch.ones(2, 3),
+            "my_offloaded_weight",
+            offload_dir=Path(td),
+        )
+        new_value = torch.arange(6).reshape(2, 3).float()
+        offloaded_value.set_(new_value)
+        assert torch.equal(offloaded_value.reload(), new_value)
+
+
+@skipif_unsupported_qtensor
+def test_offload_set_updates_nested_qtensor_payload():
+    with tempfile.TemporaryDirectory() as td:
+        original_weight = torch.arange(64).reshape(2, 32).float()
+        offloaded_value = OffloadedTensor.from_original_tensor(
+            original_weight,
+            "my_offloaded_weight",
+            offload_dir=Path(td),
+        )
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+        offloaded_q_tensor = OffloadedTensor.from_original_tensor(
+            q_tensor,
+            "my_offloaded_qweight",
+            offload_dir=Path(td),
+        )
+
+        offloaded_value.set_(offloaded_q_tensor)
+
+        reloaded = offloaded_value.reload()
+        assert type(reloaded) is type(q_tensor)
+        assert torch.allclose(reloaded.decompress(), q_tensor.decompress())
