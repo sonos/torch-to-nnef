@@ -58,6 +58,7 @@ def resolve_auto_model_class(
     handler_class = handlers.get_handler(model_type)
     return handler_class.get_auto_model_class(transformers)
 
+
 # sentinel accepted by `upcast_quant` to dequantize whatever native format the
 # model ships, without naming it.
 UPCAST_ANY = "any"

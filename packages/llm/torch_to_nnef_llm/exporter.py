@@ -243,9 +243,7 @@ class LLMExporter:
             if hasattr(self.hf_model_causal, "model") and hasattr(
                 self.hf_model_causal.model, "language_model"
             ):
-                lang_config = (
-                    self.hf_model_causal.model.language_model.config
-                )
+                lang_config = self.hf_model_causal.model.language_model.config
                 lang_config._attn_implementation = "eager"
         self.wrapped_model = BaseCausal(
             self.hf_model_causal,
