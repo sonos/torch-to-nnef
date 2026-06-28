@@ -31,12 +31,6 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
     ]
     SAMPLE_IMAGE_GRID_THW = (1, 4, 4)
 
-    def __init__(self):
-        super().__init__()
-        self._prev_rope_deltas: T.Optional[torch.Tensor] = None
-        self._last_rope_deltas: T.Optional[torch.Tensor] = None
-        self._last_state_outputs: T.Tuple[torch.Tensor, ...] = ()
-
     @staticmethod
     def get_auto_model_class(transformers):
         return transformers.Qwen3VLForConditionalGeneration
@@ -120,8 +114,14 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         batch_size, seq_length = token_mask.shape
         token_counts = token_mask.to(torch.long).sum(dim=-1)
         total_tokens = int(token_counts.sum().item())
-        if total_tokens == 0 or total_tokens != features.shape[0]:
+        if total_tokens == 0:
             return inputs_embeds
+        if total_tokens != features.shape[0]:
+            raise ValueError(
+                f"feature/slot count mismatch: got {features.shape[0]} "
+                f"feature(s) for {total_tokens} placeholder slot(s) in "
+                "input_ids"
+            )
 
         start_offsets = torch.cumsum(token_counts, dim=0) - token_counts
         slot_ids = token_mask.to(torch.long).cumsum(dim=-1)
@@ -288,12 +288,6 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             rope_deltas_state,
         ) = state_inputs
         past_key_values = build_past_kv_dyn_cache(cache_tensors)
-        self._last_state_outputs = (
-            image_embeddings,
-            video_embeddings,
-            image_grid_thw,
-            video_grid_thw,
-        )
 
         inputs_embeds = hf_model.get_input_embeddings()(input_ids)
         image_token_id = hf_model.config.image_token_id
@@ -355,8 +349,8 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
                 device=input_ids.device,
             )
 
-        self._prev_rope_deltas = getattr(hf_model.model, "rope_deltas", None)
-        self._last_rope_deltas = rope_deltas_current.detach().clone()
+        prev_rope_deltas = getattr(hf_model.model, "rope_deltas", None)
+        last_rope_deltas = rope_deltas_current.detach().clone()
         hf_model.model.rope_deltas = rope_deltas_current
 
         return StateContext(
@@ -379,6 +373,8 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
                 "image_grid_thw": image_grid_thw,
                 "video_grid_thw": video_grid_thw,
                 "rope_deltas_state": rope_deltas_state,
+                "prev_rope_deltas": prev_rope_deltas,
+                "last_rope_deltas": last_rope_deltas,
             },
         )
 
@@ -410,12 +406,9 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         )
         rope_deltas = getattr(model_outputs, "rope_deltas", None)
         if rope_deltas is None:
-            rope_deltas = self._last_rope_deltas
+            rope_deltas = state_context.state["last_rope_deltas"]
         if hasattr(model.model, "rope_deltas"):
-            model.model.rope_deltas = self._prev_rope_deltas
-        self._prev_rope_deltas = None
-        if rope_deltas is None and self._last_rope_deltas is not None:
-            rope_deltas = self._last_rope_deltas
+            model.model.rope_deltas = state_context.state["prev_rope_deltas"]
 
         return outputs + [
             state_context.state["image_embeddings"],
