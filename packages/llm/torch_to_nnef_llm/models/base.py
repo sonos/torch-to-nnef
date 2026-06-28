@@ -19,7 +19,9 @@ from torch_to_nnef_llm._optional_types import (
     InjectedTransformersModule,
     TransformersCacheUtils,
 )
-from torch_to_nnef_llm.models.handlers.base import ArchitectureHandler
+
+if T.TYPE_CHECKING:
+    from torch_to_nnef_llm.models.handlers.base import ArchitectureHandler
 
 LOGGER = logging.getLogger(__name__)
 
@@ -239,7 +241,11 @@ def use_dtype_dyn_cache(f):
 
 
 def update_forward_signature(self, io_spec=None):
-    """Trickery to help torch > 2.0 new export API tracing."""
+    """Rewrite `forward`'s signature so torch>=2.0 export captures names.
+
+    Called first at wrapper init with a default LLM signature, then again by
+    the exporter once the handler IOSpec is resolved. The second call wins.
+    """
     base_forward = getattr(self, "_forward", self.forward)
     sign = inspect.signature(base_forward)
     new_params = OrderedDict()
@@ -310,7 +316,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
     def __init__(
         self,
         model,
-        handler: ArchitectureHandler,
+        handler: "ArchitectureHandler",
         with_dyn_cache: bool = True,
         num_logits_to_keep: T.Union[int, str] = 1,
         force_causal_mask: T.Optional[bool] = None,

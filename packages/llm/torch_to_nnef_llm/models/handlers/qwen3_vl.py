@@ -255,6 +255,7 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
 
         input_ids.random_(0, vocab_size)
         if vocab_size > 10:
+            # Keep random text tokens from accidentally triggering vision paths.
             input_ids[input_ids == image_token_id] = 1
             input_ids[input_ids == video_token_id] = 2
         input_ids[:, 0] = vision_start_token_id
