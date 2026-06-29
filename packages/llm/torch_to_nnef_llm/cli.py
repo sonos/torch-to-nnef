@@ -162,6 +162,15 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--attn-implementation",
+            choices=["eager", "sdpa", "flash_attention_2", "flash_attention_3"],
+            help="forward attn_implementation to transformers when loading "
+            "the model. This can be used with --reify-sdpa-operator to force "
+            "models through aten::scaled_dot_product_attention instead of "
+            "their eager attention path.",
+        )
+
+        parser.add_argument(
             "--upcast-quant",
             default=None,
             help="opt-in: dequantize a natively-quantized model (mxfp4, fp8, "
