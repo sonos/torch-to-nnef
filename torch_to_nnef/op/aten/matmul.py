@@ -1,5 +1,6 @@
 import typing as T
 
+import numpy as np
 import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
@@ -585,10 +586,39 @@ def _emit_unsqueeze_intermediate(
     )
 
 
+def _decomposed_attention_qk_expr(node, input_node, other_node):
+    """Return the einsum form for a decomposed self-attention QK matmul."""
+    output_name = node.outputs[0].export_name
+    if "selfAttn_matmul0" not in output_name:
+        return None
+    if input_node.dtype != torch.float16 or other_node.dtype != torch.float16:
+        return None
+    if input_node.rank != other_node.rank:
+        return None
+    if input_node.rank == 3:
+        return "bij,bjk->bik"
+    if input_node.rank == 4:
+        return "bcij,bcjk->bcik"
+    return None
+
+
+def _cast_attention_qk_operand_to_f32(g, src: NTensor, name: str) -> NTensor:
+    """Emit an f32 cast intermediate with the operand's own shape."""
+    out = NTensor(g, name=name, dtype=np.float32, shape=tuple(src.shape))
+    NOperation(
+        g,
+        type="tract_core_cast",
+        attribs={"to": "f32"},
+        inputs=src,
+        outputs=out,
+    )
+    return out
+
+
 @OP_REGISTRY.register(
     torch_op_ids=["matmul", "bmm", "mm"]
 )  # since NNEF matmul does not care about rank
-def matmul(g, node, name_to_tensor, op_helper, **kwargs):
+def matmul(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF.
 
     NNEF `matmul` requires *equal* rank on both operands; PyTorch's
@@ -620,6 +650,32 @@ def matmul(g, node, name_to_tensor, op_helper, **kwargs):
     b_is_v = b_rank < 2
 
     if not (a_is_v or b_is_v):
+        if (
+            isinstance(inference_target, TractNNEF)
+            and inference_target.force_attention_inner_in_f32
+        ):
+            expr = _decomposed_attention_qk_expr(
+                node, input_node, other_node
+            )
+            if expr is not None:
+                a_ref = _cast_attention_qk_operand_to_f32(
+                    g, a_ref, f"{node.outputs[0].export_name}_a_f32"
+                )
+                b_ref = _cast_attention_qk_operand_to_f32(
+                    g, b_ref, f"{node.outputs[0].export_name}_b_f32"
+                )
+                add_single_output_op(
+                    g,
+                    node,
+                    name_to_tensor,
+                    "tract_core_einsum",
+                    inputs=[a_ref, b_ref],
+                    ensure_tuple=False,
+                    force_consistent_inputs_shapes=False,
+                    attrs={"expr": expr, "acc": "f32", "output": "f32"},
+                )
+                return ["tract_core"]
+
         # Standard case: both rank >= 2. Let the generic emitter handle
         # it: `force_consistent_inputs_shapes` prepends 1s to the
         # smaller-rank input if needed (e.g. rank-3 @ rank-2), and the

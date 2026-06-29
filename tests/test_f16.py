@@ -103,6 +103,9 @@ def check_contains_f32_upcast_attn(inference_target, path):
         assert "tract_transformers_sdpa(" in graph_content
         if inference_target.force_attention_inner_in_f32:
             assert "acc_datum_type = 'f32'" in graph_content
+            assert "datum_type = 'f32'" in graph_content
+            assert "to = 'f32'" in graph_content
+            assert "to = 'f16'" in graph_content
     elif inference_target.force_attention_inner_in_f32:
         assert (
             "fragment scaled_dot_product_attention_3d_f16_df32("
