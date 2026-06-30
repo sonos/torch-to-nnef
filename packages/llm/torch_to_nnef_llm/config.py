@@ -175,8 +175,9 @@ class HFConfigHelper:
         )
 
     def get_head_dim(self):
-        if hasattr(self.conf, "head_dim"):
-            return int(self.conf.head_dim)
+        head_dim = getattr(self.conf, "head_dim", None)
+        if head_dim is not None:
+            return int(head_dim)
         return int(self.conf.hidden_size / self.conf.num_attention_heads)
 
     def get_num_kv_heads(self, layer_idx: int):

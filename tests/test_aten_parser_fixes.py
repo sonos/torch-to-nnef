@@ -67,6 +67,19 @@ def test_div_of_two_scalars_exports():
     _export(m, (torch.randn(2, 3),))
 
 
+class _SplitWithZeroSizedSection(nn.Module):
+    """`torch.split(x, [2, 0, 3])` emits a zero-sized slice."""
+
+    def forward(self, x):
+        left, empty, right = torch.split(x, [2, 0, 3], dim=-1)
+        return left, empty, right
+
+
+def test_split_with_zero_sized_section_exports():
+    m = torch.jit.script(_SplitWithZeroSizedSection().eval())
+    _export(m, (torch.randn(2, 5),))
+
+
 class _Conv1dWithListPadding(nn.Module):
     """`F.conv1d(..., padding=0)` with a literal int yields list padding."""
 

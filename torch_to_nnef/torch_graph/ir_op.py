@@ -389,6 +389,21 @@ def _infer_shape_linear_output(x, w) -> torch.Size:
     return torch.Size(ax[:-1] + [wx[0]])
 
 
+def _infer_shape_grouped_mm_output(x, w) -> torch.Size:
+    """Infer output tensor shape of grouped matmul without executing it."""
+    x_shape = list(x.shape)
+    w_shape = list(w.shape)
+    assert len(x_shape) >= 2, "grouped_mm expects input rank >= 2"
+    assert len(w_shape) == 3, "grouped_mm weight must be rank 3"
+    assert x_shape[-1] == w_shape[-2], "grouped_mm feature mismatch"
+    return torch.Size(x_shape[:-1] + [w_shape[-1]])
+
+
+def _infer_shape_gather_output(_input, _dim, index) -> torch.Size:
+    """Infer output shape of gather without executing overload resolution."""
+    return index.shape
+
+
 def _infer_shape_convolution_output(*args) -> torch.Size:
     """Infer output tensor shape of convolution without executing it.
 
@@ -509,6 +524,8 @@ INFER_RULES = {
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
+    "aten::_grouped_mm": InferRule(_infer_shape_grouped_mm_output, 2),
+    "aten::gather": InferRule(_infer_shape_gather_output, 3),
     ATEN_CONVOLUTION_MODE: InferRule(_infer_shape_convolution_output, 6),
     # ``aten::_convolution`` / ``aten::convolution`` carry ``transposed``
     # (arg 6) and ``output_padding`` (arg 7); pass them so the shape inference
