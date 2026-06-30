@@ -54,8 +54,8 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
         )
         if isinstance(inputs, list):
             inputs = tuple(inputs)
-        if n_elements <= 0:
-            raise T2NErrorNotImplemented("unexpected n_elements<=0")
+        if n_elements < 0:
+            raise T2NErrorNotImplemented("unexpected n_elements<0")
         cast_and_add_nnef_operation(
             name_to_tensor=name_to_tensor,
             graph=g,
