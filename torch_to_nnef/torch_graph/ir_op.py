@@ -67,7 +67,9 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_EMPTY_LIKE,
     ATEN_FULL,
     ATEN_FULL_LIKE,
+    ATEN_GATHER,
     ATEN_GELU,
+    ATEN_GROUPED_MM,
     ATEN_INT,
     ATEN_LINALG_NORM,
     ATEN_LINALG_VECTOR_NORM,
@@ -524,8 +526,8 @@ INFER_RULES = {
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
-    "aten::_grouped_mm": InferRule(_infer_shape_grouped_mm_output, 2),
-    "aten::gather": InferRule(_infer_shape_gather_output, 3),
+    ATEN_GROUPED_MM: InferRule(_infer_shape_grouped_mm_output, 2),
+    ATEN_GATHER: InferRule(_infer_shape_gather_output, 3),
     ATEN_CONVOLUTION_MODE: InferRule(_infer_shape_convolution_output, 6),
     # ``aten::_convolution`` / ``aten::convolution`` carry ``transposed``
     # (arg 6) and ``output_padding`` (arg 7); pass them so the shape inference
