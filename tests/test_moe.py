@@ -1,17 +1,24 @@
 """Tests for MoE FFN export to tract_moe_ffn operator."""
 
 import os
+import tarfile
+import tempfile
+from copy import deepcopy
+from functools import partial
+from pathlib import Path
 
 import pytest
 import torch
 from torch import nn
 
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.op.custom_extractors import MoEFFN
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     check_model_io_test,
+    skipif_unsupported_qtensor,
 )
 
 
@@ -80,6 +87,28 @@ def _init_moe_weights(module, seed=0):
             nn.init.normal_(p, std=0.02)
 
 
+def _assert_moe_expert_weights_q40(inference_target, path, expected_count):
+    """Check split expert tensors were exported as tract Q40 values."""
+    if not isinstance(inference_target, TractNNEF):
+        return
+    expected_dtype = (
+        DatBinHeader.TractCustomTypes.Q40
+        if inference_target.version >= "0.21.11"
+        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+    )
+    with tempfile.TemporaryDirectory() as td, tarfile.open(path, "r:*") as tf:
+        members = [
+            m
+            for m in tf.getmembers()
+            if m.name.endswith(("_w1.dat", "_w2.dat", "_w3.dat"))
+        ]
+        assert len(members) == expected_count, [m.name for m in members]
+        for member in members:
+            tf.extract(member, td)
+            header = DatBinHeader.from_dat(Path(td) / member.name)
+            assert header.torch_dtype_or_custom == expected_dtype
+
+
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_moe_ffn_basic(inference_target):
     """Export MoEFFN with 4 experts, top-2."""
@@ -92,6 +121,29 @@ def test_moe_ffn_basic(inference_target):
         input_names=["tokens"],
         output_names=["output"],
         inference_target=inference_target,
+    )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_split_experts_q40(inference_target):
+    """Export MoEFFN with split expert tensors quantized to tract Q40."""
+    _skip_if_unsupported(inference_target)
+    export_target = deepcopy(inference_target)
+    export_target.check_io = False
+    model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=64, k=2)
+    model.moe._t2n_quantize_moe_experts_q40 = True
+    model.eval()
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 32),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=export_target,
+        callback_post_export=partial(
+            _assert_moe_expert_weights_q40,
+            expected_count=2,
+        ),
     )
 
 
