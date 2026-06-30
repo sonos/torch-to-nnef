@@ -32,6 +32,9 @@ yanked = "deny"
 # bump to. Any actual `vulnerability` advisory is intentionally absent here so it
 # stays a hard CI failure (that is how RUSTSEC-2026-0009 in `time` was caught and
 # fixed by bumping the lockfile). Re-audit when tract drops these dependencies.
+# This config is shared by independent example crates and cargo-deny is run per
+# crate root, so an ignore needed by one example can appear as
+# `advisory-not-detected` in another example's log.
 ignore = [
     "RUSTSEC-2024-0375", # atty unmaintained (transitive via clap-era CLI deps)
     "RUSTSEC-2024-0436", # paste unmaintained (transitive via tract-linalg)
