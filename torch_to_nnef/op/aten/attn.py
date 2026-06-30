@@ -87,6 +87,7 @@ def _cast_sdpa_input_to_f32(g, src: NTensor, suffix: str) -> NTensor:
 
 
 @OP_REGISTRY.register()
+# pylint: disable-next=too-many-branches
 def scaled_dot_product_attention(
     g, node, name_to_tensor, inference_target, **kwargs
 ):

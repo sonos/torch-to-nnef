@@ -593,6 +593,85 @@ def _emit_shared_expert(
     emit("add", (routed, gated), out0)
 
 
+def _is_qtensor_like(tensor: torch.Tensor) -> bool:
+    if isinstance(tensor, QTensor):
+        return True
+    if not isinstance(tensor, OffloadedTensor):
+        return False
+    offloaded_type = getattr(tensor, "offloaded_tensor_type", None)
+    return isinstance(offloaded_type, type) and issubclass(
+        offloaded_type, QTensor
+    )
+
+
+def _should_quantize_expert_weights(moe, adapter) -> bool:
+    return bool(getattr(moe, "_t2n_quantize_moe_experts_q40", False)) or any(
+        _is_qtensor_like(src) for src in adapter.expert_sources(moe)
+    )
+
+
+def _maybe_quantize_expert_weight(
+    node,
+    name: str,
+    data: torch.Tensor,
+    quantize_experts_q40: bool,
+    quantize_experts_q40_percentile: float,
+) -> torch.Tensor:
+    if (
+        not quantize_experts_q40
+        or name not in {"w1", "w2", "w3"}
+        or _is_qtensor_like(data)
+    ):
+        return data
+    q_data = fp_to_tract_q4_0_with_min_max_calibration(
+        data.contiguous(),
+        percentile=quantize_experts_q40_percentile,
+    )
+    q_data.nnef_name = f"{node.outputs[0].name}_{name}"
+    return q_data
+
+
+def _moe_attrs(adapter, moe):
+    attrs = {
+        "k": adapter.top_k(moe),
+        "activation": adapter.activation(moe),
+        "gate": adapter.gate(moe),
+    }
+    act_alpha = adapter.act_alpha(moe)
+    act_limit = adapter.act_limit(moe)
+    if act_alpha is not None:
+        attrs["act_alpha"] = act_alpha
+    if act_limit is not None:
+        attrs["act_limit"] = act_limit
+    return attrs
+
+
+def _append_optional_moe_biases(moe, adapter, is_swiglu, inputs, add_weight):
+    # tract maps positional inputs as:
+    # x, wg, w1, w2, w3, wg_bias, w1_bias, w3_bias, w2_bias.
+    biases = (
+        (adapter.gate_bias(moe), "wg_bias"),
+        (adapter.expert_w1_bias(moe), "w1_bias"),
+        (adapter.expert_w3_bias(moe), "w3_bias"),
+        (adapter.expert_w2_bias(moe), "w2_bias"),
+    )
+    if not any(bias is not None for bias, _ in biases):
+        return
+    if not is_swiglu:
+        raise T2NErrorNotImplemented(
+            "MoE biases are only supported alongside a SwiGLU (w3) gate; "
+            f"got biases without w3 for {type(moe).__name__}"
+        )
+    for bias, label in biases:
+        if bias is None:
+            raise T2NErrorNotImplemented(
+                f"partial MoE bias set: {label} is missing while other "
+                "biases are present (positional mapping needs all four)"
+            )
+    for bias, label in biases:
+        inputs.append(add_weight(label, bias))
+
+
 def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     """Emit tract_moe_ffn for any supported MoE module."""
     if not isinstance(inference_target, TractNNEF):
@@ -611,42 +690,19 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     adapter = _get_adapter(moe)
     is_swiglu = adapter.activation(moe) == "swiglu"
 
-    def _is_qtensor_like(tensor: torch.Tensor) -> bool:
-        if isinstance(tensor, QTensor):
-            return True
-        if not isinstance(tensor, OffloadedTensor):
-            return False
-        offloaded_type = getattr(tensor, "offloaded_tensor_type", None)
-        return isinstance(offloaded_type, type) and issubclass(
-            offloaded_type, QTensor
-        )
-
-    quantize_experts_q40 = bool(
-        getattr(moe, "_t2n_quantize_moe_experts_q40", False)
-    ) or any(_is_qtensor_like(src) for src in adapter.expert_sources(moe))
+    quantize_experts_q40 = _should_quantize_expert_weights(moe, adapter)
     quantize_experts_q40_percentile = float(
         getattr(moe, "_t2n_quantize_moe_experts_q40_percentile", 1.0)
     )
 
-    def _maybe_quantize_expert_weight(
-        name: str,
-        data: torch.Tensor,
-    ) -> torch.Tensor:
-        if (
-            not quantize_experts_q40
-            or name not in {"w1", "w2", "w3"}
-            or _is_qtensor_like(data)
-        ):
-            return data
-        q_data = fp_to_tract_q4_0_with_min_max_calibration(
-            data.contiguous(),
-            percentile=quantize_experts_q40_percentile,
-        )
-        q_data.nnef_name = f"{node.outputs[0].name}_{name}"
-        return q_data
-
     def _add_weight(name: str, data: torch.Tensor):
-        data = _maybe_quantize_expert_weight(name, data)
+        data = _maybe_quantize_expert_weight(
+            node,
+            name,
+            data,
+            quantize_experts_q40,
+            quantize_experts_q40_percentile,
+        )
         wnode = tg.TensorVariable(
             name=f"{node.outputs[0].name}_{name}",
             data=data,
@@ -671,53 +727,9 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
         w3 = _add_weight("w3", adapter.expert_w3(moe))
         inputs.append(w3)
 
-    attrs = {
-        "k": adapter.top_k(moe),
-        "activation": adapter.activation(moe),
-        "gate": adapter.gate(moe),
-    }
+    attrs = _moe_attrs(adapter, moe)
 
-    # Optional biases. tract maps the call's positional inputs onto the op's
-    # parameter order (x, wg, w1, w2, w3, wg_bias, w1_bias, w3_bias, w2_bias),
-    # so biases must follow w3 contiguously. Every arch that has biases
-    # (gpt-oss) also has w3, so this stays a valid prefix.
-    gate_bias = adapter.gate_bias(moe)
-    w1_bias = adapter.expert_w1_bias(moe)
-    w3_bias = adapter.expert_w3_bias(moe)
-    w2_bias = adapter.expert_w2_bias(moe)
-    has_bias = any(
-        b is not None for b in (gate_bias, w1_bias, w3_bias, w2_bias)
-    )
-    if has_bias and not is_swiglu:
-        raise T2NErrorNotImplemented(
-            "MoE biases are only supported alongside a SwiGLU (w3) gate; "
-            f"got biases without w3 for {type(moe).__name__}"
-        )
-    if has_bias:
-        # Emit in the op's positional order; a missing bias would break the
-        # positional mapping, but gpt-oss provides all four.
-        for missing, label in (
-            (gate_bias, "wg_bias"),
-            (w1_bias, "w1_bias"),
-            (w3_bias, "w3_bias"),
-            (w2_bias, "w2_bias"),
-        ):
-            if missing is None:
-                raise T2NErrorNotImplemented(
-                    f"partial MoE bias set: {label} is missing while other "
-                    "biases are present (positional mapping needs all four)"
-                )
-        inputs.append(_add_weight("wg_bias", gate_bias))
-        inputs.append(_add_weight("w1_bias", w1_bias))
-        inputs.append(_add_weight("w3_bias", w3_bias))
-        inputs.append(_add_weight("w2_bias", w2_bias))
-
-    act_alpha = adapter.act_alpha(moe)
-    act_limit = adapter.act_limit(moe)
-    if act_alpha is not None:
-        attrs["act_alpha"] = act_alpha
-    if act_limit is not None:
-        attrs["act_limit"] = act_limit
+    _append_optional_moe_biases(moe, adapter, is_swiglu, inputs, _add_weight)
 
     # tract_moe_ffn is single-output (the routed hidden states). Some modules
     # (e.g. gpt-oss GptOssMLP) also return router_scores as a second output,

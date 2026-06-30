@@ -618,6 +618,7 @@ def _cast_attention_qk_operand_to_f32(g, src: NTensor, name: str) -> NTensor:
 @OP_REGISTRY.register(
     torch_op_ids=["matmul", "bmm", "mm"]
 )  # since NNEF matmul does not care about rank
+# pylint: disable-next=inconsistent-return-statements
 def matmul(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF.
 
@@ -654,9 +655,7 @@ def matmul(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
             isinstance(inference_target, TractNNEF)
             and inference_target.force_attention_inner_in_f32
         ):
-            expr = _decomposed_attention_qk_expr(
-                node, input_node, other_node
-            )
+            expr = _decomposed_attention_qk_expr(node, input_node, other_node)
             if expr is not None:
                 a_ref = _cast_attention_qk_operand_to_f32(
                     g, a_ref, f"{node.outputs[0].export_name}_a_f32"
