@@ -29,6 +29,11 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
+from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.quant import (
+    QTensor,
+    fp_to_tract_q4_0_with_min_max_calibration,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +61,15 @@ class _MoEWeightAdapter:
     def expert_w3(self, m: nn.Module) -> torch.Tensor:
         """Up projection [E, D, H] (SwiGLU up branch)."""
         raise T2NErrorNotImplemented()
+
+    def expert_sources(self, m: nn.Module) -> T.Sequence[torch.Tensor]:
+        """Raw tensors that feed expert_w1/w2/w3.
+
+        This is used only to detect pre-quantized expert sources. Most adapters
+        do not need to override it because split-time quantization is normally
+        requested explicitly via the module marker.
+        """
+        return ()
 
     def top_k(self, m: nn.Module) -> int:
         raise T2NErrorNotImplemented()
@@ -365,6 +379,9 @@ class _GraniteMoEAdapter(_MoEWeightAdapter):
     def expert_w2(self, m: nn.Module) -> torch.Tensor:
         return m.output_linear.weight.detach().transpose(-1, -2)
 
+    def expert_sources(self, m: nn.Module) -> T.Sequence[torch.Tensor]:
+        return (m.input_linear.weight, m.output_linear.weight)
+
     def top_k(self, m: nn.Module) -> int:
         return m.router.top_k
 
@@ -594,7 +611,42 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     adapter = _get_adapter(moe)
     is_swiglu = adapter.activation(moe) == "swiglu"
 
+    def _is_qtensor_like(tensor: torch.Tensor) -> bool:
+        if isinstance(tensor, QTensor):
+            return True
+        if not isinstance(tensor, OffloadedTensor):
+            return False
+        offloaded_type = getattr(tensor, "offloaded_tensor_type", None)
+        return isinstance(offloaded_type, type) and issubclass(
+            offloaded_type, QTensor
+        )
+
+    quantize_experts_q40 = bool(
+        getattr(moe, "_t2n_quantize_moe_experts_q40", False)
+    ) or any(_is_qtensor_like(src) for src in adapter.expert_sources(moe))
+    quantize_experts_q40_percentile = float(
+        getattr(moe, "_t2n_quantize_moe_experts_q40_percentile", 1.0)
+    )
+
+    def _maybe_quantize_expert_weight(
+        name: str,
+        data: torch.Tensor,
+    ) -> torch.Tensor:
+        if (
+            not quantize_experts_q40
+            or name not in {"w1", "w2", "w3"}
+            or _is_qtensor_like(data)
+        ):
+            return data
+        q_data = fp_to_tract_q4_0_with_min_max_calibration(
+            data.contiguous(),
+            percentile=quantize_experts_q40_percentile,
+        )
+        q_data.nnef_name = f"{node.outputs[0].name}_{name}"
+        return q_data
+
     def _add_weight(name: str, data: torch.Tensor):
+        data = _maybe_quantize_expert_weight(name, data)
         wnode = tg.TensorVariable(
             name=f"{node.outputs[0].name}_{name}",
             data=data,
