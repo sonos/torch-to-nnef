@@ -6,7 +6,7 @@ members = ["./src/nemo_asr/", "./src/nemo_asr_ffi", "src/nemo_asr_ffi"]
 [workspace.dependencies]
 anyhow = "1.0"
 env_logger = "0.11"
-itertools = "0.14"
+itertools = "0.15"
 log = "0.4"
 libc = "0.2"
 ffi-convert = "0.7"
@@ -18,7 +18,7 @@ tract-rs = { git = "https://github.com/sonos/tract.git", rev = "c484b3e" }
 # have to be aligned with tract version above: tract rev c484b3e uses ndarray
 # 0.16, so ndarray-npy stays on 0.9 (0.10 moved to ndarray 0.17 and breaks the
 # WriteNpyExt bound on tract-produced arrays).
-ndarray-npy = { version = "0.9", features = ["compressed_npz"] }
+ndarray-npy = { version = "0.10", features = ["compressed_npz"] }
 
 [profile.release]
 debug = true
