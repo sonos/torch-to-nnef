@@ -165,6 +165,7 @@ class TensorVariable(Data):
 
     quant: T.Optional[T.Dict[str, T.Any]] = None
     _traced_data: T.Optional[torch.Tensor] = None
+    module_attr: bool = False
 
     def set_data(  # pylint: disable=arguments-differ
         self, data, *args, force_shape=False, force_dtype=False, **kwargs

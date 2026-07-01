@@ -294,6 +294,7 @@ def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
                 shape=list(attr.shape),
                 dtype=attr.dtype,
                 data=attr,
+                module_attr=True,
             )
         )
         return
