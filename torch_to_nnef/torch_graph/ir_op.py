@@ -491,6 +491,26 @@ def _build_empty_tensor_from_infer_trace(
     return torch.empty(infered_shape, dtype=inputs[0].dtype)
 
 
+def _tensors_share_storage(left: torch.Tensor, right: torch.Tensor) -> bool:
+    """Return True when tensors alias the same underlying storage."""
+    if left.device.type == "meta" or right.device.type == "meta":
+        return False
+    try:
+        left_storage = (
+            left.untyped_storage()
+            if hasattr(left, "untyped_storage")
+            else left.storage()
+        )
+        right_storage = (
+            right.untyped_storage()
+            if hasattr(right, "untyped_storage")
+            else right.storage()
+        )
+        return left_storage.data_ptr() == right_storage.data_ptr()
+    except (AttributeError, RuntimeError):
+        return False
+
+
 @dataclass(frozen=True)
 class InferRule:
     fn: T.Optional[T.Callable[T.Any, torch.Size]]
@@ -733,6 +753,24 @@ class TorchOp:
             return False
         return True
 
+    def output_aliases_constant_input(self, result: torch.Tensor) -> bool:
+        """Detect view-like results derived from constant inputs.
+
+        These outputs should keep shape/dtype metadata, but should not be
+        recorded as new constants. Otherwise a graph like Granite MoE's packed
+        expert weight `select`s serializes every expert slice as an independent
+        tensor in addition to the original packed parameter.
+        """
+        for input_node in self.inputs:
+            input_data = getattr(input_node, "data", None)
+            if not getattr(input_node, "module_attr", False):
+                continue
+            if isinstance(input_data, torch.Tensor) and (
+                _tensors_share_storage(result, input_data)
+            ):
+                return True
+        return False
+
     @property
     def args(self) -> T.Tuple[T.Any, ...]:
         return tuple(_.tracing_data for _ in self.inputs)
@@ -817,7 +855,10 @@ class TorchOp:
                 f"for {self.op_ref}"
             )
         for data_node, result in zip(output_nodes, output_values, strict=False):
-            if self.has_constant_inputs:
+            result_aliases_constant_input = isinstance(
+                result, torch.Tensor
+            ) and self.output_aliases_constant_input(result)
+            if self.has_constant_inputs and not result_aliases_constant_input:
                 try:
                     if data_node.data is None or not (
                         data_node.data.shape == result.shape
