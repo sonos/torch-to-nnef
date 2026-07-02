@@ -243,8 +243,14 @@ def prepare_subnet_export(
         )
     )
     if axis_registry is not None:
+        # User/derived/slug extensions may reference source symbols that were
+        # renamed via ``renamed_symbols`` (e.g. AUDIO_SIGNAL__TIME -> S), so
+        # they must go through the same rewrite as the auto-generated ones.
         custom_ext.update(
-            axis_registry.extensions_per_subnet.get(subnet_name, [])
+            rewrite_assertions_with_renames(
+                axis_registry.extensions_per_subnet.get(subnet_name, []),
+                rename_map,
+            )
         )
 
     if axis_registry is not None and axis_registry.eval_symbols_per_input:
