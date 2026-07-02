@@ -1117,6 +1117,48 @@ def _gather_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _advanced_index_sample_st() -> st.SearchStrategy[OpSample]:
+    """`x[idx0, idx1]`: multi-tensor advanced indexing (`aten::index`).
+
+    The two index tensors have *broadcastable* (not identical) shapes
+    -- `(a, 1)` and `(1, b)` -- so torch broadcasts them to `(a, b)`
+    before gathering. This exercises the `_gather_nd` broadcast path
+    (regression: transformers 5.x mask indexing passes `[B,1,1,1]` and
+    `[1,1,1,S]`, which previously produced an inconsistent NNEF concat).
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        d0 = draw(st.integers(min_value=2, max_value=5))
+        d1 = draw(st.integers(min_value=2, max_value=5))
+        a = draw(st.integers(min_value=1, max_value=3))
+        b = draw(st.integers(min_value=1, max_value=3))
+        idx0 = draw(
+            tensor_st(
+                (a, 1), torch.int64, finite=True, domain=Interval(0, d0 - 1)
+            )
+        )
+        idx1 = draw(
+            tensor_st(
+                (1, b), torch.int64, finite=True, domain=Interval(0, d1 - 1)
+            )
+        )
+        x = draw(
+            tensor_st(
+                (d0, d1),
+                torch.float32,
+                finite=True,
+                domain=Interval(-1e2, 1e2),
+            )
+        )
+        return OpSample(
+            inputs=(x, idx0, idx1),
+            module=TernaryPrimitive(lambda t, i0, i1: t[i0, i1]),
+        )
+
+    return _draw()
+
+
 def _masked_fill_sample_st() -> st.SearchStrategy[OpSample]:
     """`Tensor.masked_fill(mask, value)`: bool mask, scalar value."""
 
@@ -1203,6 +1245,11 @@ def _selector_specs() -> T.List[OpSpec]:
         OpSpec(
             name="gather",
             sample_st=_gather_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="advanced_index",
+            sample_st=_advanced_index_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(

@@ -521,55 +521,91 @@ def index_(node, op_helper, inference_target, **kwargs):
 
 def _gather_nd(node, op_helper):
     input_node, indexes_node = node.inputs
-    inputs = []
+    idx_nodes = list(indexes_node.data)
 
-    for idx_node in indexes_node.data:
+    # Cast each index to TDim (tract_core_gather_nd consumes TDim coords).
+    tdim_refs = []
+    for idx_node in idx_nodes:
         i_ref = op_helper.get_or_add_tensor_variable_in_nnef(idx_node)
-        casted_i_ref = op_helper.add_single_output_op_from_nnef_tensors(
-            node,
-            "tract_core_cast",
-            inputs=[i_ref],
-            attrs={"to": "TDim"},
-            force_full_output_tensor_name=f"{i_ref.name}_as_tdim",
-        )
-        casted_unsqueezed_i_ref = (
+        tdim_refs.append(
             op_helper.add_single_output_op_from_nnef_tensors(
                 node,
-                "unsqueeze",
-                inputs=[casted_i_ref],
-                attrs={"axes": [0]},
-                force_full_output_tensor_name=f"{i_ref.name}_as_tdim_d1",
+                "tract_core_cast",
+                inputs=[i_ref],
+                attrs={"to": "TDim"},
+                force_full_output_tensor_name=f"{i_ref.name}_as_tdim",
             )
         )
-        inputs.append(casted_unsqueezed_i_ref)
+
+    # PyTorch advanced indexing broadcasts the index tensors against each
+    # other before gathering, so `input[idx0, idx1, ...]` uses the common
+    # broadcast shape of the idx tensors. tract_core_gather_nd instead needs
+    # a single coordinate tensor whose leading shape is shared by every
+    # index. When the idx tensors differ in shape (e.g. transformers 5.x
+    # mask indexing with `[B,1,1,1]` and `[1,1,1,S]`), broadcast them to
+    # their common shape first via an additive zero frame -- tract broadcasts
+    # elementwise TDim adds natively, including symbolic/dynamic dims, so no
+    # explicit repeats need resolving.
+    if len({tuple(idx.shape) for idx in idx_nodes}) > 1:
+        zero_frame = None
+        for i, ref in enumerate(tdim_refs):
+            zero = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "sub",
+                inputs=[ref, ref],
+                force_consistent_inputs_shapes=False,
+                force_full_output_tensor_name=f"{ref.name}_gnd_zero_{i}",
+            )
+            if zero_frame is None:
+                zero_frame = zero
+            else:
+                zero_frame = op_helper.add_single_output_op_from_nnef_tensors(
+                    node,
+                    "add",
+                    inputs=[zero_frame, zero],
+                    force_consistent_inputs_shapes=False,
+                    force_full_output_tensor_name=f"{ref.name}_gnd_zframe_{i}",
+                )
+        tdim_refs = [
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "add",
+                inputs=[ref, zero_frame],
+                force_consistent_inputs_shapes=False,
+                force_full_output_tensor_name=f"{ref.name}_gnd_bcast",
+            )
+            for ref in tdim_refs
+        ]
+
+    # Stack the (now shape-consistent) coordinates on a trailing axis so the
+    # result is `[*broadcast_shape, num_indexed_dims]`, the layout expected by
+    # tract_core_gather_nd (batch_dims=0).
+    coord_axis = max(len(idx.shape) for idx in idx_nodes)
+    coord_refs = [
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=[ref],
+            attrs={"axes": [coord_axis]},
+            force_full_output_tensor_name=f"{ref.name}_coord",
+        )
+        for ref in tdim_refs
+    ]
     concat_ref = op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "concat",
-        inputs=inputs,
+        inputs=coord_refs,
         ensure_tuple=False,
-        attrs={
-            "axis": 0,
-        },
+        attrs={"axis": coord_axis},
         force_consistent_inputs_shapes=False,
         output_tensor_name_suffix="indices_concat",
-    )
-    t_concat_ref = op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        "transpose",
-        inputs=concat_ref,
-        ensure_tuple=False,
-        attrs={
-            "axes": [1, 0],
-        },
-        force_consistent_inputs_shapes=False,
-        output_tensor_name_suffix="indices_concat_t",
     )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "tract_core_gather_nd",
         inputs=[
             op_helper.get_or_add_tensor_variable_in_nnef(input_node),
-            t_concat_ref,
+            concat_ref,
         ],
         attrs={
             "batch_dims": 0,
