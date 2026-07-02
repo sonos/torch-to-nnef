@@ -7,7 +7,12 @@ dependencies = [
     "torch==2.7.0",
     "torchaudio==2.7.0",
     "torchvision==0.22.0",
-    "transformers==4.53.2",
+    # Pinned <5: t2n's ALBERT export currently regresses on transformers 5.x
+    # (SDPA receives a long attn_mask; graph-build errors), same gap as the
+    # llm_wasm example. Examples are not in the Trivy CVE gate, so this stays
+    # here rather than forcing the incompatible bump. Revisit when 5.x export
+    # is supported.
+    "transformers>=4.35.2,<5",
     "sentencepiece==0.2.1",
 ]
 
