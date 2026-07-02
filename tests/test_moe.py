@@ -128,6 +128,29 @@ def _assert_moe_expert_weights_q40(
                 assert header.dims == expected_shapes[suffix]
 
 
+def _assert_moe_expert_weight_shapes(
+    inference_target,
+    path,
+    expected_count,
+    expected_shapes,
+):
+    """Check split expert tensor shapes independently of their storage dtype."""
+    if not isinstance(inference_target, TractNNEF):
+        return
+    with tempfile.TemporaryDirectory() as td, tarfile.open(path, "r:*") as tf:
+        members = [
+            m
+            for m in tf.getmembers()
+            if m.name.endswith(("_w1.dat", "_w2.dat", "_w3.dat"))
+        ]
+        assert len(members) == expected_count, [m.name for m in members]
+        for member in members:
+            tf.extract(member, td)
+            header = DatBinHeader.from_dat(Path(td) / member.name)
+            suffix = member.name.rsplit("_", 1)[-1].removesuffix(".dat")
+            assert header.dims == expected_shapes[suffix]
+
+
 def _assert_graph_contains(inference_target, path, fragment):
     if not isinstance(inference_target, TractNNEF):
         return
@@ -173,10 +196,44 @@ def test_moe_ffn_split_experts_q40(inference_target):
     )
 
 
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_split_experts_linear_layout(inference_target):
+    """Export MoE experts in native linear-filter layout."""
+    _skip_if_unsupported(inference_target)
+    model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=64, k=2)
+    model.moe._t2n_moe_expert_layout = "linear"
+    model.eval()
+
+    def _assert_linear_layout(inference_target, path):
+        _assert_graph_contains(
+            inference_target,
+            path,
+            "expert_layout = 'linear'",
+        )
+        _assert_moe_expert_weight_shapes(
+            inference_target,
+            path,
+            expected_count=2,
+            expected_shapes={
+                "w1": [4, 64, 32],
+                "w2": [4, 32, 64],
+            },
+        )
+
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 32),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=inference_target,
+        callback_post_export=_assert_linear_layout,
+    )
+
+
 @skipif_unsupported_qtensor
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_moe_ffn_split_experts_q40_linear_layout(inference_target):
-    """Export Q40 experts in linear layout for tract packed Q40 matmuls."""
+    """Export Q40 experts after independently selecting linear layout."""
     _skip_if_unsupported(inference_target)
     export_target = deepcopy(inference_target)
     export_target.check_io = False

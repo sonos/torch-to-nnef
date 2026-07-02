@@ -14,6 +14,10 @@ All variants are normalized to the same tract_moe_ffn signature:
              sigmoid | raw), optional act_alpha / act_limit (clamped SwiGLU),
              optional expert_layout ("canonical" | "linear")
     output:  y [T,D]
+The default canonical expert layout matches the signature above. The optional
+linear layout stores expert weights in their native linear-filter orientation:
+    w1/w3 [E,H,D], w2 [E,D,H]
+Layout selection is independent from whether those tensors are quantized.
 A shared expert (Qwen2 / Qwen3.5) is emitted as a standard NNEF subgraph
 added on top of the routed output, not baked into the op.
 """
@@ -651,8 +655,8 @@ def _layout_expert_weight(
         return data
     # Adapters normalize experts to the canonical tract_moe_ffn shapes:
     # w1/w3 [E,D,H], w2 [E,H,D]. The linear layout keeps native nn.Linear
-    # storage instead: w1/w3 [E,H,D], w2 [E,D,H], so Q40's last axis is the
-    # contraction K axis for the packed tract matmul kernels.
+    # storage instead: w1/w3 [E,H,D], w2 [E,D,H]. This is a layout contract,
+    # independent from whether the tensors are stored as f32/f16 or quantized.
     return data.transpose(-1, -2)
 
 
