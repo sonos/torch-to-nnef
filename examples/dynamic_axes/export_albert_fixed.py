@@ -5,8 +5,12 @@ from transformers import AlbertModel, AlbertTokenizer
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 tokenizer = AlbertTokenizer.from_pretrained("albert-base-v2")
+# transformers 5.x no longer returns token_type_ids by default; request it
+# explicitly so the export below keeps its three-input signature on 4.x and 5.x.
 inputs = tokenizer(
-    ["Hello, I am happy", "and also I am blond"], return_tensors="pt"
+    ["Hello, I am happy", "and also I am blond"],
+    return_tensors="pt",
+    return_token_type_ids=True,
 )
 albert_model = AlbertModel.from_pretrained("albert-base-v2")
 
