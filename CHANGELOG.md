@@ -3,6 +3,8 @@
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-07-02
+
 ### Added
 - LLM export: opt-in **`--upcast-quant`** (loader `upcast_quant=`) to dequantize a natively-quantized model (mxfp4, fp8, bitsandbytes, ...) to dense float before export, since tract cannot ingest those formats. Selectable per quant method (names from transformers' `QuantizationMethod`, e.g. `mxfp4`, `mxfp4,fp8`) or `any`, validated up-front (requires transformers >= 4.38). Routes by mechanism: load-time `dequantize=True` for mxfp4/fp8/metal, post-load `model.dequantize()` for bnb/higgs, then verifies the result is fully dense (a format transformers cannot dequantize fails with a clear error). Compose with `-dt` (float target) and `-c` (re-quantize to a tract scheme).
 - **LLM: dynamic `logits_to_keep`** as a runtime input (`--num-logits-to-keep dynamic`). The model emits all positions and the wrapper gathers the last `k` rows at runtime, so a single export serves both cheap prefill and speculative decode without re-exporting. The integer form is unchanged.
