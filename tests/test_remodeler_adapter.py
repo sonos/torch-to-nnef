@@ -1,5 +1,8 @@
+import types
+
 import torch
 
+from torch_to_nnef.remodeler import prepare_subnet_export
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter
 
 
@@ -276,3 +279,49 @@ def test_outputs_keep_raw_container_name_returns_nothing():
     result = ba(torch.zeros(2, 4))
     assert isinstance(result, tuple)
     assert len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# Extension symbol-rename tests
+# ---------------------------------------------------------------------------
+
+
+def _fake_registry(*, renamed, extensions):
+    """Minimal stand-in exposing the attributes prepare_subnet_export reads."""
+    return types.SimpleNamespace(
+        eval_symbols_per_input={},
+        renamed_symbols_per_subnet=renamed,
+        outputs_keep_per_subnet={},
+        input_collapse_dims={},
+        bind_to_dim={},
+        output_collapse_dims={},
+        extensions_per_subnet=extensions,
+    )
+
+
+def test_user_extensions_get_symbol_renames_applied():
+    """User-provided extensions must honor ``renamed_symbols`` (regression).
+
+    A shape config that renames AUDIO_SIGNAL__TIME -> S while also declaring
+    ``extensions: [tract_assert AUDIO_SIGNAL__TIME<=39993]`` used to emit the
+    assertion with the un-renamed symbol, referencing a symbol tract never
+    declares.
+    """
+    reg = _fake_registry(
+        renamed={"encoder": {"S": ["AUDIO_SIGNAL__TIME"]}},
+        extensions={"encoder": ["tract_assert AUDIO_SIGNAL__TIME<=39993"]},
+    )
+    prepared = prepare_subnet_export(
+        model=torch.nn.Identity(),
+        test_input=[torch.zeros(1, 128, 16)],
+        input_names=["audio_signal"],
+        output_names=["outputs"],
+        subnet_name="encoder",
+        dyn={"audio_signal": {2: "AUDIO_SIGNAL__TIME"}},
+        custom_extensions=["tract_assert AUDIO_SIGNAL__TIME >= 1"],
+        axis_registry=reg,
+    )
+    exts = prepared.custom_extensions
+    assert "tract_assert S<=39993" in exts
+    assert "tract_assert S >= 1" in exts
+    assert not any("AUDIO_SIGNAL__TIME" in e for e in exts)
