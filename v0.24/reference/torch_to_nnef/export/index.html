@@ -15,19 +15,22 @@
         <link rel="next" href="../inference_target/">
       
       
+        
+      
+      
       <link rel="icon" href="../../../img/t2n_ico.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>torch_to_nnef.export - Torch → NNEF documentation</title>
+        <title>export - Torch → NNEF documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -54,7 +57,6 @@
     
       
 
-    
     
     
   </head>
@@ -140,7 +142,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              torch_to_nnef.export
+              export
             
           </span>
         </div>
@@ -247,7 +249,7 @@
         <a href="https://github.com/sonos/torch-to-nnef" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     GitHub
@@ -293,7 +295,7 @@
       <a href="https://github.com/sonos/torch-to-nnef" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     GitHub
@@ -315,9 +317,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Home
+  
+
     
   </span>
+  
   
 
       </a>
@@ -348,9 +355,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     📖 Tutorials
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -359,7 +371,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
-            📖 Tutorials
+            
+  
+    📖 Tutorials
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -375,9 +391,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     1. Getting started
+  
+
     
   </span>
+  
   
 
       </a>
@@ -398,9 +419,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     2. NNEF archive
+  
+
     
   </span>
+  
   
 
       </a>
@@ -421,9 +447,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     3. Model with multiple inputs or outputs
+  
+
     
   </span>
+  
   
 
       </a>
@@ -444,9 +475,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     4. Dynamic axes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -467,9 +503,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     5. Large Language Models
+  
+
     
   </span>
+  
   
 
       </a>
@@ -490,9 +531,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     6. Quantization
+  
+
     
   </span>
+  
   
 
       </a>
@@ -513,9 +559,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     7. Offloaded tensors
+  
+
     
   </span>
+  
   
 
       </a>
@@ -536,9 +587,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     8. Custom operators
+  
+
     
   </span>
+  
   
 
       </a>
@@ -559,9 +615,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     9. Tensors only export
+  
+
     
   </span>
+  
   
 
       </a>
@@ -582,9 +643,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     10. Nemo ASR export & eval
+  
+
     
   </span>
+  
   
 
       </a>
@@ -605,9 +671,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     11. Shapes remodeler
+  
+
     
   </span>
+  
   
 
       </a>
@@ -628,9 +699,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     12. Exporting JIT-only models
+  
+
     
   </span>
+  
   
 
       </a>
@@ -658,9 +734,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Export API
+  
+
     
   </span>
+  
   
 
       </a>
@@ -693,9 +774,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Internals API
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -704,7 +790,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
-            Internals API
+            
+  
+    Internals API
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -733,9 +823,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -744,7 +839,11 @@
         <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -760,9 +859,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     torch_to_nnef
+  
+
     
   </span>
+  
   
 
       </a>
@@ -783,9 +887,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>collect_env
+  
+
     
   </span>
+  
   
 
       </a>
@@ -806,9 +915,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>compress
+  
+
     
   </span>
+  
   
 
       </a>
@@ -829,9 +943,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>console
+  
+
     
   </span>
+  
   
 
       </a>
@@ -852,9 +971,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dtypes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -875,9 +999,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exceptions
+  
+
     
   </span>
+  
   
 
       </a>
@@ -899,15 +1028,22 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
           
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>export
+  
+
     
   </span>
+  
   
 
           <span class="md-nav__icon md-icon"></span>
@@ -918,9 +1054,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>export
+  
+
     
   </span>
+  
   
 
       </a>
@@ -931,6 +1072,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -939,46 +1082,371 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.export" class="md-nav__link">
+  <a href="#torch_to_nnef.export.export_model_to_nnef" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;export
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_model_to_nnef
+      
     </span>
   </a>
   
-    <nav class="md-nav" aria-label=" export">
+    <nav class="md-nav" aria-label=" export_model_to_nnef">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.export.export_model_to_nnef" class="md-nav__link">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(model)" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_model_to_nnef
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;model
+      
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(args)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;args
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(file_path_export)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;file_path_export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(inference_target)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;inference_target
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(input_names)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;input_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(output_names)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;output_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(compression_level)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;compression_level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(log_level)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;log_level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(nnef_variable_naming_scheme)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;nnef_variable_naming_scheme
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(check_io_names_qte_match)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;check_io_names_qte_match
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(debug_bundle_path)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;debug_bundle_path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(custom_extensions)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;custom_extensions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(allow_same_io_names)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;allow_same_io_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(auto_harden_jit)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;auto_harden_jit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(load_extra_op_modules)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;load_extra_op_modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(discover_extra_entrypoints)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;discover_extra_entrypoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(strict_extra_imports)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;strict_extra_imports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(skip_eager_forward)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;skip_eager_forward
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_tensors_from_disk_to_nnef
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_tensors_from_disk_to_nnef
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" export_tensors_from_disk_to_nnef">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(store_filepath)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;store_filepath
+      
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(output_dir)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;output_dir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(filter_key)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;filter_key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(fn_check_found_tensors)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;fn_check_found_tensors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(map_location)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;map_location
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.export.export_tensors_to_nnef" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_tensors_to_nnef
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_tensors_to_nnef
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" export_tensors_to_nnef">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_to_nnef(name_to_torch_tensors)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;name_to_torch_tensors
+      
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_to_nnef(output_dir)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;output_dir
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.export.iter_torch_tensors_from_disk" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;iter_torch_tensors_from_disk
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;iter_torch_tensors_from_disk
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" iter_torch_tensors_from_disk">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.iter_torch_tensors_from_disk(store_filepath)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;store_filepath
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.iter_torch_tensors_from_disk(filter_key)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;filter_key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.iter_torch_tensors_from_disk(map_location)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;map_location
+      
     </span>
   </a>
   
@@ -1021,9 +1489,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1032,7 +1505,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_8_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_8">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1048,9 +1525,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.inference_target
+    
+  
+    inference_target
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1071,9 +1553,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1094,9 +1581,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>khronos
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1117,9 +1609,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tract
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1148,9 +1645,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>log
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1171,9 +1673,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>model_wrapper
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1194,9 +1701,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>nnef_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1228,9 +1740,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1239,7 +1756,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1255,9 +1776,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op
+    
+  
+    op
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1289,9 +1815,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1300,7 +1831,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_2">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1316,9 +1851,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.aten
+    
+  
+    aten
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1339,9 +1879,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>activation
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1362,9 +1907,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>attn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1385,9 +1935,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>axes_change
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1408,9 +1963,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>complex
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1431,9 +1991,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>concat
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1454,9 +2019,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>expand
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1477,9 +2047,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fft
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1500,9 +2075,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>loss
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1523,9 +2103,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>math
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1546,9 +2131,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>matmul
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1569,9 +2159,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>norm
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1592,9 +2187,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>other
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1615,9 +2215,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>pad
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1638,9 +2243,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>pool
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1661,9 +2271,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>qops
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1684,9 +2299,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>reducer
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1707,9 +2327,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1730,9 +2355,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>selector
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1753,9 +2383,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>split
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1776,9 +2411,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor_build
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1799,9 +2439,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>unary
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1841,9 +2486,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1852,7 +2502,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_3">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1868,9 +2522,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.custom_extractors
+    
+  
+    custom_extractors
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1891,9 +2550,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1914,9 +2578,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1956,9 +2625,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1967,7 +2641,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_4">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1983,9 +2661,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.extras
+    
+  
+    extras
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2006,9 +2689,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exp_norm
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2029,9 +2717,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>scan_ops
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2060,9 +2753,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fragment
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2083,9 +2781,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>helper
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2106,9 +2809,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quantized
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2148,9 +2856,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2159,7 +2872,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_13_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_13">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2175,9 +2892,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.remodeler
+    
+  
+    remodeler
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2198,9 +2920,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>adapter
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2221,9 +2948,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dyn_axes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2244,9 +2976,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inspect_utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2267,9 +3004,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rich_render
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2290,9 +3032,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>schema
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2313,9 +3060,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>serialize
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2355,9 +3107,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2366,7 +3123,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_14_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_14">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2382,9 +3143,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.tensor
+    
+  
+    tensor
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2405,9 +3171,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>named
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2428,9 +3199,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>offload
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2451,9 +3227,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>opaque
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2485,9 +3266,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2496,7 +3282,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_14_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_14_5">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2512,9 +3302,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.tensor.quant
+    
+  
+    quant
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2535,9 +3330,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2558,9 +3358,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>qtract
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2589,9 +3394,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>updater
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2612,9 +3422,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2654,9 +3469,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2665,7 +3485,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_15_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_15">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2681,9 +3505,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.torch_graph
+    
+  
+    torch_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2704,9 +3533,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2727,9 +3561,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_data
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2750,9 +3589,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2773,9 +3617,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_helpers
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2796,9 +3645,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_module_tracer
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2819,9 +3673,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_naming
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2842,9 +3701,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_op
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2865,9 +3729,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2888,9 +3757,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2911,9 +3785,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2934,9 +3813,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_const
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2965,9 +3849,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3014,9 +3903,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Contributing
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -3025,7 +3919,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
-            Contributing
+            
+  
+    Contributing
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -3041,9 +3939,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Guidelines
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3064,9 +3967,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Extras API
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3087,9 +3995,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Internal design
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3110,9 +4023,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Supported aten operators
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3133,9 +4051,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Add new aten operator
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3156,9 +4079,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Debugging
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3186,9 +4114,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Why NNEF
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3208,9 +4141,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Backstory
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3230,9 +4168,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Live demos
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3252,9 +4195,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Changelog
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3279,6 +4227,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -3287,46 +4237,371 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.export" class="md-nav__link">
+  <a href="#torch_to_nnef.export.export_model_to_nnef" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;export
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_model_to_nnef
+      
     </span>
   </a>
   
-    <nav class="md-nav" aria-label=" export">
+    <nav class="md-nav" aria-label=" export_model_to_nnef">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.export.export_model_to_nnef" class="md-nav__link">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(model)" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_model_to_nnef
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;model
+      
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(args)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;args
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(file_path_export)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;file_path_export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(inference_target)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;inference_target
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(input_names)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;input_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(output_names)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;output_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(compression_level)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;compression_level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(log_level)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;log_level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(nnef_variable_naming_scheme)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;nnef_variable_naming_scheme
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(check_io_names_qte_match)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;check_io_names_qte_match
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(debug_bundle_path)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;debug_bundle_path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(custom_extensions)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;custom_extensions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(allow_same_io_names)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;allow_same_io_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(auto_harden_jit)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;auto_harden_jit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(load_extra_op_modules)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;load_extra_op_modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(discover_extra_entrypoints)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;discover_extra_entrypoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(strict_extra_imports)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;strict_extra_imports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_model_to_nnef(skip_eager_forward)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;skip_eager_forward
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_tensors_from_disk_to_nnef
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_tensors_from_disk_to_nnef
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" export_tensors_from_disk_to_nnef">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(store_filepath)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;store_filepath
+      
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(output_dir)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;output_dir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(filter_key)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;filter_key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(fn_check_found_tensors)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;fn_check_found_tensors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_from_disk_to_nnef(map_location)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;map_location
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.export.export_tensors_to_nnef" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_tensors_to_nnef
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_tensors_to_nnef
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" export_tensors_to_nnef">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_to_nnef(name_to_torch_tensors)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;name_to_torch_tensors
+      
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.export_tensors_to_nnef(output_dir)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;output_dir
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.export.iter_torch_tensors_from_disk" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;iter_torch_tensors_from_disk
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;iter_torch_tensors_from_disk
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" iter_torch_tensors_from_disk">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.iter_torch_tensors_from_disk(store_filepath)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;store_filepath
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.iter_torch_tensors_from_disk(filter_key)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;filter_key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.export.iter_torch_tensors_from_disk(map_location)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;map_location
+      
     </span>
   </a>
   
@@ -3347,29 +4622,86 @@
           
           
             <div class="md-content" data-md-component="content">
+              
               <article class="md-content__inner md-typeset">
                 
                   
 
 
 
-  <h1><code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>export</h1>
-
 <div class="doc doc-object doc-module">
 
 
 
-<h3 id="torch_to_nnef.export" class="doc doc-heading">
+<h1 id="torch_to_nnef.export" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.export</span>
 
 
-</h3>
+</h1>
 
     <div class="doc doc-contents first">
 
 
 
-  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Functions:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            export_model_to_nnef (torch_to_nnef.export.export_model_to_nnef)" href="../../../export_api/#torch_to_nnef.export.export_model_to_nnef">export_model_to_nnef</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Main entrypoint of this library.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            export_tensors_from_disk_to_nnef (torch_to_nnef.export.export_tensors_from_disk_to_nnef)" href="../../../export_api/#torch_to_nnef.export.export_tensors_from_disk_to_nnef">export_tensors_from_disk_to_nnef</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Export any statedict or safetensors file torch.Tensors to NNEF .dat file.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            export_tensors_to_nnef (torch_to_nnef.export.export_tensors_to_nnef)" href="../../../export_api/#torch_to_nnef.export.export_tensors_to_nnef">export_tensors_to_nnef</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Export any torch.Tensors list to NNEF .dat file.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            iter_torch_tensors_from_disk (torch_to_nnef.export.iter_torch_tensors_from_disk)" href="../../../export_api/#torch_to_nnef.export.iter_torch_tensors_from_disk">iter_torch_tensors_from_disk</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Iter on torch tensors from disk .safetensors, .pt, pth, .bin.</p>
+                </div>
+              </td>
+            </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+<div class="doc doc-children">
+
 
 
 
@@ -3382,12 +4714,12 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.export.export_model_to_nnef" class="doc doc-heading">
+<h2 id="torch_to_nnef.export.export_model_to_nnef" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">export_model_to_nnef</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_model_to_nnef</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">file_path_export</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">inference_target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">input_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">compression_level</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">check_io_names_qte_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">debug_bundle_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">custom_extensions</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">allow_same_io_names</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">auto_harden_jit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">load_extra_op_modules</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">discover_extra_entrypoints</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">strict_extra_imports</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">skip_eager_forward</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_model_to_nnef</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">Module</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">file_path_export</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">inference_target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">input_names</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_names</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">compression_level</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">check_io_names_qte_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">debug_bundle_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">custom_extensions</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">allow_same_io_names</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">auto_harden_jit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">load_extra_op_modules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">discover_extra_entrypoints</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">strict_extra_imports</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">skip_eager_forward</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3408,7 +4740,9 @@
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code>model</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(model)" class="doc doc-heading doc-heading-parameter">                  <code>model</code>
+</h3>            </td>
             <td>
                   <code><span title="torch.nn.Module">Module</span></code>
             </td>
@@ -3425,7 +4759,9 @@ Only this function will be serialized</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>args</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(args)" class="doc doc-heading doc-heading-parameter">                  <code>args</code>
+</h3>            </td>
             <td>
             </td>
             <td>
@@ -3442,7 +4778,9 @@ in consideration for dynamic axes</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>file_path_export</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(file_path_export)" class="doc doc-heading doc-heading-parameter">                  <code>file_path_export</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Union">Union</span>[<span title="pathlib.Path">Path</span>, <span title="str">str</span>]</code>
             </td>
@@ -3465,7 +4803,9 @@ Any other suffix pattern is rejected.</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>inference_target</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(inference_target)" class="doc doc-heading doc-heading-parameter">                  <code>inference_target</code>
+</h3>            </td>
             <td>
                   <code><a class="autorefs autorefs-internal" title="            InferenceTarget (torch_to_nnef.inference_target.InferenceTarget)" href="../inference_target/#torch_to_nnef.inference_target.InferenceTarget">InferenceTarget</a></code>
             </td>
@@ -3500,7 +4840,9 @@ for each you can specify version targeted:
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>input_names</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(input_names)" class="doc doc-heading doc-heading-parameter">                  <code>input_names</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="typing.List">List</span>[<span title="str">str</span>]]</code>
             </td>
@@ -3516,7 +4858,9 @@ variable inputs names traced from graph
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>output_names</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(output_names)" class="doc doc-heading doc-heading-parameter">                  <code>output_names</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="typing.List">List</span>[<span title="str">str</span>]]</code>
             </td>
@@ -3532,7 +4876,9 @@ it replaces variable output names traced from graph
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>compression_level</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(compression_level)" class="doc doc-heading doc-heading-parameter">                  <code>compression_level</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>
             </td>
@@ -3550,7 +4896,9 @@ given compression level.</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>log_level</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(log_level)" class="doc doc-heading doc-heading-parameter">                  <code>log_level</code>
+</h3>            </td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
@@ -3567,7 +4915,9 @@ INFO, WARN, DEBUG ...</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>nnef_variable_naming_scheme</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(nnef_variable_naming_scheme)" class="doc doc-heading doc-heading-parameter">                  <code>nnef_variable_naming_scheme</code>
+</h3>            </td>
             <td>
                   <code><span title="torch_to_nnef.torch_graph.ir_naming.VariableNamingScheme">VariableNamingScheme</span></code>
             </td>
@@ -3588,7 +4938,9 @@ INFO, WARN, DEBUG ...</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>check_io_names_qte_match</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(check_io_names_qte_match)" class="doc doc-heading doc-heading-parameter">                  <code>check_io_names_qte_match</code>
+</h3>            </td>
             <td>
                   <code><span title="bool">bool</span></code>
             </td>
@@ -3607,7 +4959,9 @@ that this input and output quantity remain constant with numbers in
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>debug_bundle_path</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(debug_bundle_path)" class="doc doc-heading doc-heading-parameter">                  <code>debug_bundle_path</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="pathlib.Path">Path</span>]</code>
             </td>
@@ -3623,7 +4977,9 @@ information to allow easier debug.</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>custom_extensions</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(custom_extensions)" class="doc doc-heading doc-heading-parameter">                  <code>custom_extensions</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="typing.List">List</span>[<span title="str">str</span>]]</code>
             </td>
@@ -3644,7 +5000,9 @@ that are not expressed in traced graph
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>allow_same_io_names</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(allow_same_io_names)" class="doc doc-heading doc-heading-parameter">                  <code>allow_same_io_names</code>
+</h3>            </td>
             <td>
                   <code><span title="bool">bool</span></code>
             </td>
@@ -3665,7 +5023,9 @@ Some libs like 'nvidia/nemo' use this pattern.
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>auto_harden_jit</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(auto_harden_jit)" class="doc doc-heading doc-heading-parameter">                  <code>auto_harden_jit</code>
+</h3>            </td>
             <td>
                   <code><span title="bool">bool</span></code>
             </td>
@@ -3686,7 +5046,9 @@ to drive the chain manually for fine-grained control.</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>load_extra_op_modules</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(load_extra_op_modules)" class="doc doc-heading doc-heading-parameter">                  <code>load_extra_op_modules</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="typing.List">List</span>[<span title="str">str</span>]]</code>
             </td>
@@ -3707,7 +5069,9 @@ via the <code>TORCH_TO_NNEF_EXTRA_MODULES</code> environment variable
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>discover_extra_entrypoints</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(discover_extra_entrypoints)" class="doc doc-heading doc-heading-parameter">                  <code>discover_extra_entrypoints</code>
+</h3>            </td>
             <td>
                   <code><span title="bool">bool</span></code>
             </td>
@@ -3725,7 +5089,9 @@ entry point value should be a module path that performs the
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>strict_extra_imports</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(strict_extra_imports)" class="doc doc-heading doc-heading-parameter">                  <code>strict_extra_imports</code>
+</h3>            </td>
             <td>
                   <code><span title="bool">bool</span></code>
             </td>
@@ -3742,7 +5108,9 @@ False, log a warning and continue.</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>skip_eager_forward</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_model_to_nnef(skip_eager_forward)" class="doc doc-heading doc-heading-parameter">                  <code>skip_eager_forward</code>
+</h3>            </td>
             <td>
                   <code><span title="bool">bool</span></code>
             </td>
@@ -3817,6 +5185,7 @@ as simple perceptron model:</p>
 </span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="go">True</span>
 </span></code></pre></div>
 
+
     </div>
 
 </div>
@@ -3824,12 +5193,12 @@ as simple perceptron model:</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.export.export_tensors_from_disk_to_nnef" class="doc doc-heading">
+<h2 id="torch_to_nnef.export.export_tensors_from_disk_to_nnef" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">export_tensors_from_disk_to_nnef</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_tensors_from_disk_to_nnef</span><span class="p">(</span><span class="n">store_filepath</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">output_dir</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">filter_key</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">fn_check_found_tensors</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">map_location</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpu&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_tensors_from_disk_to_nnef</span><span class="p">(</span><span class="n">store_filepath</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">output_dir</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">filter_key</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">fn_check_found_tensors</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">map_location</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">device</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpu&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3849,7 +5218,9 @@ as simple perceptron model:</p>
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code>store_filepath</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_tensors_from_disk_to_nnef(store_filepath)" class="doc doc-heading doc-heading-parameter">                  <code>store_filepath</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Union">Union</span>[<span title="pathlib.Path">Path</span>, <span title="str">str</span>]</code>
             </td>
@@ -3864,7 +5235,9 @@ containing the state dict</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>output_dir</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_tensors_from_disk_to_nnef(output_dir)" class="doc doc-heading doc-heading-parameter">                  <code>output_dir</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Union">Union</span>[<span title="pathlib.Path">Path</span>, <span title="str">str</span>]</code>
             </td>
@@ -3878,7 +5251,9 @@ containing the state dict</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>filter_key</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_tensors_from_disk_to_nnef(filter_key)" class="doc doc-heading doc-heading-parameter">                  <code>filter_key</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="typing.Callable">Callable</span>[[<span title="str">str</span>], <span title="bool">bool</span>]]</code>
             </td>
@@ -3892,7 +5267,9 @@ containing the state dict</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>fn_check_found_tensors</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_tensors_from_disk_to_nnef(fn_check_found_tensors)" class="doc doc-heading doc-heading-parameter">                  <code>fn_check_found_tensors</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="typing.Callable">Callable</span>[[<span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="torch_to_nnef.export._Tensor">_Tensor</span>]], <span title="bool">bool</span>]]</code>
             </td>
@@ -3907,7 +5284,9 @@ effectively been dumped</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>map_location</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_tensors_from_disk_to_nnef(map_location)" class="doc doc-heading doc-heading-parameter">                  <code>map_location</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="torch.device">device</span>]</code>
             </td>
@@ -3977,6 +5356,7 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
 </span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="go">[&#39;a.weight&#39;, &#39;a.bias&#39;]</span>
 </span></code></pre></div>
 
+
     </div>
 
 </div>
@@ -3984,12 +5364,12 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.export.export_tensors_to_nnef" class="doc doc-heading">
+<h2 id="torch_to_nnef.export.export_tensors_to_nnef" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">export_tensors_to_nnef</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_tensors_to_nnef</span><span class="p">(</span><span class="n">name_to_torch_tensors</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">],</span> <span class="n">output_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_tensors_to_nnef</span><span class="p">(</span><span class="n">name_to_torch_tensors</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">],</span> <span class="n">output_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4009,7 +5389,9 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code>name_to_torch_tensors</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_tensors_to_nnef(name_to_torch_tensors)" class="doc doc-heading doc-heading-parameter">                  <code>name_to_torch_tensors</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="torch_to_nnef.export._Tensor">_Tensor</span>]</code>
             </td>
@@ -4025,7 +5407,9 @@ and tensor values (that can also be special torch_to_nnef tensors)</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>output_dir</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.export_tensors_to_nnef(output_dir)" class="doc doc-heading doc-heading-parameter">                  <code>output_dir</code>
+</h3>            </td>
             <td>
                   <code><span title="pathlib.Path">Path</span></code>
             </td>
@@ -4088,6 +5472,7 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="go">[&#39;b.weight&#39;, &#39;b.bias&#39;]</span>
 </span></code></pre></div>
 
+
     </div>
 
 </div>
@@ -4095,12 +5480,12 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.export.iter_torch_tensors_from_disk" class="doc doc-heading">
+<h2 id="torch_to_nnef.export.iter_torch_tensors_from_disk" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">iter_torch_tensors_from_disk</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_torch_tensors_from_disk</span><span class="p">(</span><span class="n">store_filepath</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">filter_key</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">map_location</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpu&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]]</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_torch_tensors_from_disk</span><span class="p">(</span><span class="n">store_filepath</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">filter_key</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">map_location</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">device</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpu&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4120,7 +5505,9 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code>store_filepath</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.iter_torch_tensors_from_disk(store_filepath)" class="doc doc-heading doc-heading-parameter">                  <code>store_filepath</code>
+</h3>            </td>
             <td>
                   <code><span title="pathlib.Path">Path</span></code>
             </td>
@@ -4135,7 +5522,9 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>filter_key</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.iter_torch_tensors_from_disk(filter_key)" class="doc doc-heading doc-heading-parameter">                  <code>filter_key</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="typing.Callable">Callable</span>[[<span title="str">str</span>], <span title="bool">bool</span>]]</code>
             </td>
@@ -4150,7 +5539,9 @@ stored in those format</p>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>map_location</code></td>
+            <td>
+<h3 id="torch_to_nnef.export.iter_torch_tensors_from_disk(map_location)" class="doc doc-heading doc-heading-parameter">                  <code>map_location</code>
+</h3>            </td>
             <td>
                   <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="torch.device">device</span>]</code>
             </td>
@@ -4199,6 +5590,7 @@ stored in those format</p>
           </tr>
       </tbody>
     </table>
+
 
     </div>
 
@@ -4281,14 +5673,14 @@ stored in those format</p>
           <a
             href="../inference_target/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: torch_to_nnef.inference_target"
+            aria-label="Next: inference_target"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                torch_to_nnef.inference_target
+                inference_target
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -4314,7 +5706,8 @@ stored in those format</p>
 
       <!-- Social links -->
       
-        <div class="md-social">
+        
+<div class="md-social">
   
     
     
@@ -4324,7 +5717,7 @@ stored in those format</p>
       
     
     <a href="https://github.com/sonos/" target="_blank" rel="noopener" title="github.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
     </a>
   
     
@@ -4335,7 +5728,7 @@ stored in those format</p>
       
     
     <a href="https://x.com/sonos/" target="_blank" rel="noopener" title="x.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8l164.9-188.5L26.8 48h145.6l100.5 132.9zm-24.8 373.8h39.1L151.1 88h-42z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M357.2 48h70.6L273.6 224.2 455 464H313L201.7 318.6 74.5 464H3.8l164.9-188.5L-5.2 48h145.6l100.5 132.9zm-24.8 373.8h39.1L119.1 88h-42z"/></svg>
     </a>
   
     
@@ -4346,7 +5739,7 @@ stored in those format</p>
       
     
     <a href="https://www.linkedin.com/company/sonos-inc-/jobs/" target="_blank" rel="noopener" title="www.linkedin.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5m282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
     </a>
   
 </div>
@@ -4363,10 +5756,11 @@ stored in those format</p>
     
     
       
-      <script id="__config" type="application/json">{"base": "../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

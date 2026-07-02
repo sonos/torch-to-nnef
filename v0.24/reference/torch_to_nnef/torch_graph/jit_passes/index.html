@@ -15,19 +15,22 @@
         <link rel="next" href="../jit_utils/">
       
       
+        
+      
+      
       <link rel="icon" href="../../../../img/t2n_ico.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>torch_to_nnef.torch_graph.jit_passes - Torch → NNEF documentation</title>
+        <title>jit_passes - Torch → NNEF documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -54,7 +57,6 @@
     
       
 
-    
     
     
   </head>
@@ -140,7 +142,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              torch_to_nnef.torch_graph.jit_passes
+              jit_passes
             
           </span>
         </div>
@@ -247,7 +249,7 @@
         <a href="https://github.com/sonos/torch-to-nnef" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     GitHub
@@ -293,7 +295,7 @@
       <a href="https://github.com/sonos/torch-to-nnef" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     GitHub
@@ -315,9 +317,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Home
+  
+
     
   </span>
+  
   
 
       </a>
@@ -348,9 +355,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     📖 Tutorials
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -359,7 +371,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
-            📖 Tutorials
+            
+  
+    📖 Tutorials
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -375,9 +391,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     1. Getting started
+  
+
     
   </span>
+  
   
 
       </a>
@@ -398,9 +419,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     2. NNEF archive
+  
+
     
   </span>
+  
   
 
       </a>
@@ -421,9 +447,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     3. Model with multiple inputs or outputs
+  
+
     
   </span>
+  
   
 
       </a>
@@ -444,9 +475,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     4. Dynamic axes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -467,9 +503,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     5. Large Language Models
+  
+
     
   </span>
+  
   
 
       </a>
@@ -490,9 +531,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     6. Quantization
+  
+
     
   </span>
+  
   
 
       </a>
@@ -513,9 +559,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     7. Offloaded tensors
+  
+
     
   </span>
+  
   
 
       </a>
@@ -536,9 +587,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     8. Custom operators
+  
+
     
   </span>
+  
   
 
       </a>
@@ -559,9 +615,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     9. Tensors only export
+  
+
     
   </span>
+  
   
 
       </a>
@@ -582,9 +643,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     10. Nemo ASR export & eval
+  
+
     
   </span>
+  
   
 
       </a>
@@ -605,9 +671,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     11. Shapes remodeler
+  
+
     
   </span>
+  
   
 
       </a>
@@ -628,9 +699,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     12. Exporting JIT-only models
+  
+
     
   </span>
+  
   
 
       </a>
@@ -658,9 +734,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Export API
+  
+
     
   </span>
+  
   
 
       </a>
@@ -693,9 +774,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Internals API
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -704,7 +790,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
-            Internals API
+            
+  
+    Internals API
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -733,9 +823,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -744,7 +839,11 @@
         <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -760,9 +859,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     torch_to_nnef
+  
+
     
   </span>
+  
   
 
       </a>
@@ -783,9 +887,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>collect_env
+  
+
     
   </span>
+  
   
 
       </a>
@@ -806,9 +915,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>compress
+  
+
     
   </span>
+  
   
 
       </a>
@@ -829,9 +943,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>console
+  
+
     
   </span>
+  
   
 
       </a>
@@ -852,9 +971,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dtypes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -875,9 +999,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exceptions
+  
+
     
   </span>
+  
   
 
       </a>
@@ -898,9 +1027,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>export
+  
+
     
   </span>
+  
   
 
       </a>
@@ -932,9 +1066,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -943,7 +1082,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_8_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_8">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -959,9 +1102,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.inference_target
+    
+  
+    inference_target
+  
+
     
   </span>
+  
   
 
       </a>
@@ -982,9 +1130,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1005,9 +1158,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>khronos
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1028,9 +1186,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tract
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1059,9 +1222,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>log
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1082,9 +1250,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>model_wrapper
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1105,9 +1278,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>nnef_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1139,9 +1317,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1150,7 +1333,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1166,9 +1353,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op
+    
+  
+    op
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1200,9 +1392,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1211,7 +1408,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_2">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1227,9 +1428,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.aten
+    
+  
+    aten
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1250,9 +1456,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>activation
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1273,9 +1484,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>attn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1296,9 +1512,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>axes_change
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1319,9 +1540,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>complex
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1342,9 +1568,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>concat
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1365,9 +1596,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>expand
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1388,9 +1624,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fft
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1411,9 +1652,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>loss
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1434,9 +1680,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>math
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1457,9 +1708,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>matmul
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1480,9 +1736,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>norm
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1503,9 +1764,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>other
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1526,9 +1792,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>pad
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1549,9 +1820,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>pool
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1572,9 +1848,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>qops
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1595,9 +1876,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>reducer
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1618,9 +1904,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1641,9 +1932,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>selector
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1664,9 +1960,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>split
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1687,9 +1988,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor_build
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1710,9 +2016,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>unary
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1752,9 +2063,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1763,7 +2079,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_3">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1779,9 +2099,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.custom_extractors
+    
+  
+    custom_extractors
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1802,9 +2127,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1825,9 +2155,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1867,9 +2202,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1878,7 +2218,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_4">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1894,9 +2238,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.extras
+    
+  
+    extras
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1917,9 +2266,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exp_norm
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1940,9 +2294,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>scan_ops
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1971,9 +2330,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fragment
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1994,9 +2358,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>helper
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2017,9 +2386,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quantized
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2059,9 +2433,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2070,7 +2449,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_13_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_13">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2086,9 +2469,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.remodeler
+    
+  
+    remodeler
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2109,9 +2497,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>adapter
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2132,9 +2525,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dyn_axes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2155,9 +2553,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inspect_utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2178,9 +2581,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rich_render
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2201,9 +2609,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>schema
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2224,9 +2637,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>serialize
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2266,9 +2684,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2277,7 +2700,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_14_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_14">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2293,9 +2720,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.tensor
+    
+  
+    tensor
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2316,9 +2748,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>named
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2339,9 +2776,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>offload
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2362,9 +2804,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>opaque
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2396,9 +2843,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2407,7 +2859,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_14_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_14_5">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2423,9 +2879,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.tensor.quant
+    
+  
+    quant
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2446,9 +2907,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2469,9 +2935,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>qtract
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2500,9 +2971,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>updater
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2523,9 +2999,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2567,9 +3048,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2578,7 +3064,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_15_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1_15">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2594,9 +3084,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.torch_graph
+    
+  
+    torch_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2617,9 +3112,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2640,9 +3140,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_data
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2663,9 +3168,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2686,9 +3196,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_helpers
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2709,9 +3224,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_module_tracer
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2732,9 +3252,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_naming
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2755,9 +3280,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_op
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2778,9 +3308,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2802,15 +3337,22 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
           
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+  
+
     
   </span>
+  
   
 
           <span class="md-nav__icon md-icon"></span>
@@ -2821,9 +3363,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2834,6 +3381,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -2842,89 +3391,90 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.torch_graph.jit_passes" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;jit_passes
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" jit_passes">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.strip_prim_data" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+      
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2949,9 +3499,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2972,9 +3527,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_const
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3003,9 +3563,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3052,9 +3617,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Contributing
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -3063,7 +3633,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
-            Contributing
+            
+  
+    Contributing
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -3079,9 +3653,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Guidelines
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3102,9 +3681,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Extras API
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3125,9 +3709,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Internal design
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3148,9 +3737,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Supported aten operators
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3171,9 +3765,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Add new aten operator
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3194,9 +3793,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Debugging
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3224,9 +3828,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Why NNEF
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3246,9 +3855,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Backstory
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3268,9 +3882,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Live demos
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3290,9 +3909,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Changelog
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3317,6 +3941,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -3325,89 +3951,90 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.torch_graph.jit_passes" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;jit_passes
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" jit_passes">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.strip_prim_data" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+      
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -3421,23 +4048,22 @@
           
           
             <div class="md-content" data-md-component="content">
+              
               <article class="md-content__inner md-typeset">
                 
                   
 
 
 
-  <h1><code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes</h1>
-
 <div class="doc doc-object doc-module">
 
 
 
-<h3 id="torch_to_nnef.torch_graph.jit_passes" class="doc doc-heading">
+<h1 id="torch_to_nnef.torch_graph.jit_passes" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.torch_graph.jit_passes</span>
 
 
-</h3>
+</h1>
 
     <div class="doc doc-contents first">
 
@@ -3453,7 +4079,97 @@ them.</p>
 
 
 
-  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Functions:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_constant_ifs (torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs)" href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs">fold_constant_ifs</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold <code>prim::If</code> nodes whose condition is a <code>prim::Constant[bool]</code>.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_constant_scalar_arithmetic (torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic)" href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic">fold_constant_scalar_arithmetic</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold scalar arithmetic on <code>prim::Constant</code> operands.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_data_dependent_ifs (torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs)" href="#torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs">fold_data_dependent_ifs</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold <code>prim::If</code> nodes whose condition is data-dependent on the input.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_tuple_index_through_tuple_construct (torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct)" href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct">fold_tuple_index_through_tuple_construct</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold <code>prim::TupleIndex(tuple_const, k)</code> into the k-th tuple input.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_tuple_unpack_through_tuple_construct (torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct)" href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct">fold_tuple_unpack_through_tuple_construct</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold <code>prim::TupleUnpack(prim::TupleConstruct(...))</code> into the inputs.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            replace_size_calls_with_constants (torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants)" href="#torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants">replace_size_calls_with_constants</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold size queries whose values flow only into control flow.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            strip_assertion_ifs (torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs)" href="#torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs">strip_assertion_ifs</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Drop <code>prim::If</code> nodes whose one branch is purely a <code>RaiseException</code>.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            strip_prim_data (torch_to_nnef.torch_graph.jit_passes.strip_prim_data)" href="#torch_to_nnef.torch_graph.jit_passes.strip_prim_data">strip_prim_data</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Replace <code>prim::data(t)</code> nodes with their input.</p>
+                </div>
+              </td>
+            </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+<div class="doc doc-children">
+
 
 
 
@@ -3466,11 +4182,11 @@ them.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_constant_ifs</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_constant_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -3480,6 +4196,7 @@ them.</p>
 <p>Replaces the If with the chosen block's nodes. Returns the count
 folded.</p>
 
+
     </div>
 
 </div>
@@ -3487,11 +4204,11 @@ folded.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_constant_scalar_arithmetic</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_constant_scalar_arithmetic</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -3506,6 +4223,7 @@ that fires when the upstream pass walks a graph mixing Phase 1
 inlined submodules and Phase 2 size-fold constants.</p>
 <p>Returns the number of nodes folded.</p>
 
+
     </div>
 
 </div>
@@ -3513,12 +4231,12 @@ inlined submodules and Phase 2 size-fold constants.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_data_dependent_ifs</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_data_dependent_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_data_dependent_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3541,6 +4259,7 @@ callers on older torch with already-clean graphs (no remaining Ifs)
 return 0 without raising. The rest of <code>torch_to_nnef</code> still works
 on torch 1.8+, only this one pass needs the newer API.</p>
 
+
     </div>
 
 </div>
@@ -3548,11 +4267,11 @@ on torch 1.8+, only this one pass needs the newer API.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_tuple_index_through_tuple_construct</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_tuple_index_through_tuple_construct</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -3571,6 +4290,7 @@ the <code>TupleConstruct</code> itself in place (DCE removes it later if it
 has no other consumers).</p>
 <p>Returns the count of nodes folded.</p>
 
+
     </div>
 
 </div>
@@ -3578,11 +4298,11 @@ has no other consumers).</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_tuple_unpack_through_tuple_construct</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_tuple_unpack_through_tuple_construct</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -3599,6 +4319,7 @@ rewire each unpack output verbatim and destroy the unpack. The
 consumers (the unpack outputs) are now gone.</p>
 <p>Returns the count of <code>TupleUnpack</code> nodes folded.</p>
 
+
     </div>
 
 </div>
@@ -3606,12 +4327,12 @@ consumers (the unpack outputs) are now gone.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">replace_size_calls_with_constants</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">replace_size_calls_with_constants</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">replace_size_calls_with_constants</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3630,6 +4351,7 @@ those declaring dynamic axes: a dim consumed by <code>aten::view</code> will not
 be baked into the NNEF graph as a constant.</p>
 <p>Returns the count of size-call nodes folded.</p>
 
+
     </div>
 
 </div>
@@ -3637,11 +4359,11 @@ be baked into the NNEF graph as a constant.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">strip_assertion_ifs</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">strip_assertion_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -3652,6 +4374,7 @@ be baked into the NNEF graph as a constant.</p>
 then destroy the If. Walks nested blocks (assertion ifs are often
 inside other prim::If branches). Returns the count of stripped nodes.</p>
 
+
     </div>
 
 </div>
@@ -3659,11 +4382,11 @@ inside other prim::If branches). Returns the count of stripped nodes.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.jit_passes.strip_prim_data" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.jit_passes.strip_prim_data" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">strip_prim_data</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">strip_prim_data</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -3673,6 +4396,7 @@ inside other prim::If branches). Returns the count of stripped nodes.</p>
 <p><code>prim::data</code> is the IR form of Tensor <code>.data</code> access (detaches from
 autograd). In inference it is a no-op; t2n's parser doesn't have a
 handler for it, so we elide it.</p>
+
 
     </div>
 
@@ -3788,7 +4512,8 @@ handler for it, so we elide it.</p>
 
       <!-- Social links -->
       
-        <div class="md-social">
+        
+<div class="md-social">
   
     
     
@@ -3798,7 +4523,7 @@ handler for it, so we elide it.</p>
       
     
     <a href="https://github.com/sonos/" target="_blank" rel="noopener" title="github.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
     </a>
   
     
@@ -3809,7 +4534,7 @@ handler for it, so we elide it.</p>
       
     
     <a href="https://x.com/sonos/" target="_blank" rel="noopener" title="x.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8l164.9-188.5L26.8 48h145.6l100.5 132.9zm-24.8 373.8h39.1L151.1 88h-42z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M357.2 48h70.6L273.6 224.2 455 464H313L201.7 318.6 74.5 464H3.8l164.9-188.5L-5.2 48h145.6l100.5 132.9zm-24.8 373.8h39.1L119.1 88h-42z"/></svg>
     </a>
   
     
@@ -3820,7 +4545,7 @@ handler for it, so we elide it.</p>
       
     
     <a href="https://www.linkedin.com/company/sonos-inc-/jobs/" target="_blank" rel="noopener" title="www.linkedin.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5m282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
     </a>
   
 </div>
@@ -3837,10 +4562,11 @@ handler for it, so we elide it.</p>
     
     
       
-      <script id="__config" type="application/json">{"base": "../../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

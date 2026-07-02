@@ -15,19 +15,22 @@
         <link rel="next" href="harden/">
       
       
+        
+      
+      
       <link rel="icon" href="../../../img/t2n_ico.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>torch_to_nnef.torch_graph - Torch → NNEF documentation</title>
+        <title>torch_graph - Torch → NNEF documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -54,7 +57,6 @@
     
       
 
-    
     
     
   </head>
@@ -140,7 +142,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              torch_to_nnef.torch_graph
+              torch_graph
             
           </span>
         </div>
@@ -247,7 +249,7 @@
         <a href="https://github.com/sonos/torch-to-nnef" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     GitHub
@@ -293,7 +295,7 @@
       <a href="https://github.com/sonos/torch-to-nnef" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     GitHub
@@ -315,9 +317,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Home
+  
+
     
   </span>
+  
   
 
       </a>
@@ -348,9 +355,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     📖 Tutorials
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -359,7 +371,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
-            📖 Tutorials
+            
+  
+    📖 Tutorials
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -375,9 +391,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     1. Getting started
+  
+
     
   </span>
+  
   
 
       </a>
@@ -398,9 +419,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     2. NNEF archive
+  
+
     
   </span>
+  
   
 
       </a>
@@ -421,9 +447,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     3. Model with multiple inputs or outputs
+  
+
     
   </span>
+  
   
 
       </a>
@@ -444,9 +475,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     4. Dynamic axes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -467,9 +503,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     5. Large Language Models
+  
+
     
   </span>
+  
   
 
       </a>
@@ -490,9 +531,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     6. Quantization
+  
+
     
   </span>
+  
   
 
       </a>
@@ -513,9 +559,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     7. Offloaded tensors
+  
+
     
   </span>
+  
   
 
       </a>
@@ -536,9 +587,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     8. Custom operators
+  
+
     
   </span>
+  
   
 
       </a>
@@ -559,9 +615,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     9. Tensors only export
+  
+
     
   </span>
+  
   
 
       </a>
@@ -582,9 +643,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     10. Nemo ASR export & eval
+  
+
     
   </span>
+  
   
 
       </a>
@@ -605,9 +671,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     11. Shapes remodeler
+  
+
     
   </span>
+  
   
 
       </a>
@@ -628,9 +699,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     12. Exporting JIT-only models
+  
+
     
   </span>
+  
   
 
       </a>
@@ -658,9 +734,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Export API
+  
+
     
   </span>
+  
   
 
       </a>
@@ -693,9 +774,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Internals API
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -704,7 +790,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
-            Internals API
+            
+  
+    Internals API
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -733,9 +823,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -744,7 +839,11 @@
         <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_to_nnef
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -760,9 +859,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     torch_to_nnef
+  
+
     
   </span>
+  
   
 
       </a>
@@ -783,9 +887,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>collect_env
+  
+
     
   </span>
+  
   
 
       </a>
@@ -806,9 +915,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>compress
+  
+
     
   </span>
+  
   
 
       </a>
@@ -829,9 +943,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>console
+  
+
     
   </span>
+  
   
 
       </a>
@@ -852,9 +971,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dtypes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -875,9 +999,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exceptions
+  
+
     
   </span>
+  
   
 
       </a>
@@ -898,9 +1027,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>export
+  
+
     
   </span>
+  
   
 
       </a>
@@ -932,9 +1066,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -943,7 +1082,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_8_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_8">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inference_target
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -959,9 +1102,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.inference_target
+    
+  
+    inference_target
+  
+
     
   </span>
+  
   
 
       </a>
@@ -982,9 +1130,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1005,9 +1158,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>khronos
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1028,9 +1186,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tract
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1059,9 +1222,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>log
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1082,9 +1250,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>model_wrapper
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1105,9 +1278,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>nnef_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1139,9 +1317,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1150,7 +1333,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1166,9 +1353,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op
+    
+  
+    op
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1200,9 +1392,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1211,7 +1408,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_2">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>aten
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1227,9 +1428,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.aten
+    
+  
+    aten
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1250,9 +1456,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>activation
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1273,9 +1484,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>attn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1296,9 +1512,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>axes_change
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1319,9 +1540,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>complex
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1342,9 +1568,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>concat
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1365,9 +1596,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>expand
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1388,9 +1624,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fft
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1411,9 +1652,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>loss
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1434,9 +1680,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>math
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1457,9 +1708,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>matmul
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1480,9 +1736,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>norm
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1503,9 +1764,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>other
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1526,9 +1792,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>pad
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1549,9 +1820,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>pool
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1572,9 +1848,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>qops
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1595,9 +1876,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>reducer
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1618,9 +1904,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1641,9 +1932,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>selector
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1664,9 +1960,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>split
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1687,9 +1988,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor_build
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1710,9 +2016,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>unary
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1752,9 +2063,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1763,7 +2079,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_3">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1779,9 +2099,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.custom_extractors
+    
+  
+    custom_extractors
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1802,9 +2127,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1825,9 +2155,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1867,9 +2202,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1878,7 +2218,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_4">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>extras
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1894,9 +2238,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.op.extras
+    
+  
+    extras
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1917,9 +2266,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>exp_norm
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1940,9 +2294,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>scan_ops
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1971,9 +2330,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fragment
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1994,9 +2358,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>helper
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2017,9 +2386,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quantized
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2059,9 +2433,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2070,7 +2449,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_13_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_13">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>remodeler
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2086,9 +2469,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.remodeler
+    
+  
+    remodeler
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2109,9 +2497,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>adapter
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2132,9 +2525,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dyn_axes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2155,9 +2553,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>inspect_utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2178,9 +2581,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rich_render
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2201,9 +2609,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>schema
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2224,9 +2637,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>serialize
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2266,9 +2684,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2277,7 +2700,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_14_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_14">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>tensor
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2293,9 +2720,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.tensor
+    
+  
+    tensor
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2316,9 +2748,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>named
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2339,9 +2776,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>offload
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2362,9 +2804,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>opaque
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2396,9 +2843,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2407,7 +2859,11 @@
         <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_14_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_14_5">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>quant
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2423,9 +2879,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.tensor.quant
+    
+  
+    quant
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2446,9 +2907,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2469,9 +2935,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>qtract
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2500,9 +2971,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>updater
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2523,9 +2999,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2567,9 +3048,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -2578,7 +3064,11 @@
         <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_15_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1_15">
             <span class="md-nav__icon md-icon"></span>
-            <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+            
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -2595,15 +3085,22 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
           
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.torch_graph
+    
+  
+    torch_graph
+  
+
     
   </span>
+  
   
 
           <span class="md-nav__icon md-icon"></span>
@@ -2614,9 +3111,14 @@
   
   
   <span class="md-ellipsis">
-    torch_to_nnef.torch_graph
+    
+  
+    torch_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2627,6 +3129,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -2635,37 +3139,33 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.torch_graph" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;torch_graph
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" torch_graph">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.Data" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Data
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Data
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.FixedTensorList" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;FixedTensorList
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;FixedTensorList
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TensorVariable" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorVariable
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorVariable
+      
     </span>
   </a>
   
@@ -2675,7 +3175,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TensorVariable.tracing_data" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;tracing_data
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;tracing_data
+      
     </span>
   </a>
   
@@ -2685,11 +3187,13 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleIRGraph" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchModuleIRGraph
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchModuleIRGraph
+      
     </span>
   </a>
   
@@ -2699,7 +3203,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.parse" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;parse
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;parse
+      
     </span>
   </a>
   
@@ -2708,7 +3214,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.printall" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;printall
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;printall
+      
     </span>
   </a>
   
@@ -2717,7 +3225,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.remap_node" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;remap_node
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;remap_node
+      
     </span>
   </a>
   
@@ -2727,11 +3237,13 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleTracer" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchModuleTracer
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchModuleTracer
+      
     </span>
   </a>
   
@@ -2741,7 +3253,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleTracer.torch_graph" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;torch_graph
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;torch_graph
+      
     </span>
   </a>
   
@@ -2750,7 +3264,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleTracer.traced_module" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;traced_module
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;traced_module
+      
     </span>
   </a>
   
@@ -2760,11 +3276,13 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchOp" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchOp
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchOp
+      
     </span>
   </a>
   
@@ -2774,7 +3292,20 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchOp.call_op" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;call_op
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;call_op
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.TorchOp.output_aliases_constant_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;output_aliases_constant_input
+      
     </span>
   </a>
   
@@ -2783,7 +3314,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchOp.realise_output_type_and_size" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;realise_output_type_and_size
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;realise_output_type_and_size
+      
     </span>
   </a>
   
@@ -2792,7 +3325,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchOp.update_call_op_arg_kwargs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;update_call_op_arg_kwargs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;update_call_op_arg_kwargs
+      
     </span>
   </a>
   
@@ -2802,99 +3337,114 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_constant_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_constant_scalar_arithmetic" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_data_dependent_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_tuple_index_through_tuple_construct" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.harden_jit_for_export" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.inline_unresolvable_submodules" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;inline_unresolvable_submodules
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;inline_unresolvable_submodules
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.replace_size_calls_with_constants" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.strip_assertion_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.strip_prim_data" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+      
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2919,9 +3469,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2942,9 +3497,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_data
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2965,9 +3525,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_graph
+  
+
     
   </span>
+  
   
 
       </a>
@@ -2988,9 +3553,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_helpers
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3011,9 +3581,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_module_tracer
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3034,9 +3609,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_naming
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3057,9 +3637,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_op
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3080,9 +3665,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3103,9 +3693,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3126,9 +3721,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3149,9 +3749,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_const
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3180,9 +3785,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>utils
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3229,9 +3839,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Contributing
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -3240,7 +3855,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
-            Contributing
+            
+  
+    Contributing
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -3256,9 +3875,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Guidelines
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3279,9 +3903,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Extras API
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3302,9 +3931,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Internal design
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3325,9 +3959,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Supported aten operators
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3348,9 +3987,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Add new aten operator
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3371,9 +4015,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Debugging
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3401,9 +4050,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Why NNEF
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3423,9 +4077,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Backstory
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3445,9 +4104,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Live demos
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3467,9 +4131,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Changelog
+  
+
     
   </span>
+  
   
 
       </a>
@@ -3494,6 +4163,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -3502,37 +4173,33 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.torch_graph" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;torch_graph
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" torch_graph">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.Data" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Data
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Data
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.FixedTensorList" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;FixedTensorList
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;FixedTensorList
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TensorVariable" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorVariable
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorVariable
+      
     </span>
   </a>
   
@@ -3542,7 +4209,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TensorVariable.tracing_data" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;tracing_data
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;tracing_data
+      
     </span>
   </a>
   
@@ -3552,11 +4221,13 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleIRGraph" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchModuleIRGraph
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchModuleIRGraph
+      
     </span>
   </a>
   
@@ -3566,7 +4237,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.parse" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;parse
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;parse
+      
     </span>
   </a>
   
@@ -3575,7 +4248,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.printall" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;printall
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;printall
+      
     </span>
   </a>
   
@@ -3584,7 +4259,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.remap_node" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;remap_node
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;remap_node
+      
     </span>
   </a>
   
@@ -3594,11 +4271,13 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleTracer" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchModuleTracer
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchModuleTracer
+      
     </span>
   </a>
   
@@ -3608,7 +4287,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleTracer.torch_graph" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;torch_graph
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;torch_graph
+      
     </span>
   </a>
   
@@ -3617,7 +4298,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchModuleTracer.traced_module" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;traced_module
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;traced_module
+      
     </span>
   </a>
   
@@ -3627,11 +4310,13 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchOp" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchOp
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TorchOp
+      
     </span>
   </a>
   
@@ -3641,7 +4326,20 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchOp.call_op" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;call_op
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;call_op
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.TorchOp.output_aliases_constant_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;output_aliases_constant_input
+      
     </span>
   </a>
   
@@ -3650,7 +4348,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchOp.realise_output_type_and_size" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;realise_output_type_and_size
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;realise_output_type_and_size
+      
     </span>
   </a>
   
@@ -3659,7 +4359,9 @@
           <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.TorchOp.update_call_op_arg_kwargs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;update_call_op_arg_kwargs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;update_call_op_arg_kwargs
+      
     </span>
   </a>
   
@@ -3669,99 +4371,114 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_constant_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_constant_scalar_arithmetic" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_data_dependent_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_tuple_index_through_tuple_construct" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.harden_jit_for_export" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.inline_unresolvable_submodules" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;inline_unresolvable_submodules
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;inline_unresolvable_submodules
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.replace_size_calls_with_constants" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.strip_assertion_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+      
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.strip_prim_data" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+      
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -3775,23 +4492,22 @@
           
           
             <div class="md-content" data-md-component="content">
+              
               <article class="md-content__inner md-typeset">
                 
                   
 
 
 
-  <h1>torch_to_nnef.torch_graph</h1>
-
 <div class="doc doc-object doc-module">
 
 
 
-<h3 id="torch_to_nnef.torch_graph" class="doc doc-heading">
+<h1 id="torch_to_nnef.torch_graph" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.torch_graph</span>
 
 
-</h3>
+</h1>
 
     <div class="doc doc-contents first">
 
@@ -3812,7 +4528,295 @@ requested by user.</p>
 
 
 
-  <div class="doc doc-children">
+
+
+
+<p><span class="doc-section-title">Modules:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.harden" href="../../../export_api/#torch_to_nnef.torch_graph.harden">harden</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>High-level helper that runs the JIT-only export hardening chain.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.ir_data" href="ir_data/#torch_to_nnef.torch_graph.ir_data">ir_data</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Abstractions used in torch_to_nnef internal graph data IR.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.ir_graph" href="ir_graph/#torch_to_nnef.torch_graph.ir_graph">ir_graph</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.ir_helpers" href="ir_helpers/#torch_to_nnef.torch_graph.ir_helpers">ir_helpers</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.ir_module_tracer" href="ir_module_tracer/#torch_to_nnef.torch_graph.ir_module_tracer">ir_module_tracer</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>implements :class:<code>TorchModuleTracer</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.ir_naming" href="ir_naming/#torch_to_nnef.torch_graph.ir_naming">ir_naming</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.ir_op" href="ir_op/#torch_to_nnef.torch_graph.ir_op">ir_op</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Abstractions used in torch_to_nnef internal graph Operations IR.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.jit_inline" href="jit_inline/#torch_to_nnef.torch_graph.jit_inline">jit_inline</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selective inlining of unresolvable JIT submodule calls.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.jit_passes" href="jit_passes/#torch_to_nnef.torch_graph.jit_passes">jit_passes</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Reusable JIT-graph passes for hardening JIT-only models against t2n parsing.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.jit_utils" href="jit_utils/#torch_to_nnef.torch_graph.jit_utils">jit_utils</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shared utilities for JIT graph traversal and qualname parsing.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_to_nnef.torch_graph.torch_const" href="torch_const/#torch_to_nnef.torch_graph.torch_const">torch_const</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Some Core PyTorch core naming, used to trace/parse their JIT.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            Data
+
+
+  
+      dataclass
+   (torch_to_nnef.torch_graph.Data)" href="#torch_to_nnef.torch_graph.Data">Data</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Base abstract T2N IR data holder.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            FixedTensorList
+
+
+  
+      dataclass
+   (torch_to_nnef.torch_graph.FixedTensorList)" href="#torch_to_nnef.torch_graph.FixedTensorList">FixedTensorList</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>FixedTensorList is a list that contains tensor constant or not.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            TensorVariable
+
+
+  
+      dataclass
+   (torch_to_nnef.torch_graph.TensorVariable)" href="#torch_to_nnef.torch_graph.TensorVariable">TensorVariable</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            TorchModuleIRGraph (torch_to_nnef.torch_graph.TorchModuleIRGraph)" href="#torch_to_nnef.torch_graph.TorchModuleIRGraph">TorchModuleIRGraph</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Torch Graph intermediate representation from: jit.trace with recursion.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            TorchModuleTracer (torch_to_nnef.torch_graph.TorchModuleTracer)" href="#torch_to_nnef.torch_graph.TorchModuleTracer">TorchModuleTracer</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Evaluate Optimized traced Function code so that signature always match.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            TorchOp
+
+
+  
+      dataclass
+   (torch_to_nnef.torch_graph.TorchOp)" href="#torch_to_nnef.torch_graph.TorchOp">TorchOp</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+<p><span class="doc-section-title">Functions:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_constant_ifs (torch_to_nnef.torch_graph.fold_constant_ifs)" href="#torch_to_nnef.torch_graph.fold_constant_ifs">fold_constant_ifs</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold <code>prim::If</code> nodes whose condition is a <code>prim::Constant[bool]</code>.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_constant_scalar_arithmetic (torch_to_nnef.torch_graph.fold_constant_scalar_arithmetic)" href="#torch_to_nnef.torch_graph.fold_constant_scalar_arithmetic">fold_constant_scalar_arithmetic</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold scalar arithmetic on <code>prim::Constant</code> operands.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_data_dependent_ifs (torch_to_nnef.torch_graph.fold_data_dependent_ifs)" href="#torch_to_nnef.torch_graph.fold_data_dependent_ifs">fold_data_dependent_ifs</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold <code>prim::If</code> nodes whose condition is data-dependent on the input.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_tuple_index_through_tuple_construct (torch_to_nnef.torch_graph.fold_tuple_index_through_tuple_construct)" href="#torch_to_nnef.torch_graph.fold_tuple_index_through_tuple_construct">fold_tuple_index_through_tuple_construct</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold <code>prim::TupleIndex(tuple_const, k)</code> into the k-th tuple input.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            fold_tuple_unpack_through_tuple_construct (torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct)" href="#torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct">fold_tuple_unpack_through_tuple_construct</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold <code>prim::TupleUnpack(prim::TupleConstruct(...))</code> into the inputs.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            harden_jit_for_export (torch_to_nnef.torch_graph.harden_jit_for_export)" href="#torch_to_nnef.torch_graph.harden_jit_for_export">harden_jit_for_export</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Specialize a JIT ScriptModule's graph for the given example inputs.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            inline_unresolvable_submodules (torch_to_nnef.torch_graph.inline_unresolvable_submodules)" href="#torch_to_nnef.torch_graph.inline_unresolvable_submodules">inline_unresolvable_submodules</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Inline every <code>prim::CallMethod</code> whose target class is not importable.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            replace_size_calls_with_constants (torch_to_nnef.torch_graph.replace_size_calls_with_constants)" href="#torch_to_nnef.torch_graph.replace_size_calls_with_constants">replace_size_calls_with_constants</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Fold size queries whose values flow only into control flow.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            strip_assertion_ifs (torch_to_nnef.torch_graph.strip_assertion_ifs)" href="#torch_to_nnef.torch_graph.strip_assertion_ifs">strip_assertion_ifs</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Drop <code>prim::If</code> nodes whose one branch is purely a <code>RaiseException</code>.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            strip_prim_data (torch_to_nnef.torch_graph.strip_prim_data)" href="#torch_to_nnef.torch_graph.strip_prim_data">strip_prim_data</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Replace <code>prim::data(t)</code> nodes with their input.</p>
+                </div>
+              </td>
+            </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+<div class="doc doc-children">
+
 
 
 
@@ -3825,7 +4829,7 @@ requested by user.</p>
 
 
 
-<h4 id="torch_to_nnef.torch_graph.Data" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.Data" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Data</span>
 
 
@@ -3833,8 +4837,8 @@ requested by user.</p>
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">Data</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">)</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">Data</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3842,12 +4846,26 @@ requested by user.</p>
               Bases: <code><span title="torch_to_nnef.utils.NamedItem">NamedItem</span></code></p>
 
 
+
         <p>Base abstract T2N IR data holder.</p>
 
 
 
 
-  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
 
 
 
@@ -3869,7 +4887,7 @@ requested by user.</p>
 
 
 
-<h4 id="torch_to_nnef.torch_graph.FixedTensorList" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.FixedTensorList" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">FixedTensorList</span>
 
 
@@ -3877,8 +4895,8 @@ requested by user.</p>
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">FixedTensorList</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">TensorVariable</span><span class="p">,</span> <span class="n">PythonConstant</span><span class="p">]])</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">FixedTensorList</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">TensorVariable</span><span class="p">,</span> <span class="n">PythonConstant</span><span class="p">]])</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3891,12 +4909,26 @@ requested by user.</p>
    (torch_to_nnef.torch_graph.ir_data.Data)" href="ir_data/#torch_to_nnef.torch_graph.ir_data.Data">Data</a></code></p>
 
 
+
         <p>FixedTensorList is a list that contains tensor constant or not.</p>
 
 
 
 
-  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
 
 
 
@@ -3918,7 +4950,7 @@ requested by user.</p>
 
 
 
-<h4 id="torch_to_nnef.torch_graph.TensorVariable" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.TensorVariable" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">TensorVariable</span>
 
 
@@ -3926,8 +4958,8 @@ requested by user.</p>
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TensorVariable</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">,</span> <span class="n">shape</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span> <span class="n">dtype</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">dtype</span><span class="p">],</span> <span class="n">quant</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">_traced_data</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TensorVariable</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">shape</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span> <span class="n">dtype</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">dtype</span><span class="p">],</span> <span class="n">quant</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">_traced_data</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">module_attr</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3943,7 +4975,49 @@ requested by user.</p>
 
 
 
-  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            tracing_data
+
+
+  
+      property
+   (torch_to_nnef.torch_graph.TensorVariable.tracing_data)" href="#torch_to_nnef.torch_graph.TensorVariable.tracing_data">tracing_data</a></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Generate data if is not fixed based on tensor information.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+<div class="doc doc-children">
 
 
 
@@ -3955,7 +5029,7 @@ requested by user.</p>
 
 
 
-<h5 id="torch_to_nnef.torch_graph.TensorVariable.tracing_data" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TensorVariable.tracing_data" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">tracing_data</span>
 
 
@@ -3963,7 +5037,7 @@ requested by user.</p>
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">tracing_data</span>
 </span></code></pre></div>
 
@@ -3971,9 +5045,11 @@ requested by user.</p>
 
         <p>Generate data if is not fixed based on tensor information.</p>
 <p>we use it to produce computation trace</p>
+
     </div>
 
 </div>
+
 
 
 
@@ -3989,15 +5065,16 @@ requested by user.</p>
 
 
 
-<h4 id="torch_to_nnef.torch_graph.TorchModuleIRGraph" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.TorchModuleIRGraph" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">TorchModuleIRGraph</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TorchModuleIRGraph</span><span class="p">(</span><span class="n">torch_module_tracer</span><span class="p">:</span> <span class="n">TorchModuleTracer</span><span class="p">,</span> <span class="n">omit_useless_nodes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">is_root_module</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
+
 
 
         <p>Torch Graph intermediate representation from: jit.trace with recursion.</p>
@@ -4018,7 +5095,57 @@ of modification of PyTorch Internals (think Adapter Pattern).</p>
 
 
 
-  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            parse (torch_to_nnef.torch_graph.TorchModuleIRGraph.parse)" href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.parse">parse</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Core parsing transforming nn.Module into torch_to_nnef IR.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            printall (torch_to_nnef.torch_graph.TorchModuleIRGraph.printall)" href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.printall">printall</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Display Helper Graph infos in stdout of your tty.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            remap_node (torch_to_nnef.torch_graph.TorchModuleIRGraph.remap_node)" href="#torch_to_nnef.torch_graph.TorchModuleIRGraph.remap_node">remap_node</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Remap a data_node to another.</p>
+                </div>
+              </td>
+            </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+<div class="doc doc-children">
+
 
 
 
@@ -4031,11 +5158,11 @@ of modification of PyTorch Internals (think Adapter Pattern).</p>
 <div class="doc doc-object doc-function">
 
 
-<h5 id="torch_to_nnef.torch_graph.TorchModuleIRGraph.parse" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TorchModuleIRGraph.parse" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">parse</span>
 
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">parse</span><span class="p">(</span><span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">provided_inputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">provided_outputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">forced_inputs_names</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">forced_outputs_names</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </span></code></pre></div>
 
@@ -4043,6 +5170,7 @@ of modification of PyTorch Internals (think Adapter Pattern).</p>
 
         <p>Core parsing transforming nn.Module into torch_to_nnef IR.</p>
 
+
     </div>
 
 </div>
@@ -4050,11 +5178,11 @@ of modification of PyTorch Internals (think Adapter Pattern).</p>
 <div class="doc doc-object doc-function">
 
 
-<h5 id="torch_to_nnef.torch_graph.TorchModuleIRGraph.printall" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TorchModuleIRGraph.printall" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">printall</span>
 
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">printall</span><span class="p">()</span>
 </span></code></pre></div>
 
@@ -4062,6 +5190,7 @@ of modification of PyTorch Internals (think Adapter Pattern).</p>
 
         <p>Display Helper Graph infos in stdout of your tty.</p>
 
+
     </div>
 
 </div>
@@ -4069,17 +5198,18 @@ of modification of PyTorch Internals (think Adapter Pattern).</p>
 <div class="doc doc-object doc-function">
 
 
-<h5 id="torch_to_nnef.torch_graph.TorchModuleIRGraph.remap_node" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TorchModuleIRGraph.remap_node" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">remap_node</span>
 
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">remap_node</span><span class="p">(</span><span class="n">from_node</span><span class="p">,</span> <span class="n">to_node</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Remap a data_node to another.</p>
+
 
     </div>
 
@@ -4097,15 +5227,16 @@ of modification of PyTorch Internals (think Adapter Pattern).</p>
 
 
 
-<h4 id="torch_to_nnef.torch_graph.TorchModuleTracer" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.TorchModuleTracer" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">TorchModuleTracer</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TorchModuleTracer</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">traced_module</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">TracedModule</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">fn_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;forward&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Tuple</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TorchModuleTracer</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">Module</span><span class="p">,</span> <span class="n">traced_module</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TracedModule</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">fn_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;forward&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
+
 
 
         <p>Evaluate Optimized traced Function code so that signature always match.</p>
@@ -4124,7 +5255,63 @@ quantized modules.</p>
 
 
 
-  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            torch_graph
+
+
+  
+      property
+   (torch_to_nnef.torch_graph.TorchModuleTracer.torch_graph)" href="#torch_to_nnef.torch_graph.TorchModuleTracer.torch_graph">torch_graph</a></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Return the underlying PyTorch graph object.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            traced_module
+
+
+  
+      property
+   (torch_to_nnef.torch_graph.TorchModuleTracer.traced_module)" href="#torch_to_nnef.torch_graph.TorchModuleTracer.traced_module">traced_module</a></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Return the traced module, computing it lazily if required.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+<div class="doc doc-children">
 
 
 
@@ -4136,7 +5323,7 @@ quantized modules.</p>
 
 
 
-<h5 id="torch_to_nnef.torch_graph.TorchModuleTracer.torch_graph" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TorchModuleTracer.torch_graph" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">torch_graph</span>
 
 
@@ -4144,7 +5331,7 @@ quantized modules.</p>
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">torch_graph</span>
 </span></code></pre></div>
 
@@ -4154,6 +5341,7 @@ quantized modules.</p>
 <p>The actual <code>torch.Graph</code> is retrieved from the traced module.
 When a different forward method is requested (<code>fn_name</code> differs
 from "forward"), the corresponding sub‑graph is returned instead.</p>
+
     </div>
 
 </div>
@@ -4162,7 +5350,7 @@ from "forward"), the corresponding sub‑graph is returned instead.</p>
 
 
 
-<h5 id="torch_to_nnef.torch_graph.TorchModuleTracer.traced_module" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TorchModuleTracer.traced_module" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">traced_module</span>
 
 
@@ -4170,7 +5358,7 @@ from "forward"), the corresponding sub‑graph is returned instead.</p>
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">traced_module</span>
 </span></code></pre></div>
 
@@ -4183,9 +5371,11 @@ possible PyTorch version nuances.  Any <code>RuntimeError</code> raised by
 <code>torch.jit.trace</code> is wrapped into a
 :class:<code>~torch_to_nnef.exceptions.T2NErrorTorchJitTraceFailed</code>
 exception.</p>
+
     </div>
 
 </div>
+
 
 
 
@@ -4201,7 +5391,7 @@ exception.</p>
 
 
 
-<h4 id="torch_to_nnef.torch_graph.TorchOp" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.TorchOp" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">TorchOp</span>
 
 
@@ -4209,8 +5399,8 @@ exception.</p>
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TorchOp</span><span class="p">(</span><span class="n">kind</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">module_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">inputs</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="n">Data</span><span class="p">],</span> <span class="n">outputs</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="n">TtupleOrVar</span><span class="p">],</span> <span class="n">scope</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">op_ref</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">],</span> <span class="n">call_name</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TorchOp</span><span class="p">(</span><span class="n">kind</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">module_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">inputs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Data</span><span class="p">],</span> <span class="n">outputs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">TtupleOrVar</span><span class="p">],</span> <span class="n">scope</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">op_ref</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">],</span> <span class="n">call_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4219,7 +5409,66 @@ exception.</p>
 
 
 
-  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            call_op (torch_to_nnef.torch_graph.TorchOp.call_op)" href="#torch_to_nnef.torch_graph.TorchOp.call_op">call_op</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Produce operation output based on traced inputs with real torch call.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            output_aliases_constant_input (torch_to_nnef.torch_graph.TorchOp.output_aliases_constant_input)" href="#torch_to_nnef.torch_graph.TorchOp.output_aliases_constant_input">output_aliases_constant_input</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Detect view-like results derived from constant inputs.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            realise_output_type_and_size (torch_to_nnef.torch_graph.TorchOp.realise_output_type_and_size)" href="#torch_to_nnef.torch_graph.TorchOp.realise_output_type_and_size">realise_output_type_and_size</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Trace output and try to find type shape and constant realisation.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            update_call_op_arg_kwargs (torch_to_nnef.torch_graph.TorchOp.update_call_op_arg_kwargs)" href="#torch_to_nnef.torch_graph.TorchOp.update_call_op_arg_kwargs">update_call_op_arg_kwargs</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Custom adaptation to call aten fn with torch exposed py fn.</p>
+                </div>
+              </td>
+            </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+<div class="doc doc-children">
+
 
 
 
@@ -4232,11 +5481,11 @@ exception.</p>
 <div class="doc doc-object doc-function">
 
 
-<h5 id="torch_to_nnef.torch_graph.TorchOp.call_op" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TorchOp.call_op" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">call_op</span>
 
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">call_op</span><span class="p">()</span>
 </span></code></pre></div>
 
@@ -4254,6 +5503,7 @@ aware of argument name being provided in exported graph (
     in most case
 ).</p>
 
+
     </div>
 
 </div>
@@ -4261,11 +5511,35 @@ aware of argument name being provided in exported graph (
 <div class="doc doc-object doc-function">
 
 
-<h5 id="torch_to_nnef.torch_graph.TorchOp.realise_output_type_and_size" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TorchOp.output_aliases_constant_input" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">output_aliases_constant_input</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">output_aliases_constant_input</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Detect view-like results derived from constant inputs.</p>
+<p>These outputs should keep shape/dtype metadata, but should not be
+recorded as new constants. Otherwise a graph like Granite MoE's packed
+expert weight <code>select</code>s serializes every expert slice as an independent
+tensor in addition to the original packed parameter.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.torch_graph.TorchOp.realise_output_type_and_size" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">realise_output_type_and_size</span>
 
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">realise_output_type_and_size</span><span class="p">(</span><span class="n">approx</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </span></code></pre></div>
 
@@ -4273,6 +5547,7 @@ aware of argument name being provided in exported graph (
 
         <p>Trace output and try to find type shape and constant realisation.</p>
 
+
     </div>
 
 </div>
@@ -4280,17 +5555,18 @@ aware of argument name being provided in exported graph (
 <div class="doc doc-object doc-function">
 
 
-<h5 id="torch_to_nnef.torch_graph.TorchOp.update_call_op_arg_kwargs" class="doc doc-heading">
+<h3 id="torch_to_nnef.torch_graph.TorchOp.update_call_op_arg_kwargs" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">update_call_op_arg_kwargs</span>
 
 
-</h5>
+</h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">update_call_op_arg_kwargs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Custom adaptation to call aten fn with torch exposed py fn.</p>
+
 
     </div>
 
@@ -4308,11 +5584,11 @@ aware of argument name being provided in exported graph (
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.fold_constant_ifs" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.fold_constant_ifs" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_constant_ifs</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_constant_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -4322,6 +5598,7 @@ aware of argument name being provided in exported graph (
 <p>Replaces the If with the chosen block's nodes. Returns the count
 folded.</p>
 
+
     </div>
 
 </div>
@@ -4329,11 +5606,11 @@ folded.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.fold_constant_scalar_arithmetic" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.fold_constant_scalar_arithmetic" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_constant_scalar_arithmetic</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_constant_scalar_arithmetic</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -4348,6 +5625,7 @@ that fires when the upstream pass walks a graph mixing Phase 1
 inlined submodules and Phase 2 size-fold constants.</p>
 <p>Returns the number of nodes folded.</p>
 
+
     </div>
 
 </div>
@@ -4355,12 +5633,12 @@ inlined submodules and Phase 2 size-fold constants.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.fold_data_dependent_ifs" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.fold_data_dependent_ifs" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_data_dependent_ifs</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_data_dependent_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_data_dependent_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4383,6 +5661,7 @@ callers on older torch with already-clean graphs (no remaining Ifs)
 return 0 without raising. The rest of <code>torch_to_nnef</code> still works
 on torch 1.8+, only this one pass needs the newer API.</p>
 
+
     </div>
 
 </div>
@@ -4390,11 +5669,11 @@ on torch 1.8+, only this one pass needs the newer API.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.fold_tuple_index_through_tuple_construct" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.fold_tuple_index_through_tuple_construct" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_tuple_index_through_tuple_construct</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_tuple_index_through_tuple_construct</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -4413,6 +5692,7 @@ the <code>TupleConstruct</code> itself in place (DCE removes it later if it
 has no other consumers).</p>
 <p>Returns the count of nodes folded.</p>
 
+
     </div>
 
 </div>
@@ -4420,11 +5700,11 @@ has no other consumers).</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_tuple_unpack_through_tuple_construct</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_tuple_unpack_through_tuple_construct</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -4441,6 +5721,7 @@ rewire each unpack output verbatim and destroy the unpack. The
 consumers (the unpack outputs) are now gone.</p>
 <p>Returns the count of <code>TupleUnpack</code> nodes folded.</p>
 
+
     </div>
 
 </div>
@@ -4448,12 +5729,12 @@ consumers (the unpack outputs) are now gone.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.harden_jit_for_export" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.harden_jit_for_export" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">harden_jit_for_export</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">harden_jit_for_export</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">],</span> <span class="s1">&#39;torch.Tensor&#39;</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">freeze</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">diagnostics</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">harden_jit_for_export</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="s1">&#39;torch.Tensor&#39;</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">freeze</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">diagnostics</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4502,6 +5783,7 @@ count of nodes folded / stripped per pass, keyed by pass name. The
 inline ran (i.e. freeze was disabled or failed). Useful for
 debugging unfamiliar JIT artifacts.</p>
 
+
     </div>
 
 </div>
@@ -4509,12 +5791,12 @@ debugging unfamiliar JIT artifacts.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.inline_unresolvable_submodules" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.inline_unresolvable_submodules" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">inline_unresolvable_submodules</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">inline_unresolvable_submodules</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">max_passes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">inline_unresolvable_submodules</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">Module</span><span class="p">,</span> <span class="n">max_passes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4527,6 +5809,7 @@ raise it for unusually deep nested inlines, lower it to fail fast
 when debugging.</p>
 <p>Returns the count of inlined calls.</p>
 
+
     </div>
 
 </div>
@@ -4534,12 +5817,12 @@ when debugging.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.replace_size_calls_with_constants" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.replace_size_calls_with_constants" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">replace_size_calls_with_constants</span>
 
 
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">replace_size_calls_with_constants</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">replace_size_calls_with_constants</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4558,6 +5841,7 @@ those declaring dynamic axes: a dim consumed by <code>aten::view</code> will not
 be baked into the NNEF graph as a constant.</p>
 <p>Returns the count of size-call nodes folded.</p>
 
+
     </div>
 
 </div>
@@ -4565,11 +5849,11 @@ be baked into the NNEF graph as a constant.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.strip_assertion_ifs" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.strip_assertion_ifs" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">strip_assertion_ifs</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">strip_assertion_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -4580,6 +5864,7 @@ be baked into the NNEF graph as a constant.</p>
 then destroy the If. Walks nested blocks (assertion ifs are often
 inside other prim::If branches). Returns the count of stripped nodes.</p>
 
+
     </div>
 
 </div>
@@ -4587,11 +5872,11 @@ inside other prim::If branches). Returns the count of stripped nodes.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.torch_graph.strip_prim_data" class="doc doc-heading">
+<h2 id="torch_to_nnef.torch_graph.strip_prim_data" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">strip_prim_data</span>
 
 
-</h4>
+</h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">strip_prim_data</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
@@ -4601,6 +5886,7 @@ inside other prim::If branches). Returns the count of stripped nodes.</p>
 <p><code>prim::data</code> is the IR form of Tensor <code>.data</code> access (detaches from
 autograd). In inference it is a no-op; t2n's parser doesn't have a
 handler for it, so we elide it.</p>
+
 
     </div>
 
@@ -4716,7 +6002,8 @@ handler for it, so we elide it.</p>
 
       <!-- Social links -->
       
-        <div class="md-social">
+        
+<div class="md-social">
   
     
     
@@ -4726,7 +6013,7 @@ handler for it, so we elide it.</p>
       
     
     <a href="https://github.com/sonos/" target="_blank" rel="noopener" title="github.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
     </a>
   
     
@@ -4737,7 +6024,7 @@ handler for it, so we elide it.</p>
       
     
     <a href="https://x.com/sonos/" target="_blank" rel="noopener" title="x.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8l164.9-188.5L26.8 48h145.6l100.5 132.9zm-24.8 373.8h39.1L151.1 88h-42z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M357.2 48h70.6L273.6 224.2 455 464H313L201.7 318.6 74.5 464H3.8l164.9-188.5L-5.2 48h145.6l100.5 132.9zm-24.8 373.8h39.1L119.1 88h-42z"/></svg>
     </a>
   
     
@@ -4748,7 +6035,7 @@ handler for it, so we elide it.</p>
       
     
     <a href="https://www.linkedin.com/company/sonos-inc-/jobs/" target="_blank" rel="noopener" title="www.linkedin.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5m282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
     </a>
   
 </div>
@@ -4765,10 +6052,11 @@ handler for it, so we elide it.</p>
     
     
       
-      <script id="__config" type="application/json">{"base": "../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
