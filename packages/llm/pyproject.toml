@@ -1,6 +1,6 @@
 [project]
 name = "torch_to_nnef_llm"
-version = "0.24.0"
+version = "0.24.1"
 description = "LLM and PEFT export to NNEF via torch-to-nnef."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
