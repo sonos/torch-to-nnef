@@ -11,7 +11,8 @@ All variants are normalized to the same tract_moe_ffn signature:
     inputs:  x [T,D], wg [E,D], w1 [E,D,H], w2 [E,H,D], w3 [E,D,H],
              optional biases (wg_bias, w1_bias, w3_bias, w2_bias)
     attrs:   k (int), activation (str), gate (softmax_topk | softmax_all |
-             sigmoid | raw), optional act_alpha / act_limit (clamped SwiGLU)
+             sigmoid | raw), optional act_alpha / act_limit (clamped SwiGLU),
+             optional expert_layout ("canonical" | "linear")
     output:  y [T,D]
 A shared expert (Qwen2 / Qwen3.5) is emitted as a standard NNEF subgraph
 added on top of the routed output, not baked into the op.
@@ -615,7 +616,8 @@ def _maybe_quantize_expert_weight(
     name: str,
     data: torch.Tensor,
     quantize_experts_q40: bool,
-    quantize_experts_q40_percentile: float,
+    expert_q40_quantizer,
+    expert_q40_quantizer_kwargs,
 ) -> torch.Tensor:
     if (
         not quantize_experts_q40
@@ -623,12 +625,55 @@ def _maybe_quantize_expert_weight(
         or _is_qtensor_like(data)
     ):
         return data
-    q_data = fp_to_tract_q4_0_with_min_max_calibration(
+    q_data = expert_q40_quantizer(
         data.contiguous(),
-        percentile=quantize_experts_q40_percentile,
+        **expert_q40_quantizer_kwargs,
     )
     q_data.nnef_name = f"{node.outputs[0].name}_{name}"
     return q_data
+
+
+def _expert_layout(moe) -> str:
+    layout = getattr(moe, "_t2n_moe_expert_layout", "canonical")
+    if layout not in {"canonical", "linear"}:
+        raise T2NErrorNotImplemented(
+            f"unsupported MoE expert layout {layout!r}"
+        )
+    return layout
+
+
+def _layout_expert_weight(
+    name: str,
+    data: torch.Tensor,
+    expert_layout: str,
+) -> torch.Tensor:
+    if expert_layout != "linear" or name not in {"w1", "w2", "w3"}:
+        return data
+    # Adapters normalize experts to the canonical tract_moe_ffn shapes:
+    # w1/w3 [E,D,H], w2 [E,H,D]. The linear layout keeps native nn.Linear
+    # storage instead: w1/w3 [E,H,D], w2 [E,D,H], so Q40's last axis is the
+    # contraction K axis for the packed tract matmul kernels.
+    return data.transpose(-1, -2)
+
+
+def _expert_q40_quantizer_config(
+    moe,
+    quantize_experts_q40_percentile: float,
+):
+    quantizer = getattr(
+        moe,
+        "_t2n_quantize_moe_experts_q40_quantizer",
+        fp_to_tract_q4_0_with_min_max_calibration,
+    )
+    kwargs = dict(
+        getattr(moe, "_t2n_quantize_moe_experts_q40_kwargs", {}) or {}
+    )
+    if (
+        quantizer is fp_to_tract_q4_0_with_min_max_calibration
+        and "percentile" not in kwargs
+    ):
+        kwargs["percentile"] = quantize_experts_q40_percentile
+    return quantizer, kwargs
 
 
 def _moe_attrs(adapter, moe):
@@ -643,6 +688,9 @@ def _moe_attrs(adapter, moe):
         attrs["act_alpha"] = act_alpha
     if act_limit is not None:
         attrs["act_limit"] = act_limit
+    layout = _expert_layout(moe)
+    if layout != "canonical":
+        attrs["expert_layout"] = layout
     return attrs
 
 
@@ -694,14 +742,20 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     quantize_experts_q40_percentile = float(
         getattr(moe, "_t2n_quantize_moe_experts_q40_percentile", 1.0)
     )
+    expert_q40_quantizer, expert_q40_quantizer_kwargs = (
+        _expert_q40_quantizer_config(moe, quantize_experts_q40_percentile)
+    )
+    expert_layout = _expert_layout(moe)
 
     def _add_weight(name: str, data: torch.Tensor):
+        data = _layout_expert_weight(name, data, expert_layout)
         data = _maybe_quantize_expert_weight(
             node,
             name,
             data,
             quantize_experts_q40,
-            quantize_experts_q40_percentile,
+            expert_q40_quantizer,
+            expert_q40_quantizer_kwargs,
         )
         wnode = tg.TensorVariable(
             name=f"{node.outputs[0].name}_{name}",

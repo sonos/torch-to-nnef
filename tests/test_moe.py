@@ -14,6 +14,9 @@ from torch import nn
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.op.custom_extractors import MoEFFN
+from torch_to_nnef.tensor.quant import (
+    fp_to_tract_q4_0_with_min_max_calibration,
+)
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -87,7 +90,20 @@ def _init_moe_weights(module, seed=0):
             nn.init.normal_(p, std=0.02)
 
 
-def _assert_moe_expert_weights_q40(inference_target, path, expected_count):
+def _read_graph_from_archive(path):
+    with tarfile.open(path, "r:*") as tf:
+        for member in tf.getmembers():
+            if member.name.endswith("graph.nnef"):
+                return tf.extractfile(member).read().decode("utf-8")
+    raise AssertionError("graph.nnef not found in NNEF archive")
+
+
+def _assert_moe_expert_weights_q40(
+    inference_target,
+    path,
+    expected_count,
+    expected_shapes=None,
+):
     """Check split expert tensors were exported as tract Q40 values."""
     if not isinstance(inference_target, TractNNEF):
         return
@@ -107,6 +123,16 @@ def _assert_moe_expert_weights_q40(inference_target, path, expected_count):
             tf.extract(member, td)
             header = DatBinHeader.from_dat(Path(td) / member.name)
             assert header.torch_dtype_or_custom == expected_dtype
+            if expected_shapes is not None:
+                suffix = member.name.rsplit("_", 1)[-1].removesuffix(".dat")
+                assert header.dims == expected_shapes[suffix]
+
+
+def _assert_graph_contains(inference_target, path, fragment):
+    if not isinstance(inference_target, TractNNEF):
+        return
+    graph = _read_graph_from_archive(path)
+    assert fragment in graph
 
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
@@ -145,6 +171,78 @@ def test_moe_ffn_split_experts_q40(inference_target):
             expected_count=2,
         ),
     )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_split_experts_q40_linear_layout(inference_target):
+    """Export Q40 experts in linear layout for tract packed Q40 matmuls."""
+    _skip_if_unsupported(inference_target)
+    export_target = deepcopy(inference_target)
+    export_target.check_io = False
+    model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=64, k=2)
+    model.moe._t2n_quantize_moe_experts_q40 = True
+    model.moe._t2n_moe_expert_layout = "linear"
+    model.eval()
+
+    def _assert_linear_q40(inference_target, path):
+        _assert_graph_contains(
+            inference_target,
+            path,
+            "expert_layout = 'linear'",
+        )
+        _assert_moe_expert_weights_q40(
+            inference_target,
+            path,
+            expected_count=2,
+            expected_shapes={
+                "w1": [4, 64, 32],
+                "w2": [4, 32, 64],
+            },
+        )
+
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 32),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=export_target,
+        callback_post_export=_assert_linear_q40,
+    )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_custom_q40_quantizer(inference_target):
+    """Allow callers to provide a calibrated Q40 quantizer for MoE experts."""
+    _skip_if_unsupported(inference_target)
+    export_target = deepcopy(inference_target)
+    export_target.check_io = False
+    calls = []
+
+    def quantizer(tensor, marker):
+        calls.append((tuple(tensor.shape), marker, tensor.is_contiguous()))
+        return fp_to_tract_q4_0_with_min_max_calibration(tensor)
+
+    model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=64, k=2)
+    model.moe._t2n_quantize_moe_experts_q40 = True
+    model.moe._t2n_moe_expert_layout = "linear"
+    model.moe._t2n_quantize_moe_experts_q40_quantizer = quantizer
+    model.moe._t2n_quantize_moe_experts_q40_kwargs = {"marker": "calibrated"}
+    model.eval()
+
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 32),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=export_target,
+    )
+
+    assert calls == [
+        ((4, 64, 32), "calibrated", True),
+        ((4, 32, 64), "calibrated", True),
+    ]
 
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
