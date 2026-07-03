@@ -132,20 +132,25 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     assert type(out) is type(inp_tensor)  # avoid propagation of qtype
 
 
-@skipif_unsupported_qtensor
-def test_quantized_opaque_trace_does_not_materialize_base_tensor(monkeypatch):
-    model = nn.Linear(32, 8, bias=False).eval()
-    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(model.weight)
-    model.weight = nn.Parameter(q_tensor, requires_grad=False)
+@pytest.fixture
+def forbid_qtensor_materialization(monkeypatch):
+    """Fail the test if any quantized weight is decompressed during trace."""
 
     def fail_if_materialized(self):
         raise AssertionError("quantized weights must stay opaque during trace")
 
     monkeypatch.setattr(
-        QTensorTractScaleOnly,
-        "_to_base_tensor",
-        fail_if_materialized,
+        QTensorTractScaleOnly, "_to_base_tensor", fail_if_materialized
     )
+
+
+@skipif_unsupported_qtensor
+def test_quantized_opaque_trace_does_not_materialize_base_tensor(
+    forbid_qtensor_materialization,
+):
+    model = nn.Linear(32, 8, bias=False).eval()
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(model.weight)
+    model.weight = nn.Parameter(q_tensor, requires_grad=False)
 
     set_opaque_tensor_in_params_as_ref(model)
     module_tracer_into_ir_graph(
@@ -154,7 +159,9 @@ def test_quantized_opaque_trace_does_not_materialize_base_tensor(monkeypatch):
 
 
 @skipif_unsupported_qtensor
-def test_quantized_opaque_view_on_ref_does_not_materialize(monkeypatch):
+def test_quantized_opaque_view_on_ref_does_not_materialize(
+    forbid_qtensor_materialization,
+):
     # `view` called directly on the opaque param ref (before any slicing)
     # must stay opaque instead of decompressing the full packed weight.
     class ViewThenSelect(nn.Module):
@@ -173,13 +180,6 @@ def test_quantized_opaque_view_on_ref_does_not_materialize(monkeypatch):
             ]
             return torch.cat(outputs, dim=0)
 
-    def fail_if_materialized(self):
-        raise AssertionError("quantized weights must stay opaque during trace")
-
-    monkeypatch.setattr(
-        QTensorTractScaleOnly, "_to_base_tensor", fail_if_materialized
-    )
-
     model = ViewThenSelect().eval()
     set_opaque_tensor_in_params_as_ref(model)
     module_tracer_into_ir_graph(
@@ -188,7 +188,9 @@ def test_quantized_opaque_view_on_ref_does_not_materialize(monkeypatch):
 
 
 @skipif_unsupported_qtensor
-def test_quantized_opaque_shape_ops_on_ref_do_not_materialize(monkeypatch):
+def test_quantized_opaque_shape_ops_on_ref_do_not_materialize(
+    forbid_qtensor_materialization,
+):
     # Common weight-manipulation idioms (`.t()`, `.reshape()`, ...) applied
     # directly to the opaque param ref must stay opaque instead of
     # decompressing the full packed weight during trace.
@@ -205,13 +207,6 @@ def test_quantized_opaque_shape_ops_on_ref_do_not_materialize(monkeypatch):
             # (batch, 32) -> (batch, 8).
             w = self.weight.reshape(8, 32).t()
             return x @ w
-
-    def fail_if_materialized(self):
-        raise AssertionError("quantized weights must stay opaque during trace")
-
-    monkeypatch.setattr(
-        QTensorTractScaleOnly, "_to_base_tensor", fail_if_materialized
-    )
 
     model = ReshapeTranspose().eval()
     set_opaque_tensor_in_params_as_ref(model)

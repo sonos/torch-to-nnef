@@ -778,12 +778,12 @@ class TorchOp:
             input_data = getattr(input_node, "data", None)
             if not getattr(input_node, "module_attr", False):
                 continue
-            if self.kind in DERIVED_MODULE_ATTR_OPS and input_data is None:
-                return True
-            if (
-                self.kind in DERIVED_MODULE_ATTR_OPS
-                and isinstance(input_data, OpaqueTensorRef)
-                and result.device.type == "meta"
+            if self.kind in DERIVED_MODULE_ATTR_OPS and (
+                input_data is None
+                or (
+                    isinstance(input_data, OpaqueTensorRef)
+                    and result.device.type == "meta"
+                )
             ):
                 return True
             if isinstance(input_data, torch.Tensor) and (
