@@ -27,6 +27,7 @@ from torch_to_nnef.inference_target.tract import (
     build_io,
 )
 from torch_to_nnef.log import log
+from torch_to_nnef.tensor.opaque import NEW_OPAQUE_TRACING_STRATEGY
 from torch_to_nnef.tensor.quant.base import (
     QTENSOR_UNSUPPORTED,
     QTENSOR_UNSUPPORTED_MSG,
@@ -288,6 +289,16 @@ skipif_unsupported_tensor_updater = pytest.mark.skipif(
 skipif_limited_offload_support = pytest.mark.skipif(
     condition=torch_version() < "1.12.0",
     reason="torch version need to be >= 1.12.0 to use OffloadedTensor",
+)
+
+
+# Keyed on the implementation flag itself (not a hardcoded version) so the
+# gate can never drift from torch_to_nnef.tensor.opaque. Tests that assert the
+# meta placeholder behaviour (weights stay opaque, meta-arithmetic errors)
+# only hold under this strategy; on older torch the ref materializes eagerly.
+skipif_no_meta_opaque_tracing = pytest.mark.skipif(
+    condition=not NEW_OPAQUE_TRACING_STRATEGY,
+    reason="opaque meta-tracing strategy requires torch >= 2.4",
 )
 
 

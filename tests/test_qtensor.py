@@ -34,6 +34,7 @@ from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TRACT_INFERENCES_TO_TESTS_EXACT,
     check_model_io_test,
+    skipif_no_meta_opaque_tracing,
     skipif_unsupported_qtensor,
 )
 
@@ -148,6 +149,7 @@ def forbid_qtensor_materialization(monkeypatch):
 
 
 @skipif_unsupported_qtensor
+@skipif_no_meta_opaque_tracing
 def test_quantized_opaque_trace_does_not_materialize_base_tensor(
     forbid_qtensor_materialization,
 ):
@@ -162,6 +164,7 @@ def test_quantized_opaque_trace_does_not_materialize_base_tensor(
 
 
 @skipif_unsupported_qtensor
+@skipif_no_meta_opaque_tracing
 def test_quantized_opaque_view_on_ref_does_not_materialize(
     forbid_qtensor_materialization,
 ):
@@ -191,6 +194,7 @@ def test_quantized_opaque_view_on_ref_does_not_materialize(
 
 
 @skipif_unsupported_qtensor
+@skipif_no_meta_opaque_tracing
 def test_quantized_opaque_shape_ops_on_ref_do_not_materialize(
     forbid_qtensor_materialization,
 ):
@@ -234,6 +238,7 @@ def test_opaque_trace_tensor_materializes_real_data_on_non_meta_device():
 
 
 @skipif_unsupported_qtensor
+@skipif_no_meta_opaque_tracing
 def test_opaque_meta_arithmetic_raises_actionable_error():
     # Combining a meta-traced opaque-weight view with a real tensor is
     # unsupported by the meta strategy; the trace failure must carry an
