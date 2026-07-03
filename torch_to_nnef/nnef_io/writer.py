@@ -369,6 +369,15 @@ class Writer:
                     LOGGER.info("written qtensor: '%s'", label)
                 else:
                     filename = op.attribs["label"] + ".dat"
+                    if (
+                        isinstance(op.output.data, torch.Tensor)
+                        and op.output.data.device.type == "meta"
+                    ):
+                        raise T2NError(
+                            "cannot write meta tensor as NNEF variable "
+                            f"'{op.attribs['label']}' with shape "
+                            f"{tuple(op.output.data.shape)}"
+                        )
                     write_nnef_tensor(
                         np.asarray(
                             maybe_torch_to_np(op.output.data), order="C"

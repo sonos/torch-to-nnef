@@ -29,6 +29,7 @@ from torch_to_nnef.exceptions import (
     T2NErrorTorchOpTranslatedDifferently,
     T2NErrorTorchUnableToTraceData,
 )
+from torch_to_nnef.tensor import OpaqueTensorRef
 from torch_to_nnef.torch_graph.ir_data import (
     Data,
     TensorVariable,
@@ -52,6 +53,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_BADDMM,
     ATEN_BARTLETT_WINDOW,
     ATEN_CLONE,
+    ATEN_CONTIGUOUS_KIND,
     ATEN_CONV1D,
     ATEN_CONV2D,
     ATEN_CONV3D,
@@ -86,6 +88,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_REPEAT_INTERLEAVE,
     ATEN_SCALAR_TENSOR,
     ATEN_SCALED_DOT_PRODUCT_ATTENTION,
+    ATEN_SELECT,
     ATEN_SIZE_KIND,
     ATEN_STARTID,
     ATEN_SUB,
@@ -111,6 +114,14 @@ from torch_to_nnef.torch_graph.torch_const import (
 from torch_to_nnef.utils import ReactiveNamedItemDict
 
 LOGGER = logging.getLogger(__name__)
+
+DERIVED_MODULE_ATTR_OPS = {
+    ATEN_ALIAS,
+    ATEN_CLONE,
+    ATEN_CONTIGUOUS_KIND,
+    ATEN_SELECT,
+    ATEN_VIEW_KIND,
+}
 
 
 class InputsAlignBetweenAtenAndTorch:
@@ -765,6 +776,13 @@ class TorchOp:
             input_data = getattr(input_node, "data", None)
             if not getattr(input_node, "module_attr", False):
                 continue
+            if self.kind in DERIVED_MODULE_ATTR_OPS and input_data is None:
+                return True
+            if (
+                isinstance(input_data, OpaqueTensorRef)
+                and result.device.type == "meta"
+            ):
+                return True
             if isinstance(input_data, torch.Tensor) and (
                 _tensors_share_storage(result, input_data)
             ):
@@ -855,10 +873,20 @@ class TorchOp:
                 f"for {self.op_ref}"
             )
         for data_node, result in zip(output_nodes, output_values, strict=False):
+            result_is_meta_tensor = (
+                isinstance(result, torch.Tensor)
+                and result.device.type == "meta"
+            )
             result_aliases_constant_input = isinstance(
                 result, torch.Tensor
             ) and self.output_aliases_constant_input(result)
-            if self.has_constant_inputs and not result_aliases_constant_input:
+            if result_aliases_constant_input:
+                data_node.module_attr = True
+            if (
+                self.has_constant_inputs
+                and not result_aliases_constant_input
+                and not result_is_meta_tensor
+            ):
                 try:
                     if data_node.data is None or not (
                         data_node.data.shape == result.shape

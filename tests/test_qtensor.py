@@ -16,12 +16,15 @@ from torch_to_nnef.exceptions import T2NErrorTestFailed
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
+from torch_to_nnef.tensor.opaque import set_opaque_tensor_in_params_as_ref
 from torch_to_nnef.tensor.quant import (
     QTensorTractScaleOnly,
     U8Compressor,
     fp_to_tract_q4_0_with_min_max_calibration,
     qscale_per_group_f16_min_max_calibration,
 )
+from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
+from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.utils import cd, torch_version
 
 from .utils import (
@@ -127,6 +130,27 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     inp_tensor = torch.rand(4, 2)
     out = mod(inp_tensor)
     assert type(out) is type(inp_tensor)  # avoid propagation of qtype
+
+
+@skipif_unsupported_qtensor
+def test_quantized_opaque_trace_does_not_materialize_base_tensor(monkeypatch):
+    model = nn.Linear(32, 8, bias=False).eval()
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(model.weight)
+    model.weight = nn.Parameter(q_tensor, requires_grad=False)
+
+    def fail_if_materialized(self):
+        raise AssertionError("quantized weights must stay opaque during trace")
+
+    monkeypatch.setattr(
+        QTensorTractScaleOnly,
+        "_to_base_tensor",
+        fail_if_materialized,
+    )
+
+    set_opaque_tensor_in_params_as_ref(model)
+    module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(torch.randn(1, 32),))
+    )
 
 
 @skipif_unsupported_qtensor

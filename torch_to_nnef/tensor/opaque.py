@@ -1,5 +1,6 @@
 import abc
 import logging
+import typing as T
 import warnings
 
 import torch
@@ -35,6 +36,25 @@ def maybe_custom_op(f):
     else:
         wrap = f
     return wrap
+
+
+def trace_tensor_device_for_func(func) -> T.Optional[str]:
+    """Whether an opaque parameter can stay meta for this trace op."""
+    if not NEW_OPAQUE_TRACING_STRATEGY:
+        return None
+    func_name = getattr(func, "__name__", "")
+    if func_name in {"embedding", "index_select"}:
+        return "cpu"
+    if func_name in {
+        "__getitem__",
+        "bmm",
+        "linear",
+        "matmul",
+        "mm",
+        "select",
+    }:
+        return "meta"
+    return None
 
 
 def find_opaque_ref_by_py_id(module: torch.nn.Module, py_id: int):
@@ -85,6 +105,20 @@ class OpaqueTensor(torch.Tensor):
         def opaque_t2n_expand(py_id: int) -> torch.Tensor:
             tensor = self._to_base_tensor()
             return tensor
+
+        return opaque_t2n_expand(id(self))
+
+    def _to_trace_tensor(self, device: str):
+        return torch.empty(tuple(self.shape), dtype=self.dtype, device=device)
+
+    def to_trace_tensor(self, device: str):
+        """Trace an opaque tensor without materializing its backing data."""
+        if not NEW_OPAQUE_TRACING_STRATEGY:
+            return self.to_base_tensor()
+
+        @maybe_custom_op
+        def opaque_t2n_expand(py_id: int) -> torch.Tensor:
+            return self._to_trace_tensor(device)
 
         return opaque_t2n_expand(id(self))
 
@@ -174,14 +208,23 @@ class OpaqueTensorRef(torch.Tensor):
                 for _ in ["'__get__'", "'__set__'", "Tensor.__reduce_ex__"]
             )
             if not skip_expansion and NEW_OPAQUE_TRACING_STRATEGY:
+                trace_device = trace_tensor_device_for_func(func)
                 args = [
-                    a.opaque_tensor.to_base_tensor()
+                    (
+                        a.opaque_tensor.to_trace_tensor(trace_device)
+                        if trace_device is not None
+                        else a.opaque_tensor.to_base_tensor()
+                    )
                     if isinstance(a, cls)
                     else a
                     for a in args
                 ]
                 kwargs = {
-                    k: v.opaque_tensor.to_base_tensor()
+                    k: (
+                        v.opaque_tensor.to_trace_tensor(trace_device)
+                        if trace_device is not None
+                        else v.opaque_tensor.to_base_tensor()
+                    )
                     if isinstance(v, cls)
                     else v
                     for k, v in kwargs.items()
@@ -226,12 +269,16 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
             continue
         param.nnef_name = full_name
         LOGGER.debug("apply opaque tensor reference: %s", full_name)
+        if NEW_OPAQUE_TRACING_STRATEGY:
+            meta_tensor = torch.empty(
+                tuple(param.shape), dtype=param.dtype, device="meta"
+            )
+        else:
+            meta_tensor = opaque_to_final_tensor(param).to("cpu")
         mod_tensor_updater.update_by_ref(
             param,
             OpaqueTensorRef(
-                opaque_to_final_tensor(param).to(
-                    "meta" if NEW_OPAQUE_TRACING_STRATEGY else "cpu"
-                ),
+                meta_tensor,
                 param,
             ),
         )
