@@ -154,6 +154,55 @@ def test_quantized_opaque_trace_does_not_materialize_base_tensor(monkeypatch):
 
 
 @skipif_unsupported_qtensor
+def test_quantized_opaque_view_on_ref_does_not_materialize(monkeypatch):
+    # `view` called directly on the opaque param ref (before any slicing)
+    # must stay opaque instead of decompressing the full packed weight.
+    class ViewThenSelect(nn.Module):
+        def __init__(self):
+            super().__init__()
+            weight = fp_to_tract_q4_0_with_min_max_calibration(
+                torch.randn(3, 4, 32)
+            )
+            self.weight = nn.Parameter(weight, requires_grad=False)
+
+        def forward(self, x):
+            reshaped = self.weight.view(3, 4, 32)
+            chunks = x.split([1, 1, 1], dim=0)
+            outputs = [
+                nn.functional.linear(chunks[e], reshaped[e]) for e in range(3)
+            ]
+            return torch.cat(outputs, dim=0)
+
+    def fail_if_materialized(self):
+        raise AssertionError("quantized weights must stay opaque during trace")
+
+    monkeypatch.setattr(
+        QTensorTractScaleOnly, "_to_base_tensor", fail_if_materialized
+    )
+
+    model = ViewThenSelect().eval()
+    set_opaque_tensor_in_params_as_ref(model)
+    module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(torch.randn(3, 32),))
+    )
+
+
+@skipif_unsupported_qtensor
+def test_opaque_trace_tensor_materializes_real_data_on_non_meta_device():
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(8, 32))
+
+    meta = q_tensor._to_trace_tensor("meta")
+    assert meta.device.type == "meta"
+    assert meta.shape == q_tensor.shape
+
+    # a real device must expose decompressed values, not uninitialized memory,
+    # otherwise constant-index gathers bake garbage into the exported graph.
+    cpu = q_tensor._to_trace_tensor("cpu")
+    assert cpu.device.type == "cpu"
+    assert torch.equal(cpu, q_tensor._to_base_tensor().to("cpu"))
+
+
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],

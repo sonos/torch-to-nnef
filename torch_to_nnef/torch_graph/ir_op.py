@@ -67,6 +67,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_EMBEDDING,
     ATEN_EMPTY,
     ATEN_EMPTY_LIKE,
+    ATEN_EXPAND,
     ATEN_FULL,
     ATEN_FULL_LIKE,
     ATEN_GATHER,
@@ -119,6 +120,7 @@ DERIVED_MODULE_ATTR_OPS = {
     ATEN_ALIAS,
     ATEN_CLONE,
     ATEN_CONTIGUOUS_KIND,
+    ATEN_EXPAND,
     ATEN_SELECT,
     ATEN_VIEW_KIND,
 }
@@ -779,7 +781,8 @@ class TorchOp:
             if self.kind in DERIVED_MODULE_ATTR_OPS and input_data is None:
                 return True
             if (
-                isinstance(input_data, OpaqueTensorRef)
+                self.kind in DERIVED_MODULE_ATTR_OPS
+                and isinstance(input_data, OpaqueTensorRef)
                 and result.device.type == "meta"
             ):
                 return True
@@ -911,7 +914,10 @@ class TorchOp:
                 if isinstance(result, torch.Tensor):
                     data_node.dtype = result.dtype
                     data_node.shape = list(result.shape)
-                    if dtype_is_whole_number(result.dtype):
+                    if (
+                        dtype_is_whole_number(result.dtype)
+                        and not result_is_meta_tensor
+                    ):
                         data_node._traced_data = result
 
                     if is_quantized_dtype(result.dtype):

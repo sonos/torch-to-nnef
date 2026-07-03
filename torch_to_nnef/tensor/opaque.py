@@ -48,10 +48,13 @@ def trace_tensor_device_for_func(func) -> T.Optional[str]:
     if func_name in {
         "__getitem__",
         "bmm",
+        "contiguous",
+        "expand",
         "linear",
         "matmul",
         "mm",
         "select",
+        "view",
     }:
         return "meta"
     return None
@@ -109,12 +112,18 @@ class OpaqueTensor(torch.Tensor):
         return opaque_t2n_expand(id(self))
 
     def _to_trace_tensor(self, device: str):
-        return torch.empty(tuple(self.shape), dtype=self.dtype, device=device)
+        # Only a meta device may skip materialization: it carries shape/dtype
+        # but no values. Any real device (e.g. "cpu") must expose the real
+        # decompressed data, otherwise constant-index ops (embedding,
+        # index_select) would bake uninitialized memory as NNEF constants.
+        if device == "meta":
+            return torch.empty(
+                tuple(self.shape), dtype=self.dtype, device=device
+            )
+        return self._to_base_tensor().to(device)
 
     def to_trace_tensor(self, device: str):
         """Trace an opaque tensor without materializing its backing data."""
-        if not NEW_OPAQUE_TRACING_STRATEGY:
-            return self.to_base_tensor()
 
         @maybe_custom_op
         def opaque_t2n_expand(py_id: int) -> torch.Tensor:
