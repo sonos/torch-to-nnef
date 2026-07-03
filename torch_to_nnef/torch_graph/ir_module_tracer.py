@@ -131,13 +131,26 @@ class TorchModuleTracer:
                 submod_classes = [
                     (k, v.__class__) for k, v in self.mod.named_children()
                 ]
-                raise T2NErrorTorchJitTraceFailed(
-                    "Unable to trace with jit one of following submodule:"
-                    f"{submod_classes} with original error:\n\n'{exp}'\n\n"
+                hint = (
                     "This maybe due to provided input dimension. "
                     "If not, you can aleviate this issue by applying "
                     " a special hook to this module "
                     "(explaination available in torch_to_nnef README)"
+                )
+                if "expected device meta" in str(exp):
+                    hint = (
+                        "An opaque parameter (e.g. a quantized/offloaded "
+                        "weight) reached a compute op as a meta placeholder "
+                        "and got combined with a real tensor. The meta "
+                        "tracing strategy only supports view/shape ops that "
+                        "flow into a symbolic op (linear/matmul/select); it "
+                        "does not support trace-time arithmetic on the "
+                        "derived weight (e.g. `weight.view(...) * buffer`)."
+                    )
+                raise T2NErrorTorchJitTraceFailed(
+                    "Unable to trace with jit one of following submodule:"
+                    f"{submod_classes} with original error:\n\n'{exp}'\n\n"
+                    f"{hint}"
                 ) from exp
         return self._traced_module
 

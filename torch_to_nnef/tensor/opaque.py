@@ -8,6 +8,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
+from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (
     T2NErrorNotImplemented,
     T2NErrorTorchJitTraceFailed,
@@ -45,10 +46,23 @@ def trace_tensor_device_for_func(func) -> T.Optional[str]:
     ``"cpu"`` forces real decompressed values; ``None`` falls back to
     ``to_base_tensor()`` (also real values).
 
-    Note: a ``"meta"`` op only carries shape/dtype, so a forward that reads
-    concrete parameter *values* during the trace (e.g. branching on
-    ``weight.view(...).argmax()``) is not supported for these ops; only
-    shape-propagating uses are.
+    Note: a ``"meta"`` op only carries shape/dtype, so its result is a meta
+    tensor with no values and no real device. Two shapes of forward are thus
+    unsupported for meta ops (they raise during trace instead of exporting):
+
+    - reading concrete parameter *values* (e.g. branching on
+      ``weight.view(...).argmax()``);
+    - combining the meta result with a real tensor through a non-meta op
+      (e.g. ``weight.view(...) * cpu_buffer``), which raises a device
+      mismatch.
+
+    Only shape-propagating uses that flow into a symbolic op
+    (linear/matmul/select chains) are supported.
+
+    The "meta" names below must correspond to genuine view/shape ops whose
+    aten kind lives in ``ir_op.DERIVED_MODULE_ATTR_OPS`` (that is where the
+    meta result is recognized as aliasing its constant input); keep the two
+    lists in sync when adding a new view op.
     """
     if not NEW_OPAQUE_TRACING_STRATEGY:
         return None
@@ -129,15 +143,22 @@ class OpaqueTensor(torch.Tensor):
         return opaque_t2n_expand(id(self))
 
     def _to_trace_tensor(self, device: str):
-        # Only a meta device may skip materialization: it carries shape/dtype
-        # but no values. Any real device (e.g. "cpu") must expose the real
-        # decompressed data, otherwise constant-index ops (embedding,
-        # index_select) would bake uninitialized memory as NNEF constants.
-        if device == "meta":
+        # A meta placeholder carries shape/dtype but no values and no real
+        # device. It is only safe for float weights that flow straight into a
+        # symbolic op (linear/matmul/select chains). Integer opaque params
+        # (codebooks, index tables) carry values that tracing must read (e.g.
+        # as gather indices or reshape sizes), so materialize them even when a
+        # meta placeholder was requested. Constant-index ops (embedding,
+        # index_select) also request materialization to avoid baking
+        # uninitialized memory as NNEF constants.
+        if device == "meta" and not dtype_is_whole_number(self.dtype):
             return torch.empty(
                 tuple(self.shape), dtype=self.dtype, device=device
             )
-        return self._to_base_tensor().to(device)
+        # Materialize on the parameter's native device rather than forcing one,
+        # so a GPU-resident trace keeps the weight co-located with its runtime
+        # index tensor instead of raising a device mismatch.
+        return self._to_base_tensor()
 
     def to_trace_tensor(self, device: str):
         """Trace an opaque tensor without materializing its backing data."""

@@ -12,7 +12,10 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import T2NErrorTestFailed
+from torch_to_nnef.exceptions import (
+    T2NErrorTestFailed,
+    T2NErrorTorchJitTraceFailed,
+)
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
@@ -228,6 +231,32 @@ def test_opaque_trace_tensor_materializes_real_data_on_non_meta_device():
     cpu = q_tensor._to_trace_tensor("cpu")
     assert cpu.device.type == "cpu"
     assert torch.equal(cpu, q_tensor._to_base_tensor().to("cpu"))
+
+
+@skipif_unsupported_qtensor
+def test_opaque_meta_arithmetic_raises_actionable_error():
+    # Combining a meta-traced opaque-weight view with a real tensor is
+    # unsupported by the meta strategy; the trace failure must carry an
+    # actionable hint rather than a bare device-mismatch RuntimeError.
+    class ScaledViewedWeight(nn.Module):
+        def __init__(self):
+            super().__init__()
+            weight = fp_to_tract_q4_0_with_min_max_calibration(
+                torch.randn(8, 32)
+            )
+            self.weight = nn.Parameter(weight, requires_grad=False)
+            self.register_buffer("scale", torch.ones(8, 32))
+
+        def forward(self, x):
+            w = self.weight.view(8, 32) * self.scale
+            return x @ w.t()
+
+    model = ScaledViewedWeight().eval()
+    set_opaque_tensor_in_params_as_ref(model)
+    with pytest.raises(T2NErrorTorchJitTraceFailed, match="meta placeholder"):
+        module_tracer_into_ir_graph(
+            TorchModuleTracer(model, args=(torch.randn(1, 32),))
+        )
 
 
 @skipif_unsupported_qtensor

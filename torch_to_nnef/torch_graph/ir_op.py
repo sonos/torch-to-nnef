@@ -116,6 +116,10 @@ from torch_to_nnef.utils import ReactiveNamedItemDict
 
 LOGGER = logging.getLogger(__name__)
 
+# View/shape ops whose output aliases a constant/opaque input and must not be
+# re-materialized as an independent constant. Kept in sync with the "meta"
+# allowlist in tensor/opaque.py:trace_tensor_device_for_func (that lists the
+# same ops by torch function name; here they are aten:: kinds).
 DERIVED_MODULE_ATTR_OPS = {
     ATEN_ALIAS,
     ATEN_CLONE,
