@@ -12,22 +12,29 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import T2NErrorTestFailed
+from torch_to_nnef.exceptions import (
+    T2NErrorTestFailed,
+    T2NErrorTorchJitTraceFailed,
+)
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
+from torch_to_nnef.tensor.opaque import set_opaque_tensor_in_params_as_ref
 from torch_to_nnef.tensor.quant import (
     QTensorTractScaleOnly,
     U8Compressor,
     fp_to_tract_q4_0_with_min_max_calibration,
     qscale_per_group_f16_min_max_calibration,
 )
+from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
+from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.utils import cd, torch_version
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TRACT_INFERENCES_TO_TESTS_EXACT,
     check_model_io_test,
+    skipif_no_meta_opaque_tracing,
     skipif_unsupported_qtensor,
 )
 
@@ -127,6 +134,134 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     inp_tensor = torch.rand(4, 2)
     out = mod(inp_tensor)
     assert type(out) is type(inp_tensor)  # avoid propagation of qtype
+
+
+@pytest.fixture
+def forbid_qtensor_materialization(monkeypatch):
+    """Fail the test if any quantized weight is decompressed during trace."""
+
+    def fail_if_materialized(self):
+        raise AssertionError("quantized weights must stay opaque during trace")
+
+    monkeypatch.setattr(
+        QTensorTractScaleOnly, "_to_base_tensor", fail_if_materialized
+    )
+
+
+@skipif_unsupported_qtensor
+@skipif_no_meta_opaque_tracing
+def test_quantized_opaque_trace_does_not_materialize_base_tensor(
+    forbid_qtensor_materialization,
+):
+    model = nn.Linear(32, 8, bias=False).eval()
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(model.weight)
+    model.weight = nn.Parameter(q_tensor, requires_grad=False)
+
+    set_opaque_tensor_in_params_as_ref(model)
+    module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(torch.randn(1, 32),))
+    )
+
+
+@skipif_unsupported_qtensor
+@skipif_no_meta_opaque_tracing
+def test_quantized_opaque_view_on_ref_does_not_materialize(
+    forbid_qtensor_materialization,
+):
+    # `view` called directly on the opaque param ref (before any slicing)
+    # must stay opaque instead of decompressing the full packed weight.
+    class ViewThenSelect(nn.Module):
+        def __init__(self):
+            super().__init__()
+            weight = fp_to_tract_q4_0_with_min_max_calibration(
+                torch.randn(3, 4, 32)
+            )
+            self.weight = nn.Parameter(weight, requires_grad=False)
+
+        def forward(self, x):
+            reshaped = self.weight.view(3, 4, 32)
+            chunks = x.split([1, 1, 1], dim=0)
+            outputs = [
+                nn.functional.linear(chunks[e], reshaped[e]) for e in range(3)
+            ]
+            return torch.cat(outputs, dim=0)
+
+    model = ViewThenSelect().eval()
+    set_opaque_tensor_in_params_as_ref(model)
+    module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(torch.randn(3, 32),))
+    )
+
+
+@skipif_unsupported_qtensor
+@skipif_no_meta_opaque_tracing
+def test_quantized_opaque_shape_ops_on_ref_do_not_materialize(
+    forbid_qtensor_materialization,
+):
+    # Common weight-manipulation idioms (`.t()`, `.reshape()`, ...) applied
+    # directly to the opaque param ref must stay opaque instead of
+    # decompressing the full packed weight during trace.
+    class ReshapeTranspose(nn.Module):
+        def __init__(self):
+            super().__init__()
+            weight = fp_to_tract_q4_0_with_min_max_calibration(
+                torch.randn(8, 32)
+            )
+            self.weight = nn.Parameter(weight, requires_grad=False)
+
+        def forward(self, x):
+            # weight is (out=8, in=32); `.t()` -> (32, 8) so x @ w maps
+            # (batch, 32) -> (batch, 8).
+            w = self.weight.reshape(8, 32).t()
+            return x @ w
+
+    model = ReshapeTranspose().eval()
+    set_opaque_tensor_in_params_as_ref(model)
+    module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(torch.randn(1, 32),))
+    )
+
+
+@skipif_unsupported_qtensor
+def test_opaque_trace_tensor_materializes_real_data_on_non_meta_device():
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(8, 32))
+
+    meta = q_tensor._to_trace_tensor("meta")
+    assert meta.device.type == "meta"
+    assert meta.shape == q_tensor.shape
+
+    # a real device must expose decompressed values, not uninitialized memory,
+    # otherwise constant-index gathers bake garbage into the exported graph.
+    cpu = q_tensor._to_trace_tensor("cpu")
+    assert cpu.device.type == "cpu"
+    assert torch.equal(cpu, q_tensor._to_base_tensor().to("cpu"))
+
+
+@skipif_unsupported_qtensor
+@skipif_no_meta_opaque_tracing
+def test_opaque_meta_arithmetic_raises_actionable_error():
+    # Combining a meta-traced opaque-weight view with a real tensor is
+    # unsupported by the meta strategy; the trace failure must carry an
+    # actionable hint rather than a bare device-mismatch RuntimeError.
+    class ScaledViewedWeight(nn.Module):
+        def __init__(self):
+            super().__init__()
+            weight = fp_to_tract_q4_0_with_min_max_calibration(
+                torch.randn(8, 32)
+            )
+            self.weight = nn.Parameter(weight, requires_grad=False)
+            self.register_buffer("scale", torch.ones(8, 32))
+
+        def forward(self, x):
+            w = self.weight.view(8, 32) * self.scale
+            return x @ w.t()
+
+    model = ScaledViewedWeight().eval()
+    set_opaque_tensor_in_params_as_ref(model)
+    with pytest.raises(T2NErrorTorchJitTraceFailed, match="meta placeholder"):
+        module_tracer_into_ir_graph(
+            TorchModuleTracer(model, args=(torch.randn(1, 32),))
+        )
 
 
 @skipif_unsupported_qtensor
