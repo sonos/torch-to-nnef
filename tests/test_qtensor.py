@@ -188,6 +188,39 @@ def test_quantized_opaque_view_on_ref_does_not_materialize(monkeypatch):
 
 
 @skipif_unsupported_qtensor
+def test_quantized_opaque_shape_ops_on_ref_do_not_materialize(monkeypatch):
+    # Common weight-manipulation idioms (`.t()`, `.reshape()`, ...) applied
+    # directly to the opaque param ref must stay opaque instead of
+    # decompressing the full packed weight during trace.
+    class ReshapeTranspose(nn.Module):
+        def __init__(self):
+            super().__init__()
+            weight = fp_to_tract_q4_0_with_min_max_calibration(
+                torch.randn(8, 32)
+            )
+            self.weight = nn.Parameter(weight, requires_grad=False)
+
+        def forward(self, x):
+            # weight is (out=8, in=32); `.t()` -> (32, 8) so x @ w maps
+            # (batch, 32) -> (batch, 8).
+            w = self.weight.reshape(8, 32).t()
+            return x @ w
+
+    def fail_if_materialized(self):
+        raise AssertionError("quantized weights must stay opaque during trace")
+
+    monkeypatch.setattr(
+        QTensorTractScaleOnly, "_to_base_tensor", fail_if_materialized
+    )
+
+    model = ReshapeTranspose().eval()
+    set_opaque_tensor_in_params_as_ref(model)
+    module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(torch.randn(1, 32),))
+    )
+
+
+@skipif_unsupported_qtensor
 def test_opaque_trace_tensor_materializes_real_data_on_non_meta_device():
     q_tensor = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(8, 32))
 

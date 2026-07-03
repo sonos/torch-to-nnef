@@ -39,7 +39,17 @@ def maybe_custom_op(f):
 
 
 def trace_tensor_device_for_func(func) -> T.Optional[str]:
-    """Whether an opaque parameter can stay meta for this trace op."""
+    """Which device an opaque parameter can be traced on for this op.
+
+    ``"meta"`` keeps shape/dtype without materializing the backing data;
+    ``"cpu"`` forces real decompressed values; ``None`` falls back to
+    ``to_base_tensor()`` (also real values).
+
+    Note: a ``"meta"`` op only carries shape/dtype, so a forward that reads
+    concrete parameter *values* during the trace (e.g. branching on
+    ``weight.view(...).argmax()``) is not supported for these ops; only
+    shape-propagating uses are.
+    """
     if not NEW_OPAQUE_TRACING_STRATEGY:
         return None
     func_name = getattr(func, "__name__", "")
@@ -50,10 +60,17 @@ def trace_tensor_device_for_func(func) -> T.Optional[str]:
         "bmm",
         "contiguous",
         "expand",
+        "flatten",
         "linear",
         "matmul",
         "mm",
+        "permute",
+        "reshape",
         "select",
+        "squeeze",
+        "t",
+        "transpose",
+        "unsqueeze",
         "view",
     }:
         return "meta"
