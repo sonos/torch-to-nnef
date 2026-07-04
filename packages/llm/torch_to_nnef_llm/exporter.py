@@ -116,6 +116,25 @@ def _normalize_dump_kwargs(kwargs: T.Dict[str, T.Any]) -> T.Dict[str, T.Any]:
     return dump_kwargs
 
 
+def _resolve_attn_implementation(
+    attn_implementation: T.Optional[str],
+    reify_sdpa_operator: T.Optional[bool],
+) -> T.Optional[str]:
+    if attn_implementation == "auto":
+        attn_implementation = None
+    if attn_implementation is None:
+        return "sdpa" if reify_sdpa_operator else None
+    if attn_implementation not in ("eager", "sdpa"):
+        raise T2NErrorMisuse(
+            "attn_implementation must be one of: auto, eager, sdpa"
+        )
+    if attn_implementation == "eager" and reify_sdpa_operator:
+        raise T2NErrorMisuse(
+            "reify_sdpa_operator requires attn_implementation='sdpa' or 'auto'"
+        )
+    return attn_implementation
+
+
 #: Default number of retries for transient Hugging Face download failures.
 DEFAULT_HF_DOWNLOAD_N_RETRIES = 5
 
@@ -152,6 +171,7 @@ def _load_exporter_from(
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
     trust_remote_code: bool = True,
     upcast_quant: T.Optional[T.Sequence[str]] = None,
+    attn_implementation: T.Optional[str] = None,
 ):
     if (
         is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
@@ -171,6 +191,7 @@ def _load_exporter_from(
         device_map=device_map,
         trust_remote_code=trust_remote_code,
         upcast_quant=upcast_quant,
+        attn_implementation=attn_implementation,
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
@@ -1067,9 +1088,14 @@ def dump_llm(
     hf_download_n_retries: int = DEFAULT_HF_DOWNLOAD_N_RETRIES,
     trust_remote_code: bool = True,
     upcast_quant: T.Optional[T.Sequence[str]] = None,
+    attn_implementation: T.Optional[str] = None,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model."""
+    attn_implementation = _resolve_attn_implementation(
+        attn_implementation,
+        kwargs.get("reify_sdpa_operator"),
+    )
     exporter = LLMExporter.load(
         model_slug,
         local_dir,
@@ -1081,6 +1107,7 @@ def dump_llm(
         hf_download_n_retries=hf_download_n_retries,
         trust_remote_code=trust_remote_code,
         upcast_quant=upcast_quant,
+        attn_implementation=attn_implementation,
     )
     dump_kwargs = _normalize_dump_kwargs(kwargs)
     exporter.dump(**dump_kwargs)

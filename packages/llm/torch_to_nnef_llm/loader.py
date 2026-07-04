@@ -492,6 +492,11 @@ def _from_pretrained(
                 device_map=device_map,
                 offload_folder=tempfile.mkdtemp(suffix="offload_accelerate"),
             )
+        if hasattr(model, "tie_weights"):
+            # from_pretrained normally re-ties after loading. The manual
+            # init_empty_weights + dispatch path needs the same step, otherwise
+            # tied weights absent from the checkpoint can stay as meta tensors.
+            model.tie_weights()
         return model
     return transformers.AutoModelForCausalLM.from_pretrained(
         slug_or_dir, **kwargs
@@ -507,6 +512,7 @@ def load_model(
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
     trust_remote_code: bool = True,
     upcast_quant: T.Optional[T.Sequence[str]] = None,
+    attn_implementation: T.Optional[str] = None,
     *,
     transformers: InjectedTransformersModule = INJECTED,
 ):
@@ -531,13 +537,21 @@ def load_model(
             hf_model_slug or local_dir,
         )
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": trust_remote_code}
+    if attn_implementation == "auto":
+        attn_implementation = None
+    if attn_implementation not in (None, "eager", "sdpa"):
+        raise T2NErrorMisuse(
+            "attn_implementation must be one of: auto, eager, sdpa"
+        )
     # transformers 5.x defaults to a fused SDPA attention path that (a) passes
     # mixed-dtype q/k/v (bf16 query vs float key/value) which the SDPA kernel
     # rejects during the export forward, and (b) exports to the fused
     # tract_transformers_sdpa op, which diverges from PyTorch on tract. Eager
     # attention decomposes into core ops that export cleanly and track much
     # closer (28%-of-elements divergence -> f32 noise on SmolLM).
-    if SemanticVersion.from_str(transformers.__version__) >= "5.0.0":
+    if attn_implementation is not None:
+        kwargs["attn_implementation"] = attn_implementation
+    elif SemanticVersion.from_str(transformers.__version__) >= "5.0.0":
         kwargs["attn_implementation"] = "eager"
     if force_module_dtype is not None:
         key = "torch_dtype"
