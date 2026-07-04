@@ -443,6 +443,29 @@ def _resolve_snapshot_dir(slug: str, huggingface_hub) -> str:
         return huggingface_hub.snapshot_download(slug)
 
 
+def _attention_kwargs(
+    attn_implementation: T.Optional[str],
+    transformers: InjectedTransformersModule,
+) -> T.Dict[str, str]:
+    if attn_implementation == "auto":
+        attn_implementation = None
+    if attn_implementation not in (None, "eager", "sdpa"):
+        raise T2NErrorMisuse(
+            "attn_implementation must be one of: auto, eager, sdpa"
+        )
+    if attn_implementation is not None:
+        return {"attn_implementation": attn_implementation}
+    # transformers 5.x defaults to a fused SDPA attention path that (a) passes
+    # mixed-dtype q/k/v (bf16 query vs float key/value) which the SDPA kernel
+    # rejects during the export forward, and (b) exports to the fused
+    # tract_transformers_sdpa op, which diverges from PyTorch on tract. Eager
+    # attention decomposes into core ops that export cleanly and track much
+    # closer (28%-of-elements divergence -> f32 noise on SmolLM).
+    if SemanticVersion.from_str(transformers.__version__) >= "5.0.0":
+        return {"attn_implementation": "eager"}
+    return {}
+
+
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def _from_pretrained(
@@ -537,22 +560,7 @@ def load_model(
             hf_model_slug or local_dir,
         )
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": trust_remote_code}
-    if attn_implementation == "auto":
-        attn_implementation = None
-    if attn_implementation not in (None, "eager", "sdpa"):
-        raise T2NErrorMisuse(
-            "attn_implementation must be one of: auto, eager, sdpa"
-        )
-    # transformers 5.x defaults to a fused SDPA attention path that (a) passes
-    # mixed-dtype q/k/v (bf16 query vs float key/value) which the SDPA kernel
-    # rejects during the export forward, and (b) exports to the fused
-    # tract_transformers_sdpa op, which diverges from PyTorch on tract. Eager
-    # attention decomposes into core ops that export cleanly and track much
-    # closer (28%-of-elements divergence -> f32 noise on SmolLM).
-    if attn_implementation is not None:
-        kwargs["attn_implementation"] = attn_implementation
-    elif SemanticVersion.from_str(transformers.__version__) >= "5.0.0":
-        kwargs["attn_implementation"] = "eager"
+    kwargs.update(_attention_kwargs(attn_implementation, transformers))
     if force_module_dtype is not None:
         key = "torch_dtype"
         if SemanticVersion.from_str(transformers.__version__) >= "4.57.0":
