@@ -6,6 +6,7 @@ import tempfile
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -14,6 +15,9 @@ from torch import nn
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.op.custom_extractors import MoEFFN
+from torch_to_nnef.op.custom_extractors.moe import _GraniteMoEAdapter
+from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.opaque import OpaqueTensorRef
 from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
@@ -21,6 +25,7 @@ from torch_to_nnef.tensor.quant import (
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     check_model_io_test,
+    skipif_limited_offload_support,
     skipif_unsupported_qtensor,
 )
 
@@ -156,6 +161,57 @@ def _assert_graph_contains(inference_target, path, fragment):
         return
     graph = _read_graph_from_archive(path)
     assert fragment in graph
+
+
+def _opaque_ref(tensor, tmp_path, name):
+    offloaded = OffloadedTensor.from_original_tensor(
+        tensor,
+        name,
+        offload_dir=tmp_path,
+    )
+    return OpaqueTensorRef(
+        torch.empty(tuple(tensor.shape), dtype=tensor.dtype, device="meta"),
+        offloaded,
+    )
+
+
+@skipif_limited_offload_support
+def test_granite_adapter_materializes_opaque_expert_views(tmp_path):
+    """Granite packed expert views must not remain meta tensors."""
+    input_weight = torch.arange(2 * 6 * 4, dtype=torch.float32).reshape(
+        2, 6, 4
+    )
+    output_weight = torch.arange(2 * 4 * 3, dtype=torch.float32).reshape(
+        2, 4, 3
+    )
+    router_weight = torch.arange(2 * 4, dtype=torch.float32).reshape(2, 4)
+    moe = SimpleNamespace(
+        input_linear=SimpleNamespace(
+            weight=_opaque_ref(input_weight, tmp_path, "input_linear")
+        ),
+        output_linear=SimpleNamespace(
+            weight=_opaque_ref(output_weight, tmp_path, "output_linear")
+        ),
+        router=SimpleNamespace(
+            layer=SimpleNamespace(
+                weight=_opaque_ref(router_weight, tmp_path, "router")
+            ),
+            top_k=2,
+        ),
+    )
+
+    adapter = _GraniteMoEAdapter()
+
+    w1 = adapter.expert_w1(moe)
+    w2 = adapter.expert_w2(moe)
+    w3 = adapter.expert_w3(moe)
+
+    assert w1.device.type != "meta"
+    assert w2.device.type != "meta"
+    assert w3.device.type != "meta"
+    assert torch.equal(w1, input_weight[:, :3, :].transpose(-1, -2))
+    assert torch.equal(w2, output_weight.transpose(-1, -2))
+    assert torch.equal(w3, input_weight[:, 3:, :].transpose(-1, -2))
 
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)

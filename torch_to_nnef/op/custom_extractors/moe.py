@@ -35,6 +35,7 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.opaque import OpaqueTensorRef, opaque_to_final_tensor
 from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
@@ -50,6 +51,22 @@ LOGGER = logging.getLogger(__name__)
 
 class _MoEWeightAdapter:
     """Base adapter: extract MoE weights from a module into canonical shapes."""
+
+    def __init__(self) -> None:
+        self._constant_cache: T.Dict[int, torch.Tensor] = {}
+
+    def _constant(self, tensor: torch.Tensor) -> torch.Tensor:
+        """Materialize an export-time constant before taking tensor views."""
+        key = (
+            id(tensor.opaque_tensor)
+            if isinstance(tensor, OpaqueTensorRef)
+            else id(tensor)
+        )
+        if key not in self._constant_cache:
+            if isinstance(tensor, OpaqueTensorRef):
+                tensor = tensor.opaque_tensor
+            self._constant_cache[key] = opaque_to_final_tensor(tensor).detach()
+        return self._constant_cache[key]
 
     def gate_weight(self, m: nn.Module) -> torch.Tensor:
         """Router weight [E, D]."""
@@ -178,30 +195,28 @@ class _MixtralAdapter(_MoEWeightAdapter):
 
     def _stack_legacy(self, m: nn.Module, attr: str) -> torch.Tensor:
         return torch.stack(
-            [getattr(e, attr).weight.detach() for e in m.experts]
+            [self._constant(getattr(e, attr).weight) for e in m.experts]
         )
 
     def expert_w1(self, m: nn.Module) -> torch.Tensor:
         if self._is_fused(m):
-            half = m.experts.gate_up_proj.shape[1] // 2
-            return m.experts.gate_up_proj.detach()[:, :half, :].transpose(
-                -1, -2
-            )
+            gate_up = self._constant(m.experts.gate_up_proj)
+            half = gate_up.shape[1] // 2
+            return gate_up[:, :half, :].transpose(-1, -2)
         # legacy: w1 = gate_proj [H, D] → [E, D, H]
         return self._stack_legacy(m, "w1").transpose(-1, -2)
 
     def expert_w2(self, m: nn.Module) -> torch.Tensor:
         if self._is_fused(m):
-            return m.experts.down_proj.detach().transpose(-1, -2)
+            return self._constant(m.experts.down_proj).transpose(-1, -2)
         # legacy: w2 = down_proj [D, H] → [E, H, D]
         return self._stack_legacy(m, "w2").transpose(-1, -2)
 
     def expert_w3(self, m: nn.Module) -> torch.Tensor:
         if self._is_fused(m):
-            half = m.experts.gate_up_proj.shape[1] // 2
-            return m.experts.gate_up_proj.detach()[:, half:, :].transpose(
-                -1, -2
-            )
+            gate_up = self._constant(m.experts.gate_up_proj)
+            half = gate_up.shape[1] // 2
+            return gate_up[:, half:, :].transpose(-1, -2)
         # legacy: w3 = up_proj [H, D] → [E, D, H]
         return self._stack_legacy(m, "w3").transpose(-1, -2)
 
@@ -230,7 +245,7 @@ class _GptOssAdapter(_MoEWeightAdapter):
 
     def _gate_up(self, m: nn.Module) -> torch.Tensor:
         """gate_up_proj oriented as [E, D, 2H] (contracted axis = D)."""
-        gu = m.experts.gate_up_proj.detach()
+        gu = self._constant(m.experts.gate_up_proj)
         d_model = self._d_model(m)
         if gu.shape[1] != d_model and gu.shape[2] == d_model:
             gu = gu.transpose(-1, -2)
@@ -253,7 +268,7 @@ class _GptOssAdapter(_MoEWeightAdapter):
 
     def expert_w2(self, m: nn.Module) -> torch.Tensor:
         # down_proj is [E, H, D] already (op's w2 layout); orient defensively
-        dp = m.experts.down_proj.detach()
+        dp = self._constant(m.experts.down_proj)
         d_model = self._d_model(m)
         if dp.shape[2] != d_model and dp.shape[1] == d_model:
             dp = dp.transpose(-1, -2)
@@ -265,7 +280,7 @@ class _GptOssAdapter(_MoEWeightAdapter):
         b = getattr(m.experts, "gate_up_proj_bias", None)
         if b is None:
             return None, None
-        b = b.detach()  # [E, 2H] interleaved
+        b = self._constant(b)  # [E, 2H] interleaved
         return b[:, 0::2].contiguous(), b[:, 1::2].contiguous()
 
     def expert_w1_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
@@ -276,7 +291,7 @@ class _GptOssAdapter(_MoEWeightAdapter):
 
     def expert_w2_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
         b = getattr(m.experts, "down_proj_bias", None)
-        return b.detach() if b is not None else None
+        return self._constant(b) if b is not None else None
 
     def top_k(self, m: nn.Module) -> int:
         r = self._router(m)
@@ -307,17 +322,19 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
 
     def expert_w1(self, m: nn.Module) -> torch.Tensor:
         # gate_up_proj [E, 2*H, D] → split → gate half [E, H, D] → [E, D, H]
-        half = m.experts.gate_up_proj.detach().shape[1] // 2
-        return m.experts.gate_up_proj.detach()[:, :half, :].transpose(-1, -2)
+        gate_up = self._constant(m.experts.gate_up_proj)
+        half = gate_up.shape[1] // 2
+        return gate_up[:, :half, :].transpose(-1, -2)
 
     def expert_w2(self, m: nn.Module) -> torch.Tensor:
         # down_proj [E, D, H] → [E, H, D]
-        return m.experts.down_proj.detach().transpose(-1, -2)
+        return self._constant(m.experts.down_proj).transpose(-1, -2)
 
     def expert_w3(self, m: nn.Module) -> torch.Tensor:
         # gate_up_proj [E, 2*H, D] → split → up half [E, H, D] → [E, D, H]
-        half = m.experts.gate_up_proj.detach().shape[1] // 2
-        return m.experts.gate_up_proj.detach()[:, half:, :].transpose(-1, -2)
+        gate_up = self._constant(m.experts.gate_up_proj)
+        half = gate_up.shape[1] // 2
+        return gate_up[:, half:, :].transpose(-1, -2)
 
     def top_k(self, m: nn.Module) -> int:
         # transformers <5.x: m.top_k, >=5.x: m.gate.top_k
@@ -374,15 +391,17 @@ class _GraniteMoEAdapter(_MoEWeightAdapter):
         return m.router.layer.weight.detach()
 
     def expert_w1(self, m: nn.Module) -> torch.Tensor:
-        half = m.input_linear.weight.detach().shape[1] // 2
-        return m.input_linear.weight.detach()[:, :half, :].transpose(-1, -2)
+        input_weight = self._constant(m.input_linear.weight)
+        half = input_weight.shape[1] // 2
+        return input_weight[:, :half, :].transpose(-1, -2)
 
     def expert_w3(self, m: nn.Module) -> torch.Tensor:
-        half = m.input_linear.weight.detach().shape[1] // 2
-        return m.input_linear.weight.detach()[:, half:, :].transpose(-1, -2)
+        input_weight = self._constant(m.input_linear.weight)
+        half = input_weight.shape[1] // 2
+        return input_weight[:, half:, :].transpose(-1, -2)
 
     def expert_w2(self, m: nn.Module) -> torch.Tensor:
-        return m.output_linear.weight.detach().transpose(-1, -2)
+        return self._constant(m.output_linear.weight).transpose(-1, -2)
 
     def expert_sources(self, m: nn.Module) -> T.Sequence[torch.Tensor]:
         return (m.input_linear.weight, m.output_linear.weight)
@@ -599,6 +618,8 @@ def _emit_shared_expert(
 
 
 def _is_qtensor_like(tensor: torch.Tensor) -> bool:
+    if isinstance(tensor, OpaqueTensorRef):
+        tensor = tensor.opaque_tensor
     if isinstance(tensor, QTensor):
         return True
     if not isinstance(tensor, OffloadedTensor):
