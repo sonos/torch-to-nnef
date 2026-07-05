@@ -1,6 +1,6 @@
 [project]
 name = "torch_to_nnef_llm"
-version = "0.24.0"
+version = "0.24.1"
 description = "LLM and PEFT export to NNEF via torch-to-nnef."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
@@ -35,7 +35,7 @@ safetensors = ["safetensors"]
 [dependency-groups]
 test = [
     "pytest>=9.0.3,<10",
-    "pytest-cov>=6.0.0,<7",
+    "pytest-cov>=6.0.0,<8",
     "ruff<1.0",
     "peft",
     "coverage[toml]",
@@ -103,25 +103,25 @@ basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==4.50.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py"]]
+commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py", "tests/test_sdpa_attention_export.py"]]
 
 [tool.tox.env.cli_transformers_4_52_0]
 basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==4.52.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py"]]
+commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py", "tests/test_sdpa_attention_export.py"]]
 
 [tool.tox.env.cli_transformers_5_0_0]
 basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==5.0.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py"]]
+commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py", "tests/test_sdpa_attention_export.py"]]
 
 [tool.tox.env.cli_transformers_5_5_0]
 basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==5.5.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py"]]
+commands = [["pytest", "-s", "tests/test_llm_cli.py", "tests/test_load_retry.py", "tests/test_upcast_quant.py", "tests/test_sdpa_attention_export.py"]]

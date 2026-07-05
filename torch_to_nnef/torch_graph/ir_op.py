@@ -29,6 +29,7 @@ from torch_to_nnef.exceptions import (
     T2NErrorTorchOpTranslatedDifferently,
     T2NErrorTorchUnableToTraceData,
 )
+from torch_to_nnef.tensor import OpaqueTensorRef
 from torch_to_nnef.torch_graph.ir_data import (
     Data,
     TensorVariable,
@@ -52,6 +53,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_BADDMM,
     ATEN_BARTLETT_WINDOW,
     ATEN_CLONE,
+    ATEN_CONTIGUOUS_KIND,
     ATEN_CONV1D,
     ATEN_CONV2D,
     ATEN_CONV3D,
@@ -65,9 +67,12 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_EMBEDDING,
     ATEN_EMPTY,
     ATEN_EMPTY_LIKE,
+    ATEN_EXPAND,
     ATEN_FULL,
     ATEN_FULL_LIKE,
+    ATEN_GATHER,
     ATEN_GELU,
+    ATEN_GROUPED_MM,
     ATEN_INT,
     ATEN_LINALG_NORM,
     ATEN_LINALG_VECTOR_NORM,
@@ -84,6 +89,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_REPEAT_INTERLEAVE,
     ATEN_SCALAR_TENSOR,
     ATEN_SCALED_DOT_PRODUCT_ATTENTION,
+    ATEN_SELECT,
     ATEN_SIZE_KIND,
     ATEN_STARTID,
     ATEN_SUB,
@@ -109,6 +115,19 @@ from torch_to_nnef.torch_graph.torch_const import (
 from torch_to_nnef.utils import ReactiveNamedItemDict
 
 LOGGER = logging.getLogger(__name__)
+
+# View/shape ops whose output aliases a constant/opaque input and must not be
+# re-materialized as an independent constant. Kept in sync with the "meta"
+# allowlist in tensor/opaque.py:trace_tensor_device_for_func (that lists the
+# same ops by torch function name; here they are aten:: kinds).
+DERIVED_MODULE_ATTR_OPS = {
+    ATEN_ALIAS,
+    ATEN_CLONE,
+    ATEN_CONTIGUOUS_KIND,
+    ATEN_EXPAND,
+    ATEN_SELECT,
+    ATEN_VIEW_KIND,
+}
 
 
 class InputsAlignBetweenAtenAndTorch:
@@ -389,6 +408,21 @@ def _infer_shape_linear_output(x, w) -> torch.Size:
     return torch.Size(ax[:-1] + [wx[0]])
 
 
+def _infer_shape_grouped_mm_output(x, w) -> torch.Size:
+    """Infer output tensor shape of grouped matmul without executing it."""
+    x_shape = list(x.shape)
+    w_shape = list(w.shape)
+    assert len(x_shape) >= 2, "grouped_mm expects input rank >= 2"
+    assert len(w_shape) == 3, "grouped_mm weight must be rank 3"
+    assert x_shape[-1] == w_shape[-2], "grouped_mm feature mismatch"
+    return torch.Size(x_shape[:-1] + [w_shape[-1]])
+
+
+def _infer_shape_gather_output(_input, _dim, index) -> torch.Size:
+    """Infer output shape of gather without executing overload resolution."""
+    return index.shape
+
+
 def _infer_shape_convolution_output(*args) -> torch.Size:
     """Infer output tensor shape of convolution without executing it.
 
@@ -474,6 +508,26 @@ def _build_empty_tensor_from_infer_trace(
     return torch.empty(infered_shape, dtype=inputs[0].dtype)
 
 
+def _tensors_share_storage(left: torch.Tensor, right: torch.Tensor) -> bool:
+    """Return True when tensors alias the same underlying storage."""
+    if left.device.type == "meta" or right.device.type == "meta":
+        return False
+    try:
+        left_storage = (
+            left.untyped_storage()
+            if hasattr(left, "untyped_storage")
+            else left.storage()
+        )
+        right_storage = (
+            right.untyped_storage()
+            if hasattr(right, "untyped_storage")
+            else right.storage()
+        )
+        return left_storage.data_ptr() == right_storage.data_ptr()
+    except (AttributeError, RuntimeError):
+        return False
+
+
 @dataclass(frozen=True)
 class InferRule:
     fn: T.Optional[T.Callable[T.Any, torch.Size]]
@@ -509,6 +563,8 @@ INFER_RULES = {
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
+    ATEN_GROUPED_MM: InferRule(_infer_shape_grouped_mm_output, 2),
+    ATEN_GATHER: InferRule(_infer_shape_gather_output, 3),
     ATEN_CONVOLUTION_MODE: InferRule(_infer_shape_convolution_output, 6),
     # ``aten::_convolution`` / ``aten::convolution`` carry ``transposed``
     # (arg 6) and ``output_padding`` (arg 7); pass them so the shape inference
@@ -714,6 +770,32 @@ class TorchOp:
             return False
         return True
 
+    def output_aliases_constant_input(self, result: torch.Tensor) -> bool:
+        """Detect view-like results derived from constant inputs.
+
+        These outputs should keep shape/dtype metadata, but should not be
+        recorded as new constants. Otherwise a graph like Granite MoE's packed
+        expert weight `select`s serializes every expert slice as an independent
+        tensor in addition to the original packed parameter.
+        """
+        for input_node in self.inputs:
+            input_data = getattr(input_node, "data", None)
+            if not getattr(input_node, "module_attr", False):
+                continue
+            if self.kind in DERIVED_MODULE_ATTR_OPS and (
+                input_data is None
+                or (
+                    isinstance(input_data, OpaqueTensorRef)
+                    and result.device.type == "meta"
+                )
+            ):
+                return True
+            if isinstance(input_data, torch.Tensor) and (
+                _tensors_share_storage(result, input_data)
+            ):
+                return True
+        return False
+
     @property
     def args(self) -> T.Tuple[T.Any, ...]:
         return tuple(_.tracing_data for _ in self.inputs)
@@ -798,7 +880,20 @@ class TorchOp:
                 f"for {self.op_ref}"
             )
         for data_node, result in zip(output_nodes, output_values, strict=False):
-            if self.has_constant_inputs:
+            result_is_meta_tensor = (
+                isinstance(result, torch.Tensor)
+                and result.device.type == "meta"
+            )
+            result_aliases_constant_input = isinstance(
+                result, torch.Tensor
+            ) and self.output_aliases_constant_input(result)
+            if result_aliases_constant_input:
+                data_node.module_attr = True
+            if (
+                self.has_constant_inputs
+                and not result_aliases_constant_input
+                and not result_is_meta_tensor
+            ):
                 try:
                     if data_node.data is None or not (
                         data_node.data.shape == result.shape
@@ -823,7 +918,10 @@ class TorchOp:
                 if isinstance(result, torch.Tensor):
                     data_node.dtype = result.dtype
                     data_node.shape = list(result.shape)
-                    if dtype_is_whole_number(result.dtype):
+                    if (
+                        dtype_is_whole_number(result.dtype)
+                        and not result_is_meta_tensor
+                    ):
                         data_node._traced_data = result
 
                     if is_quantized_dtype(result.dtype):

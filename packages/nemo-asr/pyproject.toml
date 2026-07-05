@@ -1,6 +1,6 @@
 [project]
 name = "torch_to_nnef_nemo_asr"
-version = "0.24.0"
+version = "0.24.1"
 description = "NeMo ASR export to NNEF via torch-to-nnef."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
@@ -30,7 +30,7 @@ dependencies = [
 [dependency-groups]
 test = [
     "pytest>=9.0.3,<10",
-    "pytest-cov>=6.0.0,<7",
+    "pytest-cov>=6.0.0,<8",
     "ruff<1.0",
     "matplotlib",
     "numpy<2.4",

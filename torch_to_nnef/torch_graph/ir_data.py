@@ -44,6 +44,46 @@ from torch_to_nnef.utils import NamedItem, ReactiveNamedItemDict
 UNKNOWN_TRACE_SHAPE_VALUE = 321
 
 
+def _array_data_equal(left, right) -> bool:
+    return (
+        isinstance(left, np.ndarray)
+        and isinstance(right, np.ndarray)
+        and left.shape == right.shape
+        and left.dtype == right.dtype
+        and bool(np.array_equal(left, right))
+    )
+
+
+def _tensor_data_equal(left, right) -> bool:
+    if not isinstance(left, torch.Tensor) or not isinstance(
+        right, torch.Tensor
+    ):
+        return False
+    if left.__class__ is not right.__class__:
+        return False
+    if (
+        left.shape != right.shape
+        or left.dtype != right.dtype
+        or left.layout != right.layout
+    ):
+        return False
+    if left.__class__ is not torch.Tensor:
+        return True
+    if left.device.type == "meta" or right.device.type == "meta":
+        return left.device.type == right.device.type
+    return bool(torch.equal(left, right))
+
+
+def _data_equal(left, right) -> bool:
+    if left is right:
+        return True
+    if isinstance(left, np.ndarray) or isinstance(right, np.ndarray):
+        return _array_data_equal(left, right)
+    if isinstance(left, torch.Tensor) or isinstance(right, torch.Tensor):
+        return _tensor_data_equal(left, right)
+    return left == right
+
+
 def cleanup_data_name(name: str) -> str:
     for sep in ["/", "[", "]", ".", "-"]:
         name = re.sub(r"\s+", "_", name.replace(sep, "_"))
@@ -125,6 +165,7 @@ class TensorVariable(Data):
 
     quant: T.Optional[T.Dict[str, T.Any]] = None
     _traced_data: T.Optional[torch.Tensor] = None
+    module_attr: bool = False
 
     def set_data(  # pylint: disable=arguments-differ
         self, data, *args, force_shape=False, force_dtype=False, **kwargs
@@ -335,12 +376,7 @@ class TensorVariable(Data):
         return (
             self.shape == other.shape
             and self.dtype == other.dtype
-            and self.dtype == other.dtype
-            and (
-                (self.data == other.data).all().item()
-                if self.data is not None and other.data is not None
-                else self.data == other.data
-            )
+            and _data_equal(self.data, other.data)
             and self.quant == other.quant
         )
 

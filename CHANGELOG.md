@@ -3,8 +3,23 @@
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-07-02
+
 ### Added
 - LLM export: opt-in **`--upcast-quant`** (loader `upcast_quant=`) to dequantize a natively-quantized model (mxfp4, fp8, bitsandbytes, ...) to dense float before export, since tract cannot ingest those formats. Selectable per quant method (names from transformers' `QuantizationMethod`, e.g. `mxfp4`, `mxfp4,fp8`) or `any`, validated up-front (requires transformers >= 4.38). Routes by mechanism: load-time `dequantize=True` for mxfp4/fp8/metal, post-load `model.dequantize()` for bnb/higgs, then verifies the result is fully dense (a format transformers cannot dequantize fails with a clear error). Compose with `-dt` (float target) and `-c` (re-quantize to a tract scheme).
+- **LLM: dynamic `logits_to_keep`** as a runtime input (`--num-logits-to-keep dynamic`). The model emits all positions and the wrapper gathers the last `k` rows at runtime, so a single export serves both cheap prefill and speculative decode without re-exporting. The integer form is unchanged.
+- **`resize` / `grid_sample` family lowering** to `tract_core_resize` / `tract_core_grid_sample` on tract releases that expose them (`upsample_nearest{,_exact}`, `upsample_{linear1d,bilinear2d,trilinear3d}`, `upsample_bicubic2d`, `grid_sampler{,_2d,_3d}`), replacing the deconv/reshape-tile decompositions; `scale_factor`/`output_size` become constant vectors (dynamic-input safe).
+
+### Fixed
+- **Advanced indexing (`aten::index`) with multiple index tensors now broadcasts them to their common shape** before building the `tract_core_gather_nd` coordinates. The un-broadcast concat previously produced a shape-inconsistent NNEF that tract refused to build (`Inconsistent concat`); this affected any broadcasted multi-index gather even under static shapes, and was newly triggered by transformers 5.x mask indexing.
+- **LLM causal mask + `position_ids` for transformers > 4.52.4**: a degenerate `[1, 1]` batch-dim mask made generation non-causal; the mask and positions are now built correctly.
+- **Parameter views are no longer materialized as constants**: IR shape inference keeps view-like `select`/`slice` outputs as graph values instead of recording each as a fresh constant, so packed MoE expert weights (e.g. Granite MoE) serialize once. One MoE block dropped from ~6.3 GB to ~96 MB of logical constants.
+- **NeMo shape-config `renamed_symbols` now rewrites custom/derived `tract_assert` extensions too**: renaming a symbol (e.g. `AUDIO_SIGNAL__TIME` -> `S`) previously left extension asserts referencing the old, now-undeclared symbol.
+- Exporter/IR robustness: tolerate HF configs with `head_dim = None`, accept zero-length `split_with_sizes` sections (negative still rejected), safe `TensorVariable` equality for tensor subclasses / meta / numpy tensors, and shape-inference rules for `aten::_grouped_mm` and `aten::gather`.
+- Correct payload update when setting an offloaded tensor's data.
+
+### Security
+- Bumped **transformers to 5.3.0** (clears HIGH `GHSA-29pf-2h5f-8g72`, no 4.x fix exists) and **pygments to 2.20.0** (`CVE-2026-4539`).
 
 ## [0.24.0] - 2026-06-11
 

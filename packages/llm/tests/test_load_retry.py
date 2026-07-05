@@ -9,6 +9,7 @@ import pytest
 
 from torch_to_nnef.exceptions import T2NErrorRuntime
 from torch_to_nnef_llm import exporter as exp_mod
+from torch_to_nnef_llm import loader
 from torch_to_nnef_llm.exporter import LLMExporter, _hf_http_status
 from torch_to_nnef_llm.loader import _resolve_snapshot_dir
 
@@ -73,6 +74,54 @@ def test_resolve_snapshot_propagates_non_cache_miss_error():
 
     with pytest.raises(PermissionError):
         _resolve_snapshot_dir("some/model", _BoomHub())
+
+
+def test_from_pretrained_device_map_dispatch_reties_weights(
+    monkeypatch, tmp_path
+):
+    """Manual dispatch must keep tied weights from staying as meta tensors."""
+    calls = {"dispatch": 0, "tie": 0}
+
+    class _Model:
+        def tie_weights(self):
+            calls["tie"] += 1
+
+    model = _Model()
+
+    class _AutoModel:
+        @staticmethod
+        def from_pretrained(slug_or_dir, **kwargs):
+            assert slug_or_dir == tmp_path
+            assert "device_map" not in kwargs
+            return model
+
+    class _Transformers:
+        AutoModelForCausalLM = _AutoModel
+
+    def fake_dispatch(dispatched_model, weights_location, **_kwargs):
+        assert dispatched_model is model
+        assert weights_location == tmp_path
+        calls["dispatch"] += 1
+
+    monkeypatch.setattr(
+        loader, "t2n_load_checkpoint_and_dispatch", fake_dispatch
+    )
+
+    from_pretrained = loader._from_pretrained
+    while hasattr(from_pretrained, "__wrapped__"):
+        from_pretrained = from_pretrained.__wrapped__
+
+    assert (
+        from_pretrained(
+            tmp_path,
+            _Transformers.AutoModelForCausalLM,
+            transformers=_Transformers,
+            huggingface_hub=object(),
+            device_map=loader.ON_DISK_DEVICE_MAP_KEY,
+        )
+        is model
+    )
+    assert calls == {"dispatch": 1, "tie": 1}
 
 
 def test_load_retries_transient_then_succeeds(monkeypatch):

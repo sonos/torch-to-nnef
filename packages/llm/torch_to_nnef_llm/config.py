@@ -188,8 +188,9 @@ class HFConfigHelper:
 
     def get_head_dim(self):
         decoder_conf = self.decoder_conf
-        if hasattr(decoder_conf, "head_dim"):
-            return int(decoder_conf.head_dim)
+        head_dim = getattr(decoder_conf, "head_dim", None)
+        if head_dim is not None:
+            return int(head_dim)
         return int(decoder_conf.hidden_size / decoder_conf.num_attention_heads)
 
     def get_num_kv_heads(self, layer_idx: int):

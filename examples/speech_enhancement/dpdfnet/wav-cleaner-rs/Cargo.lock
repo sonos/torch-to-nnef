@@ -25,9 +25,9 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "anyhow"
-version = "1.0.102"
+version = "1.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "anymap3"
@@ -292,9 +292,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.32"
+version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "953f07c43838f8e6f9758cab68bf5bed85465e7587ebe0b823f1bcd81978ad3a"
+checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "maplit"
@@ -689,9 +689,9 @@ dependencies = [
 
 [[package]]
 name = "tract-core"
-version = "0.23.1"
+version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "666998e926c772fdcaba566fa1ae9c3c52c27e2aafb9f1c4b2407c2390ee5041"
+checksum = "827a323c1d8716e45a5de43338bd6ca831187a1ed4ce04e32cd23edfcde2f7c3"
 dependencies = [
  "anyhow",
  "anymap3",
@@ -719,9 +719,9 @@ dependencies = [
 
 [[package]]
 name = "tract-data"
-version = "0.23.1"
+version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba42a87db3dd9951b121baf8f43bd8ac5050f1adad5f1d8948f2008f8463931b"
+checksum = "bf3d10a802ba47e3e156f27207bca4381cd98aaab4db35233545e0da6696bdcb"
 dependencies = [
  "anyhow",
  "downcast-rs",
@@ -746,9 +746,9 @@ dependencies = [
 
 [[package]]
 name = "tract-linalg"
-version = "0.23.1"
+version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88758ddb596602d3bdef0a3598d93716b4ef8169776f87ba2d4ab00d6305365b"
+checksum = "2da1ca8d70f7985f4066bf75d4bc8b7abb8119b4e5f3e4e5284d800efc65d180"
 dependencies = [
  "byteorder",
  "cc",
@@ -770,9 +770,9 @@ dependencies = [
 
 [[package]]
 name = "tract-nnef"
-version = "0.23.1"
+version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd910aa2ff5b8129400d12e3127d77df94b1f26778467b0889aeaa836e166f44"
+checksum = "2e33866a921fa6103cca686040017f839082c616e853920d02842316a6a1f422"
 dependencies = [
  "byteorder",
  "erased-serde",

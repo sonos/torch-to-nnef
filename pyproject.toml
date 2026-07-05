@@ -1,6 +1,6 @@
 [project]
 name = "torch_to_nnef"
-version = "0.24.0"
+version = "0.24.1"
 description = "Any PyTorch Model to NNEF file format."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
@@ -56,8 +56,8 @@ nnef = "docs.nnef_lexer:NNEFLexer"
 
 [dependency-groups]
 test = [
-    "mypy~=1.13",
-    "pytest-cov>=6.0.0,<7",
+    "mypy>=1.13,<3.0",
+    "pytest-cov>=6.0.0,<8",
     "pytest>=9.0.3,<10",
     "hypothesis>=6.100,<7",
     "ruff<1.0",
@@ -69,18 +69,18 @@ dev = [
     "bump2version>=1.0.1,<2",
     "ipdb>=0.13.9,<0.14",
     "mike>=2.1.3",
-    "mkdocs-api-autonav==0.3.0",
+    "mkdocs-api-autonav==0.4.0",
     "mkdocs-git-revision-date-localized-plugin>=1.4.7",
-    "mkdocs-material<9.7,>=9.6",
+    "mkdocs-material>=9.6,<9.8",
     "mkdocs<1.7,>=1.6",
-    "mkdocstrings-python<1.12,>=1.11",
+    "mkdocstrings-python>=1.11,<2.1",
     "pip>=26.1",
-    "pre-commit>=2.12.0,<3",
-    "rich>=13.7.1,<14",
+    "pre-commit>=2.12.0,<5",
+    "rich>=13.7.1,<16",
     "toml>=0.10.2,<0.11",
     "tox>=4.23.2,<5",
-    "twine>=3.3.0,<4",
-    "virtualenv>=20.36.1,<21",
+    "twine>=3.3.0,<7",
+    "virtualenv>=20.36.1,<22",
 ]
 
 [tool.uv]

@@ -144,7 +144,21 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "--reify-sdpa-operator",
             action="store_true",
             help="enable conversion of scaled_dot_product_attention "
-            "to tract_transformers_sdpa. This is an experimental feature.",
+            "to tract_transformers_sdpa. When "
+            "--transformers-attn-implementation is left on auto, this also "
+            "loads the model with sdpa attention so the trace contains "
+            "scaled_dot_product_attention. This is an experimental feature.",
+        )
+
+        parser.add_argument(
+            "--transformers-attn-implementation",
+            dest="attn_implementation",
+            choices=["auto", "eager", "sdpa"],
+            default="auto",
+            help="attention implementation passed to Transformers at model "
+            "load. Mirrors the Transformers attn_implementation option. "
+            "auto keeps torch-to-nnef's safe default, except that "
+            "--reify-sdpa-operator implies sdpa.",
         )
 
         parser.add_argument(
@@ -339,6 +353,10 @@ def main():
         kwargs["upcast_quant"] = [
             m.strip() for m in kwargs["upcast_quant"].split(",") if m.strip()
         ]
+    if kwargs.get("attn_implementation") == "auto" and kwargs.get(
+        "reify_sdpa_operator"
+    ):
+        kwargs["attn_implementation"] = "sdpa"
     dump_llm(
         **kwargs,
         log_level=log_level,
