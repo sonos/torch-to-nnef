@@ -35,6 +35,14 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
     def get_auto_model_class(transformers):
         return transformers.Qwen3VLForConditionalGeneration
 
+    def prepare_model_for_export(self, model) -> None:
+        # Qwen3-VL currently hits SDPA masking issues during torch.jit tracing.
+        # Force eager attention in export mode to keep the graph traceable.
+        model.config._attn_implementation = "eager"
+        if hasattr(model, "model") and hasattr(model.model, "language_model"):
+            lang_config = model.model.language_model.config
+            lang_config._attn_implementation = "eager"
+
     def _ensure_seq_length(
         self,
         sequence_length: int,

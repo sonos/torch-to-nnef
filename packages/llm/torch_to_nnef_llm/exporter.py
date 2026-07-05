@@ -235,16 +235,7 @@ class LLMExporter:
         self.hf_model_causal.tie_weights()
 
         self.model_infos = HFConfigHelper(self.hf_model_causal.config)
-        if self.model_infos.conf.model_type == "qwen3_vl":
-            # Qwen3-VL currently hits SDPA masking issues during torch.jit
-            # tracing. Force eager attention in export mode to keep the graph
-            # traceable.
-            self.hf_model_causal.config._attn_implementation = "eager"
-            if hasattr(self.hf_model_causal, "model") and hasattr(
-                self.hf_model_causal.model, "language_model"
-            ):
-                lang_config = self.hf_model_causal.model.language_model.config
-                lang_config._attn_implementation = "eager"
+        self.model_infos.handler.prepare_model_for_export(self.hf_model_causal)
         self.wrapped_model = BaseCausal(
             self.hf_model_causal,
             handler=self.model_infos.handler,

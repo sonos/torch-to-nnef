@@ -34,6 +34,9 @@ class ArchitectureHandler(ABC):
         """Return the HF model class to load for this architecture."""
         return transformers.AutoModelForCausalLM
 
+    def prepare_model_for_export(self, model) -> None:
+        """Apply architecture-specific model tweaks before wrapping."""
+
     @abstractmethod
     def build_input_spec(
         self,

@@ -582,7 +582,7 @@ def load_model(
             assert dir_path.is_dir(), dir_path
             assert_model_safetensors_exists(dir_path)
             config = transformers.AutoConfig.from_pretrained(
-                dir_path, trust_remote_code=True
+                dir_path, trust_remote_code=trust_remote_code
             )
             auto_model_class = resolve_auto_model_class(config.model_type)
             hf_model_causal = _from_pretrained(
@@ -597,7 +597,7 @@ def load_model(
             hf_model_causal = load_peft_model(local_dir, kwargs)
     elif hf_model_slug is not None:
         config = transformers.AutoConfig.from_pretrained(
-            hf_model_slug, trust_remote_code=True
+            hf_model_slug, trust_remote_code=trust_remote_code
         )
         auto_model_class = resolve_auto_model_class(config.model_type)
         hf_model_causal = _from_pretrained(
