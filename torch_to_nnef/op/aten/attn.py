@@ -176,6 +176,7 @@ def scaled_dot_product_attention(
         cast_sdpa_output_back = False
         if (
             inference_target.force_attention_inner_in_f32
+            and inference_target.upcast_reified_sdpa_inputs_to_f32
             and query_node.dtype == torch.float16
         ):
             sdpa_inputs[0] = _cast_sdpa_input_to_f32(
