@@ -280,6 +280,38 @@ def _plan_and_inject_upcast(
     return plan
 
 
+def _load_time_weight_converters(plan):
+    """Return HF load-time converters for a load-time up-cast plan.
+
+    The standard transformers loader applies these converters while reading the
+    checkpoint. T2N's custom offload dispatcher must do the same, otherwise
+    serialized native-quant keys such as packed blocks/scales are treated as
+    unexpected and the dense target parameters stay on meta.
+    """
+    if plan[0] != "load":
+        return None, None
+    # pylint: disable-next=import-outside-toplevel
+    from transformers.quantizers.auto import AutoHfQuantizer
+
+    hf_quantizer = AutoHfQuantizer.from_config(plan[1], pre_quantized=True)
+    get_conversions = getattr(hf_quantizer, "get_weight_conversions", None)
+    if get_conversions is None:
+        method = _quant_method_of(plan[1])
+        raise T2NErrorMisuse(
+            f"native '{method}' load-time up-cast cannot use T2N custom "
+            "offload dispatch because its transformers quantizer exposes no "
+            "weight conversions"
+        )
+    conversions = get_conversions()
+    if not conversions:
+        method = _quant_method_of(plan[1])
+        raise T2NErrorMisuse(
+            f"native '{method}' load-time up-cast returned no transformers "
+            "weight conversions for T2N custom offload dispatch"
+        )
+    return conversions, hf_quantizer
+
+
 def _finish_upcast(model, plan, requested):
     """Complete the up-cast after load and verify the model is dense.
 
@@ -486,6 +518,7 @@ def _from_pretrained(
     *,
     huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
     transformers: InjectedTransformersModule = INJECTED,
+    t2n_upcast_plan=("none", None),
     **kwargs,
 ):
     if "device_map" in kwargs and kwargs["device_map"] is not None:
@@ -510,11 +543,16 @@ def _from_pretrained(
             _ in device_map
             for _ in [AUTO_DEVICE_MAP_KEY, ON_DISK_DEVICE_MAP_KEY]
         ):
+            weight_converters, hf_quantizer = _load_time_weight_converters(
+                t2n_upcast_plan
+            )
             t2n_load_checkpoint_and_dispatch(
                 model,
                 weights_location,
                 device_map=device_map,
                 offload_dir=Path(tempfile.mkdtemp(suffix="offload_t2n")),
+                weight_converters=weight_converters,
+                hf_quantizer=hf_quantizer,
             )
         elif device_map:
             # pylint: disable-next=import-outside-toplevel
@@ -608,7 +646,10 @@ def load_model(
             )
             auto_model_class = resolve_auto_model_class(config.model_type)
             hf_model_causal = _from_pretrained(
-                dir_path, auto_model_class, **kwargs
+                dir_path,
+                auto_model_class,
+                t2n_upcast_plan=upcast_plan,
+                **kwargs,
             )
             LOGGER.info(
                 "load '%s' from local directory: %s",
@@ -623,7 +664,10 @@ def load_model(
         )
         auto_model_class = resolve_auto_model_class(config.model_type)
         hf_model_causal = _from_pretrained(
-            hf_model_slug, auto_model_class, **kwargs
+            hf_model_slug,
+            auto_model_class,
+            t2n_upcast_plan=upcast_plan,
+            **kwargs,
         )
         LOGGER.info(
             "load default trained model from huggingface: '%s'", hf_model_slug

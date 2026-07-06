@@ -28,10 +28,14 @@ import gc
 import json
 import logging
 import os
+import re
 import tempfile
 import typing as T
 import warnings
+from collections import Counter
 from contextlib import contextmanager
+from copy import deepcopy
+from itertools import count
 from pathlib import Path
 
 import torch
@@ -61,6 +65,346 @@ SAFE_WEIGHTS_NAME = f"{SAFE_MODEL_NAME}.safetensors"
 TDEVICE = T.Union[int, str, torch.device]
 
 LOGGER = logging.getLogger(__name__)
+
+
+class _WeightConverterLike(T.Protocol):
+    source_patterns: T.Sequence[str]
+    target_patterns: T.Sequence[str]
+
+    def rename_source_key(
+        self, source_key: str
+    ) -> T.Tuple[str, T.Optional[str]]:
+        """Rename a checkpoint source key to a target model key."""
+
+    def add_tensor(
+        self,
+        target_key: str,
+        source_key: str,
+        source_pattern: str,
+        tensor: torch.Tensor,
+    ) -> None:
+        """Collect one source tensor for later conversion."""
+
+    def convert(self, layer_name: str, **kwargs) -> T.Mapping[str, T.Any]:
+        """Convert collected tensors to one or more target tensors."""
+
+
+class _MatchedWeightConverter(T.NamedTuple):
+    renamed_key: str
+    converter: T.Optional[_WeightConverterLike]
+    source_pattern: T.Optional[str]
+
+
+def _dot_natural_key(key: str):
+    return [
+        int(part) if part.isdigit() else part
+        for part in re.split(r"(\d+)", key)
+    ]
+
+
+class _WeightConversionCollector:
+    def __init__(
+        self,
+        *,
+        model: nn.Module,
+        model_keys: T.Set[str],
+        checkpoint_files: T.Sequence[Path],
+        checkpoint_key_to_file: T.Optional[T.Mapping[str, str]],
+        weight_converters: T.Sequence[_WeightConverterLike],
+        hf_quantizer: T.Optional[T.Any],
+        unexpected_keys: T.Set[str],
+        set_param: T.Callable[[str, torch.Tensor], None],
+    ):
+        self.model = model
+        self.model_keys = model_keys
+        self.weight_converters = list(weight_converters)
+        self.hf_quantizer = hf_quantizer
+        self.unexpected_keys = unexpected_keys
+        self.set_param = set_param
+        self.converted_params_to_load: T.Dict[
+            str, T.List[T.Tuple[int, str, str, T.Any]]
+        ] = {}
+        self.converted_templates: T.Dict[str, _WeightConverterLike] = {}
+        self.unsupported_same_key_conversions: T.Dict[
+            str, T.Tuple[str, str]
+        ] = {}
+        self.base_model_prefix = getattr(model, "base_model_prefix", None)
+        all_checkpoint_keys = self._all_checkpoint_keys(
+            checkpoint_files, checkpoint_key_to_file
+        )
+        if self.weight_converters and all_checkpoint_keys is None:
+            raise T2NErrorMisuse(
+                "weight_converters require an indexed checkpoint or "
+                "safetensors files so source tensors can be grouped before "
+                "conversion"
+            )
+        self.checkpoint_key_rank = {}
+        self.converted_expected_counts = None
+        if all_checkpoint_keys is not None:
+            self.checkpoint_key_rank = {
+                key: rank for rank, key in enumerate(all_checkpoint_keys)
+            }
+            self.converted_expected_counts = {}
+            converted_source_keys = {}
+            for key in all_checkpoint_keys:
+                match = self.rename_source_key(key)
+                if (
+                    match.source_pattern is None
+                    or match.converter is None
+                    or match.renamed_key not in self.model_keys
+                ):
+                    continue
+                self.converted_expected_counts.setdefault(
+                    match.renamed_key, Counter()
+                )[match.source_pattern] += 1
+                converted_source_keys.setdefault(match.renamed_key, []).append(
+                    (key, match.converter)
+                )
+            self.convertible_keys = {
+                renamed_key
+                for renamed_key, matches in converted_source_keys.items()
+                if self._has_conversion_evidence(
+                    renamed_key, [source_key for source_key, _ in matches]
+                )
+            }
+            self.unsupported_same_key_conversions = {
+                renamed_key: (source_key, converter.__class__.__name__)
+                for renamed_key, matches in converted_source_keys.items()
+                if renamed_key not in self.convertible_keys
+                for source_key, converter in matches
+                if self._is_ambiguous_same_key_conversion(
+                    renamed_key, source_key, converter
+                )
+            }
+        else:
+            self.convertible_keys = set()
+        self.fallback_rank = count(len(self.checkpoint_key_rank))
+
+    @staticmethod
+    def checkpoint_file_keys(checkpoint_file):
+        if not checkpoint_file.name.endswith(".safetensors"):
+            return None
+        # pylint: disable-next=import-outside-toplevel
+        import safetensors
+
+        with safetensors.safe_open(checkpoint_file, framework="pt") as f:
+            return list(f.keys())
+
+    def _all_checkpoint_keys(self, checkpoint_files, checkpoint_key_to_file):
+        if not self.weight_converters:
+            return None
+        if checkpoint_key_to_file is not None:
+            return sorted(checkpoint_key_to_file.keys(), key=_dot_natural_key)
+        if not all(
+            file.name.endswith(".safetensors") for file in checkpoint_files
+        ):
+            return None
+        keys = []
+        for checkpoint_file in checkpoint_files:
+            file_keys = self.checkpoint_file_keys(checkpoint_file)
+            if file_keys is None:
+                return None
+            keys.extend(file_keys)
+        return sorted(keys, key=_dot_natural_key)
+
+    def rename_source_key(self, source_key):
+        renamed_key = source_key
+        converter = None
+        source_pattern = None
+        for candidate in self.weight_converters:
+            renamed_key, source_pattern = candidate.rename_source_key(
+                renamed_key
+            )
+            if source_pattern is not None:
+                converter = candidate
+                break
+        if self.base_model_prefix:
+            prefix = f"{self.base_model_prefix}."
+            if renamed_key.startswith(prefix):
+                unprefixed = renamed_key[len(prefix) :]
+                if unprefixed in self.model_keys:
+                    renamed_key = unprefixed
+            else:
+                prefixed = f"{self.base_model_prefix}.{renamed_key}"
+                if prefixed in self.model_keys:
+                    renamed_key = prefixed
+        return _MatchedWeightConverter(renamed_key, converter, source_pattern)
+
+    def normalize_model_key(self, source_key):
+        if not self.base_model_prefix:
+            return source_key
+        prefix = f"{self.base_model_prefix}."
+        if source_key.startswith(prefix):
+            unprefixed = source_key[len(prefix) :]
+            if unprefixed in self.model_keys:
+                return unprefixed
+        else:
+            prefixed = f"{self.base_model_prefix}.{source_key}"
+            if prefixed in self.model_keys:
+                return prefixed
+        return source_key
+
+    def _has_conversion_evidence(self, renamed_key, source_keys):
+        """Whether this target is structurally a conversion.
+
+        This keeps broad patterns such as ``weight`` from capturing ordinary
+        dense weights, without keeping per-quantizer allow/deny lists.
+        """
+        expected_counts = self.converted_expected_counts[renamed_key]
+        return (
+            len(expected_counts) > 1
+            or len(source_keys) > 1
+            or any(
+                self.normalize_model_key(key) != renamed_key
+                for key in source_keys
+            )
+        )
+
+    def _is_ambiguous_same_key_conversion(
+        self, renamed_key, source_key, converter
+    ):
+        """Whether direct-loading would silently bypass a matched converter."""
+        return (
+            len(converter.source_patterns) == 1
+            and len(converter.target_patterns) == 1
+            and self.normalize_model_key(source_key) == renamed_key
+        )
+
+    def rank_for_key(self, key):
+        if key in self.checkpoint_key_rank:
+            return self.checkpoint_key_rank[key]
+        return next(self.fallback_rank)
+
+    def converter_inputs_complete(self, renamed_key):
+        entries = self.converted_params_to_load[renamed_key]
+        template = self.converted_templates[renamed_key]
+        collected_counts = Counter(entry[2] for entry in entries)
+        expected_counts = (
+            self.converted_expected_counts.get(renamed_key)
+            if self.converted_expected_counts is not None
+            else None
+        )
+        expected_patterns = (
+            expected_counts.keys()
+            if expected_counts is not None
+            else template.source_patterns
+        )
+        for source_pattern in expected_patterns:
+            expected = (
+                expected_counts.get(source_pattern, 0) if expected_counts else 1
+            )
+            if expected <= 0 or collected_counts[source_pattern] < expected:
+                return False
+        return True
+
+    def convert_collected_param(self, renamed_key):
+        entries = self.converted_params_to_load.pop(renamed_key)
+        template = self.converted_templates.pop(renamed_key)
+        converter = deepcopy(template)
+        for _rank, param_name, source_pattern, param in sorted(
+            entries,
+            key=lambda entry: (
+                entry[0],
+                _dot_natural_key(entry[1]),
+                entry[2],
+            ),
+        ):
+            converter.add_tensor(
+                renamed_key,
+                param_name,
+                source_pattern,
+                param,
+            )
+        try:
+            converted_tensors = converter.convert(
+                renamed_key,
+                model=self.model,
+                config=getattr(self.model, "config", None),
+                hf_quantizer=self.hf_quantizer,
+            )
+        except Exception as exc:
+            raise T2NErrorMisuse(
+                f"failed to convert checkpoint tensors for '{renamed_key}': "
+                f"{exc}"
+            ) from exc
+        for target_name, param in converted_tensors.items():
+            param = param[0] if isinstance(param, list) else param
+            self.set_param(target_name, param)
+        del converted_tensors
+        gc.collect()
+
+    def collect(self, param_name, param):
+        match = self.rename_source_key(param_name)
+        if match.source_pattern is None or match.converter is None:
+            return False
+
+        if match.renamed_key in self.model_keys:
+            if match.renamed_key not in self.convertible_keys:
+                if match.renamed_key in self.unsupported_same_key_conversions:
+                    source_key, converter_name = (
+                        self.unsupported_same_key_conversions[match.renamed_key]
+                    )
+                    raise T2NErrorMisuse(
+                        "unsupported weight converter for custom offload "
+                        f"dispatch: '{converter_name}' maps '{source_key}' to "
+                        f"the same model key '{match.renamed_key}' without "
+                        "checkpoint-level structural evidence. Use the "
+                        "standard transformers loader for this quantizer, or "
+                        "provide a checkpoint whose converted tensors are "
+                        "structurally distinguishable."
+                    )
+                return False
+            self.converted_templates.setdefault(
+                match.renamed_key, match.converter
+            )
+            self.converted_params_to_load.setdefault(
+                match.renamed_key, []
+            ).append(
+                (
+                    self.rank_for_key(param_name),
+                    param_name,
+                    match.source_pattern,
+                    param,
+                )
+            )
+            if self.converter_inputs_complete(match.renamed_key):
+                self.convert_collected_param(match.renamed_key)
+            return True
+
+        for target_pattern in match.converter.target_patterns:
+            self.unexpected_keys.add(
+                match.renamed_key.replace(
+                    match.converter.target_patterns[0], target_pattern
+                )
+            )
+        return True
+
+    def finish(self):
+        if not self.converted_params_to_load:
+            return
+        details = {}
+        for renamed_key, entries in self.converted_params_to_load.items():
+            template = self.converted_templates[renamed_key]
+            collected_counts = Counter(entry[2] for entry in entries)
+            expected_counts = (
+                self.converted_expected_counts.get(renamed_key)
+                if self.converted_expected_counts is not None
+                else None
+            )
+            expected_patterns = (
+                expected_counts.keys()
+                if expected_counts is not None
+                else template.source_patterns
+            )
+            missing = [
+                source_pattern
+                for source_pattern in expected_patterns
+                if collected_counts[source_pattern] == 0
+            ]
+            details[renamed_key] = missing or list(expected_patterns)
+        raise T2NErrorMisuse(
+            f"incomplete checkpoint tensors for weight conversion: {details}"
+        )
 
 
 class OffloadedTensor(OpaqueTensor):
@@ -644,13 +988,34 @@ def t2n_load_checkpoint_and_dispatch(
     offload_dir: Path,
     strict: bool = False,
     offload_at_load_state_dict: bool = False,
+    weight_converters: T.Optional[T.Sequence[_WeightConverterLike]] = None,
+    hf_quantizer: T.Optional[T.Any] = None,
 ):
     """Allow to offload as soon as possible.
 
-    This may be benefical in some rare case where
+    This may be beneficial in some rare case where
     partitioned safetensors file are too big for RAM
     else it's better to offload after
     dtype cast in set_module_tensor_to_device.
+
+    Args:
+        model: Model skeleton to populate.
+        checkpoint: Checkpoint file, checkpoint index, or checkpoint directory.
+        device_map: Device placement map, ``t2n_auto``, ``t2n_offload_disk``,
+            or ``None`` to use ``load_state_dict`` directly.
+        offload_dir: Directory used to store disk-offloaded tensors.
+        strict: Whether to enforce strict checkpoint/model key matching.
+        offload_at_load_state_dict: Whether each tensor should be offloaded as
+            soon as it is read from the checkpoint.
+        weight_converters: Optional Hugging Face load-time weight converters to
+            apply while dispatching. The custom offload path supports
+            converters whose checkpoint tensors are structurally
+            distinguishable from their dense target, such as multiple source
+            tensors or renamed packed tensors for one model key. Single-source
+            converters that map a source key to the same model key are rejected
+            instead of silently direct-loading serialized quantized data.
+        hf_quantizer: Optional Hugging Face quantizer passed through to
+            converter operations.
 
     """
     if isinstance(device_map, str):
@@ -662,8 +1027,16 @@ def t2n_load_checkpoint_and_dispatch(
         elif device_map == ON_DISK_DEVICE_MAP_KEY:
             device_map = {"": "disk_cpu"}
 
+    weight_converters = list(weight_converters or [])
+    if device_map is None and weight_converters:
+        raise T2NErrorMisuse(
+            "weight_converters require a device_map in "
+            "t2n_load_checkpoint_and_dispatch"
+        )
+
     checkpoint_files = None
     index_filename = None
+    checkpoint_key_to_file = None
     if checkpoint.is_file():
         if str(checkpoint).endswith(".json"):
             index_filename = checkpoint
@@ -713,6 +1086,7 @@ def t2n_load_checkpoint_and_dispatch(
 
         if "weight_map" in index:
             index = index["weight_map"]
+        checkpoint_key_to_file = index
         checkpoint_files = sorted(list(set(index.values())))
         checkpoint_files = [checkpoint_folder / f for f in checkpoint_files]
     unexpected_keys = set()
@@ -724,6 +1098,36 @@ def t2n_load_checkpoint_and_dispatch(
         add_buffers=True,
         add_unregistred_tensor=True,
     )
+
+    def param_device_for(param_name):
+        module_name = param_name
+        while len(module_name) > 0 and module_name not in device_map:
+            module_name = ".".join(module_name.split(".")[:-1])
+        if module_name == "" and "" not in device_map:
+            raise T2NErrorMisuse(f"{param_name} doesn't have any device set.")
+        return device_map[module_name]
+
+    def set_param(param_name, param):
+        set_module_tensor_to_device(
+            mod_updater,
+            param_name,
+            param_device_for(param_name),
+            value=param,
+            dtype=None,
+            offload_dir=offload_dir,
+        )
+
+    converter_collector = _WeightConversionCollector(
+        model=model,
+        model_keys=model_keys,
+        checkpoint_files=checkpoint_files,
+        checkpoint_key_to_file=checkpoint_key_to_file,
+        weight_converters=weight_converters,
+        hf_quantizer=hf_quantizer,
+        unexpected_keys=unexpected_keys,
+        set_param=set_param,
+    )
+
     for checkpoint_file in checkpoint_files:
         loaded_checkpoint = load_state_dict(
             checkpoint_file,
@@ -735,10 +1139,16 @@ def t2n_load_checkpoint_and_dispatch(
             model.load_state_dict(loaded_checkpoint, strict=strict)
             unexpected_keys.update(set(loaded_checkpoint.keys()) - model_keys)
         else:
-            for param_name, param in loaded_checkpoint.items():
+            for param_name in sorted(
+                list(loaded_checkpoint.keys()), key=_dot_natural_key
+            ):
+                param = loaded_checkpoint.pop(param_name)
                 # skip SCB parameter (for 8-bit serialization)
                 if "SCB" in param_name:
                     LOGGER.error("unsupported SCB param")
+                    continue
+
+                if converter_collector.collect(param_name, param):
                     continue
 
                 if param_name not in model_keys:
@@ -746,26 +1156,11 @@ def t2n_load_checkpoint_and_dispatch(
                     if not strict:
                         continue  # Skip loading this parameter.
 
-                module_name = param_name
-
-                while len(module_name) > 0 and module_name not in device_map:
-                    module_name = ".".join(module_name.split(".")[:-1])
-                if module_name == "" and "" not in device_map:
-                    raise T2NErrorMisuse(
-                        f"{param_name} doesn't have any device set."
-                    )
-                param_device = device_map[module_name]
-                set_module_tensor_to_device(
-                    mod_updater,
-                    param_name,
-                    param_device,
-                    value=param,
-                    dtype=None,
-                    offload_dir=offload_dir,
-                )
+                set_param(param_name, param)
         # Force Python to clean up.
         del loaded_checkpoint
         gc.collect()
+    converter_collector.finish()
     if not strict and len(unexpected_keys) > 0:
         LOGGER.warning(
             "Some weights of the model checkpoint at %s were not used when"
