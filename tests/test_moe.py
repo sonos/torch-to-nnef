@@ -178,9 +178,7 @@ def _opaque_ref(tensor, tmp_path, name):
 @skipif_limited_offload_support
 def test_granite_adapter_materializes_opaque_expert_views(tmp_path):
     """Granite packed expert views must not remain meta tensors."""
-    input_weight = torch.arange(2 * 6 * 4, dtype=torch.float32).reshape(
-        2, 6, 4
-    )
+    input_weight = torch.arange(2 * 6 * 4, dtype=torch.float32).reshape(2, 6, 4)
     output_weight = torch.arange(2 * 4 * 3, dtype=torch.float32).reshape(
         2, 4, 3
     )

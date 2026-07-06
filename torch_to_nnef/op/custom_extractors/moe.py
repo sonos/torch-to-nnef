@@ -382,29 +382,43 @@ class _GraniteMoEAdapter(_MoEWeightAdapter):
     """Adapter for transformers GraniteMoeMoE (IBM Granite MoE).
 
     Same maths as Qwen (concatenated fused gate/up, softmax over top-k logits,
-    SiLU SwiGLU), only the attribute names differ: the fused experts live in
-    `input_linear` [E, 2H, D] / `output_linear` [E, D, H] and the router is
-    `router.layer` with `router.top_k`.
+    SiLU SwiGLU), only the attribute names differ. Older Granite exports used
+    `input_linear` [E, 2H, D] / `output_linear` [E, D, H] directly on the MoE
+    module. Current Transformers stores them under `experts.gate_up_proj` and
+    `experts.down_proj`, and the router weight directly under `router.weight`.
     """
 
+    def _gate_up_proj(self, m: nn.Module) -> torch.Tensor:
+        if hasattr(m, "input_linear"):
+            return m.input_linear.weight
+        return m.experts.gate_up_proj
+
+    def _down_proj(self, m: nn.Module) -> torch.Tensor:
+        if hasattr(m, "output_linear"):
+            return m.output_linear.weight
+        return m.experts.down_proj
+
     def gate_weight(self, m: nn.Module) -> torch.Tensor:
-        return m.router.layer.weight.detach()
+        router = m.router
+        if hasattr(router, "layer"):
+            return router.layer.weight.detach()
+        return router.weight.detach()
 
     def expert_w1(self, m: nn.Module) -> torch.Tensor:
-        input_weight = self._constant(m.input_linear.weight)
+        input_weight = self._constant(self._gate_up_proj(m))
         half = input_weight.shape[1] // 2
         return input_weight[:, :half, :].transpose(-1, -2)
 
     def expert_w3(self, m: nn.Module) -> torch.Tensor:
-        input_weight = self._constant(m.input_linear.weight)
+        input_weight = self._constant(self._gate_up_proj(m))
         half = input_weight.shape[1] // 2
         return input_weight[:, half:, :].transpose(-1, -2)
 
     def expert_w2(self, m: nn.Module) -> torch.Tensor:
-        return self._constant(m.output_linear.weight).transpose(-1, -2)
+        return self._constant(self._down_proj(m)).transpose(-1, -2)
 
     def expert_sources(self, m: nn.Module) -> T.Sequence[torch.Tensor]:
-        return (m.input_linear.weight, m.output_linear.weight)
+        return (self._gate_up_proj(m), self._down_proj(m))
 
     def top_k(self, m: nn.Module) -> int:
         return m.router.top_k
