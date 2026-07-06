@@ -36,6 +36,7 @@ class ArchitectureHandler(ABC):
 
     def prepare_model_for_export(self, model) -> None:
         """Apply architecture-specific model tweaks before wrapping."""
+        return None
 
     @abstractmethod
     def build_input_spec(
