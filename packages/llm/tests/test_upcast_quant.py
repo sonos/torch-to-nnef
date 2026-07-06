@@ -7,6 +7,7 @@ covered here.
 """
 
 import json
+from copy import deepcopy
 
 import pytest
 import torch
@@ -368,6 +369,25 @@ class _BroadWeightConverter:
         return {layer_name: weight + scale}
 
 
+class _SameKeyWeightConverter:
+    source_patterns = ["weight"]
+    target_patterns = ["weight"]
+
+    def __init__(self):
+        self.collected_tensors = {"weight": []}
+
+    def rename_source_key(self, source_key):
+        if source_key.endswith("weight"):
+            return source_key, "weight"
+        return source_key, None
+
+    def add_tensor(self, _target_key, _source_key, source_pattern, tensor):
+        self.collected_tensors[source_pattern].append(tensor)
+
+    def convert(self, layer_name, **_kwargs):
+        return {layer_name: self.collected_tensors["weight"][0] * 2}
+
+
 def test_t2n_dispatch_rejects_weight_converters_without_device_map(tmp_path):
     class TinyModel(nn.Module):
         def __init__(self):
@@ -619,12 +639,70 @@ def test_t2n_dispatch_uses_broad_converter_with_structural_evidence(tmp_path):
     assert torch.equal(model.foo.weight.reload(), torch.full((2, 2), 3.0))
 
 
+def test_t2n_dispatch_rejects_ambiguous_same_key_converter(tmp_path):
+    save_file = pytest.importorskip("safetensors.torch").save_file
+
+    class TinyModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.foo = nn.Linear(2, 2, bias=False)
+
+    with init_empty_weights():
+        model = TinyModel()
+
+    save_file({"foo.weight": torch.ones(2, 2)}, tmp_path / "model.safetensors")
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    with pytest.raises(T2NErrorMisuse, match="same model key 'foo.weight'"):
+        t2n_load_checkpoint_and_dispatch(
+            model,
+            tmp_path,
+            device_map=ON_DISK_DEVICE_MAP_KEY,
+            offload_dir=offload_dir,
+            weight_converters=[_SameKeyWeightConverter()],
+        )
+
+
 def _mxfp4_blocks(shape, packed_nibbles=0x21):
-    return torch.full(shape, packed_nibbles, dtype=torch.uint8)
+    blocks = torch.empty(shape, dtype=torch.uint8)
+    blocks[..., ::2] = packed_nibbles
+    blocks[..., 1::2] = 0x43
+    return blocks
 
 
 def _mxfp4_scales(shape, exponent=0):
-    return torch.full(shape, 127 + exponent, dtype=torch.uint8)
+    scales = torch.full(shape, 127 + exponent, dtype=torch.uint8)
+    scales[..., 0] += torch.arange(shape[-2], dtype=torch.uint8) % 2
+    return scales
+
+
+def _direct_mxfp4_conversion(
+    state, weight_converters, hf_quantizer, target_key, model
+):
+    for converter_template in weight_converters:
+        converter = deepcopy(converter_template)
+        matched = False
+        for source_key, tensor in state.items():
+            renamed_key, source_pattern = converter.rename_source_key(
+                source_key
+            )
+            if renamed_key != target_key or source_pattern is None:
+                continue
+            matched = True
+            converter.add_tensor(
+                target_key,
+                source_key,
+                source_pattern,
+                tensor,
+            )
+        if matched:
+            return converter.convert(
+                target_key,
+                model=model,
+                config=getattr(model, "config", None),
+                hf_quantizer=hf_quantizer,
+            )[target_key]
+    raise AssertionError(f"no MXFP4 converter matched {target_key}")
 
 
 def test_t2n_dispatch_applies_mxfp4_weight_converter(tmp_path):
@@ -653,17 +731,15 @@ def test_t2n_dispatch_applies_mxfp4_weight_converter(tmp_path):
     with init_empty_weights():
         model = OneExpertLayer()
 
-    save_file(
-        {
-            "experts.gate_up_proj_blocks": _mxfp4_blocks((2, 64, 1, 16)),
-            "experts.gate_up_proj_scales": _mxfp4_scales((2, 64, 1)),
-            "experts.down_proj_blocks": _mxfp4_blocks((2, 32, 1, 16)),
-            "experts.down_proj_scales": _mxfp4_scales((2, 32, 1)),
-            "experts.gate_up_proj_bias": torch.zeros(2, 64),
-            "experts.down_proj_bias": torch.zeros(2, 32),
-        },
-        tmp_path / "model.safetensors",
-    )
+    state = {
+        "experts.gate_up_proj_blocks": _mxfp4_blocks((2, 64, 1, 16)),
+        "experts.gate_up_proj_scales": _mxfp4_scales((2, 64, 1)),
+        "experts.down_proj_blocks": _mxfp4_blocks((2, 32, 1, 16)),
+        "experts.down_proj_scales": _mxfp4_scales((2, 32, 1)),
+        "experts.gate_up_proj_bias": torch.zeros(2, 64),
+        "experts.down_proj_bias": torch.zeros(2, 32),
+    }
+    save_file(state, tmp_path / "model.safetensors")
     quant_config = quant_config_mod.Mxfp4Config(dequantize=True)
     weight_converters, hf_quantizer = _load_time_weight_converters(
         ("load", quant_config)
@@ -682,9 +758,23 @@ def test_t2n_dispatch_applies_mxfp4_weight_converter(tmp_path):
 
     gate_up_proj = model.experts.gate_up_proj.reload()
     down_proj = model.experts.down_proj.reload()
-    assert gate_up_proj.shape == (2, 32, 64)
-    assert down_proj.shape == (2, 32, 32)
-    assert torch.isfinite(gate_up_proj).all()
-    assert torch.isfinite(down_proj).all()
-    assert set(gate_up_proj.to(torch.float32).unique().tolist()) == {0.5, 1.0}
-    assert set(down_proj.to(torch.float32).unique().tolist()) == {0.5, 1.0}
+    assert torch.equal(
+        gate_up_proj,
+        _direct_mxfp4_conversion(
+            state,
+            weight_converters,
+            hf_quantizer,
+            "experts.gate_up_proj",
+            model,
+        ),
+    )
+    assert torch.equal(
+        down_proj,
+        _direct_mxfp4_conversion(
+            state,
+            weight_converters,
+            hf_quantizer,
+            "experts.down_proj",
+            model,
+        ),
+    )

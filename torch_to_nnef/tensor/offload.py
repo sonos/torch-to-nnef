@@ -89,6 +89,12 @@ class _WeightConverterLike(T.Protocol):
         """Convert collected tensors to one or more target tensors."""
 
 
+class _MatchedWeightConverter(T.NamedTuple):
+    renamed_key: str
+    converter: T.Optional[_WeightConverterLike]
+    source_pattern: T.Optional[str]
+
+
 def _dot_natural_key(key: str):
     return [
         int(part) if part.isdigit() else part
@@ -119,11 +125,9 @@ class _WeightConversionCollector:
             str, T.List[T.Tuple[int, str, str, T.Any]]
         ] = {}
         self.converted_templates: T.Dict[str, _WeightConverterLike] = {}
-        self.converter_by_source = {
-            source_pattern: converter
-            for converter in self.weight_converters
-            for source_pattern in converter.source_patterns
-        }
+        self.unsupported_same_key_conversions: T.Dict[
+            str, T.Tuple[str, str]
+        ] = {}
         self.base_model_prefix = getattr(model, "base_model_prefix", None)
         all_checkpoint_keys = self._all_checkpoint_keys(
             checkpoint_files, checkpoint_key_to_file
@@ -143,17 +147,34 @@ class _WeightConversionCollector:
             self.converted_expected_counts = {}
             converted_source_keys = {}
             for key in all_checkpoint_keys:
-                renamed_key, source_pattern = self.rename_source_key(key)
-                if source_pattern is None or renamed_key not in self.model_keys:
+                match = self.rename_source_key(key)
+                if (
+                    match.source_pattern is None
+                    or match.converter is None
+                    or match.renamed_key not in self.model_keys
+                ):
                     continue
                 self.converted_expected_counts.setdefault(
-                    renamed_key, Counter()
-                )[source_pattern] += 1
-                converted_source_keys.setdefault(renamed_key, []).append(key)
+                    match.renamed_key, Counter()
+                )[match.source_pattern] += 1
+                converted_source_keys.setdefault(match.renamed_key, []).append(
+                    (key, match.converter)
+                )
             self.convertible_keys = {
                 renamed_key
-                for renamed_key, source_keys in converted_source_keys.items()
-                if self._has_conversion_evidence(renamed_key, source_keys)
+                for renamed_key, matches in converted_source_keys.items()
+                if self._has_conversion_evidence(
+                    renamed_key, [source_key for source_key, _ in matches]
+                )
+            }
+            self.unsupported_same_key_conversions = {
+                renamed_key: (source_key, converter.__class__.__name__)
+                for renamed_key, matches in converted_source_keys.items()
+                if renamed_key not in self.convertible_keys
+                for source_key, converter in matches
+                if self._is_ambiguous_same_key_conversion(
+                    renamed_key, source_key, converter
+                )
             }
         else:
             self.convertible_keys = set()
@@ -188,12 +209,14 @@ class _WeightConversionCollector:
 
     def rename_source_key(self, source_key):
         renamed_key = source_key
+        converter = None
         source_pattern = None
-        for converter in self.weight_converters:
-            renamed_key, source_pattern = converter.rename_source_key(
+        for candidate in self.weight_converters:
+            renamed_key, source_pattern = candidate.rename_source_key(
                 renamed_key
             )
             if source_pattern is not None:
+                converter = candidate
                 break
         if self.base_model_prefix:
             prefix = f"{self.base_model_prefix}."
@@ -205,7 +228,7 @@ class _WeightConversionCollector:
                 prefixed = f"{self.base_model_prefix}.{renamed_key}"
                 if prefixed in self.model_keys:
                     renamed_key = prefixed
-        return renamed_key, source_pattern
+        return _MatchedWeightConverter(renamed_key, converter, source_pattern)
 
     def normalize_model_key(self, source_key):
         if not self.base_model_prefix:
@@ -235,6 +258,16 @@ class _WeightConversionCollector:
                 self.normalize_model_key(key) != renamed_key
                 for key in source_keys
             )
+        )
+
+    def _is_ambiguous_same_key_conversion(
+        self, renamed_key, source_key, converter
+    ):
+        """Whether direct-loading would silently bypass a matched converter."""
+        return (
+            len(converter.source_patterns) == 1
+            and len(converter.target_patterns) == 1
+            and self.normalize_model_key(source_key) == renamed_key
         )
 
     def rank_for_key(self, key):
@@ -301,33 +334,47 @@ class _WeightConversionCollector:
         gc.collect()
 
     def collect(self, param_name, param):
-        renamed_key, source_pattern = self.rename_source_key(param_name)
-        if source_pattern is None:
+        match = self.rename_source_key(param_name)
+        if match.source_pattern is None or match.converter is None:
             return False
 
-        if renamed_key in self.model_keys:
-            if renamed_key not in self.convertible_keys:
+        if match.renamed_key in self.model_keys:
+            if match.renamed_key not in self.convertible_keys:
+                if match.renamed_key in self.unsupported_same_key_conversions:
+                    source_key, converter_name = (
+                        self.unsupported_same_key_conversions[match.renamed_key]
+                    )
+                    raise T2NErrorMisuse(
+                        "unsupported weight converter for custom offload "
+                        f"dispatch: '{converter_name}' maps '{source_key}' to "
+                        f"the same model key '{match.renamed_key}' without "
+                        "checkpoint-level structural evidence. Use the "
+                        "standard transformers loader for this quantizer, or "
+                        "provide a checkpoint whose converted tensors are "
+                        "structurally distinguishable."
+                    )
                 return False
             self.converted_templates.setdefault(
-                renamed_key, self.converter_by_source[source_pattern]
+                match.renamed_key, match.converter
             )
-            self.converted_params_to_load.setdefault(renamed_key, []).append(
+            self.converted_params_to_load.setdefault(
+                match.renamed_key, []
+            ).append(
                 (
                     self.rank_for_key(param_name),
                     param_name,
-                    source_pattern,
+                    match.source_pattern,
                     param,
                 )
             )
-            if self.converter_inputs_complete(renamed_key):
-                self.convert_collected_param(renamed_key)
+            if self.converter_inputs_complete(match.renamed_key):
+                self.convert_collected_param(match.renamed_key)
             return True
 
-        converter = self.converter_by_source[source_pattern]
-        for target_pattern in converter.target_patterns:
+        for target_pattern in match.converter.target_patterns:
             self.unexpected_keys.add(
-                renamed_key.replace(
-                    converter.target_patterns[0], target_pattern
+                match.renamed_key.replace(
+                    match.converter.target_patterns[0], target_pattern
                 )
             )
         return True
@@ -946,10 +993,29 @@ def t2n_load_checkpoint_and_dispatch(
 ):
     """Allow to offload as soon as possible.
 
-    This may be benefical in some rare case where
+    This may be beneficial in some rare case where
     partitioned safetensors file are too big for RAM
     else it's better to offload after
     dtype cast in set_module_tensor_to_device.
+
+    Args:
+        model: Model skeleton to populate.
+        checkpoint: Checkpoint file, checkpoint index, or checkpoint directory.
+        device_map: Device placement map, ``t2n_auto``, ``t2n_offload_disk``,
+            or ``None`` to use ``load_state_dict`` directly.
+        offload_dir: Directory used to store disk-offloaded tensors.
+        strict: Whether to enforce strict checkpoint/model key matching.
+        offload_at_load_state_dict: Whether each tensor should be offloaded as
+            soon as it is read from the checkpoint.
+        weight_converters: Optional Hugging Face load-time weight converters to
+            apply while dispatching. The custom offload path supports
+            converters whose checkpoint tensors are structurally
+            distinguishable from their dense target, such as multiple source
+            tensors or renamed packed tensors for one model key. Single-source
+            converters that map a source key to the same model key are rejected
+            instead of silently direct-loading serialized quantized data.
+        hf_quantizer: Optional Hugging Face quantizer passed through to
+            converter operations.
 
     """
     if isinstance(device_map, str):
