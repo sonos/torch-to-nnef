@@ -360,6 +360,85 @@ def test_t2n_dispatch_rejects_weight_converters_without_device_map(tmp_path):
         )
 
 
+def test_t2n_dispatch_rejects_weight_converters_without_known_keys(tmp_path):
+    class TinyModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.foo = nn.Parameter(torch.empty(2, 2))
+
+    with init_empty_weights():
+        model = TinyModel()
+
+    checkpoint = tmp_path / "pytorch_model.bin"
+    torch.save(
+        {
+            "foo_blocks": torch.ones(2, 2),
+            "foo_scales": torch.ones(2, 2),
+        },
+        checkpoint,
+    )
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+
+    with pytest.raises(T2NErrorMisuse, match="indexed checkpoint"):
+        t2n_load_checkpoint_and_dispatch(
+            model,
+            checkpoint,
+            device_map=ON_DISK_DEVICE_MAP_KEY,
+            offload_dir=offload_dir,
+            weight_converters=[_ToyWeightConverter()],
+        )
+
+
+def test_from_pretrained_t2n_offload_passes_load_time_converters(
+    monkeypatch, tmp_path
+):
+    sentinel_model = nn.Module()
+    converters = [_ToyWeightConverter()]
+    quantizer = object()
+    calls = {}
+
+    class _FakeAutoModelForCausalLM:
+        @staticmethod
+        def from_pretrained(slug_or_dir, **kwargs):
+            calls["from_pretrained"] = (slug_or_dir, kwargs)
+            return sentinel_model
+
+    class _FakeTransformers:
+        AutoModelForCausalLM = _FakeAutoModelForCausalLM
+
+    monkeypatch.setattr(
+        loader,
+        "_load_time_weight_converters",
+        lambda plan: (converters, quantizer),
+    )
+
+    def fake_dispatch(model, checkpoint, **kwargs):
+        calls["dispatch"] = (model, checkpoint, kwargs)
+
+    monkeypatch.setattr(
+        loader, "t2n_load_checkpoint_and_dispatch", fake_dispatch
+    )
+
+    raw_from_pretrained = loader._from_pretrained.__wrapped__.__wrapped__
+    out = raw_from_pretrained(
+        tmp_path,
+        transformers=_FakeTransformers,
+        huggingface_hub=object(),
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        t2n_upcast_plan=("load", object()),
+    )
+
+    assert out is sentinel_model
+    assert calls["from_pretrained"][0] == tmp_path
+    dispatch_model, checkpoint, kwargs = calls["dispatch"]
+    assert dispatch_model is sentinel_model
+    assert checkpoint == tmp_path
+    assert kwargs["device_map"] == ON_DISK_DEVICE_MAP_KEY
+    assert kwargs["weight_converters"] is converters
+    assert kwargs["hf_quantizer"] is quantizer
+
+
 def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
     save_file = pytest.importorskip("safetensors.torch").save_file
 
