@@ -302,8 +302,7 @@ class _WeightConversionCollector:
             ]
             details[renamed_key] = missing or list(template.source_patterns)
         raise T2NErrorMisuse(
-            "incomplete checkpoint tensors for weight conversion: "
-            f"{details}"
+            f"incomplete checkpoint tensors for weight conversion: {details}"
         )
 
 
