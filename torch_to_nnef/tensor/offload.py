@@ -28,10 +28,12 @@ import gc
 import json
 import logging
 import os
+import re
 import tempfile
 import typing as T
 import warnings
 from contextlib import contextmanager
+from copy import deepcopy
 from pathlib import Path
 
 import torch
@@ -61,6 +63,13 @@ SAFE_WEIGHTS_NAME = f"{SAFE_MODEL_NAME}.safetensors"
 TDEVICE = T.Union[int, str, torch.device]
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _dot_natural_key(key: str):
+    return [
+        int(part) if part.isdigit() else part
+        for part in re.split(r"(\d+)", key)
+    ]
 
 
 class OffloadedTensor(OpaqueTensor):
@@ -644,6 +653,8 @@ def t2n_load_checkpoint_and_dispatch(
     offload_dir: Path,
     strict: bool = False,
     offload_at_load_state_dict: bool = False,
+    weight_converters: T.Optional[T.Sequence[T.Any]] = None,
+    hf_quantizer: T.Optional[T.Any] = None,
 ):
     """Allow to offload as soon as possible.
 
@@ -717,6 +728,14 @@ def t2n_load_checkpoint_and_dispatch(
         checkpoint_files = [checkpoint_folder / f for f in checkpoint_files]
     unexpected_keys = set()
     model_keys = set(model.state_dict().keys())
+    converted_params_to_load: T.Dict[str, T.Any] = {}
+    weight_converters = list(weight_converters or [])
+    converter_by_source = {
+        source_pattern: converter
+        for converter in weight_converters
+        for source_pattern in converter.source_patterns
+    }
+    base_model_prefix = getattr(model, "base_model_prefix", None)
     assert checkpoint_files is not None
     mod_updater = ModTensorUpdater(
         model,
@@ -724,6 +743,72 @@ def t2n_load_checkpoint_and_dispatch(
         add_buffers=True,
         add_unregistred_tensor=True,
     )
+
+    def rename_with_converters(source_key):
+        renamed_key = source_key
+        source_pattern = None
+        for converter in weight_converters:
+            renamed_key, source_pattern = converter.rename_source_key(
+                renamed_key
+            )
+            if source_pattern is not None:
+                break
+        if base_model_prefix:
+            prefix = f"{base_model_prefix}."
+            if renamed_key.startswith(prefix):
+                unprefixed = renamed_key[len(prefix) :]
+                if unprefixed in model_keys:
+                    renamed_key = unprefixed
+            else:
+                prefixed = f"{base_model_prefix}.{renamed_key}"
+                if prefixed in model_keys:
+                    renamed_key = prefixed
+        return renamed_key, source_pattern
+
+    def param_device_for(param_name):
+        module_name = param_name
+        while len(module_name) > 0 and module_name not in device_map:
+            module_name = ".".join(module_name.split(".")[:-1])
+        if module_name == "" and "" not in device_map:
+            raise T2NErrorMisuse(f"{param_name} doesn't have any device set.")
+        return device_map[module_name]
+
+    def set_param(param_name, param):
+        set_module_tensor_to_device(
+            mod_updater,
+            param_name,
+            param_device_for(param_name),
+            value=param,
+            dtype=None,
+            offload_dir=offload_dir,
+        )
+
+    def collect_converted_param(param_name, param):
+        renamed_key, source_pattern = rename_with_converters(param_name)
+        if source_pattern is None:
+            return False
+
+        if renamed_key in model_keys:
+            converter = converted_params_to_load.setdefault(
+                renamed_key, deepcopy(converter_by_source[source_pattern])
+            )
+            converter.add_tensor(
+                renamed_key,
+                param_name,
+                source_pattern,
+                param,
+            )
+            return True
+
+        converter = converter_by_source[source_pattern]
+        for target_pattern in converter.target_patterns:
+            unexpected_keys.add(
+                renamed_key.replace(
+                    converter.target_patterns[0], target_pattern
+                )
+            )
+        return True
+
     for checkpoint_file in checkpoint_files:
         loaded_checkpoint = load_state_dict(
             checkpoint_file,
@@ -735,10 +820,16 @@ def t2n_load_checkpoint_and_dispatch(
             model.load_state_dict(loaded_checkpoint, strict=strict)
             unexpected_keys.update(set(loaded_checkpoint.keys()) - model_keys)
         else:
-            for param_name, param in loaded_checkpoint.items():
+            for param_name, param in sorted(
+                loaded_checkpoint.items(),
+                key=lambda kv: _dot_natural_key(kv[0]),
+            ):
                 # skip SCB parameter (for 8-bit serialization)
                 if "SCB" in param_name:
                     LOGGER.error("unsupported SCB param")
+                    continue
+
+                if collect_converted_param(param_name, param):
                     continue
 
                 if param_name not in model_keys:
@@ -746,25 +837,29 @@ def t2n_load_checkpoint_and_dispatch(
                     if not strict:
                         continue  # Skip loading this parameter.
 
-                module_name = param_name
-
-                while len(module_name) > 0 and module_name not in device_map:
-                    module_name = ".".join(module_name.split(".")[:-1])
-                if module_name == "" and "" not in device_map:
-                    raise T2NErrorMisuse(
-                        f"{param_name} doesn't have any device set."
-                    )
-                param_device = device_map[module_name]
-                set_module_tensor_to_device(
-                    mod_updater,
-                    param_name,
-                    param_device,
-                    value=param,
-                    dtype=None,
-                    offload_dir=offload_dir,
-                )
+                set_param(param_name, param)
         # Force Python to clean up.
         del loaded_checkpoint
+        gc.collect()
+    for param_name, converter in sorted(
+        converted_params_to_load.items(), key=lambda kv: _dot_natural_key(kv[0])
+    ):
+        try:
+            converted_tensors = converter.convert(
+                param_name,
+                model=model,
+                config=getattr(model, "config", None),
+                hf_quantizer=hf_quantizer,
+            )
+        except Exception as exc:
+            raise T2NErrorMisuse(
+                f"failed to convert checkpoint tensors for '{param_name}': "
+                f"{exc}"
+            ) from exc
+        for target_name, param in converted_tensors.items():
+            param = param[0] if isinstance(param, list) else param
+            set_param(target_name, param)
+        del converted_tensors
         gc.collect()
     if not strict and len(unexpected_keys) > 0:
         LOGGER.warning(

@@ -6,13 +6,23 @@ GPU kernels, so only the pure planning / selection / dense-verification is
 covered here.
 """
 
+import json
+
 import pytest
+import torch
+from torch import nn
 
 from torch_to_nnef.exceptions import T2NErrorMisuse
+from torch_to_nnef.tensor.offload import (
+    ON_DISK_DEVICE_MAP_KEY,
+    t2n_load_checkpoint_and_dispatch,
+)
+from torch_to_nnef.utils import init_empty_weights
 from torch_to_nnef_llm import loader
 from torch_to_nnef_llm.loader import (
     UPCAST_ANY,
     _finish_upcast,
+    _load_time_weight_converters,
     _native_quant_method,
     _normalize_upcast_request,
     _plan_and_inject_upcast,
@@ -253,3 +263,151 @@ def test_finish_upcast_warns_when_quantized_but_not_requested(caplog):
         out = _finish_upcast(model, ("none", None), None)
     assert out is model  # left as-is (opt-in)
     assert any("upcast_quant was not" in r.message for r in caplog.records)
+
+
+class _ToyWeightConverter:
+    source_patterns = ["foo_blocks", "foo_scales"]
+    target_patterns = ["foo"]
+
+    def __init__(self):
+        self.collected_tensors = {
+            "foo_blocks": [],
+            "foo_scales": [],
+        }
+
+    def rename_source_key(self, source_key):
+        for source_pattern in self.source_patterns:
+            if source_pattern in source_key:
+                return (
+                    source_key.replace(source_pattern, "foo"),
+                    source_pattern,
+                )
+        return source_key, None
+
+    def add_tensor(self, _target_key, _source_key, source_pattern, tensor):
+        self.collected_tensors[source_pattern].append(tensor)
+
+    def convert(self, layer_name, **_kwargs):
+        blocks = self.collected_tensors["foo_blocks"][0]
+        scales = self.collected_tensors["foo_scales"][0]
+        return {layer_name: blocks + scales}
+
+
+def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
+    save_file = pytest.importorskip("safetensors.torch").save_file
+
+    class TinyModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.foo = nn.Parameter(torch.empty(2, 2))
+            self.bias = nn.Parameter(torch.empty(2))
+
+    with init_empty_weights():
+        model = TinyModel()
+
+    shard_1 = tmp_path / "model-00001-of-00002.safetensors"
+    shard_2 = tmp_path / "model-00002-of-00002.safetensors"
+    save_file({"foo_blocks": torch.ones(2, 2)}, shard_1)
+    save_file(
+        {
+            "foo_scales": torch.full((2, 2), 2.0),
+            "bias": torch.zeros(2),
+        },
+        shard_2,
+    )
+    (tmp_path / "model.safetensors.index.json").write_text(
+        json.dumps(
+            {
+                "metadata": {"total_size": 0},
+                "weight_map": {
+                    "foo_blocks": shard_1.name,
+                    "foo_scales": shard_2.name,
+                    "bias": shard_2.name,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    t2n_load_checkpoint_and_dispatch(
+        model,
+        tmp_path,
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        offload_dir=offload_dir,
+        weight_converters=[_ToyWeightConverter()],
+    )
+
+    assert not model.foo.is_meta
+    assert torch.equal(model.foo.reload(), torch.full((2, 2), 3.0))
+    assert not model.bias.is_meta
+
+
+def _mxfp4_blocks(shape, packed_nibbles=0x21):
+    return torch.full(shape, packed_nibbles, dtype=torch.uint8)
+
+
+def _mxfp4_scales(shape, exponent=0):
+    return torch.full(shape, 127 + exponent, dtype=torch.uint8)
+
+
+def test_t2n_dispatch_applies_mxfp4_weight_converter(tmp_path):
+    save_file = pytest.importorskip("safetensors.torch").save_file
+    pytest.importorskip("transformers.integrations.mxfp4")
+    gpt_oss_config = pytest.importorskip(
+        "transformers.models.gpt_oss.configuration_gpt_oss"
+    )
+    gpt_oss_modeling = pytest.importorskip(
+        "transformers.models.gpt_oss.modeling_gpt_oss"
+    )
+    quant_config_mod = pytest.importorskip(
+        "transformers.utils.quantization_config"
+    )
+
+    class OneExpertLayer(nn.Module):
+        def __init__(self):
+            super().__init__()
+            config = gpt_oss_config.GptOssConfig(
+                hidden_size=32,
+                intermediate_size=32,
+                num_local_experts=2,
+            )
+            self.experts = gpt_oss_modeling.GptOssExperts(config)
+
+    with init_empty_weights():
+        model = OneExpertLayer()
+
+    save_file(
+        {
+            "experts.gate_up_proj_blocks": _mxfp4_blocks((2, 64, 1, 16)),
+            "experts.gate_up_proj_scales": _mxfp4_scales((2, 64, 1)),
+            "experts.down_proj_blocks": _mxfp4_blocks((2, 32, 1, 16)),
+            "experts.down_proj_scales": _mxfp4_scales((2, 32, 1)),
+            "experts.gate_up_proj_bias": torch.zeros(2, 64),
+            "experts.down_proj_bias": torch.zeros(2, 32),
+        },
+        tmp_path / "model.safetensors",
+    )
+    quant_config = quant_config_mod.Mxfp4Config(dequantize=True)
+    weight_converters, hf_quantizer = _load_time_weight_converters(
+        ("load", quant_config)
+    )
+
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    t2n_load_checkpoint_and_dispatch(
+        model,
+        tmp_path,
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        offload_dir=offload_dir,
+        weight_converters=weight_converters,
+        hf_quantizer=hf_quantizer,
+    )
+
+    gate_up_proj = model.experts.gate_up_proj.reload()
+    down_proj = model.experts.down_proj.reload()
+    assert gate_up_proj.shape == (2, 32, 64)
+    assert down_proj.shape == (2, 32, 32)
+    assert torch.isfinite(gate_up_proj).all()
+    assert torch.isfinite(down_proj).all()
