@@ -80,6 +80,10 @@ class Qwen3Slugs(str, Enum):
     TINY = "Qwen/Qwen3-0.6B"
 
 
+class Qwen3VLSlugs(str, Enum):
+    MINI = "Qwen/Qwen3-VL-2B-Instruct"
+
+
 # }
 CUSTOM_CONFIGS: T.Dict[str, T.Any] = {}
 
@@ -163,10 +167,11 @@ class HFConfigHelper:
         self.conf = conf
         handler_class = handlers.get_handler(conf.model_type)
         self.handler = handler_class()
+        decoder_conf = self.decoder_conf
         if conf.model_type == "openelm":
             self.max_position_embeddings = conf.max_context_length
         else:
-            self.max_position_embeddings = conf.max_position_embeddings
+            self.max_position_embeddings = decoder_conf.max_position_embeddings
 
         LOGGER.info(
             "detected arch:'%s' using handler '%s'",
@@ -174,21 +179,30 @@ class HFConfigHelper:
             handler_class.__name__,
         )
 
+    @property
+    def decoder_conf(self):
+        """Return the text/decoder config for decoder-centric export logic."""
+        if hasattr(self.conf, "text_config"):
+            return self.conf.text_config
+        return self.conf
+
     def get_head_dim(self):
-        head_dim = getattr(self.conf, "head_dim", None)
+        decoder_conf = self.decoder_conf
+        head_dim = getattr(decoder_conf, "head_dim", None)
         if head_dim is not None:
             return int(head_dim)
-        return int(self.conf.hidden_size / self.conf.num_attention_heads)
+        return int(decoder_conf.hidden_size / decoder_conf.num_attention_heads)
 
     def get_num_kv_heads(self, layer_idx: int):
-        if hasattr(self.conf, "num_kv_heads"):
-            return self.conf.num_kv_heads[layer_idx]
-        return self.conf.num_key_value_heads
+        decoder_conf = self.decoder_conf
+        if hasattr(decoder_conf, "num_kv_heads"):
+            return decoder_conf.num_kv_heads[layer_idx]
+        return decoder_conf.num_key_value_heads
 
     def get_num_transformer_layers(self):
         if self.conf.model_type == "openelm":
             return self.conf.num_transformer_layers
-        return self.conf.num_hidden_layers
+        return self.decoder_conf.num_hidden_layers
 
     def get_past_value_cache_conf(self, n_past_input_tokens: int):
         past_values_cache_conf = {

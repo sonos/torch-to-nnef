@@ -30,7 +30,16 @@ class _FakeTransformers:
 
 def _load_fake_model(monkeypatch, *, attn_implementation=None):
     _FakeAutoModel.calls = []
-    monkeypatch.setitem(loader.CUSTOM_CONFIGS, "fake/model", object())
+    monkeypatch.setitem(
+        loader.CUSTOM_CONFIGS,
+        "fake/model",
+        SimpleNamespace(model_type="phi"),
+    )
+    monkeypatch.setattr(
+        loader,
+        "resolve_auto_model_class",
+        lambda _model_type: _FakeAutoModel,
+    )
     return loader.load_model.__wrapped__(
         "fake/model",
         trust_remote_code=False,

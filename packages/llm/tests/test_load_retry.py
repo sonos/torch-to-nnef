@@ -114,6 +114,7 @@ def test_from_pretrained_device_map_dispatch_reties_weights(
     assert (
         from_pretrained(
             tmp_path,
+            _Transformers.AutoModelForCausalLM,
             transformers=_Transformers,
             huggingface_hub=object(),
             device_map=loader.ON_DISK_DEVICE_MAP_KEY,

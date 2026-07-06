@@ -7,6 +7,7 @@ from torch_to_nnef_llm.models.base import (
     dyn_cache_to_legacy,
 )
 
+from .base import StateContext
 from .default import DefaultArchitectureHandler
 from .registry import register_handler
 
@@ -22,7 +23,7 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
         *,
         inputs: T.Tuple[torch.Tensor, ...],
         wrapper,
-    ) -> T.Dict[str, T.Any]:
+    ) -> StateContext:
         input_ids = inputs[0]
         cache = build_past_kv_dyn_cache(inputs[1:])
         _, seq_length = input_ids.shape[:2]
@@ -46,38 +47,44 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
             .unsqueeze(0)
             .unsqueeze(0)
         ).to(inputs_embeds.dtype)
-        return {
-            "inputs_embeds": inputs_embeds,
-            "attention_mask": attention_mask,
-            "position_ids": position_ids,
-            "past_key_values": cache,
-            "output_attentions": False,
-            "use_cache": True,
-            "cache_position": cache_position,
-        }
+        return StateContext(
+            model_inputs={
+                "inputs_embeds": inputs_embeds,
+                "attention_mask": attention_mask,
+                "position_ids": position_ids,
+                "past_key_values": cache,
+                "output_attentions": False,
+                "use_cache": True,
+                "cache_position": cache_position,
+            },
+            state={},
+        )
 
     def call_model(
         self,
         *,
         model,
-        model_inputs: T.Dict[str, T.Any],
+        state_context: StateContext,
         wrapper,
     ) -> T.Any:
-        return model.model(**model_inputs)
+        del wrapper
+        return model.model(**state_context.model_inputs)
 
     def build_forward_outputs(
         self,
         *,
         model,
         model_outputs: T.Any,
-        model_inputs: T.Dict[str, T.Any],
+        state_context: StateContext,
         num_logits_to_keep: int,
     ) -> T.List[torch.Tensor]:
         hidden_states = model_outputs[0]
         logits = model.lm_head(hidden_states[:, -num_logits_to_keep:, :])
         kvs = [
             t
-            for kv in dyn_cache_to_legacy(model_inputs["past_key_values"])
+            for kv in dyn_cache_to_legacy(
+                state_context.model_inputs["past_key_values"]
+            )
             for t in kv
         ]
         return [logits] + kvs

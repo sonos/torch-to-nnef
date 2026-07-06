@@ -7,7 +7,7 @@ from torch_to_nnef_llm.models.base import (
     build_past_kv_list,
 )
 
-from .base import ArchitectureHandler, InputSpec
+from .base import ArchitectureHandler, IOSpec, StateContext
 from .registry import register_handler
 
 
@@ -27,7 +27,7 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         n_input_tokens: int,
         n_past_input_tokens: int,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
-    ) -> InputSpec:
+    ) -> IOSpec:
         test_input = tokenizer(sample_text, return_tensors="pt")
         assert test_input.input_ids.shape[1] >= n_input_tokens
         (
@@ -45,7 +45,7 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         )
         input_names = ["input_ids"] + in_cache_names
         output_names = ["outputs"] + out_cache_names
-        return InputSpec(
+        return IOSpec(
             inputs=inputs,
             input_names=input_names,
             output_names=output_names,
@@ -57,7 +57,7 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         *,
         inputs: T.Tuple[torch.Tensor, ...],
         wrapper,
-    ) -> T.Dict[str, T.Any]:
+    ) -> StateContext:
         attention_mask = None
         position_ids = None
         cache_position = None
@@ -105,4 +105,7 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         if position_ids is not None:
             model_inputs["position_ids"] = position_ids
             model_inputs["cache_position"] = cache_position
-        return model_inputs
+        return StateContext(
+            model_inputs=model_inputs,
+            state={},
+        )

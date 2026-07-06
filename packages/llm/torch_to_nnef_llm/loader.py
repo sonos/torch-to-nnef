@@ -34,6 +34,7 @@ from torch_to_nnef_llm.config import (
     REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
     DtypeStr,
 )
+from torch_to_nnef_llm.models import handlers
 
 LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +46,17 @@ TYPE_OPTIONAL_DEVICE_MAP = T.Optional[
         torch.device,
     ]
 ]
+
+
+@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
+def resolve_auto_model_class(
+    model_type: str,
+    *,
+    transformers: InjectedTransformersModule = INJECTED,
+):
+    """Resolve the HF model class from the registered architecture handler."""
+    handler_class = handlers.get_handler(model_type)
+    return handler_class.get_auto_model_class(transformers)
 
 
 # sentinel accepted by `upcast_quant` to dequantize whatever native format the
@@ -470,6 +482,7 @@ def _attention_kwargs(
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def _from_pretrained(
     slug_or_dir: T.Union[str, Path],
+    auto_model_class,
     *,
     huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
     transformers: InjectedTransformersModule = INJECTED,
@@ -485,9 +498,7 @@ def _from_pretrained(
             )
 
         with init_empty_weights():
-            model = transformers.AutoModelForCausalLM.from_pretrained(
-                slug_or_dir, **kwargs
-            )
+            model = auto_model_class.from_pretrained(slug_or_dir, **kwargs)
 
         if device_map == "auto":
             # pylint: disable-next=import-outside-toplevel
@@ -521,9 +532,7 @@ def _from_pretrained(
             # tied weights absent from the checkpoint can stay as meta tensors.
             model.tie_weights()
         return model
-    return transformers.AutoModelForCausalLM.from_pretrained(
-        slug_or_dir, **kwargs
-    )
+    return auto_model_class.from_pretrained(slug_or_dir, **kwargs)
 
 
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
@@ -584,9 +593,8 @@ def load_model(
     )
 
     if custom_config is not None:
-        hf_model_causal = transformers.AutoModelForCausalLM.from_config(
-            custom_config, **kwargs
-        )
+        auto_model_class = resolve_auto_model_class(custom_config.model_type)
+        hf_model_causal = auto_model_class.from_config(custom_config, **kwargs)
         LOGGER.info(
             "load custom config: '%s', un-initialized weights", hf_model_slug
         )
@@ -595,7 +603,13 @@ def load_model(
             dir_path = find_subdir_with_filename_in(local_dir, "config.json")
             assert dir_path.is_dir(), dir_path
             assert_model_safetensors_exists(dir_path)
-            hf_model_causal = _from_pretrained(dir_path, **kwargs)
+            config = transformers.AutoConfig.from_pretrained(
+                dir_path, trust_remote_code=trust_remote_code
+            )
+            auto_model_class = resolve_auto_model_class(config.model_type)
+            hf_model_causal = _from_pretrained(
+                dir_path, auto_model_class, **kwargs
+            )
             LOGGER.info(
                 "load '%s' from local directory: %s",
                 hf_model_causal.config.model_type,
@@ -604,7 +618,13 @@ def load_model(
         except (T2NErrorNotFoundFile, OSError):
             hf_model_causal = load_peft_model(local_dir, kwargs)
     elif hf_model_slug is not None:
-        hf_model_causal = _from_pretrained(hf_model_slug, **kwargs)
+        config = transformers.AutoConfig.from_pretrained(
+            hf_model_slug, trust_remote_code=trust_remote_code
+        )
+        auto_model_class = resolve_auto_model_class(config.model_type)
+        hf_model_causal = _from_pretrained(
+            hf_model_slug, auto_model_class, **kwargs
+        )
         LOGGER.info(
             "load default trained model from huggingface: '%s'", hf_model_slug
         )
