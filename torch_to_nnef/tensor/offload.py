@@ -32,8 +32,10 @@ import re
 import tempfile
 import typing as T
 import warnings
+from collections import Counter
 from contextlib import contextmanager
 from copy import deepcopy
+from itertools import count
 from pathlib import Path
 
 import torch
@@ -673,8 +675,16 @@ def t2n_load_checkpoint_and_dispatch(
         elif device_map == ON_DISK_DEVICE_MAP_KEY:
             device_map = {"": "disk_cpu"}
 
+    weight_converters = list(weight_converters or [])
+    if device_map is None and weight_converters:
+        raise T2NErrorMisuse(
+            "weight_converters require a device_map in "
+            "t2n_load_checkpoint_and_dispatch"
+        )
+
     checkpoint_files = None
     index_filename = None
+    checkpoint_key_to_file = None
     if checkpoint.is_file():
         if str(checkpoint).endswith(".json"):
             index_filename = checkpoint
@@ -724,12 +734,15 @@ def t2n_load_checkpoint_and_dispatch(
 
         if "weight_map" in index:
             index = index["weight_map"]
+        checkpoint_key_to_file = index
         checkpoint_files = sorted(list(set(index.values())))
         checkpoint_files = [checkpoint_folder / f for f in checkpoint_files]
     unexpected_keys = set()
     model_keys = set(model.state_dict().keys())
-    converted_params_to_load: T.Dict[str, T.Any] = {}
-    weight_converters = list(weight_converters or [])
+    converted_params_to_load: T.Dict[
+        str, T.List[T.Tuple[int, str, str, T.Any]]
+    ] = {}
+    converted_templates: T.Dict[str, T.Any] = {}
     converter_by_source = {
         source_pattern: converter
         for converter in weight_converters
@@ -765,6 +778,55 @@ def t2n_load_checkpoint_and_dispatch(
                     renamed_key = prefixed
         return renamed_key, source_pattern
 
+    def checkpoint_file_keys(checkpoint_file):
+        if not checkpoint_file.name.endswith(".safetensors"):
+            return None
+        # pylint: disable-next=import-outside-toplevel
+        import safetensors
+
+        with safetensors.safe_open(checkpoint_file, framework="pt") as f:
+            return list(f.keys())
+
+    all_checkpoint_keys = None
+    if weight_converters and checkpoint_key_to_file is not None:
+        all_checkpoint_keys = sorted(
+            checkpoint_key_to_file.keys(), key=_dot_natural_key
+        )
+    elif weight_converters and all(
+        file.name.endswith(".safetensors") for file in checkpoint_files
+    ):
+        keys = []
+        for checkpoint_file in checkpoint_files:
+            file_keys = checkpoint_file_keys(checkpoint_file)
+            if file_keys is None:
+                keys = None
+                break
+            keys.extend(file_keys)
+        if keys is not None:
+            all_checkpoint_keys = sorted(keys, key=_dot_natural_key)
+
+    checkpoint_key_rank = {}
+    converted_expected_counts = None
+    if all_checkpoint_keys is not None:
+        checkpoint_key_rank = {
+            key: rank for rank, key in enumerate(all_checkpoint_keys)
+        }
+        converted_expected_counts = {}
+        for key in all_checkpoint_keys:
+            renamed_key, source_pattern = rename_with_converters(key)
+            if source_pattern is None or renamed_key not in model_keys:
+                continue
+            converted_expected_counts.setdefault(renamed_key, Counter())[
+                source_pattern
+            ] += 1
+
+    fallback_rank = count(len(checkpoint_key_rank))
+
+    def rank_for_key(key):
+        if key in checkpoint_key_rank:
+            return checkpoint_key_rank[key]
+        return next(fallback_rank)
+
     def param_device_for(param_name):
         module_name = param_name
         while len(module_name) > 0 and module_name not in device_map:
@@ -783,21 +845,80 @@ def t2n_load_checkpoint_and_dispatch(
             offload_dir=offload_dir,
         )
 
-    def collect_converted_param(param_name, param):
-        renamed_key, source_pattern = rename_with_converters(param_name)
-        if source_pattern is None:
-            return False
-
-        if renamed_key in model_keys:
-            converter = converted_params_to_load.setdefault(
-                renamed_key, deepcopy(converter_by_source[source_pattern])
+    def converter_inputs_complete(renamed_key):
+        entries = converted_params_to_load[renamed_key]
+        template = converted_templates[renamed_key]
+        collected_counts = Counter(entry[2] for entry in entries)
+        expected_counts = (
+            converted_expected_counts.get(renamed_key)
+            if converted_expected_counts is not None
+            else None
+        )
+        for source_pattern in template.source_patterns:
+            expected = (
+                expected_counts.get(source_pattern, 0)
+                if expected_counts is not None
+                else 1
             )
+            if expected <= 0 or collected_counts[source_pattern] < expected:
+                return False
+        return True
+
+    def convert_collected_param(renamed_key):
+        entries = converted_params_to_load.pop(renamed_key)
+        template = converted_templates.pop(renamed_key)
+        converter = deepcopy(template)
+        for _rank, param_name, source_pattern, param in sorted(
+            entries,
+            key=lambda entry: (
+                entry[0],
+                _dot_natural_key(entry[1]),
+                entry[2],
+            ),
+        ):
             converter.add_tensor(
                 renamed_key,
                 param_name,
                 source_pattern,
                 param,
             )
+        try:
+            converted_tensors = converter.convert(
+                renamed_key,
+                model=model,
+                config=getattr(model, "config", None),
+                hf_quantizer=hf_quantizer,
+            )
+        except Exception as exc:
+            raise T2NErrorMisuse(
+                f"failed to convert checkpoint tensors for '{renamed_key}': "
+                f"{exc}"
+            ) from exc
+        for target_name, param in converted_tensors.items():
+            param = param[0] if isinstance(param, list) else param
+            set_param(target_name, param)
+        del converted_tensors
+        gc.collect()
+
+    def collect_converted_param(param_name, param):
+        renamed_key, source_pattern = rename_with_converters(param_name)
+        if source_pattern is None:
+            return False
+
+        if renamed_key in model_keys:
+            converted_templates.setdefault(
+                renamed_key, converter_by_source[source_pattern]
+            )
+            converted_params_to_load.setdefault(renamed_key, []).append(
+                (
+                    rank_for_key(param_name),
+                    param_name,
+                    source_pattern,
+                    param,
+                )
+            )
+            if converter_inputs_complete(renamed_key):
+                convert_collected_param(renamed_key)
             return True
 
         converter = converter_by_source[source_pattern]
@@ -841,26 +962,21 @@ def t2n_load_checkpoint_and_dispatch(
         # Force Python to clean up.
         del loaded_checkpoint
         gc.collect()
-    for param_name, converter in sorted(
-        converted_params_to_load.items(), key=lambda kv: _dot_natural_key(kv[0])
-    ):
-        try:
-            converted_tensors = converter.convert(
-                param_name,
-                model=model,
-                config=getattr(model, "config", None),
-                hf_quantizer=hf_quantizer,
-            )
-        except Exception as exc:
-            raise T2NErrorMisuse(
-                f"failed to convert checkpoint tensors for '{param_name}': "
-                f"{exc}"
-            ) from exc
-        for target_name, param in converted_tensors.items():
-            param = param[0] if isinstance(param, list) else param
-            set_param(target_name, param)
-        del converted_tensors
-        gc.collect()
+    if converted_params_to_load:
+        details = {}
+        for renamed_key, entries in converted_params_to_load.items():
+            template = converted_templates[renamed_key]
+            collected_counts = Counter(entry[2] for entry in entries)
+            missing = [
+                source_pattern
+                for source_pattern in template.source_patterns
+                if collected_counts[source_pattern] == 0
+            ]
+            details[renamed_key] = missing or list(template.source_patterns)
+        raise T2NErrorMisuse(
+            "incomplete checkpoint tensors for weight conversion: "
+            f"{details}"
+        )
     if not strict and len(unexpected_keys) > 0:
         LOGGER.warning(
             "Some weights of the model checkpoint at %s were not used when"

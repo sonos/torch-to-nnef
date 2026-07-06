@@ -296,8 +296,20 @@ def _load_time_weight_converters(plan):
     hf_quantizer = AutoHfQuantizer.from_config(plan[1], pre_quantized=True)
     get_conversions = getattr(hf_quantizer, "get_weight_conversions", None)
     if get_conversions is None:
-        return None, hf_quantizer
-    return get_conversions(), hf_quantizer
+        method = _quant_method_of(plan[1])
+        raise T2NErrorMisuse(
+            f"native '{method}' load-time up-cast cannot use T2N custom "
+            "offload dispatch because its transformers quantizer exposes no "
+            "weight conversions"
+        )
+    conversions = get_conversions()
+    if not conversions:
+        method = _quant_method_of(plan[1])
+        raise T2NErrorMisuse(
+            f"native '{method}' load-time up-cast returned no transformers "
+            "weight conversions for T2N custom offload dispatch"
+        )
+    return conversions, hf_quantizer
 
 
 def _finish_upcast(model, plan, requested):

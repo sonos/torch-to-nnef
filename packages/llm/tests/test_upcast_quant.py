@@ -265,6 +265,35 @@ def test_finish_upcast_warns_when_quantized_but_not_requested(caplog):
     assert any("upcast_quant was not" in r.message for r in caplog.records)
 
 
+@pytest.mark.parametrize(
+    ("fake_quantizer", "message"),
+    [
+        (object(), "exposes no weight conversions"),
+        (
+            type(
+                "EmptyConverterQuantizer",
+                (),
+                {"get_weight_conversions": lambda self: []},
+            )(),
+            "returned no transformers weight conversions",
+        ),
+    ],
+)
+def test_load_time_weight_converters_fail_loudly(
+    monkeypatch, fake_quantizer, message
+):
+    import transformers.quantizers.auto as auto
+
+    monkeypatch.setattr(
+        auto.AutoHfQuantizer,
+        "from_config",
+        staticmethod(lambda *_args, **_kwargs: fake_quantizer),
+    )
+
+    with pytest.raises(T2NErrorMisuse, match=message):
+        _load_time_weight_converters(("load", _LoadTimeConfig("mxfp4")))
+
+
 class _ToyWeightConverter:
     source_patterns = ["foo_blocks", "foo_scales"]
     target_patterns = ["foo"]
@@ -291,6 +320,44 @@ class _ToyWeightConverter:
         blocks = self.collected_tensors["foo_blocks"][0]
         scales = self.collected_tensors["foo_scales"][0]
         return {layer_name: blocks + scales}
+
+
+class _OrderedWeightConverter:
+    source_patterns = ["foo_part"]
+    target_patterns = ["foo"]
+
+    def __init__(self):
+        self.collected_tensors = {"foo_part": []}
+
+    def rename_source_key(self, source_key):
+        if source_key.startswith("foo_part."):
+            return "foo", "foo_part"
+        return source_key, None
+
+    def add_tensor(self, _target_key, _source_key, source_pattern, tensor):
+        self.collected_tensors[source_pattern].append(tensor)
+
+    def convert(self, layer_name, **_kwargs):
+        return {layer_name: torch.stack(self.collected_tensors["foo_part"])}
+
+
+def test_t2n_dispatch_rejects_weight_converters_without_device_map(tmp_path):
+    class TinyModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.foo = nn.Parameter(torch.empty(2, 2))
+
+    with init_empty_weights():
+        model = TinyModel()
+
+    with pytest.raises(T2NErrorMisuse, match="require a device_map"):
+        t2n_load_checkpoint_and_dispatch(
+            model,
+            tmp_path,
+            device_map=None,
+            offload_dir=tmp_path,
+            weight_converters=[_ToyWeightConverter()],
+        )
 
 
 def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
@@ -342,6 +409,47 @@ def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
     assert not model.foo.is_meta
     assert torch.equal(model.foo.reload(), torch.full((2, 2), 3.0))
     assert not model.bias.is_meta
+
+
+def test_t2n_dispatch_preserves_global_converter_key_order(tmp_path):
+    save_file = pytest.importorskip("safetensors.torch").save_file
+
+    class TinyModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.foo = nn.Parameter(torch.empty(2, 1))
+
+    with init_empty_weights():
+        model = TinyModel()
+
+    shard_1 = tmp_path / "model-00001-of-00002.safetensors"
+    shard_2 = tmp_path / "model-00002-of-00002.safetensors"
+    save_file({"foo_part.10": torch.tensor([10.0])}, shard_1)
+    save_file({"foo_part.2": torch.tensor([2.0])}, shard_2)
+    (tmp_path / "model.safetensors.index.json").write_text(
+        json.dumps(
+            {
+                "metadata": {"total_size": 0},
+                "weight_map": {
+                    "foo_part.10": shard_1.name,
+                    "foo_part.2": shard_2.name,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    t2n_load_checkpoint_and_dispatch(
+        model,
+        tmp_path,
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        offload_dir=offload_dir,
+        weight_converters=[_OrderedWeightConverter()],
+    )
+
+    assert torch.equal(model.foo.reload(), torch.tensor([[2.0], [10.0]]))
 
 
 def _mxfp4_blocks(shape, packed_nibbles=0x21):
@@ -411,3 +519,5 @@ def test_t2n_dispatch_applies_mxfp4_weight_converter(tmp_path):
     assert down_proj.shape == (2, 32, 32)
     assert torch.isfinite(gate_up_proj).all()
     assert torch.isfinite(down_proj).all()
+    assert set(gate_up_proj.to(torch.float32).unique().tolist()) == {0.5, 1.0}
+    assert set(down_proj.to(torch.float32).unique().tolist()) == {0.5, 1.0}
