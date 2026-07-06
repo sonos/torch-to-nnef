@@ -341,6 +341,33 @@ class _OrderedWeightConverter:
         return {layer_name: torch.stack(self.collected_tensors["foo_part"])}
 
 
+class _BroadWeightConverter:
+    source_patterns = ["weight$", "weight_scale"]
+    target_patterns = ["weight"]
+
+    def __init__(self):
+        self.collected_tensors = {
+            "weight$": [],
+            "weight_scale": [],
+        }
+
+    def rename_source_key(self, source_key):
+        if source_key.endswith("weight_scale"):
+            target_key = source_key.removesuffix("weight_scale") + "weight"
+            return target_key, "weight_scale"
+        if source_key.endswith("weight"):
+            return source_key, "weight$"
+        return source_key, None
+
+    def add_tensor(self, _target_key, _source_key, source_pattern, tensor):
+        self.collected_tensors[source_pattern].append(tensor)
+
+    def convert(self, layer_name, **_kwargs):
+        weight = self.collected_tensors["weight$"][0]
+        scale = self.collected_tensors["weight_scale"][0]
+        return {layer_name: weight + scale}
+
+
 def test_t2n_dispatch_rejects_weight_converters_without_device_map(tmp_path):
     class TinyModel(nn.Module):
         def __init__(self):
@@ -423,6 +450,7 @@ def test_from_pretrained_t2n_offload_passes_load_time_converters(
     raw_from_pretrained = loader._from_pretrained.__wrapped__.__wrapped__
     out = raw_from_pretrained(
         tmp_path,
+        _FakeAutoModelForCausalLM,
         transformers=_FakeTransformers,
         huggingface_hub=object(),
         device_map=ON_DISK_DEVICE_MAP_KEY,
@@ -529,6 +557,66 @@ def test_t2n_dispatch_preserves_global_converter_key_order(tmp_path):
     )
 
     assert torch.equal(model.foo.reload(), torch.tensor([[2.0], [10.0]]))
+
+
+def test_t2n_dispatch_does_not_capture_dense_weight_with_broad_converter(
+    tmp_path,
+):
+    save_file = pytest.importorskip("safetensors.torch").save_file
+
+    class TinyModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.foo = nn.Linear(2, 2, bias=False)
+
+    with init_empty_weights():
+        model = TinyModel()
+
+    save_file(
+        {"foo.weight": torch.full((2, 2), 4.0)}, tmp_path / "model.safetensors"
+    )
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    t2n_load_checkpoint_and_dispatch(
+        model,
+        tmp_path,
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        offload_dir=offload_dir,
+        weight_converters=[_BroadWeightConverter()],
+    )
+
+    assert torch.equal(model.foo.weight.reload(), torch.full((2, 2), 4.0))
+
+
+def test_t2n_dispatch_uses_broad_converter_with_structural_evidence(tmp_path):
+    save_file = pytest.importorskip("safetensors.torch").save_file
+
+    class TinyModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.foo = nn.Linear(2, 2, bias=False)
+
+    with init_empty_weights():
+        model = TinyModel()
+
+    save_file(
+        {
+            "foo.weight": torch.ones(2, 2),
+            "foo.weight_scale": torch.full((2, 2), 2.0),
+        },
+        tmp_path / "model.safetensors",
+    )
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    t2n_load_checkpoint_and_dispatch(
+        model,
+        tmp_path,
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        offload_dir=offload_dir,
+        weight_converters=[_BroadWeightConverter()],
+    )
+
+    assert torch.equal(model.foo.weight.reload(), torch.full((2, 2), 3.0))
 
 
 def _mxfp4_blocks(shape, packed_nibbles=0x21):

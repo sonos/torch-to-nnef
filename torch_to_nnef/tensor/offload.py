@@ -141,6 +141,7 @@ class _WeightConversionCollector:
                 key: rank for rank, key in enumerate(all_checkpoint_keys)
             }
             self.converted_expected_counts = {}
+            converted_source_keys = {}
             for key in all_checkpoint_keys:
                 renamed_key, source_pattern = self.rename_source_key(key)
                 if source_pattern is None or renamed_key not in self.model_keys:
@@ -148,6 +149,14 @@ class _WeightConversionCollector:
                 self.converted_expected_counts.setdefault(
                     renamed_key, Counter()
                 )[source_pattern] += 1
+                converted_source_keys.setdefault(renamed_key, []).append(key)
+            self.convertible_keys = {
+                renamed_key
+                for renamed_key, source_keys in converted_source_keys.items()
+                if self._has_conversion_evidence(renamed_key, source_keys)
+            }
+        else:
+            self.convertible_keys = set()
         self.fallback_rank = count(len(self.checkpoint_key_rank))
 
     @staticmethod
@@ -198,6 +207,36 @@ class _WeightConversionCollector:
                     renamed_key = prefixed
         return renamed_key, source_pattern
 
+    def normalize_model_key(self, source_key):
+        if not self.base_model_prefix:
+            return source_key
+        prefix = f"{self.base_model_prefix}."
+        if source_key.startswith(prefix):
+            unprefixed = source_key[len(prefix) :]
+            if unprefixed in self.model_keys:
+                return unprefixed
+        else:
+            prefixed = f"{self.base_model_prefix}.{source_key}"
+            if prefixed in self.model_keys:
+                return prefixed
+        return source_key
+
+    def _has_conversion_evidence(self, renamed_key, source_keys):
+        """Whether this target is structurally a conversion.
+
+        This keeps broad patterns such as ``weight`` from capturing ordinary
+        dense weights, without keeping per-quantizer allow/deny lists.
+        """
+        expected_counts = self.converted_expected_counts[renamed_key]
+        return (
+            len(expected_counts) > 1
+            or len(source_keys) > 1
+            or any(
+                self.normalize_model_key(key) != renamed_key
+                for key in source_keys
+            )
+        )
+
     def rank_for_key(self, key):
         if key in self.checkpoint_key_rank:
             return self.checkpoint_key_rank[key]
@@ -212,11 +251,14 @@ class _WeightConversionCollector:
             if self.converted_expected_counts is not None
             else None
         )
-        for source_pattern in template.source_patterns:
+        expected_patterns = (
+            expected_counts.keys()
+            if expected_counts is not None
+            else template.source_patterns
+        )
+        for source_pattern in expected_patterns:
             expected = (
-                expected_counts.get(source_pattern, 0)
-                if expected_counts is not None
-                else 1
+                expected_counts.get(source_pattern, 0) if expected_counts else 1
             )
             if expected <= 0 or collected_counts[source_pattern] < expected:
                 return False
@@ -264,6 +306,8 @@ class _WeightConversionCollector:
             return False
 
         if renamed_key in self.model_keys:
+            if renamed_key not in self.convertible_keys:
+                return False
             self.converted_templates.setdefault(
                 renamed_key, self.converter_by_source[source_pattern]
             )
@@ -295,12 +339,22 @@ class _WeightConversionCollector:
         for renamed_key, entries in self.converted_params_to_load.items():
             template = self.converted_templates[renamed_key]
             collected_counts = Counter(entry[2] for entry in entries)
+            expected_counts = (
+                self.converted_expected_counts.get(renamed_key)
+                if self.converted_expected_counts is not None
+                else None
+            )
+            expected_patterns = (
+                expected_counts.keys()
+                if expected_counts is not None
+                else template.source_patterns
+            )
             missing = [
                 source_pattern
-                for source_pattern in template.source_patterns
+                for source_pattern in expected_patterns
                 if collected_counts[source_pattern] == 0
             ]
-            details[renamed_key] = missing or list(template.source_patterns)
+            details[renamed_key] = missing or list(expected_patterns)
         raise T2NErrorMisuse(
             f"incomplete checkpoint tensors for weight conversion: {details}"
         )
