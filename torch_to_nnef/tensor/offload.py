@@ -713,19 +713,58 @@ class OffloadedTensor(OpaqueTensor):
 
     @classmethod
     def _save(cls, tensor, offload_dir, name):
-        return torch.save(
-            tensor, cls._offload_path(offload_dir, name, tensor.dtype)
+        dtype = tensor.dtype
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.tensor.quant.qtract import (
+            QTensorTractScaleOnly,
         )
+
+        if isinstance(tensor, QTensorTractScaleOnly):
+            tensor = tensor.to_offload_state()
+        return torch.save(tensor, cls._offload_path(offload_dir, name, dtype))
 
     def reload(self):
         if issubclass(self.offloaded_tensor_type, OpaqueTensor):
             load_kwargs = {}
             if torch_version() >= "1.13.0":
                 load_kwargs["weights_only"] = False
-            return torch.load(self.offload_path, **load_kwargs).to(
-                self.target_device
+            loaded = torch.load(self.offload_path, **load_kwargs)
+            # pylint: disable-next=import-outside-toplevel
+            from torch_to_nnef.tensor.quant.qtract import (
+                QTensorTractScaleOnly,
             )
+
+            if QTensorTractScaleOnly.is_offload_state(loaded):
+                loaded = QTensorTractScaleOnly.from_offload_state(loaded)
+                if loaded.device != self.target_device:
+                    loaded.to_device(self.target_device)
+                return loaded
+            return loaded.to(self.target_device)
         return torch_safe_load(self.offload_path).to(self.target_device)
+
+    def write_qtensor_in_file(
+        self,
+        dirpath: T.Union[str, Path],
+        label: str,
+        inference_target=None,
+    ) -> bool:
+        if not issubclass(self.offloaded_tensor_type, OpaqueTensor):
+            return False
+        load_kwargs = {}
+        if torch_version() >= "1.13.0":
+            load_kwargs["weights_only"] = False
+        loaded = torch.load(self.offload_path, **load_kwargs)
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.tensor.quant.qtract import (
+            QTensorTractScaleOnly,
+        )
+
+        if not QTensorTractScaleOnly.is_offload_state(loaded):
+            return False
+        QTensorTractScaleOnly.write_offload_state_in_file(
+            loaded, dirpath, label, inference_target=inference_target
+        )
+        return True
 
     def _to_base_tensor(self) -> torch.Tensor:
         return self.reload()

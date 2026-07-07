@@ -30,6 +30,7 @@ class QTensorTract(QTensor):
 class QTensorTractScaleOnly(QTensorTract):
     """Tract data format it serializes to: Q4_0."""
 
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_scale_only.v1"
     qscheme: QScalePerGroupF16  # type notation for mypy
 
     def __init__(
@@ -71,42 +72,210 @@ class QTensorTractScaleOnly(QTensorTract):
             decompress_u8, target_dtype=self.dequant_to_dtype
         )
 
-    def _build_binary_dat_header(self, post_tract_21_11: bool = False) -> bytes:
+    @classmethod
+    def is_offload_state(cls, state) -> bool:
+        return (
+            isinstance(state, dict)
+            and state.get("__t2n_qtensor_state__") == cls.OFFLOAD_STATE_TAG
+        )
+
+    def to_offload_state(self) -> T.Dict[str, T.Any]:
+        return {
+            "__t2n_qtensor_state__": self.OFFLOAD_STATE_TAG,
+            "shape": tuple(self.shape),
+            "dtype": self.dtype,
+            "u8_blob": self.u8_blob,
+            "u8_compressors": self.u8_compressors,
+            "qscheme": self.qscheme,
+            "dequant_to_dtype": self.dequant_to_dtype,
+            "nnef_name": self.nnef_name,
+            "decompressed_shape": tuple(self.decompressed_shape),
+            "specific_machine": self.specific_machine,
+        }
+
+    @classmethod
+    def from_offload_state(cls, state) -> "QTensorTractScaleOnly":
+        assert cls.is_offload_state(state), state
+        fp_placeholder = torch.empty(state["shape"], dtype=state["dtype"])
+        qtensor = cls.__new__(
+            cls,
+            fp_placeholder,
+            state["qscheme"],
+            dequant_to_dtype=state["dequant_to_dtype"],
+        )
+        qtensor.u8_compressors = state["u8_compressors"]
+        qtensor.u8_blob = state["u8_blob"]
+        qtensor.qscheme = state["qscheme"]
+        qtensor.dequant_to_dtype = state["dequant_to_dtype"]
+        qtensor.nnef_name = state["nnef_name"]
+        qtensor.requires_grad = False
+        qtensor.decompressed_shape = state["decompressed_shape"]
+        qtensor.specific_machine = state["specific_machine"]
+        return qtensor
+
+    @staticmethod
+    def _build_binary_dat_header_for_shape(
+        decompressed_shape, post_tract_21_11: bool = False
+    ) -> bytes:
         if post_tract_21_11:
             item_type = DatBinHeader.TractCustomTypes.Q40
         else:
             item_type = DatBinHeader.TractCustomTypes.Q40_LEGACY
         return DatBinHeader.build_tract_qtensor(
-            item_type, self.decompressed_shape
+            item_type, decompressed_shape
         ).to_bytes()
+
+    def _build_binary_dat_header(self, post_tract_21_11: bool = False) -> bytes:
+        return self._build_binary_dat_header_for_shape(
+            self.decompressed_shape, post_tract_21_11
+        )
+
+    @staticmethod
+    def _decompress_u8_blob(u8_blob, u8_compressors):
+        decompress_u8 = u8_blob
+        for u8_compressor in reversed(u8_compressors or []):
+            decompress_u8 = u8_compressor.decompress(decompress_u8)
+        return decompress_u8
+
+    @staticmethod
+    def _pack_binary_dat_values(
+        tensor_flat: torch.Tensor, post_tract_21_11: bool
+    ) -> np.ndarray:
+        if post_tract_21_11:
+            tensor_per_group = tensor_flat.reshape(-1, 2, 16)
+            return (
+                tensor_per_group[:, 0, :] | (tensor_per_group[:, 1, :] << 4)
+            ).numpy()
+        tensor_per_group = tensor_flat.reshape(-1, 16, 2)
+        return (
+            tensor_per_group[:, :, 0] | (tensor_per_group[:, :, 1] << 4)
+        ).numpy()
+
+    @classmethod
+    def _iter_binary_dat_content_chunks(
+        cls,
+        u8_blob: torch.Tensor,
+        scale: torch.Tensor,
+        post_tract_21_11: bool = False,
+        chunk_groups: int = 1 << 20,
+    ):
+        n_bytes_per_group = 18
+        tensor_flat = u8_blob.flatten()
+        assert tensor_flat.numel() % 32 == 0, tensor_flat.shape
+        group_count = tensor_flat.numel() // 32
+        scale_bytes = (
+            scale.reshape(group_count, 1)
+            .contiguous()
+            .numpy()
+            .view(np.uint8)
+            .reshape(group_count, 2)
+        )
+
+        for start in range(0, group_count, chunk_groups):
+            end = min(start + chunk_groups, group_count)
+            chunk_flat = tensor_flat[start * 32 : end * 32]
+            b_vals = cls._pack_binary_dat_values(
+                chunk_flat, post_tract_21_11
+            ).view(np.uint8)
+            b_all = np.empty((end - start, n_bytes_per_group), dtype=np.uint8)
+            b_all[:, :2] = scale_bytes[start:end]
+            b_all[:, 2:] = b_vals.reshape(end - start, 16)
+            b_arr = b_all.tobytes()
+            assert len(b_arr) % n_bytes_per_group == 0
+            yield b_arr
+
+    @classmethod
+    def _build_binary_dat_content_from_parts(
+        cls,
+        u8_blob: torch.Tensor,
+        scale: torch.Tensor,
+        post_tract_21_11: bool = False,
+    ) -> bytes:
+        return b"".join(
+            cls._iter_binary_dat_content_chunks(
+                u8_blob,
+                scale,
+                post_tract_21_11=post_tract_21_11,
+            )
+        )
 
     def _build_binary_dat_content(
         self, post_tract_21_11: bool = False
     ) -> bytes:
-        # NOTE: implementation with multiple call to .tobytes,
-        # not tested if bottleneck
+        return self._build_binary_dat_content_from_parts(
+            self.decompress_to_u8(),
+            self.qscheme.scale,
+            post_tract_21_11=post_tract_21_11,
+        )
 
-        n_bytes_per_group = 18
-        tensor_flat = self.decompress_to_u8().clone().flatten()
-        if post_tract_21_11:
-            tensor_per_group = tensor_flat.reshape(-1, 2, 16)
-            tensor_per_group[:, 1, :] <<= 4
-            tensor_per_group = (
-                tensor_per_group.sum(dim=1).numpy().astype(np.uint8)
-            )
-        else:
-            tensor_per_group = tensor_flat.reshape(-1, 16, 2)
-            tensor_per_group[:, :, 1] <<= 4
-            tensor_per_group = (
-                tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
-            )
+    @classmethod
+    def _write_binary_dat_content(cls, fh, u8_blob, scale, post_tract_21_11):
+        for chunk in cls._iter_binary_dat_content_chunks(
+            u8_blob, scale, post_tract_21_11=post_tract_21_11
+        ):
+            fh.write(chunk)
 
-        b_scales = self.qscheme.scale.numpy().view(np.byte)
-        b_vals = tensor_per_group.view(np.byte)
-        b_all = np.hstack([b_scales, b_vals])
-        b_arr = b_all.tobytes()
-        assert len(b_arr) % n_bytes_per_group == 0
-        return b_arr
+    @classmethod
+    def _write_binary_dat(
+        cls, path: Path, bin_header: bytes, bin_content: bytes
+    ):
+        with path.open("wb") as fh:
+            fh.write(bin_header)
+            fh.write(bin_content)
+
+    @classmethod
+    def _write_binary_dat_from_parts(
+        cls,
+        path: Path,
+        bin_header: bytes,
+        u8_blob: torch.Tensor,
+        scale: torch.Tensor,
+        post_tract_21_11: bool,
+    ):
+        with path.open("wb") as fh:
+            fh.write(bin_header)
+            cls._write_binary_dat_content(fh, u8_blob, scale, post_tract_21_11)
+
+    @classmethod
+    def write_offload_state_in_file(
+        cls,
+        state,
+        dirpath: T.Union[str, Path],
+        label: str,
+        inference_target: T.Optional[InferenceTarget] = None,
+    ):
+        assert cls.is_offload_state(state), state
+        if inference_target is None:
+            inference_target = TractNNEF.latest()
+        path = Path(dirpath) / f"{label}.dat"
+        if path.exists():
+            with tempfile.TemporaryDirectory() as _td:
+                td = Path(_td)
+                cls.write_offload_state_in_file(
+                    state, td, label, inference_target=inference_target
+                )
+                new_path = td / f"{label}.dat"
+                assert new_path.exists(), new_path
+                if filecmp.cmp(path, new_path):
+                    return
+            raise T2NErrorNotImplemented(
+                "At least 2 variables in the NNEF graph, "
+                f"share same Parameters: '{label}' but they try "
+                "to use different data-type (likely quantization format). "
+                "This variable collision as no resolution strategy yet."
+            )
+        assert isinstance(inference_target, TractNNEF), inference_target
+        post_tract_21_11 = inference_target.version >= "0.21.11"
+        bin_header = cls._build_binary_dat_header_for_shape(
+            state["decompressed_shape"], post_tract_21_11
+        )
+        cls._write_binary_dat_from_parts(
+            path,
+            bin_header,
+            cls._decompress_u8_blob(state["u8_blob"], state["u8_compressors"]),
+            state["qscheme"].scale,
+            post_tract_21_11,
+        )
 
     def write_in_file(
         self,
@@ -137,10 +306,13 @@ class QTensorTractScaleOnly(QTensorTract):
         assert isinstance(inference_target, TractNNEF), inference_target
         post_tract_21_11 = inference_target.version >= "0.21.11"
         bin_header = self._build_binary_dat_header(post_tract_21_11)
-        bin_content = self._build_binary_dat_content(post_tract_21_11)
-        with path.open("wb") as fh:
-            fh.write(bin_header)
-            fh.write(bin_content)
+        self._write_binary_dat_from_parts(
+            path,
+            bin_header,
+            self.decompress_to_u8(),
+            self.qscheme.scale,
+            post_tract_21_11,
+        )
 
 
 def fp_to_tract_q4_0_with_min_max_calibration(
