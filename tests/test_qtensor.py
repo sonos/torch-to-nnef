@@ -8,6 +8,7 @@ from datetime import datetime
 from functools import partial, reduce
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 from torch import nn
@@ -109,6 +110,70 @@ def check_tensor_in_nnef_archive(
                             f"{label_name}: {bin_header.torch_dtype_or_custom}"
                             f" but expected {expected_dtype}"
                         )
+
+
+def _legacy_q40_dat_content(
+    qtensor: QTensorTractScaleOnly, post_tract_21_11: bool
+) -> bytes:
+    tensor_flat = qtensor.decompress_to_u8().clone().flatten()
+    if post_tract_21_11:
+        tensor_per_group = tensor_flat.reshape(-1, 2, 16)
+        tensor_per_group[:, 1, :] <<= 4
+        tensor_per_group = tensor_per_group.sum(dim=1).numpy().astype(np.uint8)
+    else:
+        tensor_per_group = tensor_flat.reshape(-1, 16, 2)
+        tensor_per_group[:, :, 1] <<= 4
+        tensor_per_group = tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
+
+    b_scales = qtensor.qscheme.scale.numpy().view(np.byte)
+    b_vals = tensor_per_group.view(np.byte)
+    return np.hstack([b_scales, b_vals]).tobytes()
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("post_tract_21_11", [False, True])
+def test_q40_dat_content_uses_bitpacking_without_sum(
+    monkeypatch, post_tract_21_11
+):
+    qtensor = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(6 * 32).reshape(6, 32).float()
+    )
+    u8_before = qtensor.u8_blob.clone()
+    expected = _legacy_q40_dat_content(qtensor, post_tract_21_11)
+
+    def fail_if_sum_is_used(*args, **kwargs):
+        raise AssertionError("Q40 writer should pack nibbles without sum")
+
+    monkeypatch.setattr(torch.Tensor, "sum", fail_if_sum_is_used)
+
+    assert qtensor._build_binary_dat_content(post_tract_21_11) == expected
+    assert torch.equal(qtensor.u8_blob, u8_before)
+
+
+@skipif_unsupported_qtensor
+def test_q40_write_streams_without_building_full_content(monkeypatch, tmp_path):
+    qtensor = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(6 * 32).reshape(6, 32).float()
+    )
+    ref_dir = tmp_path / "ref"
+    out_dir = tmp_path / "out"
+    ref_dir.mkdir()
+    out_dir.mkdir()
+    qtensor.write_in_file(ref_dir, "weight", TractNNEF.latest())
+
+    def fail_if_full_content_is_built(*args, **kwargs):
+        raise AssertionError("Q40 write should stream content")
+
+    monkeypatch.setattr(
+        QTensorTractScaleOnly,
+        "_build_binary_dat_content",
+        fail_if_full_content_is_built,
+    )
+
+    qtensor.write_in_file(out_dir, "weight", TractNNEF.latest())
+    assert (out_dir / "weight.dat").read_bytes() == (
+        ref_dir / "weight.dat"
+    ).read_bytes()
 
 
 @skipif_unsupported_qtensor
@@ -496,6 +561,45 @@ def test_u8_compressors():
             dummy_compressor1.decompress_times[1]
             > dummy_compressor2.decompress_times[1]
         )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "inference_target",
+    [
+        TractNNEF("0.21.10", check_io=False),
+        TractNNEF("0.21.11", check_io=False),
+    ],
+)
+def test_q40_offload_state_write_applies_u8_compressors(
+    tmp_path, inference_target
+):
+    fp_tensor = torch.rand(2, 32)
+    q_scheme = qscale_per_group_f16_min_max_calibration(
+        fp_tensor, n_bits=4, group_size=32, percentile=1
+    )
+    qtensor = QTensorTractScaleOnly(
+        fp_tensor,
+        qscheme=q_scheme,
+        dequant_to_dtype=fp_tensor.dtype,
+        u8_compressors=[DummyU8Compressor()],
+    )
+    ref_dir = tmp_path / "ref"
+    out_dir = tmp_path / "out"
+    ref_dir.mkdir()
+    out_dir.mkdir()
+
+    qtensor.write_in_file(ref_dir, "weight", inference_target)
+    QTensorTractScaleOnly.write_offload_state_in_file(
+        qtensor.to_offload_state(),
+        out_dir,
+        "weight",
+        inference_target=inference_target,
+    )
+
+    assert (out_dir / "weight.dat").read_bytes() == (
+        ref_dir / "weight.dat"
+    ).read_bytes()
 
 
 @skipif_unsupported_qtensor

@@ -362,6 +362,13 @@ class Writer:
             if op.type == "variable":
                 if op.attribs.pop("custom_datatype", "") == "quant_tensor":
                     qtensor = op.output.qtensor
+                    if isinstance(qtensor, OffloadedTensor):
+                        label = op.attribs["label"]
+                        if qtensor.write_qtensor_in_file(
+                            folder, label, self._inference_target
+                        ):
+                            LOGGER.info("written qtensor: '%s'", label)
+                            continue
                     while isinstance(qtensor, OffloadedTensor):
                         qtensor = qtensor.to_base_tensor()
                     label = op.attribs["label"]
