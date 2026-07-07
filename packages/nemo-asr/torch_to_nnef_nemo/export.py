@@ -33,6 +33,7 @@ from torch_to_nnef_nemo.config import NemoExportConfig
 from torch_to_nnef_nemo.dynaxes import (
     build_dynamic_axes as build_dynamic_axes_for_subnet,
 )
+from torch_to_nnef_nemo.glue_subnets import iter_glue_subnets_after
 from torch_to_nnef_nemo.wrappers import (
     WrapAudioPreprocessor,
     WrapPreprocessorCast,
@@ -366,6 +367,13 @@ def iter_nemo_model_subnets(
                 input_example = ctx.output_example
             else:
                 input_example = None
+
+    # Emit top-level "glue" modules NeMo's list_export_subnets() omits (e.g. a
+    # language prompt head applied between encoder and decoder). Self-contained
+    # and independent of the native subnets' export context, so they honor
+    # `only_subnets` on their own name (e.g. only_subnets={"prompt"}).
+    for parent_subnet_name in subnet_names:
+        yield from iter_glue_subnets_after(model, parent_subnet_name, allow)
 
 
 def build_dynamic_axes(
