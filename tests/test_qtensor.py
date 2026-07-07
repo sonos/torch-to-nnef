@@ -564,7 +564,16 @@ def test_u8_compressors():
 
 
 @skipif_unsupported_qtensor
-def test_q40_offload_state_write_applies_u8_compressors(tmp_path):
+@pytest.mark.parametrize(
+    "inference_target",
+    [
+        TractNNEF("0.21.10", check_io=False),
+        TractNNEF("0.21.11", check_io=False),
+    ],
+)
+def test_q40_offload_state_write_applies_u8_compressors(
+    tmp_path, inference_target
+):
     fp_tensor = torch.rand(2, 32)
     q_scheme = qscale_per_group_f16_min_max_calibration(
         fp_tensor, n_bits=4, group_size=32, percentile=1
@@ -580,12 +589,12 @@ def test_q40_offload_state_write_applies_u8_compressors(tmp_path):
     ref_dir.mkdir()
     out_dir.mkdir()
 
-    qtensor.write_in_file(ref_dir, "weight", TractNNEF.latest())
+    qtensor.write_in_file(ref_dir, "weight", inference_target)
     QTensorTractScaleOnly.write_offload_state_in_file(
         qtensor.to_offload_state(),
         out_dir,
         "weight",
-        inference_target=TractNNEF.latest(),
+        inference_target=inference_target,
     )
 
     assert (out_dir / "weight.dat").read_bytes() == (

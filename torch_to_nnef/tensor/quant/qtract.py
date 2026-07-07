@@ -96,6 +96,10 @@ class QTensorTractScaleOnly(QTensorTract):
     @classmethod
     def from_offload_state(cls, state) -> "QTensorTractScaleOnly":
         assert cls.is_offload_state(state), state
+        # Keep the Tensor subclass shell on CPU for fallback reloads. A meta
+        # shell routes nested opaque tracing through PyTorch meta kernels before
+        # the inner QTensor can decompress. Large NNEF exports use the direct
+        # offload-state writer instead of this reload path.
         fp_placeholder = torch.empty(state["shape"], dtype=state["dtype"])
         qtensor = cls.__new__(
             cls,
@@ -163,13 +167,7 @@ class QTensorTractScaleOnly(QTensorTract):
         tensor_flat = u8_blob.flatten()
         assert tensor_flat.numel() % 32 == 0, tensor_flat.shape
         group_count = tensor_flat.numel() // 32
-        scale_bytes = (
-            scale.reshape(group_count, 1)
-            .contiguous()
-            .numpy()
-            .view(np.uint8)
-            .reshape(group_count, 2)
-        )
+        scale_flat = scale.reshape(group_count)
 
         for start in range(0, group_count, chunk_groups):
             end = min(start + chunk_groups, group_count)
@@ -177,8 +175,15 @@ class QTensorTractScaleOnly(QTensorTract):
             b_vals = cls._pack_binary_dat_values(
                 chunk_flat, post_tract_21_11
             ).view(np.uint8)
+            scale_bytes = (
+                scale_flat[start:end]
+                .contiguous()
+                .numpy()
+                .view(np.uint8)
+                .reshape(end - start, 2)
+            )
             b_all = np.empty((end - start, n_bytes_per_group), dtype=np.uint8)
-            b_all[:, :2] = scale_bytes[start:end]
+            b_all[:, :2] = scale_bytes
             b_all[:, 2:] = b_vals.reshape(end - start, 16)
             b_arr = b_all.tobytes()
             assert len(b_arr) % n_bytes_per_group == 0
@@ -214,14 +219,6 @@ class QTensorTractScaleOnly(QTensorTract):
             u8_blob, scale, post_tract_21_11=post_tract_21_11
         ):
             fh.write(chunk)
-
-    @classmethod
-    def _write_binary_dat(
-        cls, path: Path, bin_header: bytes, bin_content: bytes
-    ):
-        with path.open("wb") as fh:
-            fh.write(bin_header)
-            fh.write(bin_content)
 
     @classmethod
     def _write_binary_dat_from_parts(
