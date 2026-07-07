@@ -3,6 +3,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Officially supported tract versions bumped to 0.23.3 and 0.22.1 (0.23.0 dropped). The default `TractNNEF.latest()` target is now 0.23.3, so the `tract_core_resize` / `tract_core_grid_sample` lowering path (gated on tract >= 0.23.2) auto-activates by default.
+
 ## [0.24.1] - 2026-07-02
 
 ### Added
