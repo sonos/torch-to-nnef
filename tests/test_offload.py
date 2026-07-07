@@ -19,11 +19,14 @@ from torch_to_nnef.tensor.opaque import (
     OFFLOAD_STATE_KEY,
     OpaqueTensor,
     SupportsOffloadState,
+    set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
+from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
+from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 
 
 @skipif_limited_offload_support
@@ -41,6 +44,28 @@ def test_int_opaque_tensor_is_materialized_for_meta_trace():
         traced = offloaded._to_trace_tensor("meta")
         assert traced.device.type != "meta"
         assert torch.equal(traced, int_weight)
+
+
+@skipif_limited_offload_support
+def test_offloaded_linear_with_bias_traces_on_target_device(tmp_path):
+    model = torch.nn.Linear(3, 4).eval()
+    model.weight = torch.nn.Parameter(
+        OffloadedTensor.from_original_tensor(
+            model.weight.detach(), "weight", offload_dir=tmp_path
+        ),
+        requires_grad=False,
+    )
+    model.bias = torch.nn.Parameter(
+        OffloadedTensor.from_original_tensor(
+            model.bias.detach(), "bias", offload_dir=tmp_path
+        ),
+        requires_grad=False,
+    )
+
+    set_opaque_tensor_in_params_as_ref(model)
+    module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(torch.randn(2, 3),))
+    )
 
 
 @skipif_limited_offload_support

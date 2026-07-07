@@ -29,6 +29,31 @@ IR_OPAQUE_NAME = "t2n::opaque_tensor_expand"
 # weights at export time between with Opaque and
 # OpaqueTensorRef.
 NEW_OPAQUE_TRACING_STRATEGY = torch_version() >= "2.4.0"
+_TRACE_FAKE_MODE = None
+
+
+def _fake_trace_tensor(
+    shape: T.Tuple[int, ...],
+    dtype: torch.dtype,
+    device: torch.device,
+) -> torch.Tensor:
+    """Create a non-materialized tensor with real device semantics."""
+    global _TRACE_FAKE_MODE  # pylint: disable=global-statement
+    try:
+        from torch._subclasses.fake_tensor import (  # pylint: disable=import-outside-toplevel
+            FakeTensorMode,
+        )
+    except ImportError:
+        return torch.empty(shape, dtype=dtype, device="meta")
+    if _TRACE_FAKE_MODE is None:
+        _TRACE_FAKE_MODE = FakeTensorMode(allow_non_fake_inputs=True)
+    if device.type == "meta":
+        device = torch.device("cpu")
+    _TRACE_FAKE_MODE.__enter__()
+    try:
+        return torch.empty(shape, dtype=dtype, device=device)
+    finally:
+        _TRACE_FAKE_MODE.__exit__(None, None, None)
 
 
 def maybe_custom_op(f):
@@ -152,8 +177,10 @@ class OpaqueTensor(torch.Tensor):
         # index_select) also request materialization to avoid baking
         # uninitialized memory as NNEF constants.
         if device == "meta" and not dtype_is_whole_number(self.dtype):
-            return torch.empty(
-                tuple(self.shape), dtype=self.dtype, device=device
+            return _fake_trace_tensor(
+                tuple(self.shape),
+                dtype=self.dtype,
+                device=self.device,
             )
         # Materialize on the parameter's native device rather than forcing one,
         # so a GPU-resident trace keeps the weight co-located with its runtime
