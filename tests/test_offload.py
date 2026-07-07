@@ -1,6 +1,7 @@
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -12,6 +13,7 @@ from tests.utils import (
     skipif_unsupported_qtensor,
 )
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef.nnef_io.writer import Writer
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractScaleOnly,
@@ -165,6 +167,49 @@ def test_offload_qtensor_write_uses_compact_state_without_reload(monkeypatch):
         assert offloaded_value.write_qtensor_in_file(
             out_dir, "weight", INFERENCE_TARGET
         )
+        assert (out_dir / "weight.dat").read_bytes() == (
+            ref_dir / "weight.dat"
+        ).read_bytes()
+
+
+@skipif_unsupported_qtensor
+def test_writer_uses_compact_offloaded_qtensor_path(monkeypatch):
+    with tempfile.TemporaryDirectory() as td:
+        td_path = Path(td)
+        original_weight = torch.randn(4, 32)
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+        offloaded_value = OffloadedTensor.from_original_tensor(
+            q_tensor, "my_offloaded_qweight", offload_dir=td_path
+        )
+
+        ref_dir = td_path / "ref"
+        out_dir = td_path / "out"
+        ref_dir.mkdir()
+        out_dir.mkdir()
+        q_tensor.write_in_file(ref_dir, "weight", INFERENCE_TARGET)
+
+        def fail_if_reloaded(*args, **kwargs):
+            raise AssertionError("writer should use compact offloaded state")
+
+        monkeypatch.setattr(OffloadedTensor, "reload", fail_if_reloaded)
+
+        graph = SimpleNamespace(
+            operations=[
+                SimpleNamespace(
+                    type="variable",
+                    attribs={
+                        "custom_datatype": "quant_tensor",
+                        "label": "weight",
+                    },
+                    output=SimpleNamespace(qtensor=offloaded_value),
+                )
+            ]
+        )
+
+        Writer(inference_target=INFERENCE_TARGET)._write_tensors_from_operators(
+            graph, out_dir
+        )
+
         assert (out_dir / "weight.dat").read_bytes() == (
             ref_dir / "weight.dat"
         ).read_bytes()

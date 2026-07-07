@@ -753,7 +753,9 @@ class OffloadedTensor(OpaqueTensor):
         load_kwargs = {}
         if torch_version() >= "1.13.0":
             load_kwargs["weights_only"] = False
-        loaded = torch.load(self.offload_path, **load_kwargs)
+        loaded = torch.load(
+            self.offload_path, map_location="cpu", **load_kwargs
+        )
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.tensor.quant.qtract import (
             QTensorTractScaleOnly,
