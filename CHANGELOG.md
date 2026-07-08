@@ -3,6 +3,8 @@
 
 ## [Unreleased]
 
+## [0.24.2] - 2026-07-08
+
 ### Added
 - **Qwen3-VL decoder export support** (LLM): export the text decoder of Qwen3-VL vision-language models to NNEF via a dedicated `qwen3_vl` handler; the RoPE position delta is carried through the decode state context.
 - **LLM `--attn-implementation` (`auto` | `eager` | `sdpa`)**, mirroring Transformers' `attn_implementation` at model load. `--reify-sdpa-operator` now implies `sdpa`, so the trace contains `scaled_dot_product_attention` that reifies to `tract_transformers_sdpa`.
