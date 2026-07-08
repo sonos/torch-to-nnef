@@ -6,7 +6,7 @@ dependencies = [
     "torch_to_nnef",
     "torch==2.12.0",
     "numpy==1.26.4",
-    "onnx==1.21.0",
+    "onnx==1.22.0",
     "ultralytics==8.4.15",
 ]
 
