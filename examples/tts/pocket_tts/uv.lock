@@ -1413,7 +1413,7 @@ wheels = [
 
 [[package]]
 name = "torch-to-nnef"
-version = "0.24.1"
+version = "0.24.2"
 source = { editable = "../../../" }
 dependencies = [
     { name = "mako" },
@@ -1434,13 +1434,15 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=5.0" },
     { name = "safetensors", marker = "extra == 'safetensors'" },
     { name = "torch", specifier = ">=1.8.0,<3" },
+    { name = "torch-to-nnef-llm", marker = "extra == 'llm'", editable = "../../../packages/llm" },
     { name = "torch-to-nnef-llm", marker = "extra == 'llm-tract'", editable = "../../../packages/llm" },
     { name = "torch-to-nnef-llm", extras = ["accelerate"], marker = "extra == 'llm-tract-accelerate'", editable = "../../../packages/llm" },
     { name = "torch-to-nnef-llm", extras = ["peft"], marker = "extra == 'peft'", editable = "../../../packages/llm" },
+    { name = "torch-to-nnef-nemo-asr", marker = "extra == 'nemo-asr'", editable = "../../../packages/nemo-asr" },
     { name = "torch-to-nnef-nemo-asr", marker = "extra == 'nemo-tract'", editable = "../../../packages/nemo-asr" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
 ]
-provides-extras = ["llm-tract", "llm-tract-accelerate", "peft", "nemo-tract", "safetensors"]
+provides-extras = ["llm-tract", "llm-tract-accelerate", "peft", "nemo-tract", "safetensors", "llm", "nemo-asr"]
 
 [package.metadata.requires-dev]
 dev = [
