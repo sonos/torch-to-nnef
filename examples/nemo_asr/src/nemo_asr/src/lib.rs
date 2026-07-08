@@ -322,17 +322,23 @@ impl NemoAsrModel {
             &dec_model_bytes,
         )?;
 
-        // A standalone `prompt.nnef.tgz` (language head not fused into the
-        // encoder) is NOT wired by this app: it loads encoder + decoder_joint
-        // only. If one is present while the encoder has no `lang_id` input, the
-        // decoder would consume unconditioned encoder output -> wrong output.
-        // Re-export with --fuse-prompt-into-encoder to feed the language here.
+        // The language conditioning comes in one of two export layouts:
+        //   * fused (--fuse-prompt-into-encoder): the encoder itself takes the
+        //     `lang_id` input and applies the prompt MLP; no prompt.nnef.tgz.
+        //   * standalone (default): a separate `prompt.nnef.tgz` subnet holds
+        //     the `lang_id` input and the MLP; the encoder is unconditioned.
+        // This app only runs encoder + decoder_joint, so a standalone prompt
+        // subnet is never executed and its conditioning is lost. Detect that
+        // (prompt file present AND the encoder is not the fused variant, i.e.
+        // has no `lang_id`) and warn.
         if path.join("prompt.nnef.tgz").exists() && model.encoder_lang_id.is_none() {
             log::warn!(
-                "found a standalone `prompt.nnef.tgz` but the encoder has no \
-                 `lang_id` input: this app does not run the prompt subnet, so \
-                 language conditioning is DROPPED. Re-export the model with \
-                 --fuse-prompt-into-encoder."
+                "found a standalone `prompt.nnef.tgz` (it holds the `lang_id` \
+                 input and the language MLP), but this app runs only encoder + \
+                 decoder_joint and never executes the prompt subnet, so \
+                 language conditioning is DROPPED. Re-export with \
+                 --fuse-prompt-into-encoder so the encoder takes `lang_id` \
+                 directly."
             );
         }
         Ok(model)
