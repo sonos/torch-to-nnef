@@ -170,6 +170,79 @@ class OpaqueTensor(torch.Tensor):
         return opaque_t2n_expand(id(self))
 
 
+# Generic key marking a dict as a compact offload-state payload (as opposed to
+# a plainly pickled tensor). The value is a per-class ``OFFLOAD_STATE_TAG``.
+OFFLOAD_STATE_KEY = "__t2n_offload_state__"
+
+# Maps ``OFFLOAD_STATE_TAG`` -> concrete class, filled at class-definition time
+# by ``SupportsOffloadState.__init_subclass__``. Lets ``OffloadedTensor``
+# rebuild a serialized state without importing any concrete tensor class.
+_OFFLOAD_STATE_REGISTRY: T.Dict[str, type] = {}
+
+
+class SupportsOffloadState:
+    """Mixin for opaque tensors carrying a compact, picklable offload state.
+
+    A tensor subclass that would otherwise pickle a large fp-shaped payload can
+    instead serialize a small self-describing dict. It declares a unique
+    ``OFFLOAD_STATE_TAG`` and implements the three hooks below; registration is
+    automatic so ``OffloadedTensor`` dispatches on the serialized state rather
+    than knowing any concrete class.
+    """
+
+    OFFLOAD_STATE_TAG: str
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        tag = getattr(cls, "OFFLOAD_STATE_TAG", None)
+        if tag is None:
+            return
+        existing = _OFFLOAD_STATE_REGISTRY.get(tag)
+        if existing is not None and existing is not cls:
+            raise T2NErrorNotImplemented(
+                f"duplicate offload-state tag '{tag}' for {cls} "
+                f"(already registered by {existing})"
+            )
+        _OFFLOAD_STATE_REGISTRY[tag] = cls
+
+    @classmethod
+    def is_offload_state(cls, state) -> bool:
+        return (
+            isinstance(state, dict)
+            and state.get(OFFLOAD_STATE_KEY) == cls.OFFLOAD_STATE_TAG
+        )
+
+    @abc.abstractmethod
+    def to_offload_state(self) -> T.Dict[str, T.Any]:
+        raise T2NErrorNotImplemented()
+
+    @classmethod
+    @abc.abstractmethod
+    def from_offload_state(cls, state):
+        raise T2NErrorNotImplemented()
+
+    @classmethod
+    @abc.abstractmethod
+    def write_offload_state_in_file(
+        cls, state, dirpath, label, inference_target=None
+    ):
+        raise T2NErrorNotImplemented()
+
+
+def resolve_offload_state(state) -> T.Optional[type]:
+    """Return the class able to rebuild ``state``, or ``None``.
+
+    ``None`` means ``state`` is not a compact offload-state payload (e.g. a
+    plain pickled tensor), so callers fall back to legacy handling.
+    """
+    if not isinstance(state, dict):
+        return None
+    tag = state.get(OFFLOAD_STATE_KEY)
+    if tag is None:
+        return None
+    return _OFFLOAD_STATE_REGISTRY.get(tag)
+
+
 class OpaqueTensorRef(torch.Tensor):
     """Allow to pass through 'tracing'."""
 

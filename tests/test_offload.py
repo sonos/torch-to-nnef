@@ -15,6 +15,11 @@ from tests.utils import (
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.nnef_io.writer import Writer
 from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.opaque import (
+    OFFLOAD_STATE_KEY,
+    OpaqueTensor,
+    SupportsOffloadState,
+)
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
@@ -213,6 +218,58 @@ def test_writer_uses_compact_offloaded_qtensor_path(monkeypatch):
         assert (out_dir / "weight.dat").read_bytes() == (
             ref_dir / "weight.dat"
         ).read_bytes()
+
+
+@skipif_limited_offload_support
+def test_offload_dispatches_generic_offload_state(tmp_path):
+    # The offload layer must dispatch on the serialized state, not on any
+    # concrete tensor class. A second SupportsOffloadState implementation with
+    # its own tag round-trips through save/reload without OffloadedTensor
+    # knowing anything about it.
+    class _ToyOpaque(OpaqueTensor, SupportsOffloadState):
+        OFFLOAD_STATE_TAG = "tests.toy_opaque.v1"
+
+        @staticmethod
+        def __new__(cls, payload):
+            obj = torch.Tensor._make_subclass(
+                cls, payload.to(torch.float32), False
+            )
+            obj.payload = payload
+            return obj
+
+        def _to_base_tensor(self):
+            return self.payload.clone()
+
+        def to_offload_state(self):
+            return {
+                OFFLOAD_STATE_KEY: self.OFFLOAD_STATE_TAG,
+                "p": self.payload,
+            }
+
+        @classmethod
+        def from_offload_state(cls, state):
+            assert cls.is_offload_state(state), state
+            return cls(state["p"])
+
+        @classmethod
+        def write_offload_state_in_file(
+            cls, state, dirpath, label, inference_target=None
+        ):
+            raise AssertionError("not exercised by this test")
+
+    payload = torch.arange(6).reshape(2, 3)
+    offloaded = OffloadedTensor.from_original_tensor(
+        _ToyOpaque(payload), "toy", offload_dir=tmp_path
+    )
+    # _save dispatched to to_offload_state: the pickle is the compact dict,
+    # not the tensor subclass.
+    raw = torch.load(offloaded.offload_path, weights_only=False)
+    assert isinstance(raw, dict)
+    assert raw[OFFLOAD_STATE_KEY] == _ToyOpaque.OFFLOAD_STATE_TAG
+    # reload dispatched to from_offload_state via the registry.
+    reloaded = offloaded.reload()
+    assert type(reloaded) is _ToyOpaque
+    assert torch.equal(reloaded.payload, payload)
 
 
 @skipif_limited_offload_support
