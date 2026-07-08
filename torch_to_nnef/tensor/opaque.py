@@ -194,11 +194,21 @@ class SupportsOffloadState:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        tag = getattr(cls, "OFFLOAD_STATE_TAG", None)
-        if tag is None:
+        # Only a class that declares its OWN tag is a dispatch target. A
+        # subclass that inherits the tag without redeclaring it is not
+        # separately registered: rebuilding it would be ambiguous, so its
+        # state resolves back to the declaring ancestor (or the subclass
+        # declares a distinct tag to keep its identity).
+        if "OFFLOAD_STATE_TAG" not in cls.__dict__:
             return
+        tag = cls.OFFLOAD_STATE_TAG
         existing = _OFFLOAD_STATE_REGISTRY.get(tag)
-        if existing is not None and existing is not cls:
+        # A same-qualname re-registration is a redefinition (test re-runs,
+        # module reloads), not a clash; only distinct classes collide.
+        if existing is not None and (
+            existing.__module__,
+            existing.__qualname__,
+        ) != (cls.__module__, cls.__qualname__):
             raise T2NErrorNotImplemented(
                 f"duplicate offload-state tag '{tag}' for {cls} "
                 f"(already registered by {existing})"
@@ -218,7 +228,13 @@ class SupportsOffloadState:
 
     @classmethod
     @abc.abstractmethod
-    def from_offload_state(cls, state):
+    def from_offload_state(cls, state, target_device=None):
+        """Rebuild the tensor from ``state``, placed on ``target_device``.
+
+        The concrete class owns device placement (``None`` means leave it
+        wherever the state deserializes), so the offload layer needs no
+        device-move API on the reconstructed object.
+        """
         raise T2NErrorNotImplemented()
 
     @classmethod

@@ -91,7 +91,9 @@ class QTensorTractScaleOnly(QTensorTract, SupportsOffloadState):
         }
 
     @classmethod
-    def from_offload_state(cls, state) -> "QTensorTractScaleOnly":
+    def from_offload_state(
+        cls, state, target_device=None
+    ) -> "QTensorTractScaleOnly":
         assert cls.is_offload_state(state), state
         # Fallback reload path only: rebuild the Tensor subclass shell on CPU
         # from the compact state. The fp-shaped buffer is an uninitialized
@@ -113,6 +115,8 @@ class QTensorTractScaleOnly(QTensorTract, SupportsOffloadState):
         qtensor.requires_grad = False
         qtensor.decompressed_shape = state["decompressed_shape"]
         qtensor.specific_machine = state["specific_machine"]
+        if target_device is not None and qtensor.device != target_device:
+            qtensor.to_device(target_device)
         return qtensor
 
     @staticmethod

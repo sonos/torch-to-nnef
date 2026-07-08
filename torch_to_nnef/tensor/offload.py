@@ -730,10 +730,9 @@ class OffloadedTensor(OpaqueTensor):
             loaded = torch.load(self.offload_path, **load_kwargs)
             state_cls = resolve_offload_state(loaded)
             if state_cls is not None:
-                loaded = state_cls.from_offload_state(loaded)
-                if loaded.device != self.target_device:
-                    loaded.to_device(self.target_device)
-                return loaded
+                return state_cls.from_offload_state(
+                    loaded, target_device=self.target_device
+                )
             return loaded.to(self.target_device)
         return torch_safe_load(self.offload_path).to(self.target_device)
 
