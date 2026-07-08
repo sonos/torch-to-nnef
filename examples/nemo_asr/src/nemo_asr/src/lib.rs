@@ -19,9 +19,21 @@ pub struct DecoderConfig {
     pub blank_as_pad: bool,
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct GreedyDecodingConfig {
+    // Max emitted symbols per encoder frame (NeMo `decoding.greedy.max_symbols`).
+    #[serde(default)]
+    pub max_symbols: Option<usize>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct DecodingConfig {
+    // Present for TDT models (token-and-duration). Absent for plain RNNT
+    // (e.g. multilingual Nemotron), where advance is blank-driven.
+    #[serde(default)]
     pub durations: Vec<usize>,
+    #[serde(default)]
+    pub greedy: GreedyDecodingConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -39,16 +51,27 @@ pub struct RuntimeConfig {
     force_cpu: bool,
     encoder_per_batch: bool,
     dump_intermediate_io_path: Option<PathBuf>,
+    // Language id fed to a prompt-fused encoder (multilingual Nemotron).
+    // Only used when the encoder declares a `lang_id` input; ignored
+    // otherwise (e.g. Parakeet). Defaults to 101 (the "auto" slot).
+    #[serde(default = "default_lang_id")]
+    default_lang_id: i64,
+}
+
+fn default_lang_id() -> i64 {
+    101
 }
 
 impl Default for RuntimeConfig {
     fn default() -> Self {
         RuntimeConfig {
-            max_n_tokens_per_step: Some(50),
+            // None -> fall back to the model config's greedy.max_symbols.
+            max_n_tokens_per_step: None,
             force_cpu: false,
             encoder_per_batch: false,
             // if set to Some(path), will dump encoder inputs/outputs
             dump_intermediate_io_path: None,
+            default_lang_id: default_lang_id(),
         }
     }
 }
@@ -69,6 +92,18 @@ pub struct NemoAsrModel {
     model_config: NemoAsrConfig,
     runtime_config: RuntimeConfig,
     decoder_state_inputs_facts: Vec<Fact>,
+    // Set when the encoder has a prompt-fused `lang_id` input; the value is
+    // appended to the encoder inputs at run time. `None` for plain encoders.
+    encoder_lang_id: Option<i64>,
+    // Some RNNT decoder_joint exports keep a `target_length` input; when present
+    // we pass a per-lane length of 1 (one predicted token). Absent when the
+    // export drops it.
+    decoder_joint_wants_target_length: bool,
+    // Output indices of the predictor states (names containing "states"), and
+    // the logits output ("outputs"). Some exports interleave a non-state output
+    // (e.g. `prednet_lengths`), so states are located by name, not position.
+    decoder_joint_logits_output_index: usize,
+    decoder_joint_state_output_indices: Vec<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -173,12 +208,61 @@ impl NemoAsrModel {
 
         let decoder_joint_model = Self::load_submodel(dec_model_bytes)?;
         let mut decoder_state_inputs_facts = vec![];
+        let mut decoder_joint_wants_target_length = false;
         for ix in 0..decoder_joint_model.input_count()? {
-            if decoder_joint_model.input_name(ix)?.contains("states") {
+            let name = decoder_joint_model.input_name(ix)?;
+            if name.contains("states") {
                 let fact = decoder_joint_model.input_fact(ix)?;
                 ensure!(fact.rank()? == 3);
                 decoder_state_inputs_facts.push(fact);
+            } else if name == "target_length" {
+                decoder_joint_wants_target_length = true;
             }
+        }
+        // `output_name` returns the producing node's name (not the graph output
+        // label), so match states by the "states" substring their nodes carry.
+        // The logits are the remaining float output; `prednet_lengths` (int) and
+        // any state outputs are excluded.
+        let mut decoder_joint_logits_output_index = None;
+        let mut decoder_joint_state_output_indices = vec![];
+        for ix in 0..decoder_joint_model.output_count()? {
+            if decoder_joint_model.output_name(ix)?.contains("states") {
+                decoder_joint_state_output_indices.push(ix);
+            } else if decoder_joint_model.output_fact(ix)?.datum_type()?
+                == DatumType::TRACT_DATUM_TYPE_F32
+                && decoder_joint_logits_output_index.is_none()
+            {
+                decoder_joint_logits_output_index = Some(ix);
+            }
+        }
+        let decoder_joint_logits_output_index = decoder_joint_logits_output_index
+            .ok_or_else(|| anyhow::anyhow!("decoder_joint has no float logits output"))?;
+        ensure!(
+            decoder_joint_state_output_indices.len() == decoder_state_inputs_facts.len(),
+            "decoder_joint state output/input count mismatch"
+        );
+
+        // Detect a prompt-fused encoder: an extra `lang_id` input carries the
+        // language for multilingual Nemotron. Plain encoders (Parakeet) lack it.
+        let mut encoder_model = Self::load_submodel(enc_model_bytes)?;
+        let mut encoder_lang_id = None;
+        for ix in 0..encoder_model.input_count()? {
+            if encoder_model.input_name(ix)? == "lang_id" {
+                encoder_lang_id = Some(runtime_config.default_lang_id);
+                log::info!(
+                    "encoder has a `lang_id` input; feeding lang_id={}",
+                    runtime_config.default_lang_id
+                );
+            }
+        }
+        // The encoder runs one sample at a time (per-sample path), so pin its
+        // batch symbol to 1. Cache-aware streaming encoders (Nemotron) have
+        // pre-encode shape expressions in `BATCH` that tract cannot resolve
+        // from a symbolic batch at plan time; concretizing avoids
+        // "Undetermined symbol: BATCH". Harmless when the symbol is absent
+        // (e.g. Parakeet) or already concrete.
+        if !runtime_config.encoder_per_batch {
+            encoder_model.concretize_symbols([("BATCH", 1i64)])?;
         }
 
         let mut rt = runtime_for_name("default")?;
@@ -195,9 +279,13 @@ impl NemoAsrModel {
             model_config,
             runtime_config,
             preprocessor_model: rt.prepare(Self::load_submodel(pre_model_bytes)?)?,
-            encoder_model: rt.prepare(Self::load_submodel(enc_model_bytes)?)?,
+            encoder_model: rt.prepare(encoder_model)?,
             decoder_joint_model: rt.prepare(decoder_joint_model)?,
             decoder_state_inputs_facts,
+            encoder_lang_id,
+            decoder_joint_wants_target_length,
+            decoder_joint_logits_output_index,
+            decoder_joint_state_output_indices,
         })
     }
 
@@ -226,13 +314,35 @@ impl NemoAsrModel {
         let dec_model_bytes =
             std::fs::read(dec_model_path).expect("Failed to read decoder model file");
 
-        Self::from_bytes(
+        let model = Self::from_bytes(
             &model_config_bytes,
             runtime_config_bytes.as_deref(),
             &pre_model_bytes,
             &enc_model_bytes,
             &dec_model_bytes,
-        )
+        )?;
+
+        // The language conditioning comes in one of two export layouts:
+        //   * fused (--fuse-prompt-into-encoder): the encoder itself takes the
+        //     `lang_id` input and applies the prompt MLP; no prompt.nnef.tgz.
+        //   * standalone (default): a separate `prompt.nnef.tgz` subnet holds
+        //     the `lang_id` input and the MLP; the encoder is unconditioned.
+        // This app only runs encoder + decoder_joint, so a standalone prompt
+        // subnet can never be executed and its conditioning would be silently
+        // lost -> wrong transcription. Bail (rather than warn) when the prompt
+        // file is present AND the encoder is not the fused variant (has no
+        // `lang_id`), so the failure is loud and actionable.
+        if path.join("prompt.nnef.tgz").exists() && model.encoder_lang_id.is_none() {
+            anyhow::bail!(
+                "found a standalone `prompt.nnef.tgz` (it holds the `lang_id` \
+                 input and the language MLP), but this app runs only encoder + \
+                 decoder_joint and cannot execute the prompt subnet, so \
+                 language conditioning would be silently dropped. Re-export the \
+                 model with --fuse-prompt-into-encoder so the encoder takes \
+                 `lang_id` directly."
+            );
+        }
+        Ok(model)
     }
 
     /// Convert a single wav file path to a single input tensor
@@ -287,6 +397,17 @@ impl NemoAsrModel {
         Ok(transcripts)
     }
 
+    /// Build the `lang_id` input tensor ([1] i64) when the encoder is
+    /// prompt-fused, else `None`.
+    fn lang_id_value(&self) -> Res<Option<Value>> {
+        match self.encoder_lang_id {
+            Some(id) => Ok(Some(
+                Array1::<i64>::from_shape_vec((1,), vec![id])?.try_into()?,
+            )),
+            None => Ok(None),
+        }
+    }
+
     fn run_encoder(&self, preprocessor_output: Vec<Value>) -> Res<Vec<Value>> {
         if let Some(dump_dir) = &self.runtime_config.dump_intermediate_io_path {
             dump_value_vec_to_file(
@@ -297,7 +418,11 @@ impl NemoAsrModel {
 
         let encoder_output = if self.runtime_config.encoder_per_batch {
             log::debug!("running encoder in full batch mode");
-            self.encoder_model.run(preprocessor_output)?
+            let mut inputs = preprocessor_output;
+            if let Some(lang) = self.lang_id_value()? {
+                inputs.push(lang);
+            }
+            self.encoder_model.run(inputs)?
         } else {
             log::debug!("running encoder in batch mode");
             let features = preprocessor_output[0].view::<f32>()?;
@@ -310,8 +435,12 @@ impl NemoAsrModel {
                 let feat_b: Value = features.slice_axis(Axis(0), (b..b + 1).into()).try_into()?;
 
                 let len_b: Value = lengths.slice_axis(Axis(0), (b..b + 1).into()).try_into()?;
-                // Run encoder for a single sample
-                let encoder_output_sample = self.encoder_model.run([feat_b, len_b])?;
+                // Run encoder for a single sample (append lang_id when fused)
+                let mut inputs = vec![feat_b, len_b];
+                if let Some(lang) = self.lang_id_value()? {
+                    inputs.push(lang);
+                }
+                let encoder_output_sample = self.encoder_model.run(inputs)?;
                 encoder_out.push(encoder_output_sample[0].view::<f32>()?.to_owned());
                 encoder_len.push(encoder_output_sample[1].view::<i64>()?.to_owned());
             }
@@ -360,14 +489,20 @@ impl NemoAsrModel {
     }
 
     fn get_initial_decoder_states(&self, batch_size: usize) -> Res<Vec<[usize; 3]>> {
-        let values = [("B", batch_size as i64)];
-
+        // Decoder states are [num_layers*dir, BATCH, hidden]; axis 1 is the
+        // batch. Set it directly to `batch_size` rather than resolving the
+        // batch symbol by name (its name varies: "BATCH" for tied t2n exports,
+        // "B" or a per-input name otherwise). Axes 0 and 2 are concrete.
+        let no_syms: [(&str, i64); 0] = [];
         let mut shapes = vec![];
         for fact in &self.decoder_state_inputs_facts {
-            let mut shape = [0; 3];
+            let mut shape = [0usize; 3];
             for (ix, s) in shape.iter_mut().enumerate() {
-                let dim = fact.dim(ix)?.eval(values)?.to_int64()? as usize;
-                *s = dim;
+                *s = if ix == 1 {
+                    batch_size
+                } else {
+                    fact.dim(ix)?.eval(no_syms)?.to_int64()? as usize
+                };
             }
             shapes.push(shape);
         }
@@ -408,6 +543,14 @@ impl NemoAsrModel {
 
         let vocab_sz = vocab.len() + 1;
         let dur_sz = durations.len();
+        // Max emitted symbols per encoder frame: explicit runtime override wins,
+        // else the model's greedy.max_symbols, else a safe default. Always
+        // finite so a lane cannot loop forever on one frame.
+        let max_symbols = self
+            .runtime_config
+            .max_n_tokens_per_step
+            .or(self.model_config.decoding.greedy.max_symbols)
+            .unwrap_or(10);
 
         // --- Main decoding loop ---
         loop {
@@ -416,11 +559,7 @@ impl NemoAsrModel {
                 .enumerate()
                 .filter(|(_, l)| {
                     l.current_frame < l.encoder_len
-                        && (l.need_loop
-                            || self
-                                .runtime_config
-                                .max_n_tokens_per_step
-                                .is_none_or(|m| l.symbols_added < m))
+                        && (l.need_loop || l.symbols_added < max_symbols)
                 })
                 .map(|(i, _)| i)
                 .collect();
@@ -453,10 +592,16 @@ impl NemoAsrModel {
 
             let packed_states = Self::state_pack_lanes(&lanes, &active)?;
             let mut inputs = vec![enc_frames, labels];
+            if self.decoder_joint_wants_target_length {
+                // one predicted token per lane -> length 1
+                let target_length: Value =
+                    Array1::<i32>::from_elem((active.len(),), 1i32).try_into()?;
+                inputs.push(target_length);
+            }
             inputs.extend(packed_states);
 
             let outs = self.decoder_joint_model.run(inputs)?;
-            let logits = outs[0].view::<f32>()?;
+            let logits = outs[self.decoder_joint_logits_output_index].view::<f32>()?;
             log::debug!("Decoder joint step done");
 
             for (k, &lane_ix) in active.iter().enumerate() {
@@ -467,19 +612,25 @@ impl NemoAsrModel {
                     .iter()
                     .take(vocab_sz)
                     .enumerate()
-                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .max_by(|a, b| a.1.total_cmp(b.1))
                     .unwrap();
 
-                // --- Duration ---
-                let (dur_idx, _) = row
-                    .iter()
-                    .skip(vocab_sz)
-                    .take(dur_sz)
-                    .enumerate()
-                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                    .unwrap();
-
-                let skip = durations[dur_idx];
+                // --- Advance (skip) ---
+                // TDT reads a duration head appended after the vocab logits.
+                // Plain RNNT has none: advance one encoder frame on blank,
+                // stay (emit) otherwise.
+                let skip = if durations.is_empty() {
+                    usize::from(tok == blank)
+                } else {
+                    let (dur_idx, _) = row
+                        .iter()
+                        .skip(vocab_sz)
+                        .take(dur_sz)
+                        .enumerate()
+                        .max_by(|a, b| a.1.total_cmp(b.1))
+                        .unwrap();
+                    durations[dur_idx]
+                };
                 let lane = &mut lanes[lane_ix];
 
                 lane.need_loop = skip == 0;
@@ -496,9 +647,9 @@ impl NemoAsrModel {
 
                     lane.last_token = tok;
 
-                    // Update predictor states
-                    for (sid, st) in outs[1..].iter().enumerate() {
-                        lane.states[sid] = Self::state_take_lane(st, k)?;
+                    // Update predictor states (located by output name)
+                    for (sid, &oidx) in self.decoder_joint_state_output_indices.iter().enumerate() {
+                        lane.states[sid] = Self::state_take_lane(&outs[oidx], k)?;
                     }
                 }
 
@@ -506,11 +657,11 @@ impl NemoAsrModel {
                     lane.current_frame += skip;
                     lane.symbols_added = 0;
                 }
-                lane.need_loop = true;
             }
 
-            // max_symbols guard
-            if let Some(max_symbols) = self.runtime_config.max_n_tokens_per_step {
+            // max_symbols guard: always applied (max_symbols is finite), so a
+            // lane that keeps emitting on one frame is force-advanced.
+            {
                 for lane in lanes.iter_mut() {
                     if lane.symbols_added >= max_symbols {
                         lane.current_frame += 1; // force advance by 1 frame

@@ -214,6 +214,7 @@ def _build_axis_registry(
             else torch.float32
         ),
         only_subnets=cfg.subnet.only_subnets,
+        fuse_prompt_into_encoder=cfg.subnet.fuse_prompt_into_encoder,
     )
     raw_sigs = provider.discover_signatures(asr_model, Stage.RAW)
     effective_slug = _resolve_effective_slug(cfg, asr_model)
@@ -550,6 +551,15 @@ def parse_config() -> NemoTractConfig:
         help="Split the joint and decoder subnets during export.",
     )
     parser.add_argument(
+        "--fuse-prompt-into-encoder",
+        action="store_true",
+        help=(
+            "Fold the language prompt head into the encoder subnet (adds a "
+            "`lang_id` input to the encoder) instead of exporting a separate "
+            "`prompt` subnet. No effect on models without a prompt head."
+        ),
+    )
+    parser.add_argument(
         "--force-sdpa-pytorch",
         action="store_true",
         help=(
@@ -674,6 +684,7 @@ def parse_config() -> NemoTractConfig:
             skip_preprocessor=ns.skip_preprocessor,
             split_joint_decoder=ns.split_joint_decoder,
             only_subnets=only_subnets,
+            fuse_prompt_into_encoder=ns.fuse_prompt_into_encoder,
         ),
         sdpa=SdpaConfig(
             force_sdpa_pytorch=ns.force_sdpa_pytorch,

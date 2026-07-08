@@ -3,7 +3,17 @@
 
 ## [Unreleased]
 
+### Added
+- **NeMo ASR: export top-level "glue" modules that `list_export_subnets()` omits**, via a generic, architecture-agnostic mechanism (`torch_to_nnef_nemo.glue_subnets`): subclass `GlueSubnet` and register a builder with `register_glue_subnet(*model_class_names)` (keyed by class *name*, so architectures whose class is not importable in the running NeMo still match). Registered builders are emitted automatically in both export and inspection, and honor `only_subnets`.
+- **Multilingual Nemotron ASR (`EncDecRNNTBPEModelWithPrompt`) now exports its `prompt_kernel` language head** as a standalone `prompt` subnet (`encoder → prompt → decoder_joint`). The MLP that conditions the encoder output on the language was previously dropped (it lives in the top-level `model.forward`, so no subnet's `check_io` exercised it, yet decoding got raw encoder features). The `prompt` subnet exposes the language as a runtime `lang_id` integer input (the 128-wide one-hot is built in-graph), so one export serves any language; the encoded time axis stays dynamic and unifies with the decoder for pulse. Defaults the example/`lang_id` to the config's `auto` slot (101).
+- **`--fuse-prompt-into-encoder`** (loader `fuse_prompt_into_encoder=` / export `fuse_glue=`): fold the prompt head into the `encoder` subnet instead of exporting a separate `prompt` artifact. The encoder then takes an extra `lang_id` input and applies the conditioning on its output, so downstream consumers need no additional subnet, only the extra input. Generic: any registered glue can be fused into its `after_subnet`.
+- **`examples/nemo_asr` (Rust) runs the multilingual Nemotron model** end-to-end: the encoder feeds a `lang_id` input when present (config `default_lang_id`, default 101 = auto, else ignored), the greedy decoder handles plain RNNT (no `durations`) as well as TDT, and the logits/predictor-state outputs are located by float-dtype/name (so an interleaved `prednet_lengths` output no longer breaks state updates). The per-frame symbol cap now comes from the model's `decoding.greedy.max_symbols` (falling back to a finite default) and is always enforced, so decoding cannot loop forever on a frame; argmax is NaN-safe. Errors out (rather than transcribing silently-wrong) when a standalone `prompt.nnef.tgz` is present but the encoder has no `lang_id` (this app can't run the prompt subnet; re-export with `--fuse-prompt-into-encoder`). Verified with `cargo test` on the fused multilingual export.
+
+### Fixed
+- `examples/nemo_asr`: pin `ndarray-npy` to `0.9` (matches tract's ndarray `0.16`; `0.10` pulled ndarray `0.17` and broke the `WriteNpyExt` bound).
+
 ### Changed
+- The prompt head applies the one-hot as an algebraic split of the first linear (a per-language bias) instead of a materialized concat, avoiding an `expand` over the dynamic batch/time axes that tract could not resolve at plan time; numerically identical, and it lets the fused encoder run with a symbolic batch and stay pulse-safe.
 - Officially supported tract versions bumped to 0.23.3 and 0.22.1 (0.23.0 dropped). The default `TractNNEF.latest()` target is now 0.23.3, so the `tract_core_resize` / `tract_core_grid_sample` lowering path (gated on tract >= 0.23.2) auto-activates by default.
 
 ## [0.24.1] - 2026-07-02

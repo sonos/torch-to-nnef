@@ -51,6 +51,9 @@ class SubnetSelectionConfig:
     skip_preprocessor: bool = False
     split_joint_decoder: bool = False
     only_subnets: T.Optional[T.List[str]] = None
+    # Fold top-level glue (e.g. the language prompt head) into its parent subnet
+    # (the encoder) instead of exporting it as a separate `prompt` subnet.
+    fuse_prompt_into_encoder: bool = False
 
 
 @dataclass

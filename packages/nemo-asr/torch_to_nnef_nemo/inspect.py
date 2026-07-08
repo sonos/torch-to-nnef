@@ -99,6 +99,7 @@ def collect_signatures(
     split_joint_decoder: bool = False,
     float_dtype: T.Optional[torch.dtype] = None,
     only_subnets: T.Optional[T.Collection[str]] = None,
+    fuse_glue: bool = False,
 ) -> T.List[SubnetSignature]:
     """Collect per-subnet signatures without printing.
 
@@ -110,6 +111,7 @@ def collect_signatures(
         split_joint_decoder: Whether to split joint/decoder.
         float_dtype: Preferred float dtype for examples.
         only_subnets: Optional subset filter.
+        fuse_glue: Fold glue subnets into their parent (see export).
 
     Returns:
         List of SubnetSignature snapshots.
@@ -124,6 +126,7 @@ def collect_signatures(
         float_dtype=eff_dtype,
         remove_unused_inputs=True,
         only_subnets=only_subnets,
+        fuse_glue=fuse_glue,
     ):
         # Inputs: flatten structured inputs (tuples, lists, dicts) using
         # the shared helper so that naming is consistent with export.

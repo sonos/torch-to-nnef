@@ -33,6 +33,11 @@ from torch_to_nnef_nemo.config import NemoExportConfig
 from torch_to_nnef_nemo.dynaxes import (
     build_dynamic_axes as build_dynamic_axes_for_subnet,
 )
+from torch_to_nnef_nemo.glue_subnets import (
+    build_glue_subnets,
+    fuse_glues_into,
+    iter_all_glue_subnets,
+)
 from torch_to_nnef_nemo.wrappers import (
     WrapAudioPreprocessor,
     WrapPreprocessorCast,
@@ -302,6 +307,35 @@ def _pick_subnets_names(model, *, nemo: InjectedNemoModule = INJECTED):
     return subnet_names
 
 
+def _iter_trailing_glue_subnets(model, glues, fused_parents, allow, fuse_glue):
+    """Emit glue subnets after the native subnets.
+
+    Without ``fuse_glue`` each glue is a standalone subnet. With ``fuse_glue``
+    the glues were folded into their parent during the main loop; here we only
+    warn about (and fall back to standalone for) any glue whose parent was not
+    exported, so a language head is never silently dropped.
+    """
+    if not fuse_glue:
+        yield from iter_all_glue_subnets(model, allow)
+        return
+    for glue in glues:
+        if glue.after_subnet in fused_parents:
+            continue
+        LOGGER.warning(
+            "glue '%s' targets subnet '%s' which was not exported as a "
+            "fusable subnet; emitting it standalone instead.",
+            glue.name,
+            glue.after_subnet,
+        )
+        if allow is None or glue.name in allow:
+            yield (
+                glue.name,
+                glue,
+                glue.input_example(),
+                glue.dynamic_shapes_for_export(),
+            )
+
+
 def iter_nemo_model_subnets(
     model,
     input_example=None,
@@ -311,12 +345,21 @@ def iter_nemo_model_subnets(
     apply_sequential_examples: bool = False,
     batch_size: int = 3,
     only_subnets: T.Optional[T.Collection[str]] = None,
+    fuse_glue: bool = False,
 ):
-    """Iterator over exportable subnets of a nemo model."""
+    """Iterator over exportable subnets of a nemo model.
+
+    When ``fuse_glue`` is set, each registered glue module (e.g. the language
+    prompt head) is folded into its ``after_subnet`` (so the encoder gains a
+    ``lang_id`` input and applies the transform on its output) instead of being
+    emitted as a separate subnet.
+    """
     subnet_names = _pick_subnets_names(model)
     allow: T.Optional[set[str]] = None
     if only_subnets is not None:
         allow = set(only_subnets)
+    glues = build_glue_subnets(model) if fuse_glue else []
+    fused_parents: set[str] = set()
     for subnet_name in subnet_names:
         subnet = model.get_export_subnet(subnet_name)
         if subnet_name == "decoder_joint":
@@ -359,13 +402,30 @@ def iter_nemo_model_subnets(
                     f"but received {len(input_example)} inputs. "
                     "Some inputs may be optional; verify subnet interface."
                 )
-            yield subnet_name, subnet, input_example, ctx.dynamic_axes
+            out_subnet, out_example = subnet, input_example
+            if fuse_glue:
+                # Fold matching glue(s) into this subnet: it keeps its name but
+                # gains the glue's extra inputs (e.g. lang_id). Done inside the
+                # NeMo export context so the native forward stays wrapped.
+                out_subnet, out_example, matched = fuse_glues_into(
+                    subnet, subnet_name, input_example, glues
+                )
+                if matched:
+                    fused_parents.add(subnet_name)
+            yield subnet_name, out_subnet, out_example, ctx.dynamic_axes
             # Propagate input example
             # (default scenario, may need to be overriden)
             if input_example is not None and apply_sequential_examples:
                 input_example = ctx.output_example
             else:
                 input_example = None
+
+    # Top-level "glue" modules NeMo's list_export_subnets() omits (e.g. a
+    # language prompt head applied between encoder and decoder). Standalone
+    # subnets, or fuse-mode fallbacks, are emitted after the native subnets.
+    yield from _iter_trailing_glue_subnets(
+        model, glues, fused_parents, allow, fuse_glue
+    )
 
 
 def build_dynamic_axes(
@@ -560,6 +620,7 @@ def iter_export_params_for_generic_nemo_asr_model(
     float_dtype: T.Optional[torch.dtype] = None,
     only_subnets: T.Optional[T.Collection[str]] = None,
     axis_registry=None,
+    fuse_glue: bool = False,
 ) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model."""
     asr_model.eval()
@@ -584,6 +645,7 @@ def iter_export_params_for_generic_nemo_asr_model(
         split_joint_decoder=split_joint_decoder,
         remove_unused_inputs=remove_unused_inputs,
         only_subnets=only_subnets,
+        fuse_glue=fuse_glue,
     ):
         dynamic_axes, custom_extensions = build_dynamic_axes(
             subnet, nemo_dynamic_axes, input_example
@@ -664,6 +726,7 @@ def export_nemo_asr_model(
     remove_unused_inputs: bool = True,
     dump_checked_io: bool = False,
     only_subnets: T.Optional[T.Collection[str]] = None,
+    fuse_glue: bool = False,
     *,
     omegaconf: InjectedOmegaConfModule = INJECTED,
     axis_registry=None,
@@ -694,6 +757,7 @@ def export_nemo_asr_model(
         remove_unused_inputs=remove_unused_inputs,
         only_subnets=only_subnets,
         axis_registry=axis_registry,
+        fuse_glue=fuse_glue,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
         model = export_params.model
@@ -797,6 +861,7 @@ def export_nemo_from_model(
             skip_preprocessor=cfg.subnet.skip_preprocessor,
             split_joint_decoder=cfg.subnet.split_joint_decoder,
             only_subnets=cfg.subnet.only_subnets,
+            fuse_glue=cfg.subnet.fuse_prompt_into_encoder,
             extra_cfg={"pretrained_name": cfg.pretrained_name},
             float_dtype=float_dtype,
             dump_checked_io=cfg.compression.dump_checked_io,

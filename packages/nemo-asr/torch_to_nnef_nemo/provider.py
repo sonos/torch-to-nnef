@@ -36,6 +36,7 @@ class NemoProvider(Provider):
     split_joint_decoder: bool = False
     float_dtype: T.Optional[torch.dtype] = None
     only_subnets: T.Optional[T.Collection[str]] = None
+    fuse_prompt_into_encoder: bool = False
 
     def discover_signatures(
         self, model: torch.nn.Module, stage: Stage
@@ -49,6 +50,7 @@ class NemoProvider(Provider):
             split_joint_decoder=self.split_joint_decoder,
             float_dtype=self.float_dtype or torch.float32,
             only_subnets=self.only_subnets,
+            fuse_glue=self.fuse_prompt_into_encoder,
         )
         out: list[SubnetSignature] = []
         for ss in snaps:
@@ -100,6 +102,7 @@ class NemoProvider(Provider):
             float_dtype=self.float_dtype,
             only_subnets=self.only_subnets,
             axis_registry=plan.registry,
+            fuse_glue=self.fuse_prompt_into_encoder,
         ):
             wrapped[ep.name] = ep.model
         return wrapped
