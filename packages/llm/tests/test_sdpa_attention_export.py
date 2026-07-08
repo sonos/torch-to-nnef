@@ -162,6 +162,16 @@ def test_reify_sdpa_operator_rejects_eager_attention():
         exporter._resolve_attn_implementation("eager", True)
 
 
+def test_existing_export_test_dir_is_allowed_for_existing_export_root(
+    tmp_path,
+):
+    export_dir = tmp_path / "export"
+    test_dir = export_dir / "tests"
+    test_dir.mkdir(parents=True)
+
+    assert exporter._ensure_export_test_dir(export_dir, True) == test_dir
+
+
 def test_dump_llm_routes_reified_sdpa_to_loader(monkeypatch, tmp_path):
     captured_load = {}
     captured_dump = {}

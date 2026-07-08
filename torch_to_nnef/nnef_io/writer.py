@@ -394,12 +394,16 @@ class Writer:
                             folder, label, self._inference_target
                         ):
                             LOGGER.info("written qtensor: '%s'", label)
+                            del qtensor
+                            gc.collect()
                             continue
                     while isinstance(qtensor, OffloadedTensor):
                         qtensor = qtensor.to_base_tensor()
                     label = op.attribs["label"]
                     qtensor.write_in_file(folder, label, self._inference_target)
                     LOGGER.info("written qtensor: '%s'", label)
+                    del qtensor
+                    gc.collect()
                 else:
                     filename = op.attribs["label"] + ".dat"
                     output_data = op.output.data

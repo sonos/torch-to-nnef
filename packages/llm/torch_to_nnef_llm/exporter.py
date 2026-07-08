@@ -135,6 +135,14 @@ def _resolve_attn_implementation(
     return attn_implementation
 
 
+def _ensure_export_test_dir(
+    export_dirpath: Path, ignore_already_exist_dir: bool
+) -> Path:
+    test_dir = export_dirpath / "tests"
+    test_dir.mkdir(parents=True, exist_ok=ignore_already_exist_dir)
+    return test_dir
+
+
 #: Default number of retries for transient Hugging Face download failures.
 DEFAULT_HF_DOWNLOAD_N_RETRIES = 5
 
@@ -787,8 +795,9 @@ class LLMExporter:
             inference_target.dynamic_axes = dynamic_axes
 
             # Add io.npz test in exproted dir for dbg purpose
-            test_dir = export_dirpath / "tests"
-            test_dir.mkdir(parents=True)
+            test_dir = _ensure_export_test_dir(
+                export_dirpath, ignore_already_exist_dir
+            )
 
             if check_inference_modes:
                 self._dump_modes_json(
