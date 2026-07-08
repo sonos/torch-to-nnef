@@ -718,7 +718,13 @@ class OffloadedTensor(OpaqueTensor):
     @classmethod
     def _save(cls, tensor, offload_dir, name):
         dtype = tensor.dtype
-        if isinstance(tensor, SupportsOffloadState):
+        # Compact state is only reloadable through the OpaqueTensor branch of
+        # reload(); gate the save on the same condition so a non-opaque
+        # SupportsOffloadState is pickled plainly instead of being written as a
+        # compact dict that reload() could not rebuild.
+        if isinstance(tensor, OpaqueTensor) and isinstance(
+            tensor, SupportsOffloadState
+        ):
             tensor = tensor.to_offload_state()
         return torch.save(tensor, cls._offload_path(offload_dir, name, dtype))
 

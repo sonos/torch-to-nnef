@@ -258,6 +258,43 @@ class _ToyOpaque(OpaqueTensor, SupportsOffloadState):
         )
 
 
+class _NonOpaqueState(torch.Tensor, SupportsOffloadState):
+    # A SupportsOffloadState that is NOT an OpaqueTensor. reload() only rebuilds
+    # compact state through its OpaqueTensor branch, so _save must NOT compact
+    # this one (it would be unreloadable). Used to lock the save/reload gate.
+    OFFLOAD_STATE_TAG = "tests.non_opaque_state.v1"
+    to_offload_state_called = False
+
+    @staticmethod
+    def __new__(cls, base):
+        return torch.Tensor._make_subclass(cls, base, False)
+
+    def to_offload_state(self):
+        type(self).to_offload_state_called = True
+        return {OFFLOAD_STATE_KEY: self.OFFLOAD_STATE_TAG}
+
+    @classmethod
+    def from_offload_state(cls, state, target_device=None):
+        raise AssertionError("non-opaque state must be pickled plainly")
+
+    @classmethod
+    def write_offload_state_in_file(
+        cls, state, dirpath, label, inference_target=None
+    ):
+        raise AssertionError("non-opaque state has no compact writer")
+
+
+def test_save_does_not_compact_non_opaque_offload_state(tmp_path):
+    _NonOpaqueState.to_offload_state_called = False
+    tensor = _NonOpaqueState(torch.zeros(2, 2))
+    OffloadedTensor._save(tensor, tmp_path, "x")
+
+    assert not _NonOpaqueState.to_offload_state_called
+    path = OffloadedTensor._offload_path(tmp_path, "x", tensor.dtype)
+    raw = torch.load(path, weights_only=False)
+    assert not (isinstance(raw, dict) and OFFLOAD_STATE_KEY in raw)
+
+
 @skipif_limited_offload_support
 def test_offload_dispatches_generic_offload_state(tmp_path):
     # The offload layer must dispatch on the serialized state, not on any
