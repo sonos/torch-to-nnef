@@ -328,17 +328,18 @@ impl NemoAsrModel {
         //   * standalone (default): a separate `prompt.nnef.tgz` subnet holds
         //     the `lang_id` input and the MLP; the encoder is unconditioned.
         // This app only runs encoder + decoder_joint, so a standalone prompt
-        // subnet is never executed and its conditioning is lost. Detect that
-        // (prompt file present AND the encoder is not the fused variant, i.e.
-        // has no `lang_id`) and warn.
+        // subnet can never be executed and its conditioning would be silently
+        // lost -> wrong transcription. Bail (rather than warn) when the prompt
+        // file is present AND the encoder is not the fused variant (has no
+        // `lang_id`), so the failure is loud and actionable.
         if path.join("prompt.nnef.tgz").exists() && model.encoder_lang_id.is_none() {
-            log::warn!(
+            anyhow::bail!(
                 "found a standalone `prompt.nnef.tgz` (it holds the `lang_id` \
                  input and the language MLP), but this app runs only encoder + \
-                 decoder_joint and never executes the prompt subnet, so \
-                 language conditioning is DROPPED. Re-export with \
-                 --fuse-prompt-into-encoder so the encoder takes `lang_id` \
-                 directly."
+                 decoder_joint and cannot execute the prompt subnet, so \
+                 language conditioning would be silently dropped. Re-export the \
+                 model with --fuse-prompt-into-encoder so the encoder takes \
+                 `lang_id` directly."
             );
         }
         Ok(model)
