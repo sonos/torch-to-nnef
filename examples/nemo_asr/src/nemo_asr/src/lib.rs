@@ -209,16 +209,24 @@ impl NemoAsrModel {
                 decoder_joint_wants_target_length = true;
             }
         }
-        let mut decoder_joint_logits_output_index = 0;
+        // `output_name` returns the producing node's name (not the graph output
+        // label), so match states by the "states" substring their nodes carry.
+        // The logits are the remaining float output; `prednet_lengths` (int) and
+        // any state outputs are excluded.
+        let mut decoder_joint_logits_output_index = None;
         let mut decoder_joint_state_output_indices = vec![];
         for ix in 0..decoder_joint_model.output_count()? {
-            let name = decoder_joint_model.output_name(ix)?;
-            if name.contains("states") {
+            if decoder_joint_model.output_name(ix)?.contains("states") {
                 decoder_joint_state_output_indices.push(ix);
-            } else if name == "outputs" {
-                decoder_joint_logits_output_index = ix;
+            } else if decoder_joint_model.output_fact(ix)?.datum_type()?
+                == DatumType::TRACT_DATUM_TYPE_F32
+                && decoder_joint_logits_output_index.is_none()
+            {
+                decoder_joint_logits_output_index = Some(ix);
             }
         }
+        let decoder_joint_logits_output_index = decoder_joint_logits_output_index
+            .ok_or_else(|| anyhow::anyhow!("decoder_joint has no float logits output"))?;
         ensure!(
             decoder_joint_state_output_indices.len() == decoder_state_inputs_facts.len(),
             "decoder_joint state output/input count mismatch"
@@ -296,13 +304,28 @@ impl NemoAsrModel {
         let dec_model_bytes =
             std::fs::read(dec_model_path).expect("Failed to read decoder model file");
 
-        Self::from_bytes(
+        let model = Self::from_bytes(
             &model_config_bytes,
             runtime_config_bytes.as_deref(),
             &pre_model_bytes,
             &enc_model_bytes,
             &dec_model_bytes,
-        )
+        )?;
+
+        // A standalone `prompt.nnef.tgz` (language head not fused into the
+        // encoder) is NOT wired by this app: it loads encoder + decoder_joint
+        // only. If one is present while the encoder has no `lang_id` input, the
+        // decoder would consume unconditioned encoder output -> wrong output.
+        // Re-export with --fuse-prompt-into-encoder to feed the language here.
+        if path.join("prompt.nnef.tgz").exists() && model.encoder_lang_id.is_none() {
+            log::warn!(
+                "found a standalone `prompt.nnef.tgz` but the encoder has no \
+                 `lang_id` input: this app does not run the prompt subnet, so \
+                 language conditioning is DROPPED. Re-export the model with \
+                 --fuse-prompt-into-encoder."
+            );
+        }
+        Ok(model)
     }
 
     /// Convert a single wav file path to a single input tensor
@@ -449,16 +472,20 @@ impl NemoAsrModel {
     }
 
     fn get_initial_decoder_states(&self, batch_size: usize) -> Res<Vec<[usize; 3]>> {
-        // t2n names the batch symbol "BATCH" (tie_batch_symbols); the decoder
-        // state facts are [2, BATCH, 640].
-        let values = [("BATCH", batch_size as i64)];
-
+        // Decoder states are [num_layers*dir, BATCH, hidden]; axis 1 is the
+        // batch. Set it directly to `batch_size` rather than resolving the
+        // batch symbol by name (its name varies: "BATCH" for tied t2n exports,
+        // "B" or a per-input name otherwise). Axes 0 and 2 are concrete.
+        let no_syms: [(&str, i64); 0] = [];
         let mut shapes = vec![];
         for fact in &self.decoder_state_inputs_facts {
-            let mut shape = [0; 3];
+            let mut shape = [0usize; 3];
             for (ix, s) in shape.iter_mut().enumerate() {
-                let dim = fact.dim(ix)?.eval(values)?.to_int64()? as usize;
-                *s = dim;
+                *s = if ix == 1 {
+                    batch_size
+                } else {
+                    fact.dim(ix)?.eval(no_syms)?.to_int64()? as usize
+                };
             }
             shapes.push(shape);
         }

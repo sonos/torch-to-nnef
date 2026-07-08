@@ -276,9 +276,9 @@ class PromptKernelSubnet(GlueSubnet):
     ``expand`` over the dynamic batch/time axes that tract cannot resolve at
     plan time), the first linear is split algebraically: it applies to the
     encoded features, and the one-hot's contribution reduces to a per-language
-    bias vector added to every frame. This is numerically identical to the
-    concat form but introduces no ``expand`` -- so it runs with a symbolic
-    batch and is pulse-safe.
+    bias vector added to every frame. This is numerically equivalent to the
+    concat form (up to floating-point rounding) but introduces no ``expand`` --
+    so it runs with a symbolic batch and is pulse-safe.
     """
 
     name = "prompt"
@@ -357,7 +357,11 @@ class PromptKernelSubnet(GlueSubnet):
         hidden = hidden + lang_bias.unsqueeze(1)  # [B, T, H] + [1, 1, H]
         # Remaining layers (activation + final linear).
         conditioned = self.prompt_kernel[1:](hidden)  # [B, T, D]
-        return conditioned.transpose(1, 2)  # [B, D, T]
+        # Cast back to the encoder-output dtype (mirrors NeMo's `.to(out_dtype)`
+        # so the decoder receives the same dtype it would natively).
+        return conditioned.transpose(1, 2).to(
+            encoder_outputs.dtype
+        )  # [B, D, T]
 
 
 def _resolve_default_lang_id(model: nn.Module) -> int:
@@ -394,6 +398,19 @@ def build_prompt_kernel_subnets(model: nn.Module) -> T.List[GlueSubnet]:
     if not linears:
         LOGGER.warning(
             "prompt_kernel has no Linear layers; skipping prompt subnet export"
+        )
+        return []
+    # PromptKernelSubnet.forward splits the *first* module as the concat linear
+    # (`prompt_kernel[0]`) and applies `[1:]` as the tail, so the head must be a
+    # subscriptable container whose first element is that Linear.
+    if not (
+        isinstance(prompt_kernel, nn.Sequential)
+        and isinstance(prompt_kernel[0], nn.Linear)
+    ):
+        LOGGER.warning(
+            "prompt_kernel is not a Sequential starting with a Linear "
+            "(%s); skipping prompt subnet export",
+            type(prompt_kernel).__name__,
         )
         return []
     d_model = linears[-1].out_features

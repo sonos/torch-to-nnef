@@ -111,6 +111,16 @@ def test_build_prompt_kernel_subnets_skips_when_absent_or_malformed():
     assert build_prompt_kernel_subnets(m2) == []
 
 
+def test_build_skips_non_sequential_prompt_kernel():
+    # forward relies on prompt_kernel[0] being the concat Linear; a head that
+    # isn't a Sequential-starting-with-Linear must be skipped, not mis-split.
+    m = EncDecRNNTBPEModelWithPrompt()
+    m.prompt_kernel = nn.Sequential(
+        nn.ReLU(), nn.Linear(D + P, H), nn.ReLU(), nn.Linear(H, D)
+    )  # leading ReLU -> prompt_kernel[0] is not the concat Linear
+    assert build_prompt_kernel_subnets(m) == []
+
+
 def test_iter_glue_subnets_after_placement_and_filter():
     m = EncDecRNNTBPEModelWithPrompt()
     after_enc = list(iter_glue_subnets_after(m, "encoder"))
