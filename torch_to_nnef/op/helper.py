@@ -824,6 +824,47 @@ def get_list_of_int(
     return int_list
 
 
+def add_cast_nnef_tensor(
+    g,
+    name_to_tensor,
+    nnef_tensor: NTensor,
+    cast_to: np.dtype,
+    force_full_output_tensor_name: T.Optional[str] = None,
+) -> NTensor:
+    """Emit a tract dtype cast preserving the input tensor shape."""
+    cast_to = np.dtype(cast_to).type
+    to_str = numpy_dtype_to_tract_str(cast_to)
+    out_name = (
+        force_full_output_tensor_name or f"{nnef_tensor.name}_as_{to_str}"
+    )
+    existing = name_to_tensor.get(out_name)
+    if existing is not None:
+        if existing.dtype == cast_to and tuple(existing.shape) == tuple(
+            nnef_tensor.shape
+        ):
+            return existing
+        raise T2NErrorConsistency(
+            f"cast output name collision for {out_name!r}: "
+            f"existing dtype/shape {existing.dtype}/{existing.shape}, "
+            f"requested {cast_to}/{nnef_tensor.shape}"
+        )
+    out = NTensor(
+        g,
+        out_name,
+        dtype=cast_to,
+        shape=tuple(nnef_tensor.shape),
+    )
+    name_to_tensor[out_name] = out
+    NOperation(
+        g,
+        type="tract_core_cast",
+        inputs=nnef_tensor,
+        outputs=out,
+        attribs={"to": to_str},
+    )
+    return out
+
+
 def cast_to_if_not_dtype_and_variable(
     g,
     name_to_tensor,
@@ -846,16 +887,14 @@ def cast_to_if_not_dtype_and_variable(
             cast_to,
         )
         cast_to = nnef_tensor.dtype
-    out = add_single_output_op(
+    out = add_cast_nnef_tensor(
         g,
-        node,
         name_to_tensor,
-        "tract_core_cast",
-        inputs=nnef_tensor,
-        attrs={
-            "to": numpy_dtype_to_tract_str(cast_to),
-        },
-        output_tensor_name_suffix=suffix,
+        nnef_tensor,
+        cast_to=cast_to,
+        force_full_output_tensor_name=(
+            f"{nnef_tensor.name}_{suffix}" if suffix else None
+        ),
     )
     return out, ["tract_core"]
 
@@ -1031,11 +1070,11 @@ class OpHelper:
             for idx, inp in enumerate(inputs):
                 if inp.dtype != dtype_target:
                     to_str = numpy_dtype_to_tract_str(dtype_target)
-                    out = self.add_single_output_op_from_nnef_tensors(
-                        node=node,
-                        nnef_op_type="tract_core_cast",
-                        inputs=inp,
-                        attrs={"to": to_str},
+                    out = add_cast_nnef_tensor(
+                        self.g,
+                        self.name_to_tensor,
+                        inp,
+                        cast_to=dtype_target,
                         force_full_output_tensor_name=f"{inp.name}_as_{to_str}",
                     )
                     inputs[idx] = out
@@ -1053,11 +1092,11 @@ class OpHelper:
             dtype_target = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[lowest_idx]
             for idx, inp in enumerate(inputs):
                 to_str = numpy_dtype_to_tract_str(dtype_target)
-                out = self.add_single_output_op_from_nnef_tensors(
-                    node=node,
-                    nnef_op_type="tract_core_cast",
-                    inputs=inp,
-                    attrs={"to": to_str},
+                out = add_cast_nnef_tensor(
+                    self.g,
+                    self.name_to_tensor,
+                    inp,
+                    cast_to=dtype_target,
                     force_full_output_tensor_name=f"{inp.name}_as_{to_str}",
                 )
                 inputs[idx] = out
@@ -1107,11 +1146,11 @@ class OpHelper:
                     inputs[idx] = retagged
                     continue
                 to_str = numpy_dtype_to_tract_str(final_dtype)
-                out = self.add_single_output_op_from_nnef_tensors(
-                    node=node,
-                    nnef_op_type="tract_core_cast",
-                    inputs=inp,
-                    attrs={"to": to_str},
+                out = add_cast_nnef_tensor(
+                    self.g,
+                    self.name_to_tensor,
+                    inp,
+                    cast_to=final_dtype,
                     force_full_output_tensor_name=f"{inp.name}_as_{to_str}",
                 )
                 inputs[idx] = out
@@ -1179,6 +1218,20 @@ class OpHelper:
             nnef_tensor,
             cast_to,
             suffix,
+        )
+
+    def add_cast_nnef_tensor(
+        self,
+        nnef_tensor: NTensor,
+        cast_to: np.dtype,
+        force_full_output_tensor_name: T.Optional[str] = None,
+    ) -> NTensor:
+        return add_cast_nnef_tensor(
+            self.g,
+            self.name_to_tensor,
+            nnef_tensor,
+            cast_to,
+            force_full_output_tensor_name,
         )
 
     def cast_and_add_nnef_operation(self, **kwargs):

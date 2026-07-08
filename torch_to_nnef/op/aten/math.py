@@ -495,11 +495,9 @@ def rsub(node, op_helper, torch_graph, **kwargs):
         for _ in [input_node, other_node]
     ]
     for idx, inp in enumerate(inputs):
-        inputs[idx] = op_helper.add_single_output_op_from_nnef_tensors(
-            node,
-            "tract_core_cast",
-            inputs=[inp],
-            attrs={"to": "f32"},
+        inputs[idx] = op_helper.add_cast_nnef_tensor(
+            inp,
+            cast_to=np.float32,
             force_full_output_tensor_name=f"{inp.name}_as_f32",
         )
 
