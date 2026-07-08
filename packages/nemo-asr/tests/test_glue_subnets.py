@@ -14,12 +14,31 @@ from torch import nn
 from torch_to_nnef_nemo.glue_subnets import (
     DEFAULT_PROMPT_LANG_ID,
     GLUE_SUBNET_BUILDERS,
+    FusedGlueSubnet,
     PromptKernelSubnet,
     _builder_for_model,
     build_prompt_kernel_subnets,
+    fuse_glues_into,
+    iter_all_glue_subnets,
     iter_glue_subnets_after,
     register_glue_subnet,
 )
+
+
+class _FakeEncoder(nn.Module):
+    """Minimal encoder-like native subnet: [B, mel, T] -> ([B, D, T], [B])."""
+
+    input_names = ["audio_signal", "length"]
+    output_names = ["outputs", "encoded_lengths"]
+    input_types: dict = {}
+
+    def dynamic_shapes_for_export(self, use_dynamo=False):
+        return {"audio_signal": [0, 2], "length": [0]}
+
+    def forward(self, audio_signal, length):
+        b, _, t = audio_signal.shape
+        return audio_signal.new_zeros(b, D, t) + 0.5, length
+
 
 D, P, H = 16, 8, 32
 
@@ -105,6 +124,81 @@ def test_iter_glue_subnets_after_placement_and_filter():
     )
     # unrelated model yields nothing
     assert list(iter_glue_subnets_after(nn.Linear(2, 2), "encoder")) == []
+
+
+def test_iter_all_glue_subnets_builds_once_and_filters():
+    m = EncDecRNNTBPEModelWithPrompt()
+    emitted = list(iter_all_glue_subnets(m))
+    assert [e[0] for e in emitted] == ["prompt"]
+    name, glue, example, dyn = emitted[0]
+    assert name == "prompt"
+    assert [tuple(t.shape) for t in example] == [(1, D, 16), (1,)]
+    assert dyn == {"encoder_outputs": [0, 2]}
+    # allow filter
+    assert list(iter_all_glue_subnets(m, allow={"encoder"})) == []
+    assert len(list(iter_all_glue_subnets(m, allow={"prompt"}))) == 1
+    # unrelated model -> nothing
+    assert list(iter_all_glue_subnets(nn.Linear(2, 2))) == []
+
+
+def test_warns_when_prompt_kernel_present_but_no_builder(caplog):
+    """Warn when a prompt model's class name isn't registered (else silent)."""
+
+    class _RenamedPromptModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.prompt_kernel = _prompt_kernel()
+
+    with caplog.at_level("WARNING"):
+        assert list(iter_all_glue_subnets(_RenamedPromptModel())) == []
+    assert any("prompt_kernel" in r.message for r in caplog.records)
+
+
+def test_out_of_range_default_lang_warns(caplog):
+    with caplog.at_level("WARNING"):
+        PromptKernelSubnet(
+            _prompt_kernel(), num_prompts=P, d_model=D, default_lang_id=P + 5
+        )
+    assert any("outside" in r.message for r in caplog.records)
+
+
+def test_fuse_glues_into_wraps_native_and_appends_extra_input():
+    native = _FakeEncoder().eval()
+    glue = PromptKernelSubnet(_prompt_kernel(), num_prompts=P, d_model=D)
+    audio = torch.randn(2, 4, 6)
+    length = torch.tensor([6, 6])
+    fused, example, matched = fuse_glues_into(
+        native, "encoder", [audio, length], [glue]
+    )
+    assert matched
+    assert isinstance(fused, FusedGlueSubnet)
+    assert fused.input_names == ["audio_signal", "length", "lang_id"]
+    assert fused.output_names == ["outputs", "encoded_lengths"]
+    assert len(example) == 3 and tuple(example[2].shape) == (1,)
+    # input_types + dyn delegate to the native encoder
+    assert fused.dynamic_shapes_for_export() == {
+        "audio_signal": [0, 2],
+        "length": [0],
+    }
+    with torch.no_grad():
+        out = fused(audio, length, torch.tensor([7]))
+        enc, _ = native(audio, length)
+        ref = glue(enc, torch.tensor([7]))
+    assert isinstance(out, tuple) and len(out) == 2
+    assert torch.allclose(out[0], ref)
+    assert torch.equal(out[1], length)  # non-first outputs pass through
+
+
+def test_fuse_glues_into_no_match_returns_native():
+    native = _FakeEncoder().eval()
+    glue = PromptKernelSubnet(_prompt_kernel(), num_prompts=P, d_model=D)
+    audio, length = torch.randn(1, 4, 5), torch.tensor([5])
+    module, example, matched = fuse_glues_into(
+        native, "decoder_joint", [audio, length], [glue]
+    )
+    assert not matched
+    assert module is native
+    assert example == [audio, length]
 
 
 def test_register_glue_subnet_roundtrip():

@@ -21,10 +21,17 @@ glue as its own exportable subnet:
   whose class is not importable in the running NeMo (e.g. an unreleased
   ``EncDecRNNTBPEModelWithPrompt``) can still be matched.
 
-``iter_glue_subnets_after`` is called by
-:func:`torch_to_nnef_nemo.export.iter_nemo_model_subnets` right after the
-standard subnet named by ``GlueSubnet.after_subnet`` is yielded, so the glue
-appears in both export and inspection with no extra wiring.
+``iter_all_glue_subnets`` is called by
+:func:`torch_to_nnef_nemo.export.iter_nemo_model_subnets` after the native
+subnets are yielded, so the glue appears in both export and inspection with no
+extra wiring. ``after_subnet`` records which native subnet's output the glue
+consumes (documentation / ordering intent), not the emission position.
+
+Alternatively the exporter can *fuse* the glue into its ``after_subnet`` (see
+:func:`fuse_glues_into` and :class:`FusedGlueSubnet`): instead of a separate
+``prompt`` artifact, the encoder subnet itself gains the glue's extra inputs
+(e.g. ``lang_id``) and applies the transform on its output. Then downstream
+consumers need no extra subnet, only the extra input.
 """
 
 from __future__ import annotations
@@ -52,7 +59,7 @@ class GlueSubnet(nn.Module):
     Attributes:
         name: subnet name (becomes ``<name>.nnef.tgz`` and the inspection key).
         after_subnet: name of the standard subnet whose output this glue
-            consumes; the glue is emitted immediately after it.
+            consumes (ordering intent / documentation).
         input_names / output_names: NNEF IO names. Mirror the surrounding
             subnets' names so axis symbols unify across the chain.
     """
@@ -104,6 +111,58 @@ def _builder_for_model(model: nn.Module) -> T.Optional[GlueSubnetBuilder]:
     return None
 
 
+def build_glue_subnets(model: nn.Module) -> T.List[GlueSubnet]:
+    """Build the registered glue subnets for ``model`` once (``[]`` if none).
+
+    Warns when the model looks prompt-conditioned (has a ``prompt_kernel``) but
+    no builder matched its class name: that means the language head would be
+    silently dropped, which is the exact failure this module exists to prevent.
+    """
+    builder = _builder_for_model(model)
+    if builder is None:
+        if hasattr(model, "prompt_kernel"):
+            LOGGER.warning(
+                "%s exposes a `prompt_kernel` but no glue-subnet builder is "
+                "registered for its class name; the language head will NOT be "
+                "exported. Register one with register_glue_subnet(...).",
+                type(model).__name__,
+            )
+        return []
+    subs = builder(model)
+    for glue in subs:
+        glue.eval()
+    return subs
+
+
+def _emit(
+    glue: GlueSubnet,
+) -> T.Tuple[str, GlueSubnet, T.List[object], T.Dict[str, T.List[int]]]:
+    return (
+        glue.name,
+        glue,
+        glue.input_example(),
+        glue.dynamic_shapes_for_export(),
+    )
+
+
+def iter_all_glue_subnets(
+    model: nn.Module,
+    allow: T.Optional[T.Set[str]] = None,
+) -> T.Iterator[
+    T.Tuple[str, GlueSubnet, T.List[object], T.Dict[str, T.List[int]]]
+]:
+    """Yield ``(name, glue, input_example, nemo_dynamic_axes)`` for each glue.
+
+    Tuple shape matches ``iter_nemo_model_subnets`` so the caller treats glue
+    subnets identically to native ones. Builds the glue list once. ``allow``
+    filters by subnet name (mirrors the native subnets' ``only_subnets``).
+    """
+    for glue in build_glue_subnets(model):
+        if allow is not None and glue.name not in allow:
+            continue
+        yield _emit(glue)
+
+
 def iter_glue_subnets_after(
     model: nn.Module,
     subnet_name: str,
@@ -111,27 +170,91 @@ def iter_glue_subnets_after(
 ) -> T.Iterator[
     T.Tuple[str, GlueSubnet, T.List[object], T.Dict[str, T.List[int]]]
 ]:
-    """Yield glue subnets attached after ``subnet_name``.
-
-    Yields ``(name, glue_module, input_example, nemo_dynamic_axes)`` matching
-    the tuple shape of ``iter_nemo_model_subnets`` so the caller can treat glue
-    subnets identically to native ones. ``allow`` filters by subnet name.
-    """
-    builder = _builder_for_model(model)
-    if builder is None:
-        return
-    for glue in builder(model):
+    """Yield glue subnets whose ``after_subnet`` equals ``subnet_name``."""
+    for glue in build_glue_subnets(model):
         if glue.after_subnet != subnet_name:
             continue
         if allow is not None and glue.name not in allow:
             continue
-        glue.eval()
-        yield (
-            glue.name,
-            glue,
-            glue.input_example(),
-            glue.dynamic_shapes_for_export(),
+        yield _emit(glue)
+
+
+class FusedGlueSubnet(nn.Module):
+    """A native subnet with a :class:`GlueSubnet` fused onto its first output.
+
+    Used when a glue is folded into its parent subnet instead of exported as a
+    separate artifact (e.g. the language head into the encoder). The fused
+    module exposes the native inputs plus the glue's *extra* inputs (every glue
+    input after the first, which is the one that consumes the native output),
+    and the native output names. ``forward`` runs the native subnet, applies the
+    glue to its first output, and passes the remaining outputs through.
+    """
+
+    def __init__(
+        self,
+        native: nn.Module,
+        glue: GlueSubnet,
+        native_input_example: T.Sequence[object],
+    ):
+        super().__init__()
+        self.native = native
+        self.glue = glue
+        self._n_native = len(native_input_example)
+        native_names = list(native.input_names[: self._n_native])
+        extra_names = list(glue.input_names[1:])
+        self.input_names = native_names + extra_names
+        self.output_names = list(native.output_names)
+        self._example = list(native_input_example) + list(
+            glue.input_example()[1:]
         )
+
+    @property
+    def input_types(self) -> T.Dict[str, T.Any]:
+        # Delegate to the native subnet so audio/time axis symbols are derived
+        # identically to the un-fused encoder; glue extras (e.g. lang_id) have
+        # no dynamic axis and are tolerated when absent.
+        return getattr(self.native, "input_types", {})
+
+    def input_example(self, *_: T.Any, **__: T.Any) -> T.List[object]:
+        return list(self._example)
+
+    def dynamic_shapes_for_export(
+        self, use_dynamo: bool = False
+    ) -> T.Dict[str, T.Any]:
+        return self.native.dynamic_shapes_for_export(use_dynamo)
+
+    def forward(self, *inputs: torch.Tensor):
+        native_inputs = inputs[: self._n_native]
+        extra_inputs = inputs[self._n_native :]
+        outs = self.native(*native_inputs)
+        if not isinstance(outs, tuple):
+            outs = (outs,)
+        conditioned = self.glue(outs[0], *extra_inputs)
+        return (conditioned, *outs[1:])
+
+
+def fuse_glues_into(
+    native: nn.Module,
+    subnet_name: str,
+    native_input_example: T.Sequence[object],
+    glues: T.Sequence[GlueSubnet],
+) -> T.Tuple[nn.Module, T.List[object], bool]:
+    """Fuse every glue whose ``after_subnet == subnet_name`` onto ``native``.
+
+    Returns ``(module, input_example, matched)``: the (possibly wrapped) module,
+    its input example (native inputs + fused glues' extra inputs), and whether
+    any glue was fused. When none match, returns ``native`` unchanged.
+    """
+    module = native
+    example = list(native_input_example)
+    matched = False
+    for glue in glues:
+        if glue.after_subnet != subnet_name:
+            continue
+        module = FusedGlueSubnet(module, glue, example)
+        example = module.input_example()
+        matched = True
+    return module, example, matched
 
 
 class PromptKernelSubnet(GlueSubnet):
@@ -166,18 +289,27 @@ class PromptKernelSubnet(GlueSubnet):
         self.num_prompts = int(num_prompts)
         self.d_model = int(d_model)
         self.default_lang_id = int(default_lang_id)
+        if not 0 <= self.default_lang_id < self.num_prompts:
+            # Out of range -> the example one-hot is all zeros; check_io would
+            # still pass but silently exercise null conditioning.
+            LOGGER.warning(
+                "default lang id %d is outside [0, %d); the example one-hot "
+                "will be all zeros. Check the model's prompt_dictionary.",
+                self.default_lang_id,
+                self.num_prompts,
+            )
         # Mirror the encoder->decoder handoff names so the axis symbols
         # (namespaced by input name + kind) unify across the chain:
         # encoder emits "outputs", decoder consumes "encoder_outputs".
         self.input_names = ["encoder_outputs", "lang_id"]
         self.output_names = ["outputs"]
+        # Only input_types is read downstream (by build_dynamic_axes, to derive
+        # the axis-symbol kind). Providing the encoder's "outputs" type makes
+        # the time axis resolve to the same symbol the decoder uses.
         self.input_types = (
             {"encoder_outputs": encoded_type}
             if encoded_type is not None
             else {}
-        )
-        self.output_types = (
-            {"outputs": encoded_type} if encoded_type is not None else {}
         )
         # Batch (0) and time (2) of the encoded tensor are dynamic, matching
         # the decoder's "encoder_outputs" ([0, 2]).
@@ -266,6 +398,15 @@ def build_prompt_kernel_subnets(model: nn.Module) -> T.List[GlueSubnet]:
             encoded_type = encoder.output_types.get("outputs")
         except (AttributeError, TypeError):
             encoded_type = None
+    if encoded_type is None:
+        # Without the encoder's neural type the time axis falls back to a
+        # generic "DIM" symbol instead of the decoder's "...__TIME"; the shape
+        # config can still unify them, but streaming users should double-check.
+        LOGGER.warning(
+            "could not read encoder output neural type; prompt subnet axis "
+            "symbols may not auto-unify with the decoder (regenerate the shape "
+            "config for streaming)."
+        )
     return [
         PromptKernelSubnet(
             prompt_kernel=prompt_kernel,
