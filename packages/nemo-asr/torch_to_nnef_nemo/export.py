@@ -307,6 +307,35 @@ def _pick_subnets_names(model, *, nemo: InjectedNemoModule = INJECTED):
     return subnet_names
 
 
+def _iter_trailing_glue_subnets(model, glues, fused_parents, allow, fuse_glue):
+    """Emit glue subnets after the native subnets.
+
+    Without ``fuse_glue`` each glue is a standalone subnet. With ``fuse_glue``
+    the glues were folded into their parent during the main loop; here we only
+    warn about (and fall back to standalone for) any glue whose parent was not
+    exported, so a language head is never silently dropped.
+    """
+    if not fuse_glue:
+        yield from iter_all_glue_subnets(model, allow)
+        return
+    for glue in glues:
+        if glue.after_subnet in fused_parents:
+            continue
+        LOGGER.warning(
+            "glue '%s' targets subnet '%s' which was not exported as a "
+            "fusable subnet; emitting it standalone instead.",
+            glue.name,
+            glue.after_subnet,
+        )
+        if allow is None or glue.name in allow:
+            yield (
+                glue.name,
+                glue,
+                glue.input_example(),
+                glue.dynamic_shapes_for_export(),
+            )
+
+
 def iter_nemo_model_subnets(
     model,
     input_example=None,
@@ -392,29 +421,11 @@ def iter_nemo_model_subnets(
                 input_example = None
 
     # Top-level "glue" modules NeMo's list_export_subnets() omits (e.g. a
-    # language prompt head applied between encoder and decoder).
-    if not fuse_glue:
-        # Emit each as its own subnet, after the native ones, built once, and
-        # independent of their export context, so they honor `only_subnets`.
-        yield from iter_all_glue_subnets(model, allow)
-    else:
-        # Fused above; warn for any glue whose parent wasn't exported here and
-        # fall back to a standalone subnet so it is never silently dropped.
-        for glue in glues:
-            if glue.after_subnet not in fused_parents:
-                LOGGER.warning(
-                    "glue '%s' targets subnet '%s' which was not exported as a "
-                    "fusable subnet; emitting it standalone instead.",
-                    glue.name,
-                    glue.after_subnet,
-                )
-                if allow is None or glue.name in allow:
-                    yield (
-                        glue.name,
-                        glue,
-                        glue.input_example(),
-                        glue.dynamic_shapes_for_export(),
-                    )
+    # language prompt head applied between encoder and decoder). Standalone
+    # subnets, or fuse-mode fallbacks, are emitted after the native subnets.
+    yield from _iter_trailing_glue_subnets(
+        model, glues, fused_parents, allow, fuse_glue
+    )
 
 
 def build_dynamic_axes(
