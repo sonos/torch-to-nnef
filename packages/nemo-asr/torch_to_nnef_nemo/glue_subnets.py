@@ -41,6 +41,7 @@ import typing as T
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 LOGGER = logging.getLogger(__name__)
 
@@ -269,8 +270,15 @@ class PromptKernelSubnet(GlueSubnet):
     The MLP *replaces* the encoder output (no residual); it then feeds the
     decoder. The encoder subnet emits (and the decoder consumes) the encoded
     tensor channels-first as ``[B, D, T]``, so this wrapper transposes around
-    the MLP. The language is exposed as a runtime ``lang_id`` integer input and
-    the one-hot is built in-graph, so a single export serves any language.
+    the MLP. The language is exposed as a runtime ``lang_id`` integer input.
+
+    Rather than materialize the one-hot and concatenate (which needs an
+    ``expand`` over the dynamic batch/time axes that tract cannot resolve at
+    plan time), the first linear is split algebraically: it applies to the
+    encoded features, and the one-hot's contribution reduces to a per-language
+    bias vector added to every frame. This is numerically identical to the
+    concat form but introduces no ``expand`` -- so it runs with a symbolic
+    batch and is pulse-safe.
     """
 
     name = "prompt"
@@ -335,13 +343,20 @@ class PromptKernelSubnet(GlueSubnet):
     ) -> torch.Tensor:
         # encoder_outputs: [B, D, T] channels-first ; lang_id: [1] int
         feats = encoder_outputs.transpose(1, 2)  # [B, T, D]
+        lin0 = self.prompt_kernel[0]  # Linear(D + P, H); D cols first
+        weight = lin0.weight  # [H, D + P]
+        # Feature half of the first linear (the concat's encoded part).
+        hidden = F.linear(feats, weight[:, : self.d_model], lin0.bias)
+        # One-hot half reduces to selecting one column-block of the weight,
+        # i.e. a per-language bias [1, H] broadcast over batch and time.
         slots = torch.arange(self.num_prompts, device=encoder_outputs.device)
-        # [1, P] -> broadcast to [B, T, P]; time-invariant so pulse-safe.
-        onehot = (slots.unsqueeze(0) == lang_id.reshape(-1, 1)).to(feats.dtype)
-        onehot = onehot.unsqueeze(1).expand(
-            feats.shape[0], feats.shape[1], self.num_prompts
-        )
-        conditioned = self.prompt_kernel(torch.cat([feats, onehot], dim=-1))
+        onehot = (slots == lang_id.reshape(-1, 1)).to(feats.dtype)  # [1, P]
+        # F.linear(onehot, W_lang) == onehot @ W_lang.T, avoiding an explicit
+        # transpose op (older tract cores lack aten::t).
+        lang_bias = F.linear(onehot, weight[:, self.d_model :])  # [1, H]
+        hidden = hidden + lang_bias.unsqueeze(1)  # [B, T, H] + [1, 1, H]
+        # Remaining layers (activation + final linear).
+        conditioned = self.prompt_kernel[1:](hidden)  # [B, T, D]
         return conditioned.transpose(1, 2)  # [B, D, T]
 
 
