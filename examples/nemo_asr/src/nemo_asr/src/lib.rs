@@ -19,12 +19,21 @@ pub struct DecoderConfig {
     pub blank_as_pad: bool,
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct GreedyDecodingConfig {
+    // Max emitted symbols per encoder frame (NeMo `decoding.greedy.max_symbols`).
+    #[serde(default)]
+    pub max_symbols: Option<usize>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct DecodingConfig {
     // Present for TDT models (token-and-duration). Absent for plain RNNT
     // (e.g. multilingual Nemotron), where advance is blank-driven.
     #[serde(default)]
     pub durations: Vec<usize>,
+    #[serde(default)]
+    pub greedy: GreedyDecodingConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -56,7 +65,8 @@ fn default_lang_id() -> i64 {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         RuntimeConfig {
-            max_n_tokens_per_step: Some(50),
+            // None -> fall back to the model config's greedy.max_symbols.
+            max_n_tokens_per_step: None,
             force_cpu: false,
             encoder_per_batch: false,
             // if set to Some(path), will dump encoder inputs/outputs
@@ -526,6 +536,14 @@ impl NemoAsrModel {
 
         let vocab_sz = vocab.len() + 1;
         let dur_sz = durations.len();
+        // Max emitted symbols per encoder frame: explicit runtime override wins,
+        // else the model's greedy.max_symbols, else a safe default. Always
+        // finite so a lane cannot loop forever on one frame.
+        let max_symbols = self
+            .runtime_config
+            .max_n_tokens_per_step
+            .or(self.model_config.decoding.greedy.max_symbols)
+            .unwrap_or(10);
 
         // --- Main decoding loop ---
         loop {
@@ -534,11 +552,7 @@ impl NemoAsrModel {
                 .enumerate()
                 .filter(|(_, l)| {
                     l.current_frame < l.encoder_len
-                        && (l.need_loop
-                            || self
-                                .runtime_config
-                                .max_n_tokens_per_step
-                                .is_none_or(|m| l.symbols_added < m))
+                        && (l.need_loop || l.symbols_added < max_symbols)
                 })
                 .map(|(i, _)| i)
                 .collect();
@@ -591,7 +605,7 @@ impl NemoAsrModel {
                     .iter()
                     .take(vocab_sz)
                     .enumerate()
-                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .max_by(|a, b| a.1.total_cmp(b.1))
                     .unwrap();
 
                 // --- Advance (skip) ---
@@ -606,7 +620,7 @@ impl NemoAsrModel {
                         .skip(vocab_sz)
                         .take(dur_sz)
                         .enumerate()
-                        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                        .max_by(|a, b| a.1.total_cmp(b.1))
                         .unwrap();
                     durations[dur_idx]
                 };
@@ -636,11 +650,11 @@ impl NemoAsrModel {
                     lane.current_frame += skip;
                     lane.symbols_added = 0;
                 }
-                lane.need_loop = true;
             }
 
-            // max_symbols guard
-            if let Some(max_symbols) = self.runtime_config.max_n_tokens_per_step {
+            // max_symbols guard: always applied (max_symbols is finite), so a
+            // lane that keeps emitting on one frame is force-advanced.
+            {
                 for lane in lanes.iter_mut() {
                     if lane.symbols_added >= max_symbols {
                         lane.current_frame += 1; // force advance by 1 frame
