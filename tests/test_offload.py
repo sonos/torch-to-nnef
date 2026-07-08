@@ -15,6 +15,11 @@ from tests.utils import (
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.nnef_io.writer import Writer
 from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.opaque import (
+    OFFLOAD_STATE_KEY,
+    OpaqueTensor,
+    SupportsOffloadState,
+)
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
@@ -213,6 +218,125 @@ def test_writer_uses_compact_offloaded_qtensor_path(monkeypatch):
         assert (out_dir / "weight.dat").read_bytes() == (
             ref_dir / "weight.dat"
         ).read_bytes()
+
+
+class _ToyOpaque(OpaqueTensor, SupportsOffloadState):
+    # A second SupportsOffloadState implementation, unrelated to QTensor, used
+    # to prove the offload layer dispatches on the serialized state alone. It
+    # deliberately has NO ``to_device`` method: the reload path must not
+    # require one (device placement is owned by ``from_offload_state``).
+    OFFLOAD_STATE_TAG = "tests.toy_opaque.v1"
+    last_target_device = None
+
+    @staticmethod
+    def __new__(cls, payload):
+        obj = torch.Tensor._make_subclass(cls, payload.to(torch.float32), False)
+        obj.payload = payload
+        return obj
+
+    def _to_base_tensor(self):
+        return self.payload.clone()
+
+    def to_offload_state(self):
+        return {OFFLOAD_STATE_KEY: self.OFFLOAD_STATE_TAG, "p": self.payload}
+
+    @classmethod
+    def from_offload_state(cls, state, target_device=None):
+        assert cls.is_offload_state(state), state
+        cls.last_target_device = target_device
+        payload = state["p"]
+        if target_device is not None:
+            payload = payload.to(target_device)
+        return cls(payload)
+
+    @classmethod
+    def write_offload_state_in_file(
+        cls, state, dirpath, label, inference_target=None
+    ):
+        (Path(dirpath) / f"{label}.dat").write_bytes(
+            state["p"].numpy().tobytes()
+        )
+
+
+class _NonOpaqueState(torch.Tensor, SupportsOffloadState):
+    # A SupportsOffloadState that is NOT an OpaqueTensor. reload() only rebuilds
+    # compact state through its OpaqueTensor branch, so _save must NOT compact
+    # this one (it would be unreloadable). Used to lock the save/reload gate.
+    OFFLOAD_STATE_TAG = "tests.non_opaque_state.v1"
+    to_offload_state_called = False
+
+    @staticmethod
+    def __new__(cls, base):
+        return torch.Tensor._make_subclass(cls, base, False)
+
+    def to_offload_state(self):
+        type(self).to_offload_state_called = True
+        return {OFFLOAD_STATE_KEY: self.OFFLOAD_STATE_TAG}
+
+    @classmethod
+    def from_offload_state(cls, state, target_device=None):
+        raise AssertionError("non-opaque state must be pickled plainly")
+
+    @classmethod
+    def write_offload_state_in_file(
+        cls, state, dirpath, label, inference_target=None
+    ):
+        raise AssertionError("non-opaque state has no compact writer")
+
+
+def test_save_does_not_compact_non_opaque_offload_state(tmp_path):
+    _NonOpaqueState.to_offload_state_called = False
+    tensor = _NonOpaqueState(torch.zeros(2, 2))
+    OffloadedTensor._save(tensor, tmp_path, "x")
+
+    assert not _NonOpaqueState.to_offload_state_called
+    path = OffloadedTensor._offload_path(tmp_path, "x", tensor.dtype)
+    raw = torch.load(path, weights_only=False)
+    assert not (isinstance(raw, dict) and OFFLOAD_STATE_KEY in raw)
+
+
+@skipif_limited_offload_support
+def test_offload_dispatches_generic_offload_state(tmp_path):
+    # The offload layer must dispatch on the serialized state, not on any
+    # concrete tensor class. _ToyOpaque round-trips through save/reload/write
+    # without OffloadedTensor knowing anything about it.
+    assert not hasattr(_ToyOpaque, "to_device")
+    _ToyOpaque.last_target_device = None
+    payload = torch.arange(6).reshape(2, 3)
+    offloaded = OffloadedTensor.from_original_tensor(
+        _ToyOpaque(payload), "toy", offload_dir=tmp_path
+    )
+    # _save dispatched to to_offload_state: the pickle is the compact dict,
+    # not the tensor subclass.
+    raw = torch.load(offloaded.offload_path, weights_only=False)
+    assert isinstance(raw, dict)
+    assert raw[OFFLOAD_STATE_KEY] == _ToyOpaque.OFFLOAD_STATE_TAG
+    # reload dispatched to from_offload_state via the registry and delegated
+    # device placement to it (no to_device call on the reconstructed object).
+    reloaded = offloaded.reload()
+    assert type(reloaded) is _ToyOpaque
+    assert torch.equal(reloaded.payload, payload)
+    assert _ToyOpaque.last_target_device == offloaded.target_device
+    # write dispatched generically too.
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    assert offloaded.write_qtensor_in_file(out_dir, "toy", None)
+    assert (out_dir / "toy.dat").read_bytes() == payload.numpy().tobytes()
+
+
+def test_offload_state_subclass_without_own_tag_is_not_reregistered():
+    # Subclassing a registered SupportsOffloadState without redeclaring the tag
+    # must not raise (nor shadow the ancestor in the registry).
+    from torch_to_nnef.tensor.opaque import resolve_offload_state
+
+    class _ToySub(_ToyOpaque):
+        pass
+
+    assert _ToySub.OFFLOAD_STATE_TAG == _ToyOpaque.OFFLOAD_STATE_TAG
+    resolved = resolve_offload_state(
+        {OFFLOAD_STATE_KEY: _ToyOpaque.OFFLOAD_STATE_TAG}
+    )
+    assert resolved is _ToyOpaque
 
 
 @skipif_limited_offload_support

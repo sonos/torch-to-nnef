@@ -16,6 +16,10 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
+from torch_to_nnef.tensor.opaque import (
+    OFFLOAD_STATE_KEY,
+    SupportsOffloadState,
+)
 from torch_to_nnef.tensor.quant.base import (
     QScalePerGroupF16,
     QTensor,
@@ -27,7 +31,7 @@ class QTensorTract(QTensor):
     """All QTensorTract implementations."""
 
 
-class QTensorTractScaleOnly(QTensorTract):
+class QTensorTractScaleOnly(QTensorTract, SupportsOffloadState):
     """Tract data format it serializes to: Q4_0."""
 
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_scale_only.v1"
@@ -72,16 +76,9 @@ class QTensorTractScaleOnly(QTensorTract):
             decompress_u8, target_dtype=self.dequant_to_dtype
         )
 
-    @classmethod
-    def is_offload_state(cls, state) -> bool:
-        return (
-            isinstance(state, dict)
-            and state.get("__t2n_qtensor_state__") == cls.OFFLOAD_STATE_TAG
-        )
-
     def to_offload_state(self) -> T.Dict[str, T.Any]:
         return {
-            "__t2n_qtensor_state__": self.OFFLOAD_STATE_TAG,
+            OFFLOAD_STATE_KEY: self.OFFLOAD_STATE_TAG,
             "shape": tuple(self.shape),
             "dtype": self.dtype,
             "u8_blob": self.u8_blob,
@@ -94,12 +91,15 @@ class QTensorTractScaleOnly(QTensorTract):
         }
 
     @classmethod
-    def from_offload_state(cls, state) -> "QTensorTractScaleOnly":
+    def from_offload_state(
+        cls, state, target_device=None
+    ) -> "QTensorTractScaleOnly":
         assert cls.is_offload_state(state), state
-        # Keep the Tensor subclass shell on CPU for fallback reloads. A meta
-        # shell routes nested opaque tracing through PyTorch meta kernels before
-        # the inner QTensor can decompress. Large NNEF exports use the direct
-        # offload-state writer instead of this reload path.
+        # Fallback reload path only: rebuild the Tensor subclass shell on CPU
+        # from the compact state. The fp-shaped buffer is an uninitialized
+        # placeholder (never read: decompression uses u8_blob), so it stays
+        # cheap. Large NNEF exports skip this entirely via the direct
+        # offload-state writer (write_offload_state_in_file).
         fp_placeholder = torch.empty(state["shape"], dtype=state["dtype"])
         qtensor = cls.__new__(
             cls,
@@ -115,6 +115,8 @@ class QTensorTractScaleOnly(QTensorTract):
         qtensor.requires_grad = False
         qtensor.decompressed_shape = state["decompressed_shape"]
         qtensor.specific_machine = state["specific_machine"]
+        if target_device is not None and qtensor.device != target_device:
+            qtensor.to_device(target_device)
         return qtensor
 
     @staticmethod

@@ -45,7 +45,11 @@ from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import T2NErrorMisuse
-from torch_to_nnef.tensor.opaque import OpaqueTensor
+from torch_to_nnef.tensor.opaque import (
+    OpaqueTensor,
+    SupportsOffloadState,
+    resolve_offload_state,
+)
 from torch_to_nnef.tensor.updater import ModTensorUpdater
 from torch_to_nnef.utils import (
     select_ctx_disable_torch_fn,
@@ -714,12 +718,13 @@ class OffloadedTensor(OpaqueTensor):
     @classmethod
     def _save(cls, tensor, offload_dir, name):
         dtype = tensor.dtype
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.tensor.quant.qtract import (
-            QTensorTractScaleOnly,
-        )
-
-        if isinstance(tensor, QTensorTractScaleOnly):
+        # Compact state is only reloadable through the OpaqueTensor branch of
+        # reload(); gate the save on the same condition so a non-opaque
+        # SupportsOffloadState is pickled plainly instead of being written as a
+        # compact dict that reload() could not rebuild.
+        if isinstance(tensor, OpaqueTensor) and isinstance(
+            tensor, SupportsOffloadState
+        ):
             tensor = tensor.to_offload_state()
         return torch.save(tensor, cls._offload_path(offload_dir, name, dtype))
 
@@ -729,16 +734,11 @@ class OffloadedTensor(OpaqueTensor):
             if torch_version() >= "1.13.0":
                 load_kwargs["weights_only"] = False
             loaded = torch.load(self.offload_path, **load_kwargs)
-            # pylint: disable-next=import-outside-toplevel
-            from torch_to_nnef.tensor.quant.qtract import (
-                QTensorTractScaleOnly,
-            )
-
-            if QTensorTractScaleOnly.is_offload_state(loaded):
-                loaded = QTensorTractScaleOnly.from_offload_state(loaded)
-                if loaded.device != self.target_device:
-                    loaded.to_device(self.target_device)
-                return loaded
+            state_cls = resolve_offload_state(loaded)
+            if state_cls is not None:
+                return state_cls.from_offload_state(
+                    loaded, target_device=self.target_device
+                )
             return loaded.to(self.target_device)
         return torch_safe_load(self.offload_path).to(self.target_device)
 
@@ -756,14 +756,10 @@ class OffloadedTensor(OpaqueTensor):
         loaded = torch.load(
             self.offload_path, map_location="cpu", **load_kwargs
         )
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.tensor.quant.qtract import (
-            QTensorTractScaleOnly,
-        )
-
-        if not QTensorTractScaleOnly.is_offload_state(loaded):
+        state_cls = resolve_offload_state(loaded)
+        if state_cls is None:
             return False
-        QTensorTractScaleOnly.write_offload_state_in_file(
+        state_cls.write_offload_state_in_file(
             loaded, dirpath, label, inference_target=inference_target
         )
         return True
