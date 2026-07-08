@@ -3,6 +3,9 @@
 
 ## [Unreleased]
 
+### Added
+- Intuitive install extras `torch_to_nnef[llm]` and `torch_to_nnef[nemo-asr]`, aliasing the existing `llm-tract` / `nemo-tract` redirect extras so the extra name matches the split package (`torch_to_nnef_llm`, `torch_to_nnef_nemo_asr`) and directory. The old names still work.
+
 ## [0.24.2] - 2026-07-08
 
 ### Added

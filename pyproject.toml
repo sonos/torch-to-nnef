@@ -48,6 +48,9 @@ llm-tract-accelerate = ["torch_to_nnef_llm[accelerate]"]
 peft = ["torch_to_nnef_llm[peft]"]
 nemo-tract = ["torch_to_nnef_nemo_asr"]
 safetensors = ["safetensors"]
+# Intuitive aliases matching the split package / directory names
+llm = ["torch_to_nnef_llm"]
+nemo-asr = ["torch_to_nnef_nemo_asr"]
 [project.urls]
 Homepage = "https://github.com/sonos/torch-to-nnef"
 
