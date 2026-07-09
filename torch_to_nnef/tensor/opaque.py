@@ -49,11 +49,8 @@ def _fake_trace_tensor(
         _TRACE_FAKE_MODE = FakeTensorMode(allow_non_fake_inputs=True)
     if device.type == "meta":
         device = torch.device("cpu")
-    _TRACE_FAKE_MODE.__enter__()
-    try:
+    with _TRACE_FAKE_MODE:
         return torch.empty(shape, dtype=dtype, device=device)
-    finally:
-        _TRACE_FAKE_MODE.__exit__(None, None, None)
 
 
 def maybe_custom_op(f):
