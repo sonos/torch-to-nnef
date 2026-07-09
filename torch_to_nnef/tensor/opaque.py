@@ -365,6 +365,9 @@ class OpaqueTensorRef(torch.Tensor):
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.tensor import NamedTensor
 
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.tensor.named import find_fake_mode
+
         if not all(
             issubclass(cls, t) or issubclass(NamedTensor, t) for t in types
         ):
@@ -400,7 +403,29 @@ class OpaqueTensorRef(torch.Tensor):
                     for k, v in kwargs.items()
                 }
 
-            ret = func(*args, **kwargs)
+            # If expansion produced a fake placeholder, any sibling operand
+            # that is still a ``NamedTensor`` (e.g. an un-quantized bias) would
+            # reach fake ``__torch_dispatch__`` as an unknown subclass and fail
+            # with "Multiple dispatch failed". Hand ``func`` the plain tensors
+            # and re-activate the fake mode so the op resolves.
+            fake_mode = find_fake_mode(args, kwargs.values())
+            if fake_mode is not None:
+                args = [
+                    a.as_subclass(torch.Tensor)
+                    if isinstance(a, NamedTensor)
+                    else a
+                    for a in args
+                ]
+                kwargs = {
+                    k: v.as_subclass(torch.Tensor)
+                    if isinstance(v, NamedTensor)
+                    else v
+                    for k, v in kwargs.items()
+                }
+                with fake_mode:
+                    ret = func(*args, **kwargs)
+            else:
+                ret = func(*args, **kwargs)
             if skip_expansion:
                 return ret
             # important modification

@@ -15,7 +15,7 @@ from torch_to_nnef.utils import (
 LOGGER = logging.getLogger(__name__)
 
 
-def _find_fake_mode(*containers):
+def find_fake_mode(*containers):
     """Return the ``FakeTensorMode`` of any fake operand, else ``None``.
 
     Opaque float weights are traced as ``FakeTensor`` placeholders (see
@@ -130,7 +130,7 @@ class NamedTensor(torch.Tensor):
             # ``func`` the plain underlying tensor rather than a re-wrapped
             # ``NamedTensor`` clone, and re-activate the fake mode so the op
             # resolves (plain tensors resolve fine either way under meta).
-            fake_mode = _find_fake_mode(args, kwargs.values())
+            fake_mode = find_fake_mode(args, kwargs.values())
 
             def _prepare(value):
                 if not isinstance(value, cls):
