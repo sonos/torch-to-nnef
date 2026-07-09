@@ -88,6 +88,42 @@ test_suite.add(
 )
 
 test_suite.add(
+    "conv1d_padding_valid",
+    parse_ir_and_get_first_op(
+        torch.nn.Conv1d(4, 16, kernel_size=3, padding="valid"),
+        (torch.randn(1, 4, 224),),
+        "aten::_convolution_mode",
+    ),
+)
+
+test_suite.add(
+    "conv1d_padding_same",
+    parse_ir_and_get_first_op(
+        torch.nn.Conv1d(4, 16, kernel_size=3, padding="same"),
+        (torch.randn(1, 4, 224),),
+        "aten::_convolution_mode",
+    ),
+)
+
+test_suite.add(
+    "conv2d_padding_valid",
+    parse_ir_and_get_first_op(
+        torch.nn.Conv2d(3, 16, kernel_size=3, padding="valid"),
+        (torch.randn(1, 3, 32, 32),),
+        "aten::_convolution_mode",
+    ),
+)
+
+test_suite.add(
+    "conv2d_padding_same",
+    parse_ir_and_get_first_op(
+        torch.nn.Conv2d(3, 16, kernel_size=3, padding="same"),
+        (torch.randn(1, 3, 32, 32),),
+        "aten::_convolution_mode",
+    ),
+)
+
+test_suite.add(
     "linear",
     parse_ir_and_get_first_op(
         torch.nn.Linear(128, 64),

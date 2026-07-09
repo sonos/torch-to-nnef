@@ -458,6 +458,13 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
             return [v] * dim
         return list(v)
 
+    # ``conv{1,2,3}d`` accept string padding modes ``"valid"`` (no padding)
+    # and ``"same"`` (output spatial size == input spatial size, stride 1).
+    # These reach us verbatim, so resolve them before numeric normalization.
+    same_padding = padding == "same"
+    if isinstance(padding, str):
+        padding = 0
+
     stride = _normalize(stride, spatial_rank)
     padding = _normalize(padding, spatial_rank)
     dilation = _normalize(dilation, spatial_rank)
@@ -491,9 +498,13 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
             s = stride[i]
             p = padding[i]
             d = dilation[i]
-            # PyTorch formula:
-            # out = floor((in + 2p - d*(k-1) - 1) / s + 1)
-            out_dim = ((in_size + 2 * p - d * (k - 1) - 1) // s) + 1
+            if same_padding:
+                # ``padding="same"`` keeps the spatial size unchanged.
+                out_dim = in_size
+            else:
+                # PyTorch formula:
+                # out = floor((in + 2p - d*(k-1) - 1) / s + 1)
+                out_dim = ((in_size + 2 * p - d * (k - 1) - 1) // s) + 1
             assert out_dim > 0, "invalid convolution output size"
             out_spatial.append(out_dim)
 
