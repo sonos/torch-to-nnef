@@ -1,4 +1,5 @@
 import abc
+import contextlib
 import logging
 import typing as T
 import warnings
@@ -46,7 +47,16 @@ def _fake_trace_tensor(
     except ImportError:
         return torch.empty(shape, dtype=dtype, device="meta")
     if _TRACE_FAKE_MODE is None:
-        _TRACE_FAKE_MODE = FakeTensorMode(allow_non_fake_inputs=True)
+        # ``allow_non_fake_inputs`` lets a fake placeholder compose with the
+        # real tensors it meets during trace. Older torch (e.g. 1.13) does
+        # not accept it as a constructor kwarg, so fall back to setting it
+        # after construction, and to a plain mode if even that is absent.
+        try:
+            _TRACE_FAKE_MODE = FakeTensorMode(allow_non_fake_inputs=True)
+        except TypeError:
+            _TRACE_FAKE_MODE = FakeTensorMode()
+            with contextlib.suppress(AttributeError):
+                _TRACE_FAKE_MODE.allow_non_fake_inputs = True
     if device.type == "meta":
         device = torch.device("cpu")
     with _TRACE_FAKE_MODE:
