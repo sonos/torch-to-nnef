@@ -887,14 +887,20 @@ def cast_to_if_not_dtype_and_variable(
             cast_to,
         )
         cast_to = nnef_tensor.dtype
+    # The cast output stands in for ``node``'s output (e.g. the final
+    # forced-cast of a div result), so it must be named after
+    # ``node.outputs[0]`` (as the previous ``add_single_output_op`` path
+    # did). Naming it after the *input* tensor would leave the graph
+    # output name (e.g. ``output_0``) unbound.
+    out_name = node.outputs[0].export_name
+    if suffix:
+        out_name += f"_{suffix}"
     out = add_cast_nnef_tensor(
         g,
         name_to_tensor,
         nnef_tensor,
         cast_to=cast_to,
-        force_full_output_tensor_name=(
-            f"{nnef_tensor.name}_{suffix}" if suffix else None
-        ),
+        force_full_output_tensor_name=out_name,
     )
     return out, ["tract_core"]
 

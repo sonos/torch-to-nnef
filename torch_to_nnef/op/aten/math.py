@@ -125,6 +125,13 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
             divisor_tensor,
         ),
         output_tensor_name_suffix=suffix_div_op_output,
+        # When the traced output is integer we deliberately keep the
+        # division (and its rounding fragment) in float and cast the
+        # result back to int below. Letting the generic implicit-cast
+        # realign the f32 operands to the int output dtype would run the
+        # rounding fragment (e.g. `trunc`'s `select(x < 0.0, ...)`) on
+        # integers, which tract cannot type-resolve.
+        maybe_cast_align_tract=io_casting_with_dtype is None,
     )
 
     if rounding_mode:
