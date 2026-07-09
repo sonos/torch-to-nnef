@@ -3,8 +3,13 @@
 
 ## [Unreleased]
 
+## [0.24.3] - 2026-07-09
+
 ### Added
 - Intuitive install extras `torch_to_nnef[llm]` and `torch_to_nnef[nemo-asr]`, aliasing the existing `llm-tract` / `nemo-tract` redirect extras so the extra name matches the split package (`torch_to_nnef_llm`, `torch_to_nnef_nemo_asr`) and directory. The old names still work.
+
+### Fixed
+- **Convolution with string padding (`padding="valid"` / `padding="same"`) exports again.** The IR shape-inference helper introduced in 0.24.x assumed numeric padding and raised `TypeError: unsupported operand type(s) for +: 'int' and 'str'` when such a conv sat in a nested submodule (a regression against 0.20.x, which inferred conv shapes by tracing). String modes are now resolved before shape inference: `"valid"` maps to zero padding and `"same"` preserves the spatial size.
 
 ## [0.24.2] - 2026-07-08
 
