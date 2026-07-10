@@ -13,7 +13,7 @@ from tests.utils import (
     skipif_unsupported_qtensor,
 )
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
-from torch_to_nnef.nnef_io.writer import Writer
+from torch_to_nnef.nnef_io.writer import Writer, write_nnef_tensor
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.opaque import (
     OFFLOAD_STATE_KEY,
@@ -218,6 +218,50 @@ def test_writer_uses_compact_offloaded_qtensor_path(monkeypatch):
         assert (out_dir / "weight.dat").read_bytes() == (
             ref_dir / "weight.dat"
         ).read_bytes()
+
+
+@skipif_limited_offload_support
+def test_writer_uses_plain_offloaded_tensor_path(monkeypatch, tmp_path):
+    original_weight = torch.randn(4, 32, dtype=torch.float16)
+    offloaded_value = OffloadedTensor.from_original_tensor(
+        original_weight, "my_offloaded_weight", offload_dir=tmp_path
+    )
+
+    ref_dir = tmp_path / "ref"
+    out_dir = tmp_path / "out"
+    ref_dir.mkdir()
+    out_dir.mkdir()
+    write_nnef_tensor(
+        original_weight.detach().numpy(),
+        ref_dir / "weight.dat",
+        quantized=False,
+    )
+
+    def fail_if_reloaded(*args, **kwargs):
+        raise AssertionError("writer should stream plain offloaded tensor")
+
+    monkeypatch.setattr(OffloadedTensor, "reload", fail_if_reloaded)
+
+    graph = SimpleNamespace(
+        operations=[
+            SimpleNamespace(
+                type="variable",
+                attribs={"label": "weight"},
+                output=SimpleNamespace(
+                    data=offloaded_value,
+                    quant=None,
+                ),
+            )
+        ]
+    )
+
+    Writer(inference_target=INFERENCE_TARGET)._write_tensors_from_operators(
+        graph, out_dir
+    )
+
+    assert (out_dir / "weight.dat").read_bytes() == (
+        ref_dir / "weight.dat"
+    ).read_bytes()
 
 
 class _ToyOpaque(OpaqueTensor, SupportsOffloadState):
