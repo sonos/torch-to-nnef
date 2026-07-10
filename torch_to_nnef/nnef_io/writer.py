@@ -19,6 +19,7 @@ Also some minimal adaptation like code style have been done be pythonic.
 """
 
 import contextlib
+import gc
 import logging
 import os
 import shutil
@@ -38,6 +39,8 @@ from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.khronos import KhronosNNEF
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.opaque import OpaqueTensor
+from torch_to_nnef.utils import torch_safe_load
 
 LOGGER = logging.getLogger(__name__)
 
@@ -215,6 +218,29 @@ def write_nnef_tensor(array, filename, quantized):
         nnef.write_tensor(file=file, tensor=array, quantized=quantized)
 
 
+def write_offloaded_tensor(tensor, filename, quantized):
+    if issubclass(tensor.offloaded_tensor_type, OpaqueTensor):
+        raise T2NError(
+            "cannot write opaque offloaded tensor as a plain NNEF variable; "
+            "it must be handled by a custom writer"
+        )
+    loaded = torch_safe_load(tensor.offload_path, map_location="cpu")
+    if not isinstance(loaded, torch.Tensor):
+        raise T2NError(
+            "offloaded NNEF variable payload must reload as a torch.Tensor, "
+            f"got {type(loaded)}"
+        )
+    try:
+        write_nnef_tensor(
+            np.asarray(maybe_torch_to_np(loaded), order="C"),
+            filename,
+            quantized=quantized,
+        )
+    finally:
+        del loaded
+        gc.collect()
+
+
 def write_tensor_quantization_infos(tensor, file):
     assert tensor.quant is not None
     op_name = tensor.quant["op-name"]
@@ -376,19 +402,29 @@ class Writer:
                     LOGGER.info("written qtensor: '%s'", label)
                 else:
                     filename = op.attribs["label"] + ".dat"
+                    output_data = op.output.data
+                    if isinstance(output_data, OffloadedTensor):
+                        write_offloaded_tensor(
+                            output_data,
+                            os.path.join(folder, filename),
+                            quantized=bool(op.output.quant),
+                        )
+                        LOGGER.info(
+                            "written offloaded tensor: '%s'",
+                            op.attribs["label"],
+                        )
+                        continue
                     if (
-                        isinstance(op.output.data, torch.Tensor)
-                        and op.output.data.device.type == "meta"
+                        isinstance(output_data, torch.Tensor)
+                        and output_data.device.type == "meta"
                     ):
                         raise T2NError(
                             "cannot write meta tensor as NNEF variable "
                             f"'{op.attribs['label']}' with shape "
-                            f"{tuple(op.output.data.shape)}"
+                            f"{tuple(output_data.shape)}"
                         )
                     write_nnef_tensor(
-                        np.asarray(
-                            maybe_torch_to_np(op.output.data), order="C"
-                        ),
+                        np.asarray(maybe_torch_to_np(output_data), order="C"),
                         os.path.join(folder, filename),
                         quantized=bool(op.output.quant),
                     )
