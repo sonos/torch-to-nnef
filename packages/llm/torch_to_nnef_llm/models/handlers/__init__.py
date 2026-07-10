@@ -1,5 +1,6 @@
 from .base import ArchitectureHandler
 from .default import DefaultArchitectureHandler
+from .gpt_oss import GptOssArchitectureHandler
 from .openelm import OpenELMArchitectureHandler
 from .phi import PhiArchitectureHandler
 from .qwen3_vl import Qwen3VLArchitectureHandler
@@ -9,6 +10,7 @@ from .registry import get_handler, register_handler
 __all__ = [
     "ArchitectureHandler",
     "DefaultArchitectureHandler",
+    "GptOssArchitectureHandler",
     "OpenELMArchitectureHandler",
     "PhiArchitectureHandler",
     "Qwen35MoeArchitectureHandler",
