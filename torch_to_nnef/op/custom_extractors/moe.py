@@ -627,11 +627,21 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     quantize_experts_q40_percentile = float(
         getattr(moe, "_t2n_quantize_moe_experts_q40_percentile", 1.0)
     )
+    quantize_experts_q40_quantizer = getattr(
+        moe, "_t2n_quantize_moe_experts_q40_quantizer", None
+    )
 
     def _maybe_quantize_expert_weight(
         name: str,
         data: torch.Tensor,
     ) -> torch.Tensor:
+        if (
+            name in {"w1", "w2", "w3"}
+            and quantize_experts_q40_quantizer is not None
+        ):
+            q_data = quantize_experts_q40_quantizer(data, name=name)
+            q_data.nnef_name = f"{node.outputs[0].name}_{name}"
+            return q_data
         if (
             not quantize_experts_q40
             or name not in {"w1", "w2", "w3"}
