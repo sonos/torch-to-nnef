@@ -5,7 +5,7 @@ requires-python = ">=3.11"
 dependencies = [
     "torch_to_nnef",
     "torch==2.12.0",
-    "transformers==4.53.2",
+    "transformers==5.5.0",
     "sentencepiece==0.2.1",
 ]
 
