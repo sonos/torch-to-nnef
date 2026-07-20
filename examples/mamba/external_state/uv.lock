@@ -1032,7 +1032,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26.0,<3" },
     { name = "pyyaml", specifier = ">=5.0" },
     { name = "safetensors", marker = "extra == 'safetensors'" },
-    { name = "torch", specifier = ">=2.13.0,<3" },
+    { name = "torch", specifier = ">=1.8.0,<3" },
     { name = "torch-to-nnef-llm", marker = "extra == 'llm'", editable = "../../../packages/llm" },
     { name = "torch-to-nnef-llm", marker = "extra == 'llm-tract'", editable = "../../../packages/llm" },
     { name = "torch-to-nnef-llm", extras = ["accelerate"], marker = "extra == 'llm-tract-accelerate'", editable = "../../../packages/llm" },
