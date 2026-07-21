@@ -123,6 +123,7 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
         inputs: T.Tuple[torch.Tensor, ...],
         wrapper,
     ) -> StateContext:
+        # pylint: disable-next=import-outside-toplevel
         from transformers.cache_utils import DynamicCache
 
         cache = DynamicCache(config=wrapper.model.config)
