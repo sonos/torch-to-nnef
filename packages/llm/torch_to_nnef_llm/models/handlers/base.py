@@ -34,6 +34,48 @@ class ArchitectureHandler(ABC):
         """Return the HF model class to load for this architecture."""
         return transformers.AutoModelForCausalLM
 
+    @staticmethod
+    def build_causal_mask_with_past(
+        *,
+        seq_length: int,
+        past_length: int,
+        device: torch.device,
+    ) -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Build the additive causal-with-past mask plus RoPE positions.
+
+        Returns ``(attention_mask, position_ids, cache_position)`` for
+        ``seq_length`` new query tokens attending over ``past_length`` cached
+        keys. Shared by every handler that fakes a decode step so the subtle
+        position math lives in exactly one place.
+        """
+        attn_mask_dtype = torch.float32
+        neg = torch.finfo(attn_mask_dtype).min
+        # Query length S (new tokens) and past length P; the causal window is
+        # over S+P keys.
+        total_length = seq_length + past_length
+        # Absolute positions of the new tokens: P, P+1, ..., P+S-1. These
+        # drive RoPE; without them transformers (>4.52.4) infers positions
+        # that ignore the past, so decode RoPE is wrong and generation
+        # degenerates into repetition.
+        cache_position = torch.arange(past_length, total_length, device=device)
+        position_ids = cache_position.unsqueeze(0)
+        # Build the [S, S+P] causal-with-past additive mask from token
+        # POSITIONS (not a fixed-diagonal triu): query i sits at absolute
+        # position P+i and may attend to keys 0..P+i. Doing it via arange
+        # comparisons keeps it correct for any (S, P) at inference time;
+        # a baked triu diagonal (or a shape[0]=batch bug) made the mask
+        # degenerate and attention non-causal.
+        q_pos = cache_position.unsqueeze(1)
+        k_pos = torch.arange(total_length).unsqueeze(0)
+        future = (k_pos > q_pos).to(attn_mask_dtype)  # 1.0 where masked
+        attention_mask = (
+            (torch.full([seq_length, total_length], neg) * future)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .to(attn_mask_dtype)
+        )
+        return attention_mask, position_ids, cache_position
+
     def prepare_model_for_export(self, model) -> None:
         """Apply architecture-specific model tweaks before wrapping."""
         return None

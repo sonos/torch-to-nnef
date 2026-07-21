@@ -35,7 +35,7 @@ def _build_mask(seq_len, past_len, n_layers=2, heads=2, head_dim=8):
     out = DefaultArchitectureHandler().build_forward_inputs(
         inputs=inputs, wrapper=wrapper
     )
-    return out["attention_mask"]
+    return out.model_inputs["attention_mask"]
 
 
 def _assert_causal(mask, seq_len, past_len):
