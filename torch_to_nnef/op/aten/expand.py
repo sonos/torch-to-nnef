@@ -380,9 +380,20 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
         raise T2NErrorNotImplemented(
             "case with flattening tensor not implemented"
         )
-    if not isinstance(n_repeats.data, int):
+    axis = axis_node.data
+    if axis < 0:
+        axis += input_node.rank
+    repeat_count = _static_repeat_interleave_count(n_repeats)
+    if repeat_count is None:
+        repeat_count = _repeat_interleave_count_from_shapes(
+            input_node, node.outputs[0], axis
+        )
+    if repeat_count is None:
         raise T2NErrorNotImplemented(
-            "case with more than 1 dim repeats not implemented"
+            "case with more than 1 dim repeats not implemented: "
+            f"type={type(n_repeats).__name__}, data={n_repeats.data!r}, "
+            f"traced={getattr(n_repeats, '_traced_data', None)!r}, "
+            f"shape={getattr(n_repeats, 'shape', None)!r}"
         )
 
     # unsqueeze
@@ -394,13 +405,13 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axes": [axis_node.data + 1]},
+        attrs={"axes": [axis + 1]},
         output_tensor_name_suffix="unsqueeze",
     )
 
     # build repeats
     repeats = [1] * (input_node.rank + 1)
-    repeats[axis_node.data + 1] = n_repeats.data
+    repeats[axis + 1] = repeat_count
 
     out = add_single_output_op(
         g,
@@ -430,7 +441,7 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
         nnef_modules.append("tract_core")
 
         _repeats = [1] * (input_node.rank)
-        _repeats[axis_node.data] = n_repeats.data
+        _repeats[axis] = repeat_count
         _repeats = torch.from_numpy(np.array(_repeats))
         new_shape_out = add_single_output_op(
             g,
@@ -466,7 +477,7 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
         new_shape = nnef.Identifier(new_shape_tdim_casted.name)
     else:
         new_shape = list(input_node.shape)
-        new_shape[axis_node.data] *= n_repeats.data
+        new_shape[axis] *= repeat_count
 
     add_single_output_op(
         g,
@@ -477,6 +488,33 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
         attrs={"shape": new_shape},
     )
     return nnef_modules
+
+
+def _static_repeat_interleave_count(n_repeats) -> T.Optional[int]:
+    value = n_repeats.data
+    if isinstance(value, int):
+        return value
+    if isinstance(value, torch.Tensor) and value.numel() == 1:
+        return int(value.item())
+
+    traced = getattr(n_repeats, "_traced_data", None)
+    if isinstance(traced, torch.Tensor) and traced.numel() == 1:
+        return int(traced.item())
+    return None
+
+
+def _repeat_interleave_count_from_shapes(
+    input_node, output_node, axis: int
+) -> T.Optional[int]:
+    if input_node.shape is None or output_node.shape is None:
+        return None
+    input_dim = input_node.shape[axis]
+    output_dim = output_node.shape[axis]
+    if not isinstance(input_dim, int) or not isinstance(output_dim, int):
+        return None
+    if input_dim <= 0 or output_dim % input_dim != 0:
+        return None
+    return output_dim // input_dim
 
 
 @OP_REGISTRY.register()

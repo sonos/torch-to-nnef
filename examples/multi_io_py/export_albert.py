@@ -22,7 +22,7 @@ def apply_transformers_trace_compat():
     version = SemanticVersion.from_str(transformers.__version__)
     if not "5.5.0" <= version < "5.6.0":
         return
-    import transformers.masking_utils as mu
+    import transformers.masking_utils as mu  # pylint: disable=import-outside-toplevel
 
     orig_sdpa_mask = mu.sdpa_mask
 
