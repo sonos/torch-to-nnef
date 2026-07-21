@@ -172,6 +172,7 @@ def _load_exporter_from(
     trust_remote_code: bool = True,
     upcast_quant: T.Optional[T.Sequence[str]] = None,
     attn_implementation: T.Optional[str] = None,
+    experts_implementation: T.Optional[str] = "auto",
 ):
     if (
         is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
@@ -192,6 +193,7 @@ def _load_exporter_from(
         trust_remote_code=trust_remote_code,
         upcast_quant=upcast_quant,
         attn_implementation=attn_implementation,
+        experts_implementation=experts_implementation,
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
@@ -1093,6 +1095,7 @@ def dump_llm(
     trust_remote_code: bool = True,
     upcast_quant: T.Optional[T.Sequence[str]] = None,
     attn_implementation: T.Optional[str] = None,
+    experts_implementation: T.Optional[str] = "auto",
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model."""
@@ -1112,6 +1115,7 @@ def dump_llm(
         trust_remote_code=trust_remote_code,
         upcast_quant=upcast_quant,
         attn_implementation=attn_implementation,
+        experts_implementation=experts_implementation,
     )
     dump_kwargs = _normalize_dump_kwargs(kwargs)
     exporter.dump(**dump_kwargs)

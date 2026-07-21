@@ -162,6 +162,19 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--transformers-experts-implementation",
+            dest="experts_implementation",
+            default="auto",
+            help="expert dispatch implementation selected through "
+            "Transformers' experts interface. 'auto' selects torch-to-nnef's "
+            "export-safe MoE default; 'model' leaves the model default "
+            "unchanged. This has no effect for architectures without "
+            "Transformers MoE expert implementation fields. Explicit values "
+            "are validated against the installed Transformers registry, for "
+            "example batched_mm or grouped_mm.",
+        )
+
+        parser.add_argument(
             "--upcast-quant",
             default=None,
             help="opt-in: dequantize a natively-quantized model (mxfp4, fp8, "
