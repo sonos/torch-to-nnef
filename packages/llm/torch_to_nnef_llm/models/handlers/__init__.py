@@ -7,6 +7,10 @@ from .base import (
     StateContext,
 )
 from .default import DefaultArchitectureHandler
+from .gemma3_vl import (
+    Gemma3ArchitectureHandler,
+    Gemma3VisionEncoderHandler,
+)
 from .idefics3_vl import (
     Idefics3ArchitectureHandler,
     Idefics3VisionEncoderHandler,
@@ -28,6 +32,8 @@ __all__ = [
     "DefaultArchitectureHandler",
     "EmbeddingContract",
     "EncoderHandler",
+    "Gemma3ArchitectureHandler",
+    "Gemma3VisionEncoderHandler",
     "IOSpec",
     "Idefics3ArchitectureHandler",
     "Idefics3VisionEncoderHandler",

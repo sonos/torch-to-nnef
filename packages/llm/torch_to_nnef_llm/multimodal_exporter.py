@@ -43,6 +43,10 @@ MANIFEST_NAME = "multimodal.json"
 #: Sub-directory holding the decoder graph inside the export directory.
 DECODER_DIRNAME = "decoder"
 
+#: Above this parameter count, ``check_io`` roughly doubles peak RAM (the torch
+#: model stays resident while the tract subprocess loads the NNEF), so we warn.
+LARGE_MODEL_CHECK_IO_WARN_PARAMS = 2_000_000_000
+
 
 @dataclass
 class EncoderArtifact:
@@ -121,7 +125,14 @@ class MultiModalExporter:
 
     @classmethod
     def load(cls, *args, **kwargs) -> "MultiModalExporter":
-        """Load like :meth:`LLMExporter.load`, returning a joint exporter."""
+        """Load like :meth:`LLMExporter.load`, returning a joint exporter.
+
+        Defaults ``force_module_dtype`` to bf16 (the native dtype of most
+        multimodal checkpoints) instead of letting a caller silently upcast to
+        f32: a 4B model in f32 is ~17GB and, with the tract check_io subprocess
+        loading a second copy, that doubles to ~34GB and can exhaust RAM.
+        """
+        kwargs.setdefault("force_module_dtype", "bf16")
         return cls(LLMExporter.load(*args, **kwargs))
 
     @property
@@ -209,6 +220,19 @@ class MultiModalExporter:
                 self.config_helper.conf.model_type,
             )
         export_dirpath.mkdir(parents=True, exist_ok=True)
+
+        n_params = self.decoder_exporter.model_n_params
+        if (
+            getattr(inference_target, "check_io", False)
+            and n_params > LARGE_MODEL_CHECK_IO_WARN_PARAMS
+        ):
+            LOGGER.warning(
+                "check_io on a %.1fB-param model: peak RAM is roughly 2x the "
+                "weight size because the torch model stays resident while the "
+                "tract subprocess loads the NNEF. Prefer bf16/f16 (not f32), "
+                "ensure enough free RAM, or pass no_verify=True to skip it.",
+                n_params / 1e9,
+            )
 
         # FLAT so the decoder graph lands at decoder/model.nnef.tgz, matching
         # the manifest path (DEEP would nest it under decoder/model/).
