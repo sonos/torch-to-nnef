@@ -28,7 +28,13 @@ def reducer_helper(aten_op_name: str, node, op_helper, output_idx: int = 0):
     # exported graph already carries the post-cast output dtype, so we
     # can safely ignore it here.
     n_inputs = len(node.inputs)
-    if n_inputs == 2:
+    if n_inputs == 1:
+        # Full reduction with no dim arg, e.g. `aten::max(input) -> Tensor`
+        # (`torch.max(x)` / `x.max()`). Reduce over every axis.
+        (input_node,) = node.inputs
+        axis_node = None
+        keep_dim = False
+    elif n_inputs == 2:
         (input_node, axis_node) = node.inputs
         keep_dim = False
     elif n_inputs >= 3:
@@ -36,7 +42,7 @@ def reducer_helper(aten_op_name: str, node, op_helper, output_idx: int = 0):
         keep_dim = keep_dim_node.data
     else:
         raise T2NErrorNotImplemented(
-            f"reducer with {n_inputs} inputs (expected 2 or >=3)"
+            f"reducer with {n_inputs} inputs (expected 1, 2 or >=3)"
         )
 
     onode = node.outputs[output_idx]
@@ -57,13 +63,13 @@ def reducer_helper(aten_op_name: str, node, op_helper, output_idx: int = 0):
         name_to_tensor[op_reduce_out_name] = op_reduce_out
 
     # can be either 1 or n axes {
-    if isinstance(axis_node.data, int):
+    if axis_node is None or axis_node.data is None:
+        # No dim (full reduction): reduce over every axis.
+        axes = [pick_axis(input_node, _) for _ in range(input_node.rank)]
+    elif isinstance(axis_node.data, int):
         axes = [pick_axis(input_node, axis_node.data)]
     else:
-        if axis_node.data is None:
-            axes = [pick_axis(input_node, _) for _ in range(input_node.rank)]
-        else:
-            axes = [pick_axis(input_node, _) for _ in axis_node.data]
+        axes = [pick_axis(input_node, _) for _ in axis_node.data]
     #  }
     tensor_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     if (
@@ -365,16 +371,21 @@ def reduce_min(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["max"])
 def max_(node, op_helper, **kwargs):
-    """Map PyTorch: 'aten:max' to NNEF."""
-    if isinstance(node.inputs[1], PythonConstant):
+    """Map PyTorch: 'aten:max' to NNEF.
+
+    Three overloads: full reduction ``max(input)`` (1 input), dim reduction
+    ``max(input, dim, keepdim)`` (dim is a PythonConstant), and elementwise
+    ``max(input, other)`` (other is a tensor). The first two are reductions.
+    """
+    if len(node.inputs) == 1 or isinstance(node.inputs[1], PythonConstant):
         return reduce_max(node, op_helper)
     return op_helper.unary_output_op_without_attr(nnef_op_type="max", node=node)
 
 
 @OP_REGISTRY.register(torch_op_ids=["min"])
 def min_(node, op_helper, **kwargs):
-    """Map PyTorch: 'aten:min' to NNEF."""
-    if isinstance(node.inputs[1], PythonConstant):
+    """Map PyTorch: 'aten:min' to NNEF (see :func:`max_` for the overloads)."""
+    if len(node.inputs) == 1 or isinstance(node.inputs[1], PythonConstant):
         return reduce_min(node, op_helper)
     return op_helper.unary_output_op_without_attr(nnef_op_type="min", node=node)
 

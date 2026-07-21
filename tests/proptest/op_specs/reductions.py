@@ -248,6 +248,42 @@ def _var_std_sample_st(method_name: str) -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _minmax_full_reduction_sample_st(
+    method_name: str,
+) -> st.SearchStrategy[OpSample]:
+    """`x.max()` / `x.min()` full reduction (no dim).
+
+    The full-reduction overload is `aten::max(input) -> Tensor`, a single-input
+    node with no dim/keepdim, which the reducer must map to a reduce over every
+    axis. Regression for the crash exporting Qwen2.5/3-VL vision towers
+    (`grid_thw.max()`).
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-1e2, 1e2),
+            )
+        )
+        return OpSample(inputs=(x,), module=TensorFnPrimitive(method_name))
+
+    return _draw()
+
+
 def _reduction_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
@@ -281,6 +317,16 @@ def _reduction_specs() -> T.List[OpSpec]:
         OpSpec(
             name="min-dim",
             sample_st=_reduction_sample_st("min"),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="max-full",
+            sample_st=_minmax_full_reduction_sample_st("max"),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="min-full",
+            sample_st=_minmax_full_reduction_sample_st("min"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         # Argmax / argmin return int64 indices: the comparator's exact
