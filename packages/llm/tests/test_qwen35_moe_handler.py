@@ -46,6 +46,7 @@ class FakeConfigHelper:
 
 
 def test_qwen35_moe_handler_is_registered():
+    assert get_handler("qwen3_5_moe") is Qwen35MoeArchitectureHandler
     assert get_handler("qwen3_5_moe_text") is Qwen35MoeArchitectureHandler
 
 

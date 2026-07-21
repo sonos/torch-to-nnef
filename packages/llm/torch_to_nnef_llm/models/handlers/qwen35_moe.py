@@ -11,7 +11,7 @@ from .registry import register_handler
 class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
     """Handler for Qwen3.5 MoE text models with hybrid attention caches."""
 
-    ARCH_NAMES = ("qwen3_5_moe_text",)
+    ARCH_NAMES = ("qwen3_5_moe", "qwen3_5_moe_text")
 
     @staticmethod
     def _layer_types(config_helper) -> T.Sequence[str]:
