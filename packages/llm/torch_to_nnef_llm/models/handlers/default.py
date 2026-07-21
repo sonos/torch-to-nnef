@@ -62,35 +62,14 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         position_ids = None
         cache_position = None
         if getattr(wrapper, "force_causal_mask", False):
-            attn_mask_dtype = torch.float32
-            neg = torch.finfo(attn_mask_dtype).min
             # Query length S (new tokens) from input_ids, past length P from
             # the first KV cache tensor [batch, heads, P, head_dim].
-            seq_length = inputs[0].shape[1]
-            past_length = inputs[1].shape[2]
-            total_length = seq_length + past_length
-            # Absolute positions of the new tokens: P, P+1, ..., P+S-1. These
-            # drive RoPE; without them transformers (>4.52.4) infers positions
-            # that ignore the past, so decode RoPE is wrong and generation
-            # degenerates into repetition.
-            cache_position = torch.arange(
-                past_length, total_length, device=inputs[0].device
-            )
-            position_ids = cache_position.unsqueeze(0)
-            # Build the [S, S+P] causal-with-past additive mask from token
-            # POSITIONS (not a fixed-diagonal triu): query i sits at absolute
-            # position P+i and may attend to keys 0..P+i. Doing it via arange
-            # comparisons keeps it correct for any (S, P) at inference time;
-            # a baked triu diagonal (or the previous shape[0]=batch bug) made
-            # the mask degenerate and attention non-causal.
-            q_pos = cache_position.unsqueeze(1)
-            k_pos = torch.arange(total_length).unsqueeze(0)
-            future = (k_pos > q_pos).to(attn_mask_dtype)  # 1.0 where masked
-            attention_mask = (
-                (torch.full([seq_length, total_length], neg) * future)
-                .unsqueeze(0)
-                .unsqueeze(0)
-                .to(attn_mask_dtype)
+            attention_mask, position_ids, cache_position = (
+                self.build_causal_mask_with_past(
+                    seq_length=inputs[0].shape[1],
+                    past_length=inputs[1].shape[2],
+                    device=inputs[0].device,
+                )
             )
         if wrapper.with_dyn_cache:
             past_key_values = build_past_kv_dyn_cache(inputs[1:])
