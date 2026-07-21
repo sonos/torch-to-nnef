@@ -36,12 +36,21 @@ class _FakeTransformers:
     )
 
 
+class _FakeTransformersWithoutMoe:
+    """Stand-in for a supported Transformers predating the experts registry."""
+
+    __version__ = "4.52.0"
+    AutoModelForCausalLM = _FakeAutoModel
+    integrations = SimpleNamespace()
+
+
 def _load_fake_model(
     monkeypatch,
     *,
     attn_implementation=None,
     experts_implementation="auto",
     has_moe_experts=True,
+    transformers=_FakeTransformers,
 ):
     _FakeAutoModel.calls = []
     model_config = SimpleNamespace(model_type="phi")
@@ -62,7 +71,7 @@ def _load_fake_model(
         trust_remote_code=False,
         attn_implementation=attn_implementation,
         experts_implementation=experts_implementation,
-        transformers=_FakeTransformers,
+        transformers=transformers,
     )
 
 
@@ -118,6 +127,27 @@ def test_load_model_rejects_unknown_experts_implementation(monkeypatch):
     with pytest.raises(T2NErrorMisuse, match="experts_implementation"):
         _load_fake_model(
             monkeypatch, experts_implementation="definitely-not-real"
+        )
+
+
+def test_load_model_auto_is_noop_without_experts_registry(monkeypatch):
+    # Supported Transformers predating the experts registry must still load;
+    # the default `auto` degrades to a no-op instead of failing the export.
+    model = _load_fake_model(
+        monkeypatch,
+        experts_implementation="auto",
+        transformers=_FakeTransformersWithoutMoe,
+    )
+
+    assert model.config._experts_implementation == "grouped_mm"
+
+
+def test_load_model_rejects_explicit_experts_without_registry(monkeypatch):
+    with pytest.raises(T2NErrorMisuse, match="ALL_EXPERTS_FUNCTIONS"):
+        _load_fake_model(
+            monkeypatch,
+            experts_implementation="batched_mm",
+            transformers=_FakeTransformersWithoutMoe,
         )
 
 

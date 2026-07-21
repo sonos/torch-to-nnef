@@ -532,16 +532,26 @@ def _normalize_experts_implementation(
 ) -> T.Optional[str]:
     if experts_implementation in (None, "model"):
         return None
-    valid_keys = _valid_experts_implementations(transformers)
+    # `auto` is the default applied to every export, including non-MoE models
+    # on Transformers versions that predate the experts registry. It must stay
+    # best-effort: degrade to a no-op instead of failing the load. Only values
+    # the user set explicitly are validated strictly.
     if experts_implementation == "auto":
+        try:
+            valid_keys = _valid_experts_implementations(transformers)
+        except T2NErrorMisuse:
+            return None
         if DEFAULT_EXPERTS_IMPLEMENTATION not in valid_keys:
-            valid = ", ".join(["model", *sorted(valid_keys)])
-            raise T2NErrorMisuse(
-                f"Transformers experts registry does not expose "
-                f"{DEFAULT_EXPERTS_IMPLEMENTATION}; experts_implementation "
-                f"must be one of: {valid}"
+            LOGGER.warning(
+                "experts_implementation=auto is a no-op: the Transformers "
+                "experts registry is present but does not expose %s; a MoE "
+                "export may use a dispatch that is not export-safe. Updating "
+                "transformers may expose an export-safe expert dispatch",
+                DEFAULT_EXPERTS_IMPLEMENTATION,
             )
+            return None
         return DEFAULT_EXPERTS_IMPLEMENTATION
+    valid_keys = _valid_experts_implementations(transformers)
     if experts_implementation not in valid_keys:
         valid = ", ".join(["auto", "model", *sorted(valid_keys)])
         raise T2NErrorMisuse(f"experts_implementation must be one of: {valid}")
