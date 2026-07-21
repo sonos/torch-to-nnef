@@ -5,9 +5,17 @@ import torch
 
 from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
 
-from .base import IOSpec, StateContext
+from .base import EmbeddingContract, EncoderHandler, IOSpec, StateContext
 from .default import DefaultArchitectureHandler
-from .registry import register_handler
+from .registry import register_encoder_handler, register_handler
+
+
+def _deepstack_indexes(config) -> T.List[int]:
+    """Vision-encoder layer indexes whose features DeepStack re-injects."""
+    vision_config = getattr(config, "vision_config", None)
+    if vision_config is None:
+        return []
+    return list(getattr(vision_config, "deepstack_visual_indexes", []))
 
 
 @register_handler
@@ -272,11 +280,39 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             if position < effective_seq_len:
                 input_ids[:, position] = image_token_id
 
+        # DeepStack: one extra image-embedding input per vision-encoder index,
+        # re-injected at the first N decoder layers. Without these the decoder
+        # silently drops DeepStack (the landed single-splice gap), since with
+        # pixel_values=None the model computes no deepstack_visual_embeds.
+        hidden_size = config_helper.decoder_conf.hidden_size
+        n_deepstack = len(_deepstack_indexes(config_helper.conf))
+        deepstack_inputs = tuple(
+            torch.randn((num_image_tokens, hidden_size), dtype=inputs_dtype)
+            for _ in range(n_deepstack)
+        )
+        deepstack_input_names = [
+            f"in_image_deepstack_{i}" for i in range(n_deepstack)
+        ]
+        deepstack_output_names = [
+            f"out_image_deepstack_{i}" for i in range(n_deepstack)
+        ]
+        deepstack_axes = {
+            name: {0: "IMG_DEEP"} for name in deepstack_input_names
+        }
+
         return IOSpec(
-            inputs=base_spec.inputs + state_spec.inputs,
-            input_names=base_spec.input_names + state_spec.input_names,
-            output_names=base_spec.output_names + state_spec.output_names,
-            dynamic_axes={**base_spec.dynamic_axes, **state_spec.dynamic_axes},
+            inputs=base_spec.inputs + state_spec.inputs + deepstack_inputs,
+            input_names=base_spec.input_names
+            + state_spec.input_names
+            + deepstack_input_names,
+            output_names=base_spec.output_names
+            + state_spec.output_names
+            + deepstack_output_names,
+            dynamic_axes={
+                **base_spec.dynamic_axes,
+                **state_spec.dynamic_axes,
+                **deepstack_axes,
+            },
         )
 
     def build_forward_inputs(
@@ -286,6 +322,13 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         wrapper,
     ) -> StateContext:
         hf_model = wrapper.model
+
+        n_deepstack = len(_deepstack_indexes(hf_model.config))
+        if n_deepstack:
+            deepstack_embeds = list(inputs[-n_deepstack:])
+            inputs = inputs[:-n_deepstack]
+        else:
+            deepstack_embeds = []
 
         input_ids = inputs[0]
         cache_tensors, state_inputs = self._split_inputs(inputs)
@@ -362,6 +405,25 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         last_rope_deltas = rope_deltas_current.detach().clone()
         hf_model.model.rope_deltas = rope_deltas_current
 
+        # DeepStack: the top model builds visual_pos_masks + deepstack embeds
+        # only when pixel_values is set. With pixel_values=None we inject them
+        # into the language_model call ourselves via a forward-pre-hook, which
+        # the text model already consumes (adds each at its first N layers).
+        deepstack_handle = None
+        if deepstack_embeds:
+            visual_pos_masks = input_ids == hf_model.config.image_token_id
+
+            def _inject_deepstack(module, args, kwargs):
+                kwargs["visual_pos_masks"] = visual_pos_masks
+                kwargs["deepstack_visual_embeds"] = deepstack_embeds
+                return (args, kwargs)
+
+            deepstack_handle = (
+                hf_model.model.language_model.register_forward_pre_hook(
+                    _inject_deepstack, with_kwargs=True
+                )
+            )
+
         return StateContext(
             model_inputs={
                 "input_ids": None,
@@ -384,6 +446,8 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
                 "rope_deltas_state": rope_deltas_state,
                 "prev_rope_deltas": prev_rope_deltas,
                 "last_rope_deltas": last_rope_deltas,
+                "deepstack_embeds": deepstack_embeds,
+                "deepstack_handle": deepstack_handle,
             },
         )
 
@@ -419,10 +483,91 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         if hasattr(model.model, "rope_deltas"):
             model.model.rope_deltas = state_context.state["prev_rope_deltas"]
 
-        return outputs + [
-            state_context.state["image_embeddings"],
-            state_context.state["video_embeddings"],
-            state_context.state["image_grid_thw"],
-            state_context.state["video_grid_thw"],
-            rope_deltas,
+        deepstack_handle = state_context.state.get("deepstack_handle")
+        if deepstack_handle is not None:
+            deepstack_handle.remove()
+
+        return (
+            outputs
+            + [
+                state_context.state["image_embeddings"],
+                state_context.state["video_embeddings"],
+                state_context.state["image_grid_thw"],
+                state_context.state["video_grid_thw"],
+                rope_deltas,
+            ]
+            + list(state_context.state.get("deepstack_embeds", []))
+        )
+
+
+class Qwen3VLVisionEncoder(torch.nn.Module):
+    """Qwen3-VL vision tower with grid_thw baked constant.
+
+    Emits the merged image embeddings plus one DeepStack feature tensor per
+    ``deepstack_visual_indexes`` entry (each ``[num_tokens, out_hidden]``), all
+    consumed by the decoder handler's DeepStack injection.
+    """
+
+    def __init__(self, visual, grid_thw: torch.Tensor):
+        super().__init__()
+        self.visual = visual
+        self.register_buffer("grid_thw", grid_thw, persistent=False)
+
+    def forward(self, pixel_values: torch.Tensor):
+        out = self.visual(pixel_values, grid_thw=self.grid_thw)
+        return (out.pooler_output, *out.deepstack_features)
+
+
+@register_encoder_handler
+class Qwen3VLVisionEncoderHandler(EncoderHandler):
+    """Encoder handler for the Qwen3-VL vision tower (main + DeepStack)."""
+
+    MODALITY = "vision"
+    ARCH_NAMES = ("qwen3_vl",)
+    SAMPLE_GRID_THW = (1, 8, 8)
+
+    def get_encoder_module(self, hf_model) -> torch.nn.Module:
+        grid = torch.tensor([self.SAMPLE_GRID_THW], dtype=torch.long)
+        return Qwen3VLVisionEncoder(hf_model.model.visual, grid)
+
+    def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
+        vision_conf = config_helper.conf.vision_config
+        t, h, w = self.SAMPLE_GRID_THW
+        num_patches = t * h * w
+        patch_dim = (
+            vision_conf.in_channels
+            * vision_conf.temporal_patch_size
+            * vision_conf.patch_size
+            * vision_conf.patch_size
+        )
+        n_deepstack = len(_deepstack_indexes(config_helper.conf))
+        pixel_values = torch.randn((num_patches, patch_dim), dtype=inputs_dtype)
+        output_names = ["out_image_embeddings"] + [
+            f"out_image_deepstack_{i}" for i in range(n_deepstack)
+        ]
+        return IOSpec(
+            inputs=(pixel_values,),
+            input_names=["pixel_values"],
+            output_names=output_names,
+            dynamic_axes={"pixel_values": {0: "PATCHES"}},
+        )
+
+    def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
+        return StateContext(model_inputs={"pixel_values": inputs[0]}, state={})
+
+    def build_forward_outputs(
+        self, *, model_outputs, state_context
+    ) -> T.List[torch.Tensor]:
+        return list(model_outputs)
+
+    def contracts(self, config_helper) -> T.List[EmbeddingContract]:
+        n_deepstack = len(_deepstack_indexes(config_helper.conf))
+        return [
+            EmbeddingContract(
+                modality="image",
+                hidden_size=config_helper.conf.vision_config.out_hidden_size,
+                placeholder_token_id_attr="image_token_id",
+                dynamic_axis="IMG",
+                injection_layers=tuple(range(n_deepstack)),
+            )
         ]

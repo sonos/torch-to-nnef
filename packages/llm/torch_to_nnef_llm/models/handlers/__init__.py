@@ -21,7 +21,10 @@ from .qwen2_5_vl import (
     Qwen2_5VLArchitectureHandler,
     Qwen2_5VLVisionEncoderHandler,
 )
-from .qwen3_vl import Qwen3VLArchitectureHandler
+from .qwen3_vl import (
+    Qwen3VLArchitectureHandler,
+    Qwen3VLVisionEncoderHandler,
+)
 from .qwen35_moe import Qwen35MoeArchitectureHandler
 from .registry import (
     get_encoder_handlers,
@@ -48,6 +51,7 @@ __all__ = [
     "Qwen2_5VLVisionEncoderHandler",
     "Qwen35MoeArchitectureHandler",
     "Qwen3VLArchitectureHandler",
+    "Qwen3VLVisionEncoderHandler",
     "StateContext",
     "get_encoder_handlers",
     "get_handler",
