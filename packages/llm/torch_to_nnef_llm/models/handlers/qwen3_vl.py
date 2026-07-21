@@ -37,6 +37,29 @@ def bake_vision_rotary_seqlen(visual: torch.nn.Module) -> torch.nn.Module:
     return visual
 
 
+def bake_vision_rot_pos_emb(
+    visual: torch.nn.Module, grid_thw: torch.Tensor
+) -> torch.nn.Module:
+    """Precompute ``rot_pos_emb`` for a fixed grid and inject it as a constant.
+
+    Qwen3-VL's ``rot_pos_emb`` builds position ids with ``torch.empty`` +
+    in-place slice assignment + advanced indexing, a pattern that does not
+    lower correctly to tract. For a baked (fixed) grid its output is a
+    constant, so evaluate it once and return that constant during tracing.
+    """
+    if getattr(visual.rot_pos_emb, "_t2n_baked", False):
+        return visual
+    with torch.no_grad():
+        const = visual.rot_pos_emb(grid_thw)
+
+    def _baked(*_args, _const=const, **_kwargs):
+        return _const
+
+    _baked._t2n_baked = True
+    visual.rot_pos_emb = _baked
+    return visual
+
+
 def _deepstack_indexes(config) -> T.List[int]:
     """Vision-encoder layer indexes whose features DeepStack re-injects."""
     vision_config = getattr(config, "vision_config", None)
@@ -537,6 +560,7 @@ class Qwen3VLVisionEncoder(torch.nn.Module):
 
     def __init__(self, visual, grid_thw: torch.Tensor):
         super().__init__()
+        bake_vision_rot_pos_emb(visual, grid_thw)
         self.visual = visual
         self.register_buffer("grid_thw", grid_thw, persistent=False)
 
