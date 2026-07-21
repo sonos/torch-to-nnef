@@ -413,3 +413,44 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             idx = torch.arange(seq - logits_to_keep, seq, device=logits.device)
             outputs = (logits.index_select(1, idx), *outputs[1:])
         return outputs
+
+
+class BaseEncoder(TorchToNNEFWrappedLLM):
+    """Wrap a modality-encoder module for deterministic NNEF export.
+
+    Sibling of :class:`BaseCausal` for the encoder graph. Drives the
+    ``build_forward_inputs -> call_encoder -> build_forward_outputs`` pipeline
+    of an :class:`~torch_to_nnef_llm.models.handlers.base.EncoderHandler`.
+
+    Unlike the decoder wrapper there is no KV cache, so no dyn-cache context is
+    applied. The forward signature is left generic here and rewritten by the
+    exporter via :func:`update_forward_signature` once the encoder IOSpec is
+    resolved.
+    """
+
+    def __init__(self, encoder_module, handler):
+        super().__init__()
+        self.model = encoder_module
+        self.handler = handler
+
+    @property
+    def device(self):
+        return next(self.model.parameters()).device
+
+    def forward(self, *args):
+        inputs = tuple(args)
+        state_context = self.handler.build_forward_inputs(
+            inputs=inputs,
+            wrapper=self,
+        )
+        model_outputs = self.handler.call_encoder(
+            model=self.model,
+            state_context=state_context,
+            wrapper=self,
+        )
+        return tuple(
+            self.handler.build_forward_outputs(
+                model_outputs=model_outputs,
+                state_context=state_context,
+            )
+        )

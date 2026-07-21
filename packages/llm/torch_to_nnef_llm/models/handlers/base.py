@@ -23,6 +23,36 @@ class StateContext:
     state: T.Dict[str, T.Any]
 
 
+@dataclass
+class EmbeddingContract:
+    """Tie one encoder output stream to the decoder input it feeds.
+
+    The encoder graph emits a tensor named ``out_<modality>_embeddings`` of
+    shape ``[dynamic_axis, hidden_size]``; the decoder graph consumes the
+    matching ``in_<modality>_embeddings`` input of the same shape and dynamic
+    symbol. This object is the single shared truth between the two graphs.
+
+    ``injection_layers`` is empty for the common case (a single splice at the
+    decoder embedding layer). It is non-empty only for multi-layer schemes such
+    as Qwen3-VL DeepStack, where extra residual embeddings are added at the
+    listed decoder layer indices.
+    """
+
+    modality: str
+    hidden_size: int
+    placeholder_token_id_attr: str
+    dynamic_axis: str
+    injection_layers: T.Tuple[int, ...] = ()
+
+    @property
+    def input_name(self) -> str:
+        return f"in_{self.modality}_embeddings"
+
+    @property
+    def output_name(self) -> str:
+        return f"out_{self.modality}_embeddings"
+
+
 class ArchitectureHandler(ABC):
     """Base type for architecture-specific export behavior."""
 
@@ -140,3 +170,99 @@ class ArchitectureHandler(ABC):
                 for k_or_v in kv
             ]
         return [model_outputs["logits"]] + kvs
+
+
+class EncoderHandler(ABC):
+    """Base type for modality-encoder export behavior.
+
+    Mirrors :class:`ArchitectureHandler` but for the encoder graph (vision
+    tower or audio tower + projector). The encoder graph turns raw modality
+    input (``pixel_values``, ``input_features`` ...) into embeddings whose
+    output names and shapes satisfy the :class:`EmbeddingContract` shared with
+    the decoder handler.
+    """
+
+    #: Coarse modality bucket, "vision" or "audio". Documentation-only.
+    MODALITY: str = ""
+    #: ``config.model_type`` values this encoder handler serves.
+    ARCH_NAMES: T.Tuple[str, ...] = ()
+    #: tract check_io tolerance for this encoder graph. Vision/audio towers
+    #: accumulate more f32 attention drift than the LLM decoder, so they
+    #: usually need a looser preset than the decoder default ("approximate").
+    CHECK_IO_TOLERANCE: str = "very"
+
+    @staticmethod
+    def get_auto_model_class(transformers):
+        """Return the HF model class to load for this architecture."""
+        return transformers.AutoModel
+
+    def prepare_model_for_export(self, model) -> None:
+        """Apply arch tweaks before wrapping (eager attn, merge LoRA)."""
+        return None
+
+    @abstractmethod
+    def get_encoder_module(self, hf_model) -> torch.nn.Module:
+        """Return the submodule to trace (tower + projector)."""
+
+    @abstractmethod
+    def build_input_spec(
+        self,
+        *,
+        config_helper,
+        inputs_dtype: torch.dtype,
+    ) -> IOSpec:
+        """Build raw-modality inputs plus names/dynamic axes for the encoder."""
+
+    @abstractmethod
+    def build_forward_inputs(
+        self,
+        *,
+        inputs: T.Tuple[torch.Tensor, ...],
+        wrapper,
+    ) -> StateContext:
+        """Convert exported inputs into kwargs for the encoder module."""
+
+    def call_encoder(
+        self,
+        *,
+        model,
+        state_context: StateContext,
+        wrapper,
+    ) -> T.Any:
+        """Run the encoder module with prepared inputs."""
+        return model(
+            **state_context.model_inputs,
+            **wrapper.forward_kwargs,
+        )
+
+    @abstractmethod
+    def build_forward_outputs(
+        self,
+        *,
+        model_outputs: T.Any,
+        state_context: StateContext,
+    ) -> T.List[torch.Tensor]:
+        """Build exported embeddings matching the encoder output names."""
+
+    @abstractmethod
+    def contracts(self, config_helper) -> T.List[EmbeddingContract]:
+        """Return the embedding contracts this encoder produces."""
+
+
+@dataclass
+class MultiModalArchitectureHandler:
+    """Pair a decoder handler with the encoder handler(s) feeding it.
+
+    Owns the set of :class:`EmbeddingContract` linking each encoder output to
+    the decoder input it feeds. Absent for text-only models, so the plain
+    decoder path is unchanged.
+    """
+
+    decoder_handler: ArchitectureHandler
+    encoder_handlers: T.List[EncoderHandler]
+
+    def contracts(self, config_helper) -> T.List[EmbeddingContract]:
+        out: T.List[EmbeddingContract] = []
+        for handler in self.encoder_handlers:
+            out.extend(handler.contracts(config_helper))
+        return out
