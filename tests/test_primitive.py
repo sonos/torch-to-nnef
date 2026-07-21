@@ -773,6 +773,13 @@ test_suite.add(
     torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
     TorchFnPrimitive("repeat_interleave", opt_kwargs={"repeats": 3, "dim": 2}),
 )
+test_suite.add(
+    (
+        torch.arange(12, dtype=torch.float32).reshape(3, 4),
+        torch.zeros(3, 2, dtype=torch.long),
+    ),
+    BinaryPrimitive(lambda x, idx: x.repeat_interleave(idx.size(-1), dim=0)),
+)
 
 
 # More advanced slicing
