@@ -14,6 +14,8 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_BOOL,
     ATEN_DIV,
     ATEN_LEN,
+    ATEN_SCALARIMPLICIT,
+    NUMBERTYPE_KIND,
 )
 
 
@@ -85,5 +87,40 @@ def test_int_scalar_output_still_parses():
     assert len_outputs
 
     parsed = TensorVariable.parse(len_outputs[0])
+    assert parsed.dtype == torch.int64
+    assert parsed.shape == [1]
+
+
+class _ItemScalar(nn.Module):
+    def forward(self, x):
+        # `Tensor.item()` is typed `aten::item(...) -> Scalar`, i.e. a bare
+        # NumberType SSA value with no `aten::ScalarImplicit` wrapper, the same
+        # shape Qwen2.5-VL's vision tower produces when a 0-d tensor
+        # (grid_thw.max()) feeds a submodule `forward(seqlen)` -> arange.
+        return x + x.max().item()
+
+
+def _bare_number_value():
+    m = torch.jit.script(_ItemScalar())
+    for node in _walk(m.graph):
+        if node.kind() == ATEN_SCALARIMPLICIT:
+            continue
+        for out in node.outputs():
+            if out.type().kind() == NUMBERTYPE_KIND:
+                return out
+    return None
+
+
+def test_bare_number_scalar_value_parses():
+    """A bare `Scalar`/NumberType SSA value (no ScalarImplicit) must parse.
+
+    Regression for the Qwen2.5-VL vision export crash: t2n used to raise
+    `T2NErrorNotImplemented` here. It now parses as an int64 scalar; the
+    recursive-input path fills the concrete dtype/shape from the traced arg.
+    """
+    value = _bare_number_value()
+    assert value is not None, "test setup expected a bare NumberType SSA value"
+
+    parsed = TensorVariable.parse(value)
     assert parsed.dtype == torch.int64
     assert parsed.shape == [1]
