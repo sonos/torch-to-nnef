@@ -10,6 +10,33 @@ from .default import DefaultArchitectureHandler
 from .registry import register_encoder_handler, register_handler
 
 
+class _IntSeqlenRotary(torch.nn.Module):
+    """Wrap the vision rotary embedding to take a python-int ``seqlen``.
+
+    Qwen's vision tower bakes most grid-derived sizes via ``grid_thw.tolist()``,
+    but ``rot_pos_emb`` feeds ``grid_thw[:, 1:].max()`` (a 0-d tensor) into the
+    rotary ``arange``. With grid_thw baked constant that max is constant, yet as
+    a tensor it lowers to a dynamic ``tract_core_range`` whose bounds mix TDim
+    and i64 (tract rejects it). Coercing ``seqlen`` to ``int`` makes the arange
+    fold to constant bounds, exactly like the tower's other (working) aranges.
+    Shared by Qwen2.5-VL and Qwen3-VL vision encoders.
+    """
+
+    def __init__(self, inner: torch.nn.Module):
+        super().__init__()
+        self.inner = inner
+
+    def forward(self, seqlen):
+        return self.inner(int(seqlen))
+
+
+def bake_vision_rotary_seqlen(visual: torch.nn.Module) -> torch.nn.Module:
+    """Idempotently coerce ``visual.rotary_pos_emb`` to a python-int seqlen."""
+    if not isinstance(visual.rotary_pos_emb, _IntSeqlenRotary):
+        visual.rotary_pos_emb = _IntSeqlenRotary(visual.rotary_pos_emb)
+    return visual
+
+
 def _deepstack_indexes(config) -> T.List[int]:
     """Vision-encoder layer indexes whose features DeepStack re-injects."""
     vision_config = getattr(config, "vision_config", None)
@@ -527,8 +554,10 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
     SAMPLE_GRID_THW = (1, 8, 8)
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
+        # bake the rotary arange length to a python int (see qwen2_5_vl)
+        visual = bake_vision_rotary_seqlen(hf_model.model.visual)
         grid = torch.tensor([self.SAMPLE_GRID_THW], dtype=torch.long)
-        return Qwen3VLVisionEncoder(hf_model.model.visual, grid)
+        return Qwen3VLVisionEncoder(visual, grid)
 
     def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
         vision_conf = config_helper.conf.vision_config
@@ -549,7 +578,8 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
             inputs=(pixel_values,),
             input_names=["pixel_values"],
             output_names=output_names,
-            dynamic_axes={"pixel_values": {0: "PATCHES"}},
+            # grid_thw baked constant -> fixed patch count (see qwen2_5_vl).
+            dynamic_axes={},
         )
 
     def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:

@@ -22,7 +22,10 @@ import typing as T
 import torch
 
 from .base import EmbeddingContract, EncoderHandler, IOSpec, StateContext
-from .qwen3_vl import Qwen3VLArchitectureHandler
+from .qwen3_vl import (
+    Qwen3VLArchitectureHandler,
+    bake_vision_rotary_seqlen,
+)
 from .registry import register_encoder_handler, register_handler
 
 
@@ -57,9 +60,8 @@ class Qwen2_5VLVisionEncoderHandler(EncoderHandler):
         return torch.tensor([self.SAMPLE_GRID_THW], dtype=torch.long)
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
-        return Qwen2_5VLVisionEncoder(
-            hf_model.model.visual, self._grid_tensor()
-        )
+        visual = bake_vision_rotary_seqlen(hf_model.model.visual)
+        return Qwen2_5VLVisionEncoder(visual, self._grid_tensor())
 
     def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
         vision_conf = config_helper.conf.vision_config
@@ -76,7 +78,10 @@ class Qwen2_5VLVisionEncoderHandler(EncoderHandler):
             inputs=(pixel_values,),
             input_names=["pixel_values"],
             output_names=["out_image_embeddings"],
-            dynamic_axes={"pixel_values": {0: "PATCHES"}},
+            # grid_thw is baked constant, so the patch count is fixed; a dynamic
+            # axis here is spurious and makes the tower's seq_len // merge_unit
+            # reshape symbolically undivisible for tract.
+            dynamic_axes={},
         )
 
     def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
