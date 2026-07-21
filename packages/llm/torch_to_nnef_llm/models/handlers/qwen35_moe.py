@@ -38,6 +38,17 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
             decoder_conf.linear_value_head_dim,
         )
 
+    @staticmethod
+    def _linear_state_tensor(state):
+        if isinstance(state, dict):
+            if len(state) != 1:
+                raise ValueError(
+                    "expected a single Qwen3.5 MoE linear cache state, "
+                    f"got {len(state)}"
+                )
+            return next(iter(state.values()))
+        return state
+
     def build_input_spec(
         self,
         *,
@@ -192,5 +203,10 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
             if hasattr(layer, "keys"):
                 outputs.extend([layer.keys, layer.values])
             else:
-                outputs.extend([layer.conv_states, layer.recurrent_states])
+                outputs.extend(
+                    [
+                        self._linear_state_tensor(layer.conv_states),
+                        self._linear_state_tensor(layer.recurrent_states),
+                    ]
+                )
         return outputs

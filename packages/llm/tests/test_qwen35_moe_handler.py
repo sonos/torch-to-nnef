@@ -82,6 +82,12 @@ def test_qwen35_moe_input_spec_names_hybrid_cache_tensors():
     assert "in_cache_conv_1" not in spec.dynamic_axes
 
 
+def test_qwen35_moe_linear_state_accepts_tensor_backed_cache():
+    state = torch.zeros(1, 192, 4)
+
+    assert Qwen35MoeArchitectureHandler._linear_state_tensor(state) is state
+
+
 def test_qwen35_moe_forward_inputs_rebuild_transformers_hybrid_cache():
     handler = Qwen35MoeArchitectureHandler()
     config_helper = FakeConfigHelper()
@@ -110,8 +116,12 @@ def test_qwen35_moe_forward_inputs_rebuild_transformers_hybrid_cache():
     ]
     assert tuple(cache.layers[0].keys.shape) == (1, 2, 5, 16)
     assert tuple(cache.layers[0].values.shape) == (1, 2, 5, 16)
-    assert tuple(cache.layers[1].conv_states.shape) == (1, 192, 4)
-    assert tuple(cache.layers[1].recurrent_states.shape) == (1, 4, 16, 16)
+    conv_state = handler._linear_state_tensor(cache.layers[1].conv_states)
+    recurrent_state = handler._linear_state_tensor(
+        cache.layers[1].recurrent_states
+    )
+    assert tuple(conv_state.shape) == (1, 192, 4)
+    assert tuple(recurrent_state.shape) == (1, 4, 16, 16)
     assert cache.has_previous_state(1)
     assert tuple(state_context.model_inputs["attention_mask"].shape) == (
         1,
@@ -119,3 +129,19 @@ def test_qwen35_moe_forward_inputs_rebuild_transformers_hybrid_cache():
         3,
         8,
     )
+
+    model_outputs = {"logits": torch.zeros(1, 3, 16)}
+    outputs = handler.build_forward_outputs(
+        model=wrapper.model,
+        model_outputs=model_outputs,
+        state_context=state_context,
+        num_logits_to_keep=1,
+    )
+
+    assert outputs == [
+        model_outputs["logits"],
+        cache.layers[0].keys,
+        cache.layers[0].values,
+        conv_state,
+        recurrent_state,
+    ]
