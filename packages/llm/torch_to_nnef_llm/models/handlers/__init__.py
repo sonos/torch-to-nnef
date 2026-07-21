@@ -33,6 +33,10 @@ from .registry import (
     register_encoder_handler,
     register_handler,
 )
+from .voxtral import (
+    VoxtralArchitectureHandler,
+    VoxtralAudioEncoderHandler,
+)
 
 __all__ = [
     "ArchitectureHandler",
@@ -53,6 +57,8 @@ __all__ = [
     "Qwen3VLArchitectureHandler",
     "Qwen3VLVisionEncoderHandler",
     "StateContext",
+    "VoxtralArchitectureHandler",
+    "VoxtralAudioEncoderHandler",
     "get_encoder_handlers",
     "get_handler",
     "is_multimodal",
