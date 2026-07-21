@@ -17,6 +17,10 @@ from .idefics3_vl import (
 )
 from .openelm import OpenELMArchitectureHandler
 from .phi import PhiArchitectureHandler
+from .qwen2_5_vl import (
+    Qwen2_5VLArchitectureHandler,
+    Qwen2_5VLVisionEncoderHandler,
+)
 from .qwen3_vl import Qwen3VLArchitectureHandler
 from .qwen35_moe import Qwen35MoeArchitectureHandler
 from .registry import (
@@ -40,6 +44,8 @@ __all__ = [
     "MultiModalArchitectureHandler",
     "OpenELMArchitectureHandler",
     "PhiArchitectureHandler",
+    "Qwen2_5VLArchitectureHandler",
+    "Qwen2_5VLVisionEncoderHandler",
     "Qwen35MoeArchitectureHandler",
     "Qwen3VLArchitectureHandler",
     "StateContext",
