@@ -510,6 +510,77 @@ def _attention_kwargs(
     return {}
 
 
+DEFAULT_EXPERTS_IMPLEMENTATION = "batched_mm"
+
+
+def _valid_experts_implementations(
+    transformers: InjectedTransformersModule,
+) -> T.Set[str]:
+    try:
+        moe_mod = transformers.integrations.moe
+        return set(moe_mod.ALL_EXPERTS_FUNCTIONS.valid_keys())
+    except AttributeError as exp:
+        raise T2NErrorMisuse(
+            "experts_implementation requires a Transformers version exposing "
+            "transformers.integrations.moe.ALL_EXPERTS_FUNCTIONS"
+        ) from exp
+
+
+def _normalize_experts_implementation(
+    experts_implementation: T.Optional[str],
+    transformers: InjectedTransformersModule,
+) -> T.Optional[str]:
+    if experts_implementation in (None, "model"):
+        return None
+    valid_keys = _valid_experts_implementations(transformers)
+    if experts_implementation == "auto":
+        if DEFAULT_EXPERTS_IMPLEMENTATION not in valid_keys:
+            valid = ", ".join(["model", *sorted(valid_keys)])
+            raise T2NErrorMisuse(
+                f"Transformers experts registry does not expose "
+                f"{DEFAULT_EXPERTS_IMPLEMENTATION}; experts_implementation "
+                f"must be one of: {valid}"
+            )
+        return DEFAULT_EXPERTS_IMPLEMENTATION
+    if experts_implementation not in valid_keys:
+        valid = ", ".join(["auto", "model", *sorted(valid_keys)])
+        raise T2NErrorMisuse(f"experts_implementation must be one of: {valid}")
+    return experts_implementation
+
+
+def _iter_config_objects(model) -> T.Iterable[T.Any]:
+    seen = set()
+    stack = [getattr(model, "config", None)]
+    while stack:
+        config = stack.pop()
+        if config is None or id(config) in seen:
+            continue
+        seen.add(id(config))
+        yield config
+        text_config = getattr(config, "text_config", None)
+        if text_config is not None:
+            stack.append(text_config)
+
+
+def _apply_experts_implementation(
+    model, experts_implementation: T.Optional[str]
+):
+    if experts_implementation is None:
+        return
+    applied = False
+    for config in _iter_config_objects(model):
+        for attr in ("_experts_implementation", "experts_implementation"):
+            if hasattr(config, attr):
+                setattr(config, attr, experts_implementation)
+                applied = True
+    if not applied:
+        LOGGER.debug(
+            "experts_implementation=%s has no effect: the loaded model config "
+            "does not expose a Transformers experts implementation field",
+            experts_implementation,
+        )
+
+
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def _from_pretrained(
@@ -583,6 +654,7 @@ def load_model(
     trust_remote_code: bool = True,
     upcast_quant: T.Optional[T.Sequence[str]] = None,
     attn_implementation: T.Optional[str] = None,
+    experts_implementation: T.Optional[str] = "auto",
     *,
     transformers: InjectedTransformersModule = INJECTED,
 ):
@@ -596,6 +668,9 @@ def load_model(
     """
     # validate requested up-cast methods up-front, before any download/load
     upcast_quant = _normalize_upcast_request(upcast_quant)
+    experts_implementation = _normalize_experts_implementation(
+        experts_implementation, transformers
+    )
     # accept a str path from direct callers (the dump_llm path coerces upstream)
     if local_dir is not None:
         local_dir = Path(local_dir)
@@ -692,6 +767,7 @@ def load_model(
     # Finish the up-cast (post-load dequant + dense verification) before the
     # dtype cast below, since `.to(dtype)` does not dequantize quantized params.
     hf_model_causal = _finish_upcast(hf_model_causal, upcast_plan, upcast_quant)
+    _apply_experts_implementation(hf_model_causal, experts_implementation)
 
     if force_module_dtype is not None:
         force_dtype = DtypeStr(force_module_dtype).torch_dtype
