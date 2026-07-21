@@ -961,7 +961,13 @@ def _try_register(import_path: str, class_name: str):
         # class creation triggers metaclass registration
         LOGGER.debug("Registered %s extractor", class_name)
         return extractor_cls
-    except (ImportError, AttributeError):
+    except (ImportError, AttributeError, RuntimeError) as err:
+        LOGGER.debug(
+            "Could not register optional %s.%s MoE extractor: %s",
+            import_path,
+            class_name,
+            err,
+        )
         return None
 
 
