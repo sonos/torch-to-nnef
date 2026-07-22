@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from torch_to_nnef_llm.exporter import dump_multimodal
+from torch_to_nnef_llm.multimodal_exporter import dump_multimodal
 
 pytestmark = pytest.mark.experimental
 

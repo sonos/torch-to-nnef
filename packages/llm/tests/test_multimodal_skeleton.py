@@ -183,7 +183,7 @@ def test_build_manifest_wires_encoder_output_to_decoder_input():
         hidden_size=HIDDEN,
         placeholder_token_id_attr="image_token_id",
         dynamic_axis="IMG",
-        injection_layers=(8, 16, 24),
+        injection_layers=(0, 1, 2),
     )
     artifact = EncoderArtifact(
         label="vision",
@@ -207,11 +207,11 @@ def test_build_manifest_wires_encoder_output_to_decoder_input():
     assert output["feeds"] == "in_image_embeddings"
     assert output["shape"] == ["IMG", HIDDEN]
     assert output["dtype"] == "f16"
-    assert manifest["injection_layers"] == {"image": [8, 16, 24]}
+    assert manifest["injection_layers"] == {"image": [0, 1, 2]}
     # DeepStack per-layer streams: stream i feeds in_image_deepstack_i,
     # injected at injection_layers[i].
     deepstack = entry["deepstack"]
-    assert [d["layer"] for d in deepstack] == [8, 16, 24]
+    assert [d["layer"] for d in deepstack] == [0, 1, 2]
     assert deepstack[0]["name"] == "out_image_deepstack_0"
     assert deepstack[0]["feeds"] == "in_image_deepstack_0"
     assert deepstack[0]["shape"] == ["IMG", HIDDEN]  # falls back to dyn axis

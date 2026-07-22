@@ -615,17 +615,20 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
         return list(model_outputs)
 
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:
-        # the decoder layer indices where DeepStack residual embeddings are
-        # injected (config `deepstack_visual_indexes`); the i-th deepstack
-        # stream targets ``deepstack_indexes[i]``.
-        deepstack_indexes = _deepstack_indexes(config_helper.conf)
+        # DeepStack injects each collected feature stream into the FIRST
+        # `n_deepstack` DECODER layers: HF adds `deepstack_visual_embeds[i]` at
+        # decoder layer `i` (modeling: `layer_idx in range(len(embeds))`), so
+        # the injection layers are `range(n_deepstack)`. (config
+        # `deepstack_visual_indexes` = [8,16,24] are the VISION-tower blocks the
+        # streams are COLLECTED from, not decoder injection layers.)
+        n_deepstack = len(_deepstack_indexes(config_helper.conf))
         return [
             EmbeddingContract(
                 modality="image",
                 hidden_size=config_helper.conf.vision_config.out_hidden_size,
                 placeholder_token_id_attr="image_token_id",
                 dynamic_axis="IMG",
-                injection_layers=tuple(deepstack_indexes),
+                injection_layers=tuple(range(n_deepstack)),
                 deepstack_dynamic_axis="IMG_DEEP",
             )
         ]
