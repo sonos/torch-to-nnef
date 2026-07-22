@@ -170,19 +170,20 @@ class SdpaModule(torch.nn.Module):
 # executing the op during shape inference -- executing it is value-sensitive
 # (an inf/nan placeholder mask makes the softmax raise) and dtype-sensitive
 # (placeholder q/k/v dtypes need not agree). This case checks the rule matches
-# the real op's shape/dtype.
-test_suite.add(
-    "scaled_dot_product_attention",
-    parse_ir_and_get_first_op(
-        SdpaModule(),
-        (
-            torch.randn(1, 2, 8, 4),
-            torch.randn(1, 2, 8, 4),
-            torch.randn(1, 2, 8, 4),
+# the real op's shape/dtype. (SDPA exists from torch 2.0.)
+if hasattr(torch.nn.functional, "scaled_dot_product_attention"):
+    test_suite.add(
+        "scaled_dot_product_attention",
+        parse_ir_and_get_first_op(
+            SdpaModule(),
+            (
+                torch.randn(1, 2, 8, 4),
+                torch.randn(1, 2, 8, 4),
+                torch.randn(1, 2, 8, 4),
+            ),
+            "aten::scaled_dot_product_attention",
         ),
-        "aten::scaled_dot_product_attention",
-    ),
-)
+    )
 
 
 @pytest.mark.parametrize(
