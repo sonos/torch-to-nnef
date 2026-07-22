@@ -1,19 +1,68 @@
-"""Integration tests for Voxtral audio joint export.
+"""Voxtral audio joint-export tests.
 
-Marked ``experimental`` (needs ``--run-experimental``): downloads
-Voxtral-Mini-3B-2507. PyTorch-parity only (no tract), f32 for CPU numerics.
-Proves the encoder abstraction generalizes to audio: same EncoderHandler /
-EmbeddingContract with modality="audio".
+Default: systematic export on a shrunk dummy config with tract ``check_io``
+(:mod:`tests.multimodal_dummy`) -- proving the encoder abstraction generalizes
+to audio (modality="audio"). The real-checkpoint parity tests are gated behind
+``--run-experimental`` (they download Voxtral-Mini-3B-2507).
 """
 
 import pytest
 import torch
+from multimodal_dummy import assert_dummy_multimodal_export
+from transformers import VoxtralConfig, VoxtralForConditionalGeneration
 
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
 
 SLUG = "mistralai/Voxtral-Mini-3B-2507"
 
-pytestmark = pytest.mark.experimental
+
+def _dummy_config() -> VoxtralConfig:
+    return VoxtralConfig(
+        audio_token_id=1,
+        audio_config=dict(
+            num_mel_bins=8,
+            d_model=32,
+            encoder_layers=2,
+            encoder_attention_heads=2,
+            encoder_ffn_dim=64,
+            max_source_positions=16,
+            intermediate_size=64,
+            hidden_size=32,
+            num_hidden_layers=2,
+            num_attention_heads=2,
+        ),
+        text_config=dict(
+            hidden_size=32,
+            intermediate_size=64,
+            num_hidden_layers=2,
+            num_attention_heads=2,
+            num_key_value_heads=1,
+            vocab_size=100,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "f32",
+        pytest.param(
+            "f16",
+            marks=pytest.mark.xfail(
+                reason="voxtral audio tower f16: an op in the Whisper-style "
+                "encoder is not yet implemented in fp16 (per-arch encoder gap)",
+                strict=True,
+            ),
+        ),
+    ],
+)
+def test_dummy_multimodal_export(dtype, tmp_path):
+    assert_dummy_multimodal_export(
+        _dummy_config(),
+        VoxtralForConditionalGeneration,
+        dtype,
+        tmp_path / "export",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -28,6 +77,7 @@ def _input_features(model):
     return torch.randn(1, ac.num_mel_bins, ac.max_source_positions * 2)
 
 
+@pytest.mark.experimental
 def test_encoder_matches_reference_audio_features(exporter):
     model = exporter.hf_model_causal.eval()
     encoder = exporter.encoder_handlers[0].get_encoder_module(model).eval()
@@ -39,10 +89,12 @@ def test_encoder_matches_reference_audio_features(exporter):
     assert (ours - ref).abs().max().item() < 1e-3
 
 
+@pytest.mark.experimental
 def test_decoder_wrapper_self_consistent(exporter):
     exporter.decoder_exporter.check_wrapper_io()
 
 
+@pytest.mark.experimental
 def test_audio_chain_matches_reference(exporter):
     model = exporter.hf_model_causal.eval()
     ch = exporter.config_helper

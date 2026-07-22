@@ -1,17 +1,73 @@
-"""Integration tests for Qwen2.5-VL joint export.
+"""Qwen2.5-VL joint-export tests.
 
-Marked ``experimental`` (needs ``--run-experimental``): downloads
-Qwen2.5-VL-3B-Instruct. PyTorch-parity only (no tract), f32 for CPU numerics.
+Default: systematic export on a shrunk dummy config with tract ``check_io``
+(:mod:`tests.multimodal_dummy`). The real-checkpoint parity tests are gated
+behind ``--run-experimental`` (they download Qwen2.5-VL-3B-Instruct).
 """
 
 import pytest
 import torch
+from multimodal_dummy import assert_dummy_multimodal_export
+from transformers import (
+    Qwen2_5_VLConfig,
+    Qwen2_5_VLForConditionalGeneration,
+)
 
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
 
 SLUG = "Qwen/Qwen2.5-VL-3B-Instruct"
 
-pytestmark = pytest.mark.experimental
+
+def _dummy_config() -> Qwen2_5_VLConfig:
+    return Qwen2_5_VLConfig(
+        image_token_id=1,
+        vision_start_token_id=2,
+        vision_config=dict(
+            depth=2,
+            hidden_size=32,
+            intermediate_size=64,
+            num_heads=2,
+            in_channels=3,
+            patch_size=16,
+            temporal_patch_size=2,
+            spatial_merge_size=2,
+            out_hidden_size=64,
+            window_size=112,
+            fullatt_block_indexes=[1],
+        ),
+        text_config=dict(
+            hidden_size=64,
+            intermediate_size=128,
+            num_hidden_layers=2,
+            num_attention_heads=2,
+            num_key_value_heads=1,
+            vocab_size=100,
+            rope_scaling=dict(mrope_section=[8, 4, 4], rope_type="default"),
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "f32",
+        pytest.param(
+            "f16",
+            marks=pytest.mark.xfail(
+                reason="qwen2.5-vl vision f16: the baked rotary `arange` "
+                "constant is not yet supported in fp16 (per-arch encoder gap)",
+                strict=True,
+            ),
+        ),
+    ],
+)
+def test_dummy_multimodal_export(dtype, tmp_path):
+    assert_dummy_multimodal_export(
+        _dummy_config(),
+        Qwen2_5_VLForConditionalGeneration,
+        dtype,
+        tmp_path / "export",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -21,6 +77,7 @@ def exporter():
     )
 
 
+@pytest.mark.experimental
 def test_encoder_matches_reference_image_features(exporter):
     model = exporter.hf_model_causal.eval()
     handler = exporter.encoder_handlers[0]
@@ -46,5 +103,6 @@ def test_encoder_matches_reference_image_features(exporter):
     assert (ours - ref).abs().max().item() < 1e-3
 
 
+@pytest.mark.experimental
 def test_decoder_wrapper_self_consistent(exporter):
     exporter.decoder_exporter.check_wrapper_io()

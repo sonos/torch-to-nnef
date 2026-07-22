@@ -1,18 +1,54 @@
-"""Integration tests for Idefics3 / SmolVLM joint export.
+"""Idefics3 / SmolVLM joint-export tests.
 
-Marked ``experimental`` (needs ``--run-experimental``) because they download a
-real checkpoint. They validate that the encoder + decoder handlers reproduce the
-reference multimodal forward in PyTorch.
+By default, a tiny random-weight model is built from a shrunk config and run
+through the real exporter (encoder + decoder + manifest) with tract
+``check_io`` -- see :mod:`tests.multimodal_dummy`. The real-checkpoint parity
+tests are gated behind ``--run-experimental`` (they download SmolVLM).
 """
 
 import pytest
 import torch
+from multimodal_dummy import assert_dummy_multimodal_export
+from transformers import Idefics3Config, Idefics3ForConditionalGeneration
 
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
 
 SLUG = "HuggingFaceTB/SmolVLM-256M-Instruct"
 
-pytestmark = pytest.mark.experimental
+
+def _dummy_config() -> Idefics3Config:
+    return Idefics3Config(
+        image_token_id=1,
+        scale_factor=2,
+        vision_config=dict(
+            hidden_size=32,
+            intermediate_size=64,
+            num_hidden_layers=2,
+            num_attention_heads=2,
+            num_channels=3,
+            image_size=64,
+            patch_size=16,
+        ),
+        text_config=dict(
+            hidden_size=64,
+            intermediate_size=128,
+            num_hidden_layers=2,
+            num_attention_heads=2,
+            num_key_value_heads=1,
+            vocab_size=100,
+            max_position_embeddings=128,
+        ),
+    )
+
+
+@pytest.mark.parametrize("dtype", ["f32", "f16"])
+def test_dummy_multimodal_export(dtype, tmp_path):
+    assert_dummy_multimodal_export(
+        _dummy_config(),
+        Idefics3ForConditionalGeneration,
+        dtype,
+        tmp_path / "export",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -22,6 +58,7 @@ def exporter():
     )
 
 
+@pytest.mark.experimental
 def test_encoder_matches_reference_image_features(exporter):
     model = exporter.hf_model_causal.eval()
     vc = exporter.config_helper.conf.vision_config
@@ -39,10 +76,12 @@ def test_encoder_matches_reference_image_features(exporter):
     assert (ours - ref).abs().max().item() < 1e-4
 
 
+@pytest.mark.experimental
 def test_decoder_wrapper_self_consistent(exporter):
     exporter.decoder_exporter.check_wrapper_io()
 
 
+@pytest.mark.experimental
 def test_encoder_decoder_chain_matches_reference(exporter):
     model = exporter.hf_model_causal.eval()
     ch = exporter.config_helper

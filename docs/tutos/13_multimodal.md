@@ -62,16 +62,18 @@ dump_multimodal(
 
 !!! tip "Choosing a dtype"
 
-    Export defaults to `f32`, which is exact and the safest choice for small
-    models. Pass `-dt f16` (`float16`) to halve the weight footprint -- it is a
-    **verified** path for the whole pipeline (encoder *and* decoder).
+    Export defaults to `f32`, which is exact and works for every supported
+    model. Pass `-dt f16` (`float16`) to halve the weight footprint.
 
     In `f16` the exporter automatically routes every attention to SDPA and keeps
     normalization, attention and matmul accumulation in `f32` (fp16 towers and
     decoders otherwise overflow in their eager attention), then checks against
     `tract` at its loosest tolerance. Both the torch reference (CPU SDPA upcasts
-    internally) and the exported graph then agree, so a `-dt f16` export passes
-    `check_io` end to end with no extra flags.
+    internally) and the exported graph then agree. This makes `f16` a verified,
+    no-extra-flags path for SigLIP-based towers (e.g. SmolVLM). A few encoders
+    still hit an architecture-specific fp16 gap in their tower (tracked by the
+    export test suite); for those, export the encoder in `f32` or pass
+    `--no-verify`.
 
     `bfloat16` is not exportable yet (the numpy-backed NNEF tensor layer has no
     `bfloat16`); use `f16` or `f32`.

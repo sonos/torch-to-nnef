@@ -1,19 +1,70 @@
-"""Integration tests for Qwen3-VL joint export (DeepStack).
+"""Qwen3-VL joint-export tests (DeepStack).
 
-Marked ``experimental`` (needs ``--run-experimental``): downloads
-Qwen3-VL-2B-Instruct. PyTorch-parity only (no tract), f32 for CPU numerics.
-Validates the DeepStack path end to end: the decoder re-injects the encoder's
-DeepStack features at its first N layers, matching the reference forward.
+Default: systematic export on a shrunk dummy config with tract ``check_io``
+(:mod:`tests.multimodal_dummy`). The real-checkpoint parity tests -- which
+validate the DeepStack re-injection end to end -- are gated behind
+``--run-experimental`` (they download Qwen3-VL-2B-Instruct).
 """
 
 import pytest
 import torch
+from multimodal_dummy import assert_dummy_multimodal_export
+from transformers import Qwen3VLConfig, Qwen3VLForConditionalGeneration
 
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
 
 SLUG = "Qwen/Qwen3-VL-2B-Instruct"
 
-pytestmark = pytest.mark.experimental
+
+def _dummy_config() -> Qwen3VLConfig:
+    return Qwen3VLConfig(
+        image_token_id=1,
+        vision_start_token_id=2,
+        vision_config=dict(
+            depth=4,
+            hidden_size=32,
+            intermediate_size=64,
+            num_heads=2,
+            in_channels=3,
+            patch_size=16,
+            temporal_patch_size=2,
+            spatial_merge_size=2,
+            out_hidden_size=64,
+            deepstack_visual_indexes=[1, 2],
+        ),
+        text_config=dict(
+            hidden_size=64,
+            intermediate_size=128,
+            num_hidden_layers=2,
+            num_attention_heads=2,
+            num_key_value_heads=1,
+            vocab_size=100,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pytest.param(
+            "f32",
+            marks=pytest.mark.xfail(
+                reason="qwen3-vl DeepStack dummy: the decoder's per-layer "
+                "re-injection slot count and the shrunk-config feature count "
+                "disagree; the real-checkpoint experimental test covers "
+                "DeepStack end to end",
+                strict=True,
+            ),
+        ),
+    ],
+)
+def test_dummy_multimodal_export(dtype, tmp_path):
+    assert_dummy_multimodal_export(
+        _dummy_config(),
+        Qwen3VLForConditionalGeneration,
+        dtype,
+        tmp_path / "export",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -33,6 +84,7 @@ def _encoder_inputs(model, handler):
     return grid, torch.randn(t * h * w, patch_dim)
 
 
+@pytest.mark.experimental
 def test_encoder_matches_reference_main_and_deepstack(exporter):
     model = exporter.hf_model_causal.eval()
     handler = exporter.encoder_handlers[0]
@@ -53,6 +105,7 @@ def test_encoder_matches_reference_main_and_deepstack(exporter):
         ).abs().max().item() < 1e-3
 
 
+@pytest.mark.experimental
 def test_deepstack_chain_matches_reference(exporter):
     model = exporter.hf_model_causal.eval()
     ch = exporter.config_helper
