@@ -158,12 +158,15 @@ class MultiModalExporter:
     def load(cls, *args, **kwargs) -> "MultiModalExporter":
         """Load like :meth:`LLMExporter.load`, returning a joint exporter.
 
-        Defaults ``force_module_dtype`` to bf16 (the native dtype of most
-        multimodal checkpoints) instead of letting a caller silently upcast to
-        f32: a 4B model in f32 is ~17GB and, with the tract check_io subprocess
-        loading a second copy, that doubles to ~34GB and can exhaust RAM.
+        Defaults ``force_module_dtype`` to f32. bfloat16 (the native dtype of
+        most multimodal checkpoints) cannot round-trip through the numpy-based
+        NNEF representation yet (no numpy bf16), and CPU f16 hits layer-norm /
+        attention issues, so f32 is the only dtype that reliably exports today.
+        f32 makes a multi-billion-param model heavy (see the check_io RAM
+        warning in ``export``); pass ``no_verify=True`` for large models to skip
+        the tract subprocess, or export on a larger-RAM host.
         """
-        kwargs.setdefault("force_module_dtype", "bf16")
+        kwargs.setdefault("force_module_dtype", "f32")
         return cls(LLMExporter.load(*args, **kwargs))
 
     @property
@@ -274,10 +277,11 @@ class MultiModalExporter:
             and n_params > LARGE_MODEL_CHECK_IO_WARN_PARAMS
         ):
             LOGGER.warning(
-                "check_io on a %.1fB-param model: peak RAM is roughly 2x the "
-                "weight size because the torch model stays resident while the "
-                "tract subprocess loads the NNEF. Prefer bf16/f16 (not f32), "
-                "ensure enough free RAM, or pass no_verify=True to skip it.",
+                "check_io on a %.1fB-param f32 model: peak RAM is roughly 2x "
+                "the weight size because the torch model stays resident while "
+                "the tract subprocess loads the NNEF. Pass no_verify=True to "
+                "skip the tract check, or export on a larger-RAM host. (bf16/"
+                "f16 would halve RAM but are not NNEF-exportable yet.)",
                 n_params / 1e9,
             )
 

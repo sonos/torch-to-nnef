@@ -59,10 +59,13 @@ dump_multimodal(
 
 !!! warning "Memory"
 
-    The loader defaults to `bf16` on purpose. Forcing `f32` on a multi-billion
-    parameter model, while the tract `check_io` subprocess loads a second copy
-    of the graph, can double peak RAM. For a large model prefer `bf16`/`f16`,
-    ensure enough free RAM, or pass `--no-verify` to skip the tract check.
+    The exporter runs in `f32`: `bfloat16` cannot round-trip through the NNEF
+    representation yet and CPU `float16` hits layer-norm/attention issues, so
+    `f32` is the only reliably exportable dtype today. `f32` on a multi-billion
+    parameter model is heavy, and `check_io` roughly doubles peak RAM (the
+    torch model stays resident while the tract subprocess loads the graph). For
+    a large model pass `--no-verify` to skip the tract check, or export on a
+    larger-RAM host.
 
 ## Output layout
 
