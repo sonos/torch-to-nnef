@@ -13,9 +13,16 @@ from transformers import (
     Qwen2_5_VLForConditionalGeneration,
 )
 
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
 
 SLUG = "Qwen/Qwen2.5-VL-3B-Instruct"
+
+# The qwen2.5-vl f16 gap is a tract `-O` optimizer bug (the emitted graph is
+# correct with -O disabled), fixed in tract main. Gate the xfail on the tract
+# version so it becomes an expected pass automatically once t2n's supported
+# tract bumps past the fix (assumed to land in the next patch, >= 0.23.5).
+_TRACT_HAS_FP16_OPT_FIX = TractNNEF.latest_version() >= "0.23.5"
 
 
 def _dummy_config() -> Qwen2_5_VLConfig:
@@ -54,8 +61,11 @@ def _dummy_config() -> Qwen2_5_VLConfig:
         pytest.param(
             "f16",
             marks=pytest.mark.xfail(
-                reason="qwen2.5-vl vision f16: the baked rotary `arange` "
-                "constant is not yet supported in fp16 (per-arch encoder gap)",
+                condition=not _TRACT_HAS_FP16_OPT_FIX,
+                reason="qwen2.5-vl vision f16: tract `-O` optimizer bug -- "
+                "the emitted graph is correct (bit-exact with -O disabled); "
+                "tract's -O mis-compiles the einsum(acc=f32)+cast pattern. "
+                "Fixed in tract main; passes once tract >= 0.23.5 is used.",
                 strict=True,
             ),
         ),

@@ -42,20 +42,7 @@ def _dummy_config() -> VoxtralConfig:
     )
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [
-        "f32",
-        pytest.param(
-            "f16",
-            marks=pytest.mark.xfail(
-                reason="voxtral audio tower f16: an op in the Whisper-style "
-                "encoder is not yet implemented in fp16 (per-arch encoder gap)",
-                strict=True,
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("dtype", ["f32", "f16"])
 def test_dummy_multimodal_export(dtype, tmp_path):
     assert_dummy_multimodal_export(
         _dummy_config(),

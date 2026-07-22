@@ -40,20 +40,7 @@ def _dummy_config() -> Gemma3Config:
     )
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [
-        "f32",
-        pytest.param(
-            "f16",
-            marks=pytest.mark.xfail(
-                reason="gemma3 vision f16: SDPA image-span mask hits a dtype "
-                "path unsupported in fp16 (per-arch encoder gap)",
-                strict=True,
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("dtype", ["f32", "f16"])
 def test_dummy_multimodal_export(dtype, tmp_path):
     assert_dummy_multimodal_export(
         _dummy_config(),
