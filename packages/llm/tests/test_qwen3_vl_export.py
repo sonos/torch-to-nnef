@@ -11,9 +11,15 @@ import torch
 from multimodal_dummy import assert_dummy_multimodal_export
 from transformers import Qwen3VLConfig, Qwen3VLForConditionalGeneration
 
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
 
 SLUG = "Qwen/Qwen3-VL-2B-Instruct"
+
+# Like qwen2.5-vl, the f16 vision encoder is bit-exact with tract's optimizer
+# disabled but hits the tract `-O` einsum(acc=f32)+cast mis-compile. Fixed in
+# tract main; gate so it auto-passes once t2n uses tract >= 0.23.5.
+_TRACT_HAS_FP16_OPT_FIX = TractNNEF.latest_version() >= "0.23.5"
 
 
 def _dummy_config() -> Qwen3VLConfig:
@@ -43,7 +49,22 @@ def _dummy_config() -> Qwen3VLConfig:
     )
 
 
-@pytest.mark.parametrize("dtype", ["f32"])
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "f32",
+        pytest.param(
+            "f16",
+            marks=pytest.mark.xfail(
+                condition=not _TRACT_HAS_FP16_OPT_FIX,
+                reason="qwen3-vl vision f16: same tract `-O` optimizer bug as "
+                "qwen2.5-vl (bit-exact with -O disabled). Fixed in tract main; "
+                "passes once tract >= 0.23.5 is used.",
+                strict=True,
+            ),
+        ),
+    ],
+)
 def test_dummy_multimodal_export(dtype, tmp_path):
     assert_dummy_multimodal_export(
         _dummy_config(),
