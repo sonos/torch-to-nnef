@@ -149,6 +149,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_NEW_EMPTY: cls.aten_new_empty,
             ATEN_FULL: cls.aten_full,
             ATEN_FULL_LIKE: cls.aten_full_like,
+            ATEN_GATHER: cls.aten_gather,
             ATEN_GELU: cls.aten_gelu,
             ATEN_LINALG_NORM: cls.aten_linalg_norm,
             ATEN_LINALG_VECTOR_NORM: cls.aten_linalg_norm,
@@ -188,6 +189,19 @@ class InputsAlignBetweenAtenAndTorch:
         args = list(args)
         args[0] = args[0].bool()
         args = tuple(args)
+        return args, kwargs
+
+    @staticmethod
+    def aten_gather(args, kwargs):
+        # `torch.gather` (and the `aten::gather` overload packet) take
+        # `sparse_grad` as a keyword-only argument; the IR hands it to us as a
+        # 4th positional. Passing it positionally makes PyTorch's overload
+        # resolver flip to the `dimname` overload (`str dim`) and raise an
+        # int->str cast error. Route it through the kwarg so the `int dim`
+        # overload is selected.
+        if len(args) >= 4:
+            kwargs["sparse_grad"] = args[3]
+            args = tuple(args[:3])
         return args, kwargs
 
     @staticmethod
@@ -839,6 +853,14 @@ class TorchOp:
                     and not hasattr(arg, "dtype")
                 ):
                     return self.call_op()
+
+        # The placeholder below only carries shape/dtype (uninitialised
+        # memory). When every input is constant the caller constant-folds this
+        # output via `set_data`, so it must be the REAL value: bake it with
+        # `call_op` instead, otherwise the garbage placeholder becomes the
+        # folded constant (silently wrong, e.g. Qwen3-VL `pos_embed(idx)`).
+        if self.has_constant_inputs:
+            return self.call_op()
 
         return _build_empty_tensor_from_infer_trace(
             rule.fn, self.args, rule.arity
