@@ -175,8 +175,7 @@ def test_layer_norm_f16_unsupported_in_torch():
 
 
 @pytest.mark.skipif(
-    condition=not TRACT_INFERENCES_TO_TESTS_APPROX
-    or torch_version() < "2.2.0",
+    condition=not TRACT_INFERENCES_TO_TESTS_APPROX or torch_version() < "2.2.0",
     reason="no tract target, or torch too old for CPU fp16 ops",
 )
 def test_arange_f16_exports():
