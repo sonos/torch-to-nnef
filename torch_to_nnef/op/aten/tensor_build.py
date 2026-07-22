@@ -51,10 +51,11 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
         )
 
     # see SCALAR_TYPE_TO_PYTORCH_TYPE for reference index:
-    #   3 = int32, 4 = int64, 6 = float32, 7 = float64
-    # float64 shows up in RoPE-style position embeds; NNEF runtimes execute
-    # the arange as f32 which is fine for integer-range / position math.
-    if dtype_node.data not in [6, None, 4, 3, 7]:
+    #   3 = int32, 4 = int64, 5 = float16, 6 = float32, 7 = float64
+    # float64/float16 show up in RoPE-style position embeds (f16 on half
+    # precision towers); NNEF runtimes execute the arange as f32 which is fine
+    # for integer-range / position math.
+    if dtype_node.data not in [6, None, 4, 3, 7, 5]:
         raise T2NErrorNotImplemented(
             f"dtype {dtype_node} not implemented for arange"
         )

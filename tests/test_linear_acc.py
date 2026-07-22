@@ -46,6 +46,18 @@ if tract_latest.version >= "0.21.11":
     except RuntimeError as exp:
         print("failed to add the test because torch:", exp)
 
+    # rank-2 input: flattened projections in vision/audio towers (e.g. the
+    # attention out-proj / patch merger) hit `linear` with a 2D input, which
+    # the f32-accumulation einsum must handle alongside the 3D/4D forms.
+    mod_r2 = nn.Linear(3, 4).half()
+    inp_r2 = torch.arange(12).reshape(4, 3).half()
+    try:
+        with torch.inference_mode():
+            mod_r2(inp_r2)
+        test_suite.add(inp_r2, mod_r2)
+    except RuntimeError as exp:
+        print("failed to add the rank-2 linear test because torch:", exp)
+
     # `conv` shares the `force_linear_accumulation_in_f32` option with
     # `linear`: an fp16 conv accumulator diverges from PyTorch's CPU f16
     # kernels (which accumulate in f32), so we upcast the conv to f32 and

@@ -558,7 +558,11 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
                 " fallback to f16"
             )
         else:
-            if input_node.rank == 3:
+            if input_node.rank == 2:
+                expr = "ij,kj->ik"
+                if weight_node.rank != 2:
+                    raise T2NErrorNotImplemented(weight_node.rank)
+            elif input_node.rank == 3:
                 expr = "bij,kj->bik"
                 if weight_node.rank != 2:
                     raise T2NErrorNotImplemented(weight_node.rank)

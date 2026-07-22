@@ -395,6 +395,20 @@ def _infer_shape_embedding_output(
     return torch.Size(bx + ax[1:])
 
 
+def _infer_shape_sdpa(query, key, value) -> torch.Size:
+    """Infer `scaled_dot_product_attention` output shape without executing it.
+
+    Output follows the query layout with the value's feature size:
+    ``(*query.shape[:-1], value.shape[-1])``. Executing the real op during
+    shape inference is both value-sensitive (an inf/nan placeholder mask makes
+    the softmax raise) and dtype-sensitive (placeholder q/k/v dtypes need not
+    agree, and torch's SDPA rejects mixed dtypes), so short-circuit like the
+    other trace-hostile ops.
+    """
+    del key
+    return torch.Size(list(query.shape[:-1]) + [value.shape[-1]])
+
+
 def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
     """Infer output tensor shape of `aten::matmul` without executing it.
 
@@ -528,9 +542,17 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
 def _build_empty_tensor_from_infer_trace(
     fn_infer_trace: T.Callable, inputs, qte_inputs_to_use: int
 ) -> torch.Tensor:
-    """Utility to build zero tensor of given dtype and shape."""
+    """Build a finite placeholder of the inferred dtype and shape.
+
+    Only the shape/dtype matter for inference, but this placeholder is fed
+    forward to rule-less ops that get executed (e.g. attention/softmax), so it
+    must be finite: ``torch.empty`` returns uninitialised memory that -- read
+    as ``float16`` -- is routinely ``inf``/``nan`` and makes those downstream
+    ops fail at trace time. ``zeros`` keeps it finite (as the name always
+    implied).
+    """
     infered_shape = fn_infer_trace(*inputs[:qte_inputs_to_use])
-    return torch.empty(infered_shape, dtype=inputs[0].dtype)
+    return torch.zeros(infered_shape, dtype=inputs[0].dtype)
 
 
 def _tensors_share_storage(left: torch.Tensor, right: torch.Tensor) -> bool:
@@ -586,6 +608,9 @@ INFER_RULES = {
         lambda _seq, vals, *_: vals.shape, 2, require_dtype=False
     ),
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
+    ATEN_SCALED_DOT_PRODUCT_ATTENTION: InferRule(
+        _infer_shape_sdpa, 3, require_dtype=False
+    ),
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
     ATEN_GROUPED_MM: InferRule(_infer_shape_grouped_mm_output, 2),
