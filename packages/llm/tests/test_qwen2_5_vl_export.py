@@ -28,7 +28,7 @@ def test_encoder_matches_reference_image_features(exporter):
     t, h, w = handler.SAMPLE_GRID_THW
     grid = torch.tensor([handler.SAMPLE_GRID_THW], dtype=torch.long)
     patch_dim = (
-        vc.in_chans * vc.temporal_patch_size * vc.patch_size * vc.patch_size
+        vc.in_channels * vc.temporal_patch_size * vc.patch_size * vc.patch_size
     )
     pixel_values = torch.randn(t * h * w, patch_dim)
 

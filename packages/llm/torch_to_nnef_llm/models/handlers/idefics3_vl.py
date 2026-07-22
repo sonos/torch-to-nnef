@@ -106,6 +106,12 @@ class Idefics3VisionEncoder(torch.nn.Module):
 
     def forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
         num_tiles = pixel_values.shape[0]
+        # match the reference get_image_features, which casts pixel_values to
+        # the tower dtype before the patch conv (the exported input dtype need
+        # not match the module dtype, e.g. bf16 weights with f16 inputs).
+        pixel_values = pixel_values.to(
+            self.embeddings.patch_embedding.weight.dtype
+        )
         patch_embeds = self.embeddings.patch_embedding(pixel_values)
         embeddings = patch_embeds.flatten(2).transpose(1, 2)
         position_ids = torch.arange(

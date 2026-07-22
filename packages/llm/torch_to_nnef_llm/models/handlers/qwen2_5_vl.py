@@ -1,11 +1,11 @@
 """Joint-export handlers for Qwen2.5-VL vision-language models.
 
-- :class:`Qwen2_5VLVisionEncoderHandler`: the vision tower (conv3d patch embed,
+- :class:`Qwen25VLVisionEncoderHandler`: the vision tower (conv3d patch embed,
   2D-RoPE, window + full attention, patch merger). ``grid_thw`` is baked as a
   constant so the data-dependent window_index / cu_seqlens / rotary structure
   folds to constants at trace time, leaving only ``pixel_values`` flowing; the
   non-flash attention then splits into fixed-size windows.
-- :class:`Qwen2_5VLArchitectureHandler`: the decoder graph. Reuses the landed
+- :class:`Qwen25VLArchitectureHandler`: the decoder graph. Reuses the landed
   Qwen3-VL decoder handler (image-embedding injection + mRoPE + rope_deltas);
   only the loaded model class differs (no DeepStack in Qwen2.5-VL).
 
@@ -29,11 +29,11 @@ from .qwen3_vl import (
 from .registry import register_encoder_handler, register_handler
 
 
-class Qwen2_5VLVisionEncoder(torch.nn.Module):
+class Qwen25VLVisionEncoder(torch.nn.Module):
     """Vision tower traced as one encoder graph, with grid_thw baked constant.
 
     Input ``pixel_values`` is the processor's flattened patch tensor of shape
-    ``[num_patches, in_chans * temporal_patch * patch**2]``; output is the
+    ``[num_patches, in_channels * temporal_patch * patch**2]``; output is the
     merger embeddings ``[num_patches // merge**2, out_hidden]`` ready for the
     decoder splice.
     """
@@ -48,7 +48,7 @@ class Qwen2_5VLVisionEncoder(torch.nn.Module):
 
 
 @register_encoder_handler
-class Qwen2_5VLVisionEncoderHandler(EncoderHandler):
+class Qwen25VLVisionEncoderHandler(EncoderHandler):
     """Encoder handler for the Qwen2.5-VL vision tower."""
 
     MODALITY = "vision"
@@ -61,14 +61,14 @@ class Qwen2_5VLVisionEncoderHandler(EncoderHandler):
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         visual = bake_vision_rotary_seqlen(hf_model.model.visual)
-        return Qwen2_5VLVisionEncoder(visual, self._grid_tensor())
+        return Qwen25VLVisionEncoder(visual, self._grid_tensor())
 
     def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
         vision_conf = config_helper.conf.vision_config
         t, h, w = self.SAMPLE_GRID_THW
         num_patches = t * h * w
         patch_dim = (
-            vision_conf.in_chans
+            vision_conf.in_channels
             * vision_conf.temporal_patch_size
             * vision_conf.patch_size
             * vision_conf.patch_size
@@ -104,7 +104,7 @@ class Qwen2_5VLVisionEncoderHandler(EncoderHandler):
 
 
 @register_handler
-class Qwen2_5VLArchitectureHandler(Qwen3VLArchitectureHandler):
+class Qwen25VLArchitectureHandler(Qwen3VLArchitectureHandler):
     """Decoder handler for Qwen2.5-VL (Qwen3-VL logic minus DeepStack)."""
 
     ARCH_NAMES = ("qwen2_5_vl",)

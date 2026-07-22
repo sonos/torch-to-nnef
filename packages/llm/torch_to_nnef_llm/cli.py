@@ -21,12 +21,9 @@ from torch_to_nnef_llm.config import (
     OpenELMSlugs,
     PHISlugs,
 )
-from torch_to_nnef_llm.exporter import (
-    DEFAULT_HF_DOWNLOAD_N_RETRIES,
-    dump_llm,
-    dump_multimodal,
-)
+from torch_to_nnef_llm.exporter import DEFAULT_HF_DOWNLOAD_N_RETRIES, dump_llm
 from torch_to_nnef_llm.models.base import DYNAMIC_LOGITS_TO_KEEP
+from torch_to_nnef_llm.multimodal_exporter import dump_multimodal
 
 LOGGER = logging.getLogger(__name__)
 

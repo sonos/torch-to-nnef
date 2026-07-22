@@ -19,6 +19,7 @@ import typing as T
 from dataclasses import dataclass
 from pathlib import Path
 
+from torch_to_nnef.exceptions import T2NErrorConsistency
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import (
     TractCheckTolerance,
@@ -26,7 +27,14 @@ from torch_to_nnef.inference_target.tract import (
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef_llm.config import DtypeStr, ExportDirStruct
-from torch_to_nnef_llm.exporter import LM_VAR_SCHEME, LLMExporter
+from torch_to_nnef_llm.exporter import (
+    DEFAULT_HF_DOWNLOAD_N_RETRIES,
+    LM_VAR_SCHEME,
+    TYPE_OPTIONAL_DEVICE_MAP,
+    LLMExporter,
+    _normalize_dump_kwargs,
+    _resolve_attn_implementation,
+)
 from torch_to_nnef_llm.models.base import BaseEncoder, update_forward_signature
 from torch_to_nnef_llm.models.handlers import (
     EmbeddingContract,
@@ -76,6 +84,12 @@ def build_manifest(
             placeholder_token_id = getattr(
                 config, contract.placeholder_token_id_attr, None
             )
+            if placeholder_token_id is None:
+                raise T2NErrorConsistency(
+                    f"config has no '{contract.placeholder_token_id_attr}' for "
+                    f"the {contract.modality!r} contract: the decoder cannot "
+                    "splice embeddings without a placeholder token id"
+                )
             encoder_entries.append(
                 {
                     "modality": contract.modality,
@@ -95,6 +109,13 @@ def build_manifest(
                 }
             )
             if contract.injection_layers:
+                # DeepStack: extra residual streams are injected at these
+                # decoder layer indices. The per-layer tensors follow the
+                # convention ``out_<modality>_deepstack_<i>`` (encoder) ->
+                # ``in_<modality>_deepstack_<i>`` (decoder), i in range(len).
+                # They are NOT yet enumerated as individual outputs above
+                # (each has its own dynamic axis); a runtime wires them by that
+                # convention. Full enumeration is a follow-up.
                 injection_layers[contract.modality] = list(
                     contract.injection_layers
                 )
@@ -253,3 +274,83 @@ class MultiModalExporter:
         manifest_path = self._write_manifest(export_dirpath, encoders)
         LOGGER.info("wrote multimodal manifest: %s", manifest_path)
         return export_dirpath
+
+
+#: kwargs consumed by `build_inference_target` (not by the decoder dump call).
+_INFERENCE_TARGET_ONLY_KWARGS = (
+    "tract_specific_path",
+    "tract_specific_version",
+    "tract_specific_properties",
+    "force_f32_attention",
+    "force_f32_linear_accumulator",
+    "force_f32_normalization",
+    "reify_sdpa_operator",
+    "tract_check_io_tolerance",
+)
+
+
+def dump_multimodal(
+    model_slug: T.Optional[str] = None,
+    local_dir: T.Optional[Path] = None,
+    force_module_dtype: T.Optional[DtypeStr] = None,
+    force_inputs_dtype: T.Optional[DtypeStr] = None,
+    merge_peft: T.Optional[bool] = None,
+    num_logits_to_keep: T.Union[int, str] = 1,
+    device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
+    hf_download_n_retries: int = DEFAULT_HF_DOWNLOAD_N_RETRIES,
+    trust_remote_code: bool = True,
+    upcast_quant: T.Optional[T.Sequence[str]] = None,
+    attn_implementation: T.Optional[str] = None,
+    experts_implementation: T.Optional[str] = "auto",
+    **kwargs,
+) -> T.Tuple[T.Union[Path, None], "MultiModalExporter"]:
+    """Export a multimodal model as coordinated NNEF graphs + a manifest.
+
+    Mirrors :func:`~torch_to_nnef_llm.exporter.dump_llm`, but loads via
+    :class:`MultiModalExporter` and writes the vision/audio encoder graph(s),
+    the LLM decoder graph, and a ``multimodal.json`` manifest tying them
+    together.
+    """
+    attn_implementation = _resolve_attn_implementation(
+        attn_implementation,
+        kwargs.get("reify_sdpa_operator"),
+    )
+    exporter = MultiModalExporter.load(
+        model_slug,
+        local_dir,
+        force_module_dtype=force_module_dtype,
+        force_inputs_dtype=force_inputs_dtype,
+        merge_peft=merge_peft,
+        num_logits_to_keep=num_logits_to_keep,
+        device_map=device_map,
+        hf_download_n_retries=hf_download_n_retries,
+        trust_remote_code=trust_remote_code,
+        upcast_quant=upcast_quant,
+        attn_implementation=attn_implementation,
+        experts_implementation=experts_implementation,
+    )
+    dump_kwargs = _normalize_dump_kwargs(kwargs)
+    target_kwargs = {
+        key: dump_kwargs.pop(key)
+        for key in _INFERENCE_TARGET_ONLY_KWARGS
+        if key in dump_kwargs
+    }
+    inference_target = exporter.decoder_exporter.build_inference_target(
+        **target_kwargs,
+        no_verify=dump_kwargs.get("no_verify", False),
+        compression_method=dump_kwargs.get("compression_method"),
+        compression_registry=dump_kwargs.get("compression_registry"),
+    )
+    # the manifest records the decoder at ``decoder/model.nnef.tgz``; force the
+    # FLAT layout so the graph lands there (DEEP would nest it one level down).
+    dump_kwargs.pop("export_dir_struct", None)
+    export_dirpath = dump_kwargs.pop("export_dirpath")
+    exporter.export(
+        export_dirpath=export_dirpath,
+        inference_target=inference_target,
+        **dump_kwargs,
+    )
+    return (
+        Path(export_dirpath) if export_dirpath else None,
+        exporter,
+    )

@@ -112,7 +112,7 @@ The manifest is the contract a runtime needs to connect the graphs:
 | `encoders[].outputs[].feeds` | Input tensor of the **decoder** graph it must be fed into. |
 | `encoders[].outputs[].shape` | `[dynamic_axis_symbol, hidden_size]`. |
 | `encoders[].outputs[].dtype` | Element type of the embeddings exchanged. |
-| `injection_layers` *(optional)* | `{modality: [layer_idx, …]}` for models (e.g. Qwen3-VL DeepStack) that inject features at several decoder layers rather than only at the embedding input. |
+| `injection_layers` *(optional)* | `{modality: [layer_idx, …]}` for models (e.g. Qwen3-VL DeepStack) that inject features at several decoder layers rather than only at the embedding input. The per-layer tensors follow the convention `out_<modality>_deepstack_<i>` (encoder) feeding `in_<modality>_deepstack_<i>` (decoder), for `i` in `range(len(layers))`. |
 
 ## Runtime integration
 

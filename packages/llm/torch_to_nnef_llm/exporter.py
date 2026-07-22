@@ -53,9 +53,6 @@ from torch_to_nnef_llm.models.base import (
     use_dtype_dyn_cache,
 )
 
-if T.TYPE_CHECKING:
-    from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
-
 LOGGER = logging.getLogger(__name__)
 
 TYPE_OPTIONAL_DEVICE_MAP = T.Optional[
@@ -1125,87 +1122,5 @@ def dump_llm(
     export_path = dump_kwargs.get("export_dirpath")
     return (
         Path(export_path) if export_path else None,
-        exporter,
-    )
-
-
-#: kwargs consumed by `build_inference_target` (not by the decoder dump call).
-_INFERENCE_TARGET_ONLY_KWARGS = (
-    "tract_specific_path",
-    "tract_specific_version",
-    "tract_specific_properties",
-    "force_f32_attention",
-    "force_f32_linear_accumulator",
-    "force_f32_normalization",
-    "reify_sdpa_operator",
-    "tract_check_io_tolerance",
-)
-
-
-def dump_multimodal(
-    model_slug: T.Optional[str] = None,
-    local_dir: T.Optional[Path] = None,
-    force_module_dtype: T.Optional[DtypeStr] = None,
-    force_inputs_dtype: T.Optional[DtypeStr] = None,
-    merge_peft: T.Optional[bool] = None,
-    num_logits_to_keep: T.Union[int, str] = 1,
-    device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
-    hf_download_n_retries: int = DEFAULT_HF_DOWNLOAD_N_RETRIES,
-    trust_remote_code: bool = True,
-    upcast_quant: T.Optional[T.Sequence[str]] = None,
-    attn_implementation: T.Optional[str] = None,
-    experts_implementation: T.Optional[str] = "auto",
-    **kwargs,
-) -> T.Tuple[T.Union[Path, None], "MultiModalExporter"]:
-    """Export a multimodal model as coordinated NNEF graphs + a manifest.
-
-    Mirrors :func:`dump_llm`, but loads via :class:`MultiModalExporter` and
-    writes the vision/audio encoder graph(s), the LLM decoder graph, and a
-    ``multimodal.json`` manifest tying them together.
-    """
-    # deferred import: multimodal_exporter imports this module at load time
-    from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
-
-    attn_implementation = _resolve_attn_implementation(
-        attn_implementation,
-        kwargs.get("reify_sdpa_operator"),
-    )
-    exporter = MultiModalExporter.load(
-        model_slug,
-        local_dir,
-        force_module_dtype=force_module_dtype,
-        force_inputs_dtype=force_inputs_dtype,
-        merge_peft=merge_peft,
-        num_logits_to_keep=num_logits_to_keep,
-        device_map=device_map,
-        hf_download_n_retries=hf_download_n_retries,
-        trust_remote_code=trust_remote_code,
-        upcast_quant=upcast_quant,
-        attn_implementation=attn_implementation,
-        experts_implementation=experts_implementation,
-    )
-    dump_kwargs = _normalize_dump_kwargs(kwargs)
-    target_kwargs = {
-        key: dump_kwargs.pop(key)
-        for key in _INFERENCE_TARGET_ONLY_KWARGS
-        if key in dump_kwargs
-    }
-    inference_target = exporter.decoder_exporter.build_inference_target(
-        **target_kwargs,
-        no_verify=dump_kwargs.get("no_verify", False),
-        compression_method=dump_kwargs.get("compression_method"),
-        compression_registry=dump_kwargs.get("compression_registry"),
-    )
-    # the manifest records the decoder at ``decoder/model.nnef.tgz``; force the
-    # FLAT layout so the graph lands there (DEEP would nest it one level down).
-    dump_kwargs.pop("export_dir_struct", None)
-    export_dirpath = dump_kwargs.pop("export_dirpath")
-    exporter.export(
-        export_dirpath=export_dirpath,
-        inference_target=inference_target,
-        **dump_kwargs,
-    )
-    return (
-        Path(export_dirpath) if export_dirpath else None,
         exporter,
     )
