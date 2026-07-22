@@ -35,7 +35,10 @@ class EmbeddingContract:
     ``injection_layers`` is empty for the common case (a single splice at the
     decoder embedding layer). It is non-empty only for multi-layer schemes such
     as Qwen3-VL DeepStack, where extra residual embeddings are added at the
-    listed decoder layer indices.
+    listed decoder layer indices; the i-th stream (``out/in_<modality>_
+    deepstack_<i>``) is injected at ``injection_layers[i]``. Those per-layer
+    streams carry ``deepstack_dynamic_axis`` as their token axis (falls back to
+    ``dynamic_axis`` when unset).
     """
 
     modality: str
@@ -43,6 +46,7 @@ class EmbeddingContract:
     placeholder_token_id_attr: str
     dynamic_axis: str
     injection_layers: T.Tuple[int, ...] = ()
+    deepstack_dynamic_axis: str = ""
 
     @property
     def input_name(self) -> str:

@@ -112,7 +112,8 @@ The manifest is the contract a runtime needs to connect the graphs:
 | `encoders[].outputs[].feeds` | Input tensor of the **decoder** graph it must be fed into. |
 | `encoders[].outputs[].shape` | `[dynamic_axis_symbol, hidden_size]`. |
 | `encoders[].outputs[].dtype` | Element type of the embeddings exchanged. |
-| `injection_layers` *(optional)* | `{modality: [layer_idx, …]}` for models (e.g. Qwen3-VL DeepStack) that inject features at several decoder layers rather than only at the embedding input. The per-layer tensors follow the convention `out_<modality>_deepstack_<i>` (encoder) feeding `in_<modality>_deepstack_<i>` (decoder), for `i` in `range(len(layers))`. |
+| `encoders[].deepstack[]` *(optional)* | Per-layer residual streams for multi-layer schemes (e.g. Qwen3-VL DeepStack). Each entry has `name` (encoder output), `feeds` (decoder input), `layer` (decoder layer index it is injected at), `shape` and `dtype`. |
+| `injection_layers` *(optional)* | Summary `{modality: [layer_idx, …]}` of the decoder layers targeted by `deepstack` (same indices as `deepstack[].layer`). |
 
 ## Runtime integration
 
@@ -125,8 +126,10 @@ For a request that contains media:
    `outputs[].feeds`, and mark the sequence positions where `input_ids ==
    placeholder_token_id` so the decoder splices them in place of the placeholder
    token embeddings.
-3. When `injection_layers` is present, the embeddings are additionally injected
-   at the listed decoder layers.
+3. When `deepstack` is present, also feed each `deepstack[].name` encoder output
+   into the matching `deepstack[].feeds` decoder input; those residual streams
+   are injected at the decoder layers the decoder graph was exported to use
+   (summarized by `deepstack[].layer` / `injection_layers`).
 
 For a text-only request the encoder is not run at all: the decoder graph behaves
 exactly like the plain LLM export from [tutorial 5](./5_llm.md).

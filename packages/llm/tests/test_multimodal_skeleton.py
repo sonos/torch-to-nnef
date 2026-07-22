@@ -208,6 +208,15 @@ def test_build_manifest_wires_encoder_output_to_decoder_input():
     assert output["shape"] == ["IMG", HIDDEN]
     assert output["dtype"] == "f16"
     assert manifest["injection_layers"] == {"image": [8, 16, 24]}
+    # DeepStack per-layer streams: stream i feeds in_image_deepstack_i,
+    # injected at injection_layers[i].
+    deepstack = entry["deepstack"]
+    assert [d["layer"] for d in deepstack] == [8, 16, 24]
+    assert deepstack[0]["name"] == "out_image_deepstack_0"
+    assert deepstack[0]["feeds"] == "in_image_deepstack_0"
+    assert deepstack[0]["shape"] == ["IMG", HIDDEN]  # falls back to dyn axis
+    assert deepstack[2]["name"] == "out_image_deepstack_2"
+    assert deepstack[2]["dtype"] == "f16"
 
 
 def test_build_manifest_omits_injection_layers_when_absent():
@@ -228,3 +237,4 @@ def test_build_manifest_omits_injection_layers_when_absent():
         inputs_dtype_str="f32",
     )
     assert "injection_layers" not in manifest
+    assert "deepstack" not in manifest["encoders"][0]

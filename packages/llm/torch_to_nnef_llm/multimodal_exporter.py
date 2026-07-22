@@ -19,7 +19,7 @@ import typing as T
 from dataclasses import dataclass
 from pathlib import Path
 
-from torch_to_nnef.exceptions import T2NErrorConsistency
+from torch_to_nnef.exceptions import T2NErrorConsistency, T2NErrorMisuse
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import (
     TractCheckTolerance,
@@ -90,35 +90,45 @@ def build_manifest(
                     f"the {contract.modality!r} contract: the decoder cannot "
                     "splice embeddings without a placeholder token id"
                 )
-            encoder_entries.append(
-                {
-                    "modality": contract.modality,
-                    "path": artifact.rel_path,
-                    "placeholder_token_id": placeholder_token_id,
-                    "outputs": [
-                        {
-                            "name": contract.output_name,
-                            "feeds": contract.input_name,
-                            "shape": [
-                                contract.dynamic_axis,
-                                contract.hidden_size,
-                            ],
-                            "dtype": inputs_dtype_str,
-                        }
-                    ],
-                }
-            )
+            entry: T.Dict[str, T.Any] = {
+                "modality": contract.modality,
+                "path": artifact.rel_path,
+                "placeholder_token_id": placeholder_token_id,
+                "outputs": [
+                    {
+                        "name": contract.output_name,
+                        "feeds": contract.input_name,
+                        "shape": [
+                            contract.dynamic_axis,
+                            contract.hidden_size,
+                        ],
+                        "dtype": inputs_dtype_str,
+                    }
+                ],
+            }
             if contract.injection_layers:
-                # DeepStack: extra residual streams are injected at these
-                # decoder layer indices. The per-layer tensors follow the
-                # convention ``out_<modality>_deepstack_<i>`` (encoder) ->
-                # ``in_<modality>_deepstack_<i>`` (decoder), i in range(len).
-                # They are NOT yet enumerated as individual outputs above
-                # (each has its own dynamic axis); a runtime wires them by that
-                # convention. Full enumeration is a follow-up.
+                # DeepStack: extra residual streams injected at the given
+                # decoder layer indices. The i-th stream is emitted by the
+                # encoder as ``out_<modality>_deepstack_<i>`` and fed to the
+                # decoder input ``in_<modality>_deepstack_<i>``, injected at
+                # ``injection_layers[i]``. They have their own token axis.
+                deepstack_axis = (
+                    contract.deepstack_dynamic_axis or contract.dynamic_axis
+                )
+                entry["deepstack"] = [
+                    {
+                        "layer": layer,
+                        "name": f"out_{contract.modality}_deepstack_{i}",
+                        "feeds": f"in_{contract.modality}_deepstack_{i}",
+                        "shape": [deepstack_axis, contract.hidden_size],
+                        "dtype": inputs_dtype_str,
+                    }
+                    for i, layer in enumerate(contract.injection_layers)
+                ]
                 injection_layers[contract.modality] = list(
                     contract.injection_layers
                 )
+            encoder_entries.append(entry)
     manifest: T.Dict[str, T.Any] = {
         "decoder": {"path": decoder_rel_path},
         "encoders": encoder_entries,
@@ -240,6 +250,18 @@ class MultiModalExporter:
                 "exporting decoder only",
                 self.config_helper.conf.model_type,
             )
+        # the projected encoder embeddings are spliced into the decoder token
+        # sequence, so their hidden size must equal the decoder's; catch a
+        # config mismatch here instead of at a confusing downstream shape error.
+        decoder_hidden = self.config_helper.decoder_conf.hidden_size
+        for contract in self.contracts:
+            if contract.hidden_size != decoder_hidden:
+                raise T2NErrorConsistency(
+                    f"{contract.modality!r} encoder hidden_size "
+                    f"{contract.hidden_size} != decoder hidden_size "
+                    f"{decoder_hidden}: projected embeddings cannot be spliced "
+                    "into the decoder sequence"
+                )
         export_dirpath.mkdir(parents=True, exist_ok=True)
 
         n_params = self.decoder_exporter.model_n_params
@@ -344,6 +366,8 @@ def dump_multimodal(
     # the manifest records the decoder at ``decoder/model.nnef.tgz``; force the
     # FLAT layout so the graph lands there (DEEP would nest it one level down).
     dump_kwargs.pop("export_dir_struct", None)
+    if "export_dirpath" not in dump_kwargs:
+        raise T2NErrorMisuse("dump_multimodal requires 'export_dirpath'")
     export_dirpath = dump_kwargs.pop("export_dirpath")
     exporter.export(
         export_dirpath=export_dirpath,
