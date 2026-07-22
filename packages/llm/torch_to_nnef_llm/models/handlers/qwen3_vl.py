@@ -219,6 +219,49 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         return inputs_embeds * (1 - token_mask) + gathered * token_mask
 
     @staticmethod
+    def _static_deepstack_process(
+        hidden_states: torch.Tensor,
+        visual_pos_masks: torch.Tensor,
+        visual_embeds: torch.Tensor,
+    ) -> torch.Tensor:
+        """Static-shape replacement for the model's ``_deepstack_process``.
+
+        Upstream does ``hidden[mask, :] += visual_embeds`` via boolean advanced
+        indexing, whose output shape is data-dependent: NNEF shape inference
+        then infers 0 masked rows and the ``+ visual_embeds`` broadcast fails
+        (``[0, H] + [N, H]``). We scatter the embeds to the masked positions
+        with a fixed shape (same ``index_select`` trick as
+        ``_inject_token_features``) and add -- numerically identical, but
+        exportable.
+        """
+        if visual_embeds.numel() == 0:
+            return hidden_states
+        batch_size, seq_length = visual_pos_masks.shape
+        token_counts = visual_pos_masks.to(torch.long).sum(dim=-1)
+        start_offsets = torch.cumsum(token_counts, dim=0) - token_counts
+        slot_ids = visual_pos_masks.to(torch.long).cumsum(dim=-1)
+        slot_ids = slot_ids + start_offsets.unsqueeze(-1)
+        slot_ids = torch.where(
+            visual_pos_masks, slot_ids, torch.zeros_like(slot_ids)
+        )
+        zero_feature = torch.zeros(
+            (1, visual_embeds.shape[-1]),
+            dtype=hidden_states.dtype,
+            device=hidden_states.device,
+        )
+        feature_bank = torch.cat(
+            [
+                zero_feature,
+                visual_embeds.to(hidden_states.device, hidden_states.dtype),
+            ],
+            dim=0,
+        )
+        gathered = feature_bank.index_select(0, slot_ids.reshape(-1)).view(
+            batch_size, seq_length, hidden_states.shape[-1]
+        )
+        return hidden_states + gathered
+
+    @staticmethod
     def _build_cached_position_ids(
         *,
         rope_deltas: torch.Tensor,
@@ -466,18 +509,29 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         # into the language_model call ourselves via a forward-pre-hook, which
         # the text model already consumes (adds each at its first N layers).
         deepstack_handle = None
+        deepstack_lm = None
         if deepstack_embeds:
             visual_pos_masks = input_ids == hf_model.config.image_token_id
+            deepstack_lm = hf_model.model.language_model
+            # Swap the model's data-dependent `hidden[mask, :] += embeds`
+            # deepstack step for a static-shape scatter-add so the graph
+            # exports (see `_static_deepstack_process`). Instance attribute so
+            # it is called unbound; removed again in `build_forward_outputs`.
+            deepstack_lm._deepstack_process = (
+                lambda hidden_states, visual_pos_masks, visual_embeds: (
+                    self._static_deepstack_process(
+                        hidden_states, visual_pos_masks, visual_embeds
+                    )
+                )
+            )
 
             def _inject_deepstack(module, args, kwargs):
                 kwargs["visual_pos_masks"] = visual_pos_masks
                 kwargs["deepstack_visual_embeds"] = deepstack_embeds
                 return (args, kwargs)
 
-            deepstack_handle = (
-                hf_model.model.language_model.register_forward_pre_hook(
-                    _inject_deepstack, with_kwargs=True
-                )
+            deepstack_handle = deepstack_lm.register_forward_pre_hook(
+                _inject_deepstack, with_kwargs=True
             )
 
         return StateContext(
@@ -504,6 +558,7 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
                 "last_rope_deltas": last_rope_deltas,
                 "deepstack_embeds": deepstack_embeds,
                 "deepstack_handle": deepstack_handle,
+                "deepstack_lm": deepstack_lm,
             },
         )
 
@@ -542,6 +597,12 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         deepstack_handle = state_context.state.get("deepstack_handle")
         if deepstack_handle is not None:
             deepstack_handle.remove()
+        deepstack_lm = state_context.state.get("deepstack_lm")
+        if deepstack_lm is not None and (
+            "_deepstack_process" in vars(deepstack_lm)
+        ):
+            # remove the instance override so the class method resurfaces
+            del deepstack_lm._deepstack_process
 
         return (
             outputs

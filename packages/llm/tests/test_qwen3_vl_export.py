@@ -43,21 +43,7 @@ def _dummy_config() -> Qwen3VLConfig:
     )
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [
-        pytest.param(
-            "f32",
-            marks=pytest.mark.xfail(
-                reason="qwen3-vl DeepStack dummy: the decoder's per-layer "
-                "re-injection slot count and the shrunk-config feature count "
-                "disagree; the real-checkpoint experimental test covers "
-                "DeepStack end to end",
-                strict=True,
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("dtype", ["f32"])
 def test_dummy_multimodal_export(dtype, tmp_path):
     assert_dummy_multimodal_export(
         _dummy_config(),
