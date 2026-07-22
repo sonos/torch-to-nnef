@@ -515,9 +515,10 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             deepstack_lm = hf_model.model.language_model
             # Swap the model's data-dependent `hidden[mask, :] += embeds`
             # deepstack step for a static-shape scatter-add so the graph
-            # exports (see `_static_deepstack_process`). Instance attribute of a
-            # staticmethod so the model calls it unbound with (hidden_states,
-            # visual_pos_masks, visual_embeds); removed in build_forward_outputs.
+            # exports (see `_static_deepstack_process`). Assigned as an instance
+            # attribute of a staticmethod: the model calls it unbound with
+            # (hidden_states, visual_pos_masks, visual_embeds). Removed again in
+            # build_forward_outputs.
             deepstack_lm._deepstack_process = self._static_deepstack_process
 
             def _inject_deepstack(module, args, kwargs):
