@@ -320,10 +320,16 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         video_token_id = config_helper.conf.video_token_id
 
         input_ids.random_(0, vocab_size)
-        if vocab_size > 10:
-            # Keep random text tokens from accidentally triggering vision paths.
-            input_ids[input_ids == image_token_id] = 1
-            input_ids[input_ids == video_token_id] = 2
+        # Reset any random token that lands on a special id to a filler that is
+        # itself not a special id, so the number of placeholder slots matches
+        # exactly the embeddings we provide. A hard-coded reset value collides
+        # when a special id equals it (e.g. image_token_id == 1), leaving stray
+        # placeholders and a feature/slot count mismatch.
+        specials = {vision_start_token_id, image_token_id, video_token_id}
+        if vocab_size > len(specials):
+            filler = next(t for t in range(vocab_size) if t not in specials)
+            for special in specials:
+                input_ids[input_ids == special] = filler
         input_ids[:, 0] = vision_start_token_id
         for idx in range(num_image_tokens):
             position = 1 + idx
