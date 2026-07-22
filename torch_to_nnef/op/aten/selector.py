@@ -11,6 +11,7 @@ from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
+    add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
     get_tract_dyn_axis_size_soc,
@@ -24,6 +25,32 @@ from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 LOGGER = logging.getLogger(__name__)
 
 OP_REGISTRY = AtenOpRegistry()
+
+
+def _const_tensor(node, allow_traced=True):
+    """Return a node's concrete tensor value if statically known, else None.
+
+    Uses the folded ``.data`` (a genuine compile-time constant) when present.
+    Falls back to the value captured during tracing (``_traced_data``,
+    populated for whole-number tensors) only when ``allow_traced`` is set.
+
+    ``_traced_data`` holds the trace-time value even for tensors that depend on
+    a dynamic axis (e.g. ``arange(x.shape[dyn])``), so folding on it under
+    ``dynamic_axes`` would OVER-BAKE: freezing an index/permutation to the
+    trace-time length. Callers pass ``allow_traced=not has_dynamic_axes`` so
+    that in a dynamic export only true constants (``.data``) fold; anything
+    dynamic falls through to its runtime lowering.
+    """
+    if not isinstance(node, TensorVariable):
+        return None
+    data = node.data
+    if isinstance(data, torch.Tensor):
+        return data
+    if allow_traced:
+        traced = getattr(node, "_traced_data", None)
+        if isinstance(traced, torch.Tensor):
+            return traced
+    return None
 
 
 def _should_cast_for_select(inp, expected_np_dtype):
@@ -485,6 +512,35 @@ def index_(node, op_helper, inference_target, **kwargs):
     input_node, indexes_node = node.inputs
     # input_node = TensorVariable([?], shape=(169,4))
     # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
+
+    # Boolean-mask advanced indexing `x[mask]` is masked-select (a filter),
+    # NOT a gather: tract_core_gather would treat the bool mask as integer
+    # positions and produce the wrong length. Only a constant mask is
+    # representable statically, so fold it to the selected constant (this is
+    # what Qwen's window_index does: index_padded[index_padded != -100]).
+    if len(indexes_node.data) == 1:
+        mask_node = indexes_node.data[-1]
+        if (
+            isinstance(mask_node, TensorVariable)
+            and mask_node.dtype == torch.bool
+        ):
+            allow_traced = not inference_target.has_dynamic_axes
+            input_val = _const_tensor(input_node, allow_traced=allow_traced)
+            mask_val = _const_tensor(mask_node, allow_traced=allow_traced)
+            if input_val is None or mask_val is None:
+                raise T2NErrorNotImplemented(
+                    "boolean-mask index x[mask] with a non-constant mask is "
+                    "not supported for export (only constant masks fold)"
+                )
+            selected = input_val[mask_val.to(torch.bool)]
+            out = node.outputs[0]
+            if not isinstance(out.data, torch.Tensor):
+                out.set_data(selected)
+            add_tensor_variable_node_as_nnef_tensor(
+                op_helper.g, out, op_helper.name_to_tensor
+            )
+            return []
+
     if len(indexes_node.data) > 1:
         # gather_elements
         len_idx_vars = len(
@@ -1028,10 +1084,32 @@ def argsort(node, op_helper, inference_target, **kwargs):
         "not supported by Khronos spec"
     )
     input_node, dim_node, descending_node = node.inputs
-    input_nnef = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     assert isinstance(descending_node.data, bool), descending_node
     assert isinstance(dim_node, PythonConstant), dim_node
     assert isinstance(dim_node.data, int), dim_node
+
+    # Constant input (e.g. argsort of Qwen's folded window_index to build the
+    # reverse permutation): fold to a constant instead of a runtime
+    # tract_core_topk whose `k` would otherwise be a symbolic TDim. Under
+    # dynamic_axes only genuine constants (`.data`) fold: a trace-time
+    # `_traced_data` value (e.g. argsort of an `arange(x.shape[dyn])`) would
+    # over-bake the permutation to the trace length and mis-sort other sizes.
+    input_val = _const_tensor(
+        input_node, allow_traced=not inference_target.has_dynamic_axes
+    )
+    if input_val is not None:
+        idx = torch.argsort(
+            input_val, dim=dim_node.data, descending=descending_node.data
+        )
+        out = node.outputs[0]
+        if not isinstance(out.data, torch.Tensor):
+            out.set_data(idx)
+        add_tensor_variable_node_as_nnef_tensor(
+            op_helper.g, out, op_helper.name_to_tensor
+        )
+        return ["tract_core"]
+
+    input_nnef = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     dim = pick_axis(input_node, dim_node.data)
     if inference_target.has_dynamic_axes:
         # Centralized dynamic axis extraction
