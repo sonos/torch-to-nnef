@@ -19,6 +19,8 @@ import typing as T
 from dataclasses import dataclass
 from pathlib import Path
 
+import torch
+
 from torch_to_nnef.exceptions import T2NErrorConsistency, T2NErrorMisuse
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import (
@@ -138,6 +140,27 @@ def build_manifest(
     return manifest
 
 
+def _prefer_sdpa_attention(module: torch.nn.Module) -> None:
+    """Switch a module's eager attention to SDPA in place.
+
+    Vision towers (e.g. SigLIP/Idefics3) default to eager attention, which
+    overflows in fp16 (its explicit QK^T/softmax) and which
+    ``force_attention_inner_in_f32`` cannot reach (that flag only rewrites the
+    SDPA op). The attention forward dispatches on the config's
+    ``_attn_implementation`` at call time, so flipping it to ``"sdpa"`` routes
+    both the torch reference
+    (CPU SDPA upcasts internally to f32) and the exported graph (the f32 SDPA
+    fragment) through the numerically stable path.
+    """
+    for sub in module.modules():
+        config = getattr(sub, "config", None)
+        if (
+            config is not None
+            and getattr(config, "_attn_implementation", None) == "eager"
+        ):
+            config._attn_implementation = "sdpa"
+
+
 class MultiModalExporter:
     """Orchestrate joint export of a multimodal model's encoder(s) + decoder."""
 
@@ -190,6 +213,12 @@ class MultiModalExporter:
 
         handler.prepare_model_for_export(self.hf_model_causal)
         encoder_module = handler.get_encoder_module(self.hf_model_causal)
+        # `export()` already routed fp16 models to SDPA and set the f32
+        # accumulation flags on the shared target; here we only pick the check
+        # tolerance.
+        is_f16 = any(
+            p.dtype == torch.float16 for p in encoder_module.parameters()
+        )
         wrapper = BaseEncoder(encoder_module, handler)
         io_spec = handler.build_input_spec(
             config_helper=self.config_helper,
@@ -198,11 +227,14 @@ class MultiModalExporter:
         update_forward_signature(wrapper, io_spec)
         inference_target.dynamic_axes = io_spec.dynamic_axes
         # Encoder towers accumulate more f32 attention drift than the decoder,
-        # so each encoder handler declares its own check_io tolerance.
+        # so each encoder handler declares its own check_io tolerance; fp16
+        # towers additionally accumulate fp16 rounding through the deep stack
+        # and need the loosest tract tolerance to verify.
         if inference_target.check_io:
-            inference_target.check_io_tolerance = TractCheckTolerance(
-                handler.CHECK_IO_TOLERANCE
-            )
+            tolerance = handler.CHECK_IO_TOLERANCE
+            if is_f16:
+                tolerance = TractCheckTolerance.ULTRA
+            inference_target.check_io_tolerance = TractCheckTolerance(tolerance)
 
         # NOTE: encoder towers export uncompressed on purpose. Weight
         # compression (e.g. Q4_0) is applied to the LLM decoder only, via
@@ -271,17 +303,37 @@ class MultiModalExporter:
                 )
         export_dirpath.mkdir(parents=True, exist_ok=True)
 
+        # fp16 decoder + towers: eager attention overflows in fp16 (its explicit
+        # QK^T/softmax) and `force_attention_inner_in_f32` only covers the SDPA
+        # op, so route the whole model to SDPA and keep normalization, attention
+        # and matmul accumulation in f32. Both the torch reference (CPU SDPA
+        # upcasts internally) and the exported graph then agree, and the deep
+        # fp16 stacks verify against tract at its loosest tolerance -- so fp16
+        # export is checkable end to end (halving RAM vs f32).
+        is_f16 = any(
+            p.dtype == torch.float16
+            for p in self.hf_model_causal.parameters()
+        )
+        if is_f16:
+            _prefer_sdpa_attention(self.hf_model_causal)
+            inference_target.force_norm_in_f32 = True
+            inference_target.force_attention_inner_in_f32 = True
+            inference_target.force_linear_accumulation_in_f32 = True
+            if inference_target.check_io:
+                inference_target.check_io_tolerance = TractCheckTolerance.ULTRA
+
         n_params = self.decoder_exporter.model_n_params
         if (
             getattr(inference_target, "check_io", False)
+            and not is_f16
             and n_params > LARGE_MODEL_CHECK_IO_WARN_PARAMS
         ):
             LOGGER.warning(
                 "check_io on a %.1fB-param f32 model: peak RAM is roughly 2x "
                 "the weight size because the torch model stays resident while "
-                "the tract subprocess loads the NNEF. Pass no_verify=True to "
-                "skip the tract check, or export on a larger-RAM host. (bf16/"
-                "f16 would halve RAM but are not NNEF-exportable yet.)",
+                "the tract subprocess loads the NNEF. Pass `-dt f16` to halve "
+                "RAM (verified), no_verify=True to skip the tract check, or "
+                "export on a larger-RAM host.",
                 n_params / 1e9,
             )
 

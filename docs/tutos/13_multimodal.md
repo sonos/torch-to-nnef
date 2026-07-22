@@ -24,8 +24,11 @@ graphs** tied together by a small `multimodal.json` manifest, rather than one
 monolithic graph. This keeps each graph streamable/optimizable on its own and
 lets a runtime run the encoder only when media is present.
 
-Cross-attention models (Llama-3.2-Vision/Mllama, Whisper) use a different
-injection mechanism and are out of scope.
+Cross-attention models (Llama-3.2-Vision/Mllama, Whisper) condition the decoder
+through cross-attention rather than the embedding-injection pattern above, so
+they fall outside *this* joint-export abstraction. That is a scope choice of the
+abstraction, not a `torch_to_nnef` limitation: such encoders export on their own
+(the Voxtral handler here already exports a Whisper-style audio tower).
 
 ## Exporting
 
@@ -57,14 +60,25 @@ dump_multimodal(
 )
 ```
 
-!!! warning "Memory"
+!!! tip "Choosing a dtype"
 
-    The exporter runs in `f32`: `bfloat16` cannot round-trip through the NNEF
-    representation yet and CPU `float16` hits layer-norm/attention issues, so
-    `f32` is the only reliably exportable dtype today. `f32` on a multi-billion
-    parameter model is heavy, and `check_io` roughly doubles peak RAM (the
-    torch model stays resident while the tract subprocess loads the graph). For
-    a large model pass `--no-verify` to skip the tract check, or export on a
+    Export defaults to `f32`, which is exact and the safest choice for small
+    models. Pass `-dt f16` (`float16`) to halve the weight footprint -- it is a
+    **verified** path for the whole pipeline (encoder *and* decoder).
+
+    In `f16` the exporter automatically routes every attention to SDPA and keeps
+    normalization, attention and matmul accumulation in `f32` (fp16 towers and
+    decoders otherwise overflow in their eager attention), then checks against
+    `tract` at its loosest tolerance. Both the torch reference (CPU SDPA upcasts
+    internally) and the exported graph then agree, so a `-dt f16` export passes
+    `check_io` end to end with no extra flags.
+
+    `bfloat16` is not exportable yet (the numpy-backed NNEF tensor layer has no
+    `bfloat16`); use `f16` or `f32`.
+
+    Memory: `check_io` roughly doubles peak RAM (the torch model stays resident
+    while the `tract` subprocess loads the graph), so a multi-billion parameter
+    `f32` model is heavy. Prefer `-dt f16`, pass `--no-verify`, or export on a
     larger-RAM host.
 
 ## Output layout
