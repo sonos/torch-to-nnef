@@ -130,6 +130,7 @@ nav:
     - '10. Nemo ASR export & eval': "tutos/10_nemo.md"
     - '11. Shapes remodeler': "tutos/11_remodeler.md"
     - '12. Exporting JIT-only models': "tutos/12_jit_only_models.md"
+    - '13. Multimodal (vision & audio)': "tutos/13_multimodal.md"
   - 'Export API': export_api.md
   - 'Internals API': reference/
   - Contributing:
