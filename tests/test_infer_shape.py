@@ -160,6 +160,31 @@ test_suite.add(
 )
 
 
+class SdpaModule(torch.nn.Module):
+    def forward(self, q, k, v):
+        return torch.nn.functional.scaled_dot_product_attention(q, k, v)
+
+
+# scaled_dot_product_attention carries an INFER_RULE so its output shape is
+# derived structurally (query layout with the value feature size) instead of
+# executing the op during shape inference -- executing it is value-sensitive
+# (an inf/nan placeholder mask makes the softmax raise) and dtype-sensitive
+# (placeholder q/k/v dtypes need not agree). This case checks the rule matches
+# the real op's shape/dtype.
+test_suite.add(
+    "scaled_dot_product_attention",
+    parse_ir_and_get_first_op(
+        SdpaModule(),
+        (
+            torch.randn(1, 2, 8, 4),
+            torch.randn(1, 2, 8, 4),
+            torch.randn(1, 2, 8, 4),
+        ),
+        "aten::scaled_dot_product_attention",
+    ),
+)
+
+
 @pytest.mark.parametrize(
     "ir_op",
     test_suite.ir_ops,

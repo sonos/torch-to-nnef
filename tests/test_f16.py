@@ -172,3 +172,28 @@ def test_layer_norm_f16_unsupported_in_torch():
         assert "\"LayerNormKernelImpl\" not implemented for 'Half'" in str(
             excinfo.value
         ) or "mixed dtype" in str(excinfo.value)
+
+
+@pytest.mark.skipif(
+    condition=not TRACT_INFERENCES_TO_TESTS_APPROX,
+    reason="no tract inference target available",
+)
+def test_arange_f16_exports():
+    """`arange` with an fp16 dtype must export.
+
+    RoPE-style position math on half-precision towers traces an
+    ``aten::arange`` whose dtype arg is float16; the arange op maps it to a
+    finite integer/f32 range for NNEF, so it must be accepted rather than
+    raising "dtype not implemented for arange".
+    """
+
+    class ArangeF16(nn.Module):
+        def forward(self, x):
+            pos = torch.arange(x.shape[-1], dtype=torch.float16)
+            return x * pos
+
+    check_model_io_test(
+        ArangeF16(),
+        test_input=torch.arange(4).reshape(1, 4).half(),
+        inference_target=TRACT_INFERENCES_TO_TESTS_APPROX[0],
+    )
