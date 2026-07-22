@@ -311,8 +311,7 @@ class MultiModalExporter:
         # fp16 stacks verify against tract at its loosest tolerance -- so fp16
         # export is checkable end to end (halving RAM vs f32).
         is_f16 = any(
-            p.dtype == torch.float16
-            for p in self.hf_model_causal.parameters()
+            p.dtype == torch.float16 for p in self.hf_model_causal.parameters()
         )
         if is_f16:
             _prefer_sdpa_attention(self.hf_model_causal)
