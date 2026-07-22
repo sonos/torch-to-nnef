@@ -627,7 +627,10 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
                 modality="image",
                 hidden_size=config_helper.conf.vision_config.out_hidden_size,
                 placeholder_token_id_attr="image_token_id",
-                dynamic_axis="IMG",
+                # matches the decoder graph's ``in_image_embeddings`` symbol
+                # (the input this contract feeds); the encoder tower itself is
+                # fixed-shape (baked grid).
+                dynamic_axis="IMG_STATE",
                 injection_layers=tuple(range(n_deepstack)),
                 deepstack_dynamic_axis="IMG_DEEP",
             )

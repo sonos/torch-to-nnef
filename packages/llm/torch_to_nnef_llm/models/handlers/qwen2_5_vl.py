@@ -98,7 +98,9 @@ class Qwen25VLVisionEncoderHandler(EncoderHandler):
                 modality="image",
                 hidden_size=config_helper.conf.vision_config.out_hidden_size,
                 placeholder_token_id_attr="image_token_id",
-                dynamic_axis="IMG",
+                # matches the (shared Qwen3-VL) decoder graph's
+                # ``in_image_embeddings`` symbol; the encoder is fixed-shape.
+                dynamic_axis="IMG_STATE",
             )
         ]
 

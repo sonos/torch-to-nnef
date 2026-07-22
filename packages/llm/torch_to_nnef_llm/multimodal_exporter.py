@@ -201,6 +201,10 @@ class MultiModalExporter:
                 handler.CHECK_IO_TOLERANCE
             )
 
+        # NOTE: encoder towers export uncompressed on purpose. Weight
+        # compression (e.g. Q4_0) is applied to the LLM decoder only, via
+        # `dump_with_inference_target`; the vision/audio towers are small and
+        # the LLM-oriented compression schemes are not meant for them.
         LOGGER.info("exporting '%s' encoder graph", label)
         export_model_to_nnef(
             model=wrapper,
