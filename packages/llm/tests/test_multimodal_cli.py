@@ -1,4 +1,4 @@
-"""M6: end-to-end ``dump_multimodal`` (the CLI entry point's worker).
+"""End-to-end ``dump_multimodal`` (the CLI entry point's worker).
 
 Marked ``experimental`` (needs ``--run-experimental``): downloads
 SmolVLM-256M and builds the decoder graph, the vision encoder graph, and the

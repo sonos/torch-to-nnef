@@ -1,4 +1,4 @@
-"""M0 skeleton tests for the multimodal joint-export abstraction.
+"""Skeleton tests for the multimodal joint-export abstraction.
 
 Covers the modality-neutral encoder abstraction with fakes only (no real
 checkpoint, no tract): contract wiring, the encoder registry, the BaseEncoder
