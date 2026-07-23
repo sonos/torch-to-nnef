@@ -223,57 +223,113 @@ def _num_audio_soft_tokens(audio_conf) -> int:
     return _audio_conv_len(_audio_conv_len(frames))  # two /2 subsamples
 
 
+def _bake_blocked_audio_mask(audio_tower, input_features, feature_mask):
+    """Capture the tower's constant blocked-5D attention mask (fixed chunk).
+
+    Runs the tower's own mask construction once (eagerly, outside the trace) by
+    spying on ``_convert_4d_mask_to_blocked_5d``, so the exact HF mask logic is
+    reused. The mask is a function of shape + the (all-valid) feature mask only,
+    so evaluating it on a zero feature tensor yields the value used at runtime.
+    """
+    captured = {}
+    original = audio_tower._convert_4d_mask_to_blocked_5d
+
+    def spy(mask_4d):
+        result = original(mask_4d)
+        captured["mask"] = result.detach().clone()
+        return result
+
+    audio_tower._convert_4d_mask_to_blocked_5d = spy
+    try:
+        with torch.no_grad():
+            audio_tower(input_features, feature_mask)
+    finally:
+        audio_tower._convert_4d_mask_to_blocked_5d = original
+    return captured["mask"]
+
+
 class Gemma4AudioEncoder(torch.nn.Module):
-    """Audio conformer tower + ``embed_audio`` projector, baked feature mask.
+    """Audio conformer tower + ``embed_audio`` projector, baked blocked mask.
 
     Input ``input_features`` is log-mel ``[1, frames, num_mel_bins]`` (the
     STFT/mel front-end stays in the HF feature extractor); output is the
-    projected soft tokens ``[num_audio_tokens, text_hidden]``. The valid-frame
-    mask is baked (a full, no-padding chunk), so the tower's padding strip is a
-    reshape.
+    projected soft tokens ``[num_audio_tokens, text_hidden]``.
 
-    NOTE: this branch is validated numerically in PyTorch but is **not yet
-    registered** for joint export: the Universal-Speech-Model conformer uses
-    ``unfold`` / chunked 5D local attention / a relative-shift trick that
-    ``tract`` does not yet cover. Wire it up (register + add ``"audio"`` to the
-    decoder ``MODALITIES``) once those ops land.
+    The Universal-Speech-Model conformer's chunked-local-attention mask is built
+    by ``create_bidirectional_mask``, which does not trace. For a fixed full
+    chunk that mask is constant, so it is precomputed once and injected as a
+    ``blocked_mask`` buffer; the tower forward is reimplemented inline to use it
+    directly. The attention ``masked_fill`` then operates on a genuine bool
+    condition (tract's ``select`` requires bool). Everything else in the tower
+    (subsample conv2d, ``unfold``-based chunked 5D local attention,
+    ``_rel_shift``, causal conv1d) exports as-is.
     """
 
-    def __init__(self, audio_tower, embed_audio, input_features_mask):
+    def __init__(
+        self, audio_tower, embed_audio, input_features_mask, blocked_mask
+    ):
         super().__init__()
         self.audio_tower = audio_tower
         self.embed_audio = embed_audio
         self.register_buffer(
             "input_features_mask", input_features_mask, persistent=False
         )
+        self.register_buffer("blocked_mask", blocked_mask, persistent=False)
 
     def forward(self, input_features: torch.Tensor) -> torch.Tensor:
-        outputs = self.audio_tower(input_features, self.input_features_mask)
-        pooled = self.embed_audio(inputs_embeds=outputs.last_hidden_state)
-        # no padding -> every frame valid -> the model's boolean strip keeps all
+        tower = self.audio_tower
+        hidden, _ = tower.subsample_conv_projection(
+            input_features, self.input_features_mask
+        )
+        position_embeddings = tower.rel_pos_enc(hidden)
+        # the module-dtype cast stores the bool mask as f32; re-assert bool so
+        # the attention's masked_fill lowers to a tract `select` with a genuine
+        # bool condition (tract rejects a non-bool condition).
+        blocked_mask = self.blocked_mask.to(torch.bool)
+        for layer in tower.layers[: tower.config.num_hidden_layers]:
+            hidden = layer(
+                hidden,
+                attention_mask=blocked_mask,
+                position_embeddings=position_embeddings,
+            )
+        hidden = tower.output_proj(hidden)
+        pooled = self.embed_audio(inputs_embeds=hidden)
         return pooled.reshape(-1, pooled.shape[-1])
 
 
+@register_encoder_handler
 class Gemma4AudioEncoderHandler(EncoderHandler):
-    """Encoder handler for the Gemma 4 audio tower (tract-pending, see above).
+    """Encoder handler for the Gemma 4 audio conformer tower.
 
-    Deliberately not decorated with ``@register_encoder_handler``: the recipe
-    is validated in PyTorch (see the audio chain-parity test) but the conformer
-    tower cannot export to tract yet.
+    Exports at a baked chunk length (consistent with the Voxtral audio tower);
+    the blocked attention mask is precomputed once (see
+    :func:`_bake_blocked_audio_mask`) so the conformer exports to tract.
     """
 
     MODALITY = "audio"
     ARCH_NAMES = ("gemma4",)
     MODEL_INPUT_NAME = "input_features"
+    #: the conformer uses custom (non-SDPA) chunked-local attention...
+    USES_SDPA_ATTENTION = False
+    #: ...and computes it in f32 already, so forcing f32 linear accumulation on
+    #: top trips a tract ``-O`` mis-compile (see base class).
+    F16_FORCE_LINEAR_ACCUM_IN_F32 = False
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         audio_conf = hf_model.config.audio_config
         frames = _sample_audio_frames(audio_conf)
-        mask = torch.ones(1, frames, dtype=torch.bool)
+        num_mel_bins = audio_conf.subsampling_conv_channels[0]
+        tower = resolve_submodule(hf_model, "model.audio_tower")
+        feature_mask = torch.ones(1, frames, dtype=torch.bool)
+        dummy = torch.zeros(
+            1, frames, num_mel_bins, dtype=tower.output_proj.weight.dtype
+        )
+        blocked_mask = _bake_blocked_audio_mask(tower, dummy, feature_mask)
         return Gemma4AudioEncoder(
-            resolve_submodule(hf_model, "model.audio_tower"),
+            tower,
             resolve_submodule(hf_model, "model.embed_audio"),
-            mask,
+            feature_mask,
+            blocked_mask,
         )
 
     def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
@@ -305,16 +361,20 @@ class Gemma4AudioEncoderHandler(EncoderHandler):
 class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
     """Decoder handler for Gemma 4: modality embeddings + per-layer inputs.
 
-    Splices one soft-token stream per modality (image + video today; both come
-    from the vision tower). Audio is a separate branch pending tract support for
-    the conformer encoder, but the decoder splice is modality-neutral and would
-    extend by adding an entry to ``MODALITIES``.
+    Splices one soft-token stream per modality (image + video from the vision
+    tower, audio from the conformer tower). The splice is modality-neutral
+    (mask-based scatter), so each modality carries an independent, dynamic token
+    count; extend by adding an entry to ``MODALITIES``.
     """
 
     ARCH_NAMES = ("gemma4",)
     #: (contract modality, placeholder-token-id config attr), one decoder state
     #: input/output per modality.
-    MODALITIES = (("image", "image_token_id"), ("video", "video_token_id"))
+    MODALITIES = (
+        ("image", "image_token_id"),
+        ("video", "video_token_id"),
+        ("audio", "audio_token_id"),
+    )
 
     @staticmethod
     def get_auto_model_class(transformers):

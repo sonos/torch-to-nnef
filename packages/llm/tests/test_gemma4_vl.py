@@ -31,6 +31,8 @@ from torch_to_nnef_llm.models.base import (
 from torch_to_nnef_llm.models.handlers.base import scatter_features_by_mask
 from torch_to_nnef_llm.models.handlers.gemma4_vl import (
     Gemma4AudioEncoderHandler,
+    Gemma4VideoEncoderHandler,
+    Gemma4VisionEncoderHandler,
     _grid_position_ids,
     _num_soft_tokens,
     _sample_audio_frames,
@@ -99,13 +101,15 @@ def _assert_chain_matches_reference(exporter):
     """Encoder embeddings fed to the decoder wrapper reproduce HF logits.
 
     The no-download end-to-end guard (also run on the shrunk dummy config):
-    exercises per-layer input embeddings + the image AND video splices (both
-    from the vision tower) against HF's native multimodal forward.
+    exercises per-layer input embeddings + all three modality splices (image
+    and video from the vision tower, audio from the conformer tower) against
+    HF's native multimodal forward, in the decoder ``MODALITIES`` order.
     """
     model = exporter.hf_model_causal.eval()
     ch = exporter.config_helper
     conf = ch.conf
     vc = conf.vision_config
+    ac = conf.audio_config
     side = _sample_grid_side(vc)
     num_tokens = _num_soft_tokens(vc)
     pos_ids = _grid_position_ids(side)
@@ -115,36 +119,49 @@ def _assert_chain_matches_reference(exporter):
     video_grid = torch.rand(1, side, side, patch_dim)
     pixel_values = image_grid.reshape(1, side * side, patch_dim)
     pixel_values_videos = video_grid.reshape(1, side * side, patch_dim)
+    frames = _sample_audio_frames(ac)
+    input_features = torch.randn(1, frames, ac.subsampling_conv_channels[0])
+    feature_mask = torch.ones(1, frames, dtype=torch.bool)
     image_token_id = conf.image_token_id
     video_token_id = conf.video_token_id
+    audio_token_id = conf.audio_token_id
     vocab_size = ch.decoder_conf.vocab_size
-    filler = next(
-        i
-        for i in range(vocab_size)
-        if i not in {image_token_id, video_token_id}
-    )
+    specials = {image_token_id, video_token_id, audio_token_id}
+    filler = next(i for i in range(vocab_size) if i not in specials)
 
-    vision_enc = exporter.encoder_handlers[0].get_encoder_module(model).eval()
-    video_enc = exporter.encoder_handlers[1].get_encoder_module(model).eval()
+    vision_enc = Gemma4VisionEncoderHandler().get_encoder_module(model).eval()
+    video_enc = Gemma4VideoEncoderHandler().get_encoder_module(model).eval()
+    audio_enc = Gemma4AudioEncoderHandler().get_encoder_module(model).eval()
     wrapped = exporter.decoder_exporter.wrapped_model.eval()
-
-    seq = 1 + 2 * num_tokens + 2
-    input_ids = torch.full((1, seq), filler, dtype=torch.long)
-    input_ids[:, 1 : 1 + num_tokens] = image_token_id
-    input_ids[:, 1 + num_tokens : 1 + 2 * num_tokens] = video_token_id
-    _, _, past_kv, _ = ch.build_kv_cache_infos(0)
-    past_kv = [t_.to(torch.float32) for t_ in past_kv]
 
     with torch.no_grad():
         img_emb = vision_enc(image_grid)
         vid_emb = video_enc(video_grid)
-        chain_logits = wrapped(input_ids, *past_kv, img_emb, vid_emb)[0]
+        aud_emb = audio_enc(input_features)
+    n_audio = aud_emb.shape[0]
+
+    seq = 1 + 2 * num_tokens + n_audio + 2
+    input_ids = torch.full((1, seq), filler, dtype=torch.long)
+    input_ids[:, 1 : 1 + num_tokens] = image_token_id
+    input_ids[:, 1 + num_tokens : 1 + 2 * num_tokens] = video_token_id
+    input_ids[:, 1 + 2 * num_tokens : 1 + 2 * num_tokens + n_audio] = (
+        audio_token_id
+    )
+    _, _, past_kv, _ = ch.build_kv_cache_infos(0)
+    past_kv = [t_.to(torch.float32) for t_ in past_kv]
+
+    with torch.no_grad():
+        chain_logits = wrapped(input_ids, *past_kv, img_emb, vid_emb, aud_emb)[
+            0
+        ]
         ref_logits = model(
             input_ids=input_ids,
             pixel_values=pixel_values,
             image_position_ids=pos_ids,
             pixel_values_videos=pixel_values_videos.unsqueeze(0),
             video_position_ids=pos_ids.unsqueeze(0),
+            input_features=input_features,
+            input_features_mask=feature_mask,
         ).logits
 
     kept = chain_logits.shape[1]

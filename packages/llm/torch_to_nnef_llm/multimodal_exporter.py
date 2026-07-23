@@ -255,7 +255,10 @@ class MultiModalExporter:
         # `export()` already routed fp16 models to SDPA and set the f32
         # accumulation flags on the target; here we only pick the check
         # tolerance (``is_f16`` is the model-level dtype decided once in
-        # `export`).
+        # `export`) and let a tower opt out of f32 linear accumulation (the
+        # audio conformer trips a tract `-O` mis-compile with it on).
+        if is_f16 and not handler.F16_FORCE_LINEAR_ACCUM_IN_F32:
+            inference_target.force_linear_accumulation_in_f32 = False
         wrapper = BaseEncoder(encoder_module, handler)
         io_spec = handler.build_input_spec(
             config_helper=self.config_helper,

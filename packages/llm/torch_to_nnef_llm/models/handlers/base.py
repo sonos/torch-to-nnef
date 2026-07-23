@@ -333,6 +333,16 @@ class EncoderHandler(ABC):
     #: accumulate more f32 attention drift than the LLM decoder, so they
     #: usually need a looser preset than the decoder default ("approximate").
     CHECK_IO_TOLERANCE: str = "very"
+    #: Whether the tower's attention is SDPA-based. The fp16 export routes SDPA
+    #: towers through the f32-accumulation rewrite; a tower with custom (non
+    #: SDPA) attention -- e.g. the USM audio conformer -- sets this False so the
+    #: fp16 test does not require an SDPA op in its graph.
+    USES_SDPA_ATTENTION: bool = True
+    #: Whether to keep ``force_linear_accumulation_in_f32`` for this encoder in
+    #: fp16. The conformer computes its attention in f32 already; forcing f32
+    #: linear accumulation on top trips a tract ``-O`` mis-compile, so it opts
+    #: out (it still verifies at the loosest tolerance without it).
+    F16_FORCE_LINEAR_ACCUM_IN_F32: bool = True
     #: Name of the single raw-modality kwarg the encoder module's forward takes
     #: (e.g. "pixel_values", "input_features"). Drives the default
     #: single-input :meth:`build_forward_inputs`; leave empty and override that

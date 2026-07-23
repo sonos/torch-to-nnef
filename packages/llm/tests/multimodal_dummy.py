@@ -135,12 +135,19 @@ def assert_dummy_multimodal_export(
     _assert_manifest_matches_contracts(export_dirpath, exporter)
 
     if dtype == "f16":
+        handlers_by_modality = {
+            h.MODALITY: h for h in exporter.encoder_handlers
+        }
         for enc_dir in encoder_dirs:
             graph = _graph_nnef(enc_dir / "model.nnef.tgz")
-            assert (
-                "scaled_dot_product_attention" in graph
-                or "tract_transformers_sdpa" in graph
-            ), f"{enc_dir.name}: fp16 encoder not routed through SDPA"
+            handler = handlers_by_modality.get(enc_dir.name)
+            if handler is None or handler.USES_SDPA_ATTENTION:
+                assert (
+                    "scaled_dot_product_attention" in graph
+                    or "tract_transformers_sdpa" in graph
+                ), f"{enc_dir.name}: fp16 encoder not routed through SDPA"
+            # every fp16 tower keeps some accumulation in f32 (SDPA rewrite for
+            # SDPA towers; the conformer's own `.float()` attention otherwise).
             assert "tract_core_cast" in graph and "to = 'f32'" in graph, (
                 f"{enc_dir.name}: fp16 encoder missing f32 accumulation cast"
             )
