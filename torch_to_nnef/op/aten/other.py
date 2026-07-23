@@ -32,6 +32,7 @@ from torch_to_nnef.torch_graph import (
     PythonConstant,
     TensorVariable,
 )
+from torch_to_nnef.torch_graph.dynamic_axes import size_query_is_dynamic
 from torch_to_nnef.utils import warn_once
 
 LOGGER = logging.getLogger(__name__)
@@ -262,7 +263,11 @@ def size(
 
     """
     input_node, axis_node = node.inputs
-    if not inference_target.has_dynamic_axes:
+    dyn_map = getattr(torch_graph, "dynamic_axis_map", {})
+    axis_is_static = not size_query_is_dynamic(
+        dyn_map, input_node, axis_node.data
+    )
+    if not inference_target.has_dynamic_axes or axis_is_static:
         original_vec_node, axis_node = node.inputs
         original_variable_output = node.outputs[0]
         if original_variable_output.data is None:
