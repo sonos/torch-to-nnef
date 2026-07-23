@@ -240,6 +240,7 @@ class MultiModalExporter:
         inference_target: TractNNEF,
         export_dirpath: Path,
         naming_scheme: VariableNamingScheme,
+        is_f16: bool,
     ) -> EncoderArtifact:
         label = handler.MODALITY
         model_dir = export_dirpath / label
@@ -253,10 +254,8 @@ class MultiModalExporter:
         encoder_module = handler.get_encoder_module(self.hf_model_causal)
         # `export()` already routed fp16 models to SDPA and set the f32
         # accumulation flags on the target; here we only pick the check
-        # tolerance.
-        is_f16 = any(
-            p.dtype == torch.float16 for p in encoder_module.parameters()
-        )
+        # tolerance (``is_f16`` is the model-level dtype decided once in
+        # `export`).
         wrapper = BaseEncoder(encoder_module, handler)
         io_spec = handler.build_input_spec(
             config_helper=self.config_helper,
@@ -322,7 +321,13 @@ class MultiModalExporter:
         naming_scheme: VariableNamingScheme = LM_VAR_SCHEME,
         **decoder_kwargs,
     ) -> Path:
-        """Export the decoder graph, each encoder graph, and the manifest."""
+        """Export the decoder graph, each encoder graph, and the manifest.
+
+        Note: this consumes ``self.hf_model_causal``. Handlers force eager
+        attention on the model's configs via ``prepare_model_for_export`` and
+        that is intentionally left in place (the exporter is one-shot); only the
+        fp16 SDPA flip is restored. Build a fresh exporter to export again.
+        """
         export_dirpath = Path(export_dirpath)
         # copy the caller's target: export sets fp16 flags, tolerance and
         # per-graph dynamic_axes on it, and must not mutate the object the
@@ -399,7 +404,11 @@ class MultiModalExporter:
             )
             encoders = [
                 self._export_one_encoder(
-                    handler, inference_target, export_dirpath, naming_scheme
+                    handler,
+                    inference_target,
+                    export_dirpath,
+                    naming_scheme,
+                    is_f16,
                 )
                 for handler in self.encoder_handlers
             ]

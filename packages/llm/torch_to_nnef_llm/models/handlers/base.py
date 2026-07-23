@@ -333,6 +333,11 @@ class EncoderHandler(ABC):
     #: accumulate more f32 attention drift than the LLM decoder, so they
     #: usually need a looser preset than the decoder default ("approximate").
     CHECK_IO_TOLERANCE: str = "very"
+    #: Name of the single raw-modality kwarg the encoder module's forward takes
+    #: (e.g. "pixel_values", "input_features"). Drives the default
+    #: single-input :meth:`build_forward_inputs`; leave empty and override that
+    #: method for a multi-input encoder.
+    MODEL_INPUT_NAME: str = ""
 
     @staticmethod
     def get_auto_model_class(transformers):
@@ -365,14 +370,25 @@ class EncoderHandler(ABC):
     ) -> IOSpec:
         """Build raw-modality inputs plus names/dynamic axes for the encoder."""
 
-    @abstractmethod
     def build_forward_inputs(
         self,
         *,
         inputs: T.Tuple[torch.Tensor, ...],
         wrapper,
     ) -> StateContext:
-        """Convert exported inputs into kwargs for the encoder module."""
+        """Convert exported inputs into kwargs for the encoder module.
+
+        Default: pass the single exported input as the ``MODEL_INPUT_NAME``
+        kwarg. Override for a multi-input encoder.
+        """
+        if not self.MODEL_INPUT_NAME:
+            raise T2NErrorConsistency(
+                f"{type(self).__name__} must set MODEL_INPUT_NAME or override "
+                "build_forward_inputs"
+            )
+        return StateContext(
+            model_inputs={self.MODEL_INPUT_NAME: inputs[0]}, state={}
+        )
 
     def call_encoder(
         self,
@@ -387,14 +403,19 @@ class EncoderHandler(ABC):
             **wrapper.forward_kwargs,
         )
 
-    @abstractmethod
     def build_forward_outputs(
         self,
         *,
         model_outputs: T.Any,
         state_context: StateContext,
     ) -> T.List[torch.Tensor]:
-        """Build exported embeddings matching the encoder output names."""
+        """Build exported embeddings matching the encoder output names.
+
+        Default: a single embedding tensor. Override for a multi-output tower
+        (e.g. Qwen3-VL DeepStack, which emits several streams).
+        """
+        del state_context
+        return [model_outputs]
 
     @abstractmethod
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:

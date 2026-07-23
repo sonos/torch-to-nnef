@@ -64,6 +64,7 @@ class VoxtralAudioEncoderHandler(EncoderHandler):
 
     MODALITY = "audio"
     ARCH_NAMES = ("voxtral",)
+    MODEL_INPUT_NAME = "input_features"
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         return VoxtralAudioEncoder(
@@ -84,16 +85,6 @@ class VoxtralAudioEncoderHandler(EncoderHandler):
             output_names=["out_audio_embeddings"],
             dynamic_axes={},  # Whisper pos-emb fixes the 30s chunk length
         )
-
-    def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
-        return StateContext(
-            model_inputs={"input_features": inputs[0]}, state={}
-        )
-
-    def build_forward_outputs(
-        self, *, model_outputs, state_context
-    ) -> T.List[torch.Tensor]:
-        return [model_outputs]
 
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:
         return [

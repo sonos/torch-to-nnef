@@ -15,6 +15,8 @@ import typing as T
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorConsistency
+
 from .base import (
     EmbeddingContract,
     EncoderHandler,
@@ -52,6 +54,7 @@ class Gemma3VisionEncoderHandler(EncoderHandler):
 
     MODALITY = "vision"
     ARCH_NAMES = ("gemma3",)
+    MODEL_INPUT_NAME = "pixel_values"
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         return Gemma3VisionEncoder(
@@ -72,14 +75,6 @@ class Gemma3VisionEncoderHandler(EncoderHandler):
             output_names=["out_image_embeddings"],
             dynamic_axes={"pixel_values": {0: "TILES"}},
         )
-
-    def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
-        return StateContext(model_inputs={"pixel_values": inputs[0]}, state={})
-
-    def build_forward_outputs(
-        self, *, model_outputs, state_context
-    ) -> T.List[torch.Tensor]:
-        return [model_outputs]
 
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:
         return [
@@ -236,6 +231,7 @@ class Gemma3ArchitectureHandler(DefaultArchitectureHandler):
 
         inputs_embeds = hf_model.get_input_embeddings()(input_ids)
         image_token_id = hf_model.config.image_token_id
+        _assert_single_image_block(input_ids, image_token_id)
         inputs_embeds = scatter_features_by_mask(
             inputs_embeds=inputs_embeds,
             token_mask=input_ids == image_token_id,
@@ -274,3 +270,24 @@ class Gemma3ArchitectureHandler(DefaultArchitectureHandler):
 def config_sliding_window(config) -> int:
     text_config = getattr(config, "text_config", config)
     return int(getattr(text_config, "sliding_window", 4096) or 4096)
+
+
+def _assert_single_image_block(
+    input_ids: torch.Tensor, image_token_id: int
+) -> None:
+    """Reject >1 image span: the bidirectional mask assumes one image.
+
+    ``_build_mask_mapping`` makes every pair of image tokens attend each other,
+    which is only correct for a single contiguous image. With two images it
+    would wrongly let the two images attend across each other, so fail loudly
+    here rather than emit a silently-wrong graph.
+    """
+    row = (input_ids[0] == image_token_id).to(torch.long)
+    transitions = int(((row[1:] - row[:-1]) == 1).sum().item())
+    n_blocks = transitions + int(row[0].item())
+    if n_blocks > 1:
+        raise T2NErrorConsistency(
+            "Gemma 3 joint export supports a single contiguous image span, "
+            f"found {n_blocks}; multiple images need per-image group ids in "
+            "the bidirectional mask (not yet implemented)."
+        )

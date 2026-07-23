@@ -593,6 +593,7 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
 
     MODALITY = "vision"
     ARCH_NAMES = ("qwen3_vl",)
+    MODEL_INPUT_NAME = "pixel_values"
     SAMPLE_GRID_THW = (1, 8, 8)
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
@@ -626,12 +627,10 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
             dynamic_axes={},
         )
 
-    def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
-        return StateContext(model_inputs={"pixel_values": inputs[0]}, state={})
-
     def build_forward_outputs(
         self, *, model_outputs, state_context
     ) -> T.List[torch.Tensor]:
+        # multi-output: main embeddings + one DeepStack stream per index.
         return list(model_outputs)
 
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:

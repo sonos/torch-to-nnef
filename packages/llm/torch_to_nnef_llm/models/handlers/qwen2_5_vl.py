@@ -26,7 +26,6 @@ from .base import (
     EmbeddingContract,
     EncoderHandler,
     IOSpec,
-    StateContext,
     resolve_submodule,
 )
 from .qwen3_vl import (
@@ -60,6 +59,7 @@ class Qwen25VLVisionEncoderHandler(EncoderHandler):
 
     MODALITY = "vision"
     ARCH_NAMES = ("qwen2_5_vl",)
+    MODEL_INPUT_NAME = "pixel_values"
     #: Baked sample grid (t, h, w) in patch units; h,w multiples of merge size.
     SAMPLE_GRID_THW = (1, 8, 8)
 
@@ -92,14 +92,6 @@ class Qwen25VLVisionEncoderHandler(EncoderHandler):
             # reshape symbolically undivisible for tract.
             dynamic_axes={},
         )
-
-    def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
-        return StateContext(model_inputs={"pixel_values": inputs[0]}, state={})
-
-    def build_forward_outputs(
-        self, *, model_outputs, state_context
-    ) -> T.List[torch.Tensor]:
-        return [model_outputs]
 
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:
         return [

@@ -95,6 +95,7 @@ class Idefics3VisionEncoderHandler(EncoderHandler):
 
     MODALITY = "vision"
     ARCH_NAMES = ("idefics3", "smolvlm")
+    MODEL_INPUT_NAME = "pixel_values"
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         return Idefics3VisionEncoder(
@@ -118,14 +119,6 @@ class Idefics3VisionEncoderHandler(EncoderHandler):
             output_names=["out_image_embeddings"],
             dynamic_axes={"pixel_values": {0: "TILES"}},
         )
-
-    def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
-        return StateContext(model_inputs={"pixel_values": inputs[0]}, state={})
-
-    def build_forward_outputs(
-        self, *, model_outputs, state_context
-    ) -> T.List[torch.Tensor]:
-        return [model_outputs]
 
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:
         return [

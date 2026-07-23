@@ -12,6 +12,7 @@ import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import T2NErrorConsistency
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef_llm.models.base import BaseEncoder
 from torch_to_nnef_llm.models.handlers import (
     DefaultArchitectureHandler,
@@ -24,8 +25,14 @@ from torch_to_nnef_llm.models.handlers import (
     is_multimodal,
     register_encoder_handler,
 )
+from torch_to_nnef_llm.models.handlers.base import (
+    reset_special_ids_to_filler,
+    resolve_submodule,
+    scatter_features_by_mask,
+)
 from torch_to_nnef_llm.multimodal_exporter import (
     EncoderArtifact,
+    _loosest_tolerance,
     build_manifest,
 )
 
@@ -232,6 +239,96 @@ def test_build_manifest_wires_encoder_output_to_decoder_input():
     assert deepstack[0]["shape"] == ["IMG", HIDDEN]  # falls back to dyn axis
     assert deepstack[2]["name"] == "out_image_deepstack_2"
     assert deepstack[2]["dtype"] == "f16"
+
+
+def test_scatter_features_by_mask_replace_and_additive():
+    inputs_embeds = torch.zeros((1, 4, 3))
+    token_mask = torch.tensor([[False, True, False, True]])
+    features = torch.tensor([[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]])
+
+    replaced = scatter_features_by_mask(
+        inputs_embeds=inputs_embeds, token_mask=token_mask, features=features
+    )
+    assert torch.equal(replaced[0, 1], features[0])
+    assert torch.equal(replaced[0, 3], features[1])
+    assert torch.equal(replaced[0, 0], torch.zeros(3))  # unmasked untouched
+
+    base = torch.ones((1, 4, 3))
+    added = scatter_features_by_mask(
+        inputs_embeds=base,
+        token_mask=token_mask,
+        features=features,
+        additive=True,
+    )
+    assert torch.equal(added[0, 1], torch.tensor([2.0, 2.0, 2.0]))
+    assert torch.equal(added[0, 0], torch.ones(3))  # unmasked unchanged
+
+
+def test_scatter_features_by_mask_rejects_count_mismatch():
+    with pytest.raises(ValueError):
+        scatter_features_by_mask(
+            inputs_embeds=torch.zeros((1, 4, 3)),
+            token_mask=torch.tensor([[False, True, False, True]]),
+            features=torch.ones((3, 3)),  # 3 features for 2 slots
+        )
+
+
+def test_scatter_features_by_mask_empty_is_noop():
+    embeds = torch.arange(12.0).view(1, 4, 3)
+    out = scatter_features_by_mask(
+        inputs_embeds=embeds,
+        token_mask=torch.zeros((1, 4), dtype=torch.bool),
+        features=torch.zeros((0, 3)),
+    )
+    assert torch.equal(out, embeds)
+
+
+def test_reset_special_ids_to_filler():
+    ids = torch.tensor([[0, 1, 2, 3, 1]])
+    reset_special_ids_to_filler(ids, {1, 2}, vocab_size=4)
+    assert 1 not in ids.tolist()[0]
+    assert 2 not in ids.tolist()[0]
+
+    # no room for a non-special filler -> left untouched (no crash)
+    ids2 = torch.tensor([[0, 1]])
+    reset_special_ids_to_filler(ids2, {0, 1}, vocab_size=2)
+    assert ids2.tolist() == [[0, 1]]
+
+
+def test_resolve_submodule():
+    tree = SimpleNamespace(a=SimpleNamespace(b=123))
+    assert resolve_submodule(tree, "a.b") == 123
+    with pytest.raises(T2NErrorConsistency):
+        resolve_submodule(tree, "a.missing")
+
+
+def test_loosest_tolerance_picks_looser():
+    assert (
+        _loosest_tolerance(
+            TractCheckTolerance.APPROXIMATE, TractCheckTolerance.ULTRA
+        )
+        == TractCheckTolerance.ULTRA
+    )
+    # never tightens below the caller's looser choice
+    assert (
+        _loosest_tolerance(TractCheckTolerance.ULTRA, TractCheckTolerance.VERY)
+        == TractCheckTolerance.ULTRA
+    )
+
+
+def test_cleanup_runs_when_forward_raises():
+    class _RaisingHandler(FakeVisionEncoderHandler):
+        def call_encoder(self, *, model, state_context, wrapper):
+            raise RuntimeError("boom")
+
+        def cleanup(self, *, state_context, wrapper):
+            wrapper.cleaned = True
+
+    wrapper = BaseEncoder(FakeEncoderModule(), _RaisingHandler())
+    wrapper.cleaned = False
+    with pytest.raises(RuntimeError):
+        wrapper(torch.zeros(4, 3, HIDDEN))
+    assert wrapper.cleaned, "cleanup() must run even when the forward raises"
 
 
 def test_build_manifest_omits_injection_layers_when_absent():
