@@ -11,6 +11,10 @@ from .gemma3_vl import (
     Gemma3ArchitectureHandler,
     Gemma3VisionEncoderHandler,
 )
+from .gemma4_vl import (
+    Gemma4ArchitectureHandler,
+    Gemma4VisionEncoderHandler,
+)
 from .idefics3_vl import (
     Idefics3ArchitectureHandler,
     Idefics3VisionEncoderHandler,
@@ -45,6 +49,8 @@ __all__ = [
     "EncoderHandler",
     "Gemma3ArchitectureHandler",
     "Gemma3VisionEncoderHandler",
+    "Gemma4ArchitectureHandler",
+    "Gemma4VisionEncoderHandler",
     "IOSpec",
     "Idefics3ArchitectureHandler",
     "Idefics3VisionEncoderHandler",
