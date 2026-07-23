@@ -8,7 +8,10 @@ to audio (modality="audio"). The real-checkpoint parity tests are gated behind
 
 import pytest
 import torch
-from multimodal_dummy import assert_dummy_multimodal_export
+from multimodal_dummy import (
+    assert_dummy_multimodal_export,
+    build_dummy_exporter,
+)
 from transformers import VoxtralConfig, VoxtralForConditionalGeneration
 
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
@@ -81,8 +84,12 @@ def test_decoder_wrapper_self_consistent(exporter):
     exporter.decoder_exporter.check_wrapper_io()
 
 
-@pytest.mark.experimental
-def test_audio_chain_matches_reference(exporter):
+def _assert_audio_chain_matches_reference(exporter):
+    """Audio embeddings fed to the decoder wrapper reproduce HF logits.
+
+    The no-download end-to-end guard (also run on the shrunk dummy config):
+    proves the audio splice is modality-neutral, matching HF's native forward.
+    """
     model = exporter.hf_model_causal.eval()
     ch = exporter.config_helper
     conf = ch.conf
@@ -94,7 +101,7 @@ def test_audio_chain_matches_reference(exporter):
     n_audio = audio_emb.shape[0]
 
     seq = 1 + n_audio + 1
-    input_ids = torch.full((1, seq), 100, dtype=torch.long)
+    input_ids = torch.full((1, seq), 10, dtype=torch.long)
     input_ids[:, 1 : 1 + n_audio] = conf.audio_token_id
     _, _, past_kv, _ = ch.build_kv_cache_infos(0)
     past_kv = [t_.to(torch.float32) for t_ in past_kv]
@@ -110,3 +117,15 @@ def test_audio_chain_matches_reference(exporter):
     ref_tail = ref_logits[:, -kept:, :]
     assert chain_logits.shape == ref_tail.shape
     assert torch.equal(chain_logits.argmax(-1), ref_tail.argmax(-1))
+
+
+def test_dummy_audio_chain_parity():
+    exporter = build_dummy_exporter(
+        _dummy_config(), VoxtralForConditionalGeneration, "f32"
+    )
+    _assert_audio_chain_matches_reference(exporter)
+
+
+@pytest.mark.experimental
+def test_audio_chain_matches_reference(exporter):
+    _assert_audio_chain_matches_reference(exporter)

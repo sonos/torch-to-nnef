@@ -7,7 +7,10 @@ behind ``--run-experimental`` (they download gemma-3-4b-it).
 
 import pytest
 import torch
-from multimodal_dummy import assert_dummy_multimodal_export
+from multimodal_dummy import (
+    assert_dummy_multimodal_export,
+    build_dummy_exporter,
+)
 from transformers import Gemma3Config, Gemma3ForConditionalGeneration
 
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
@@ -79,8 +82,12 @@ def test_decoder_wrapper_self_consistent(exporter):
     exporter.decoder_exporter.check_wrapper_io()
 
 
-@pytest.mark.experimental
-def test_encoder_decoder_chain_matches_reference(exporter):
+def _assert_chain_matches_reference(exporter):
+    """Encoder embeddings fed to the decoder wrapper reproduce HF logits.
+
+    The no-download end-to-end guard (also run on the shrunk dummy config):
+    exercises Gemma 3's bidirectional image-span mask on top of the splice.
+    """
     model = exporter.hf_model_causal.eval()
     ch = exporter.config_helper
     conf = ch.conf
@@ -108,3 +115,15 @@ def test_encoder_decoder_chain_matches_reference(exporter):
     ref_tail = ref_logits[:, -kept:, :]
     assert chain_logits.shape == ref_tail.shape
     assert torch.equal(chain_logits.argmax(-1), ref_tail.argmax(-1))
+
+
+def test_dummy_chain_parity():
+    exporter = build_dummy_exporter(
+        _dummy_config(), Gemma3ForConditionalGeneration, "f32"
+    )
+    _assert_chain_matches_reference(exporter)
+
+
+@pytest.mark.experimental
+def test_encoder_decoder_chain_matches_reference(exporter):
+    _assert_chain_matches_reference(exporter)

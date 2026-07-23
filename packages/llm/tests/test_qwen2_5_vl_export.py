@@ -7,7 +7,10 @@ behind ``--run-experimental`` (they download Qwen2.5-VL-3B-Instruct).
 
 import pytest
 import torch
-from multimodal_dummy import assert_dummy_multimodal_export
+from multimodal_dummy import (
+    assert_dummy_multimodal_export,
+    build_dummy_exporter,
+)
 from transformers import (
     Qwen2_5_VLConfig,
     Qwen2_5_VLForConditionalGeneration,
@@ -118,3 +121,73 @@ def test_encoder_matches_reference_image_features(exporter):
 @pytest.mark.experimental
 def test_decoder_wrapper_self_consistent(exporter):
     exporter.decoder_exporter.check_wrapper_io()
+
+
+def _assert_chain_matches_reference(exporter):
+    """Encoder embeddings fed to the decoder wrapper reproduce HF logits.
+
+    The no-download end-to-end guard (also run on the shrunk dummy config):
+    exercises the shared Qwen decoder handler (mRoPE + splice), no DeepStack.
+    """
+    model = exporter.hf_model_causal.eval()
+    ch = exporter.config_helper
+    conf = ch.conf
+    vc = conf.vision_config
+    handler = exporter.encoder_handlers[0]
+    t, h, w = handler.SAMPLE_GRID_THW
+    grid = torch.tensor([handler.SAMPLE_GRID_THW], dtype=torch.long)
+    patch_dim = (
+        vc.in_channels * vc.temporal_patch_size * vc.patch_size * vc.patch_size
+    )
+    pixel_values = torch.randn(t * h * w, patch_dim)
+    num_tokens = (grid.prod().item()) // (vc.spatial_merge_size**2)
+    image_token_id = conf.image_token_id
+    vision_start = conf.vision_start_token_id
+    vocab_size = ch.decoder_conf.vocab_size
+    filler = next(
+        i for i in range(vocab_size) if i not in {image_token_id, vision_start}
+    )
+
+    encoder = handler.get_encoder_module(model).eval()
+    with torch.no_grad():
+        img_emb = encoder(pixel_values)
+
+    seq = 2 + num_tokens + 1
+    input_ids = torch.full((1, seq), filler, dtype=torch.long)
+    input_ids[:, 0] = vision_start
+    input_ids[:, 1 : 1 + num_tokens] = image_token_id
+    _, _, past_kv, _ = ch.build_kv_cache_infos(0)
+    past_kv = [t_.to(torch.float32) for t_ in past_kv]
+    state = [
+        img_emb,
+        torch.zeros((0, img_emb.shape[-1])),
+        grid,
+        torch.zeros((0, 3), dtype=torch.long),
+        torch.zeros((1, 1), dtype=torch.long),
+    ]
+
+    wrapped = exporter.decoder_exporter.wrapped_model.eval()
+    with torch.no_grad():
+        chain_logits = wrapped(input_ids, *past_kv, *state)[0]
+        ref_logits = model(
+            input_ids=input_ids,
+            pixel_values=pixel_values,
+            image_grid_thw=grid,
+        ).logits
+
+    kept = chain_logits.shape[1]
+    ref_tail = ref_logits[:, -kept:, :]
+    assert chain_logits.shape == ref_tail.shape
+    assert torch.equal(chain_logits.argmax(-1), ref_tail.argmax(-1))
+
+
+def test_dummy_chain_parity():
+    exporter = build_dummy_exporter(
+        _dummy_config(), Qwen2_5_VLForConditionalGeneration, "f32"
+    )
+    _assert_chain_matches_reference(exporter)
+
+
+@pytest.mark.experimental
+def test_chain_matches_reference(exporter):
+    _assert_chain_matches_reference(exporter)

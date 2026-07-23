@@ -8,7 +8,10 @@ validate the DeepStack re-injection end to end -- are gated behind
 
 import pytest
 import torch
-from multimodal_dummy import assert_dummy_multimodal_export
+from multimodal_dummy import (
+    assert_dummy_multimodal_export,
+    build_dummy_exporter,
+)
 from transformers import Qwen3VLConfig, Qwen3VLForConditionalGeneration
 
 from torch_to_nnef.inference_target.tract import TractNNEF
@@ -114,8 +117,15 @@ def test_encoder_matches_reference_main_and_deepstack(exporter):
         ).abs().max().item() < 1e-3
 
 
-@pytest.mark.experimental
-def test_deepstack_chain_matches_reference(exporter):
+def _assert_deepstack_chain_matches_reference(exporter):
+    """Encoder embeddings fed to the decoder wrapper reproduce HF logits.
+
+    The end-to-end guard the shrunk dummy config exercises without download:
+    the exported chain (encoder -> spliced embeddings + DeepStack streams ->
+    decoder wrapper) must match the native HF multimodal forward. Catches
+    injection / mRoPE / DeepStack wiring bugs that ``check_io`` (tract vs the
+    same wrapper) cannot.
+    """
     model = exporter.hf_model_causal.eval()
     ch = exporter.config_helper
     conf = ch.conf
@@ -124,6 +134,11 @@ def test_deepstack_chain_matches_reference(exporter):
     grid, pixel_values = _encoder_inputs(model, handler)
     num_tokens = (grid.prod().item()) // (vc.spatial_merge_size**2)
     image_token_id = conf.image_token_id
+    vision_start = getattr(conf, "vision_start_token_id", image_token_id - 1)
+    vocab_size = ch.decoder_conf.vocab_size
+    filler = next(
+        t for t in range(vocab_size) if t not in {image_token_id, vision_start}
+    )
 
     encoder = handler.get_encoder_module(model).eval()
     with torch.no_grad():
@@ -131,8 +146,8 @@ def test_deepstack_chain_matches_reference(exporter):
     img_emb, deep = enc_out[0], list(enc_out[1:])
 
     seq = 2 + num_tokens + 1
-    input_ids = torch.full((1, seq), 100, dtype=torch.long)
-    input_ids[:, 0] = getattr(conf, "vision_start_token_id", image_token_id - 1)
+    input_ids = torch.full((1, seq), filler, dtype=torch.long)
+    input_ids[:, 0] = vision_start
     input_ids[:, 1 : 1 + num_tokens] = image_token_id
     _, _, past_kv, _ = ch.build_kv_cache_infos(0)
     past_kv = [t_.to(torch.float32) for t_ in past_kv]
@@ -158,3 +173,15 @@ def test_deepstack_chain_matches_reference(exporter):
     ref_tail = ref_logits[:, -kept:, :]
     assert chain_logits.shape == ref_tail.shape
     assert torch.equal(chain_logits.argmax(-1), ref_tail.argmax(-1))
+
+
+def test_dummy_deepstack_chain_parity():
+    exporter = build_dummy_exporter(
+        _dummy_config(), Qwen3VLForConditionalGeneration, "f32"
+    )
+    _assert_deepstack_chain_matches_reference(exporter)
+
+
+@pytest.mark.experimental
+def test_deepstack_chain_matches_reference(exporter):
+    _assert_deepstack_chain_matches_reference(exporter)
