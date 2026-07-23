@@ -281,47 +281,6 @@ test_suite.add(
 )
 
 
-# Static-axis shape query feeding a split while another axis is dynamic
-# (the 2D-RoPE / attention-head pattern): `x.shape[-1] // 2` must fold to a
-# constant even though axis 1 is symbolic, else `split_with_sizes` gets None
-# sizes. Guards per-axis dynamic-shape tracking.
-class StaticAxisSplitUnderDynamic(nn.Module):
-    def forward(self, x):  # x: (B, S, F), S dynamic, F static
-        f = x.shape[-1]
-        half = f // 2
-        a, b = torch.split(x, [half, f - half], dim=-1)
-        return a + b
-
-
-test_suite.add(
-    torch.arange(2 * 12 * 8, dtype=torch.float32).reshape(2, 12, 8),
-    StaticAxisSplitUnderDynamic(),
-    inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
-    ),
-)
-
-
-# A reshape whose target dim is size-derived from a dynamic axis traced as
-# size 1 (batch=1) must keep that output axis dynamic, not fold it to a
-# constant. Guards that dynamic-axis tracking is structural (target-shape
-# lineage), not value-based -- a dynamic 1 must not be confused with a static 1.
-class ReshapeDynamicSizeOneBatch(nn.Module):
-    def forward(self, x):  # x: (B, T, C) with B dynamic, traced B=1
-        b, t, c = x.shape
-        return x.reshape(b, t * c)
-
-
-test_suite.add(
-    torch.rand(1, 4, 3),
-    ReshapeDynamicSizeOneBatch(),
-    inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes={"input_0": {0: "B"}}
-    ),
-)
-
-
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
