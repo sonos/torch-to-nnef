@@ -6,6 +6,9 @@ validate the DeepStack re-injection end to end -- are gated behind
 ``--run-experimental`` (they download Qwen3-VL-2B-Instruct).
 """
 
+import tempfile
+from pathlib import Path
+
 import pytest
 import torch
 from multimodal_dummy import (
@@ -14,7 +17,14 @@ from multimodal_dummy import (
 )
 from transformers import Qwen3VLConfig, Qwen3VLForConditionalGeneration
 
-from torch_to_nnef.inference_target.tract import TractNNEF
+from torch_to_nnef import export_model_to_nnef
+from torch_to_nnef.inference_target.tract import (
+    TractCheckTolerance,
+    TractNNEF,
+    build_io,
+)
+from torch_to_nnef_llm.exporter import LM_VAR_SCHEME
+from torch_to_nnef_llm.models.base import BaseEncoder, update_forward_signature
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
 
 SLUG = "Qwen/Qwen3-VL-2B-Instruct"
@@ -87,13 +97,25 @@ def exporter():
 
 
 def _encoder_inputs(model, handler):
+    """Return (grid_thw, flat pixel_values, shaped grid).
+
+    The dynamic encoder consumes the merge-block grid
+    ``[MH, MW, merge, merge, patch_dim]`` (a pure reshape of the processor's
+    flat, merge-block-major patch tensor); the HF reference consumes the flat
+    tensor + grid_thw.
+    """
     vc = model.config.vision_config
+    merge = vc.spatial_merge_size
     t, h, w = handler.SAMPLE_GRID_THW
     grid = torch.tensor([handler.SAMPLE_GRID_THW], dtype=torch.long)
     patch_dim = (
         vc.in_channels * vc.temporal_patch_size * vc.patch_size * vc.patch_size
     )
-    return grid, torch.randn(t * h * w, patch_dim)
+    pixel_values = torch.randn(t * h * w, patch_dim)
+    shaped = pixel_values.reshape(
+        h // merge, w // merge, merge, merge, patch_dim
+    )
+    return grid, pixel_values, shaped
 
 
 @pytest.mark.experimental
@@ -101,11 +123,11 @@ def test_encoder_matches_reference_main_and_deepstack(exporter):
     model = exporter.hf_model_causal.eval()
     handler = exporter.encoder_handlers[0]
     n_deep = len(model.config.vision_config.deepstack_visual_indexes)
-    grid, pixel_values = _encoder_inputs(model, handler)
+    grid, pixel_values, shaped = _encoder_inputs(model, handler)
 
     encoder = handler.get_encoder_module(model).eval()
     with torch.no_grad():
-        ours = encoder(pixel_values)
+        ours = encoder(shaped)
         ref = model.model.get_image_features(pixel_values, image_grid_thw=grid)
         ref_main = torch.cat(ref.pooler_output, dim=0)
 
@@ -131,7 +153,7 @@ def _assert_deepstack_chain_matches_reference(exporter):
     conf = ch.conf
     vc = conf.vision_config
     handler = exporter.encoder_handlers[0]
-    grid, pixel_values = _encoder_inputs(model, handler)
+    grid, pixel_values, shaped = _encoder_inputs(model, handler)
     num_tokens = (grid.prod().item()) // (vc.spatial_merge_size**2)
     image_token_id = conf.image_token_id
     vision_start = getattr(conf, "vision_start_token_id", image_token_id - 1)
@@ -142,7 +164,7 @@ def _assert_deepstack_chain_matches_reference(exporter):
 
     encoder = handler.get_encoder_module(model).eval()
     with torch.no_grad():
-        enc_out = encoder(pixel_values)
+        enc_out = encoder(shaped)
     img_emb, deep = enc_out[0], list(enc_out[1:])
 
     seq = 2 + num_tokens + 1
@@ -180,6 +202,65 @@ def test_dummy_deepstack_chain_parity():
         _dummy_config(), Qwen3VLForConditionalGeneration, "f32"
     )
     _assert_deepstack_chain_matches_reference(exporter)
+
+
+def test_dummy_dynamic_resolution_multi_size():
+    """Export the vision tower ONCE, run tract at several grid resolutions.
+
+    Proves the two grid axes are genuinely dynamic (not baked) end to end,
+    including the DeepStack streams.
+    """
+    exporter = build_dummy_exporter(
+        _dummy_config(), Qwen3VLForConditionalGeneration, "f32"
+    )
+    model = exporter.hf_model_causal.eval()
+    handler = exporter.encoder_handlers[0]
+    vc = model.config.vision_config
+    merge = vc.spatial_merge_size
+    patch_dim = (
+        vc.in_channels * vc.temporal_patch_size * vc.patch_size * vc.patch_size
+    )
+    wrapper = BaseEncoder(handler.get_encoder_module(model), handler).eval()
+    io_spec = handler.build_input_spec(
+        config_helper=exporter.config_helper, inputs_dtype=torch.float32
+    )
+    update_forward_signature(wrapper, io_spec)
+    target = TractNNEF(version=TractNNEF.latest_version(), check_io=False)
+
+    def make(mh, mw):
+        return (torch.rand(mh, mw, merge, merge, patch_dim),)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpd = Path(tmp)
+        nnef = tmpd / "vision.nnef.tgz"
+        in_names, out_names = build_io(
+            wrapper, make(4, 4), tmpd / "i0.npz", tmpd / "o0.npz"
+        )
+        target.dynamic_axes = {in_names[0]: {0: "IMG_H", 1: "IMG_W"}}
+        export_model_to_nnef(
+            model=wrapper,
+            args=make(4, 4),
+            file_path_export=nnef,
+            inference_target=target,
+            input_names=in_names,
+            output_names=out_names,
+            nnef_variable_naming_scheme=LM_VAR_SCHEME,
+        )
+        for k, (mh, mw) in enumerate(((4, 4), (3, 5), (6, 2))):
+            build_io(
+                wrapper,
+                make(mh, mw),
+                tmpd / f"i{k}.npz",
+                tmpd / f"o{k}.npz",
+                in_names,
+                out_names,
+            )
+            target.tract_cli.assert_io(
+                nnef,
+                tmpd / f"i{k}.npz",
+                tmpd / f"o{k}.npz",
+                check_tolerance=TractCheckTolerance.APPROXIMATE,
+            )
 
 
 @pytest.mark.experimental

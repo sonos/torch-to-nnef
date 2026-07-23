@@ -20,56 +20,6 @@ from .default import DefaultArchitectureHandler
 from .registry import register_encoder_handler, register_handler
 
 
-class _IntSeqlenRotary(torch.nn.Module):
-    """Wrap the vision rotary embedding to take a python-int ``seqlen``.
-
-    Qwen's vision tower bakes most grid-derived sizes via ``grid_thw.tolist()``,
-    but ``rot_pos_emb`` feeds ``grid_thw[:, 1:].max()`` (a 0-d tensor) into the
-    rotary ``arange``. With grid_thw baked constant that max is constant, yet as
-    a tensor it lowers to a dynamic ``tract_core_range`` whose bounds mix TDim
-    and i64 (tract rejects it). Coercing ``seqlen`` to ``int`` makes the arange
-    fold to constant bounds, exactly like the tower's other (working) aranges.
-    Shared by Qwen2.5-VL and Qwen3-VL vision encoders.
-    """
-
-    def __init__(self, inner: torch.nn.Module):
-        super().__init__()
-        self.inner = inner
-
-    def forward(self, seqlen):
-        return self.inner(int(seqlen))
-
-
-def bake_vision_rotary_seqlen(visual: torch.nn.Module) -> torch.nn.Module:
-    """Idempotently coerce ``visual.rotary_pos_emb`` to a python-int seqlen."""
-    if not isinstance(visual.rotary_pos_emb, _IntSeqlenRotary):
-        visual.rotary_pos_emb = _IntSeqlenRotary(visual.rotary_pos_emb)
-    return visual
-
-
-def bake_vision_rot_pos_emb(
-    visual: torch.nn.Module, grid_thw: torch.Tensor
-) -> torch.nn.Module:
-    """Precompute ``rot_pos_emb`` for a fixed grid and inject it as a constant.
-
-    Qwen3-VL's ``rot_pos_emb`` builds position ids with ``torch.empty`` +
-    in-place slice assignment + advanced indexing, a pattern that does not
-    lower correctly to tract. For a baked (fixed) grid its output is a
-    constant, so evaluate it once and return that constant during tracing.
-    """
-    if getattr(visual.rot_pos_emb, "_t2n_baked", False):
-        return visual
-    with torch.no_grad():
-        const = visual.rot_pos_emb(grid_thw)
-
-    def _baked(*_args, _const=const, **_kwargs):
-        return _const
-
-    _baked._t2n_baked = True
-    visual.rot_pos_emb = _baked
-    return visual
-
-
 def _deepstack_indexes(config) -> T.List[int]:
     """Vision-encoder layer indexes whose features DeepStack re-injects."""
     vision_config = getattr(config, "vision_config", None)
@@ -569,22 +519,150 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
 
 
 class Qwen3VLVisionEncoder(torch.nn.Module):
-    """Qwen3-VL vision tower with grid_thw baked constant.
+    """Dynamic-resolution Qwen3-VL vision tower (single frame).
 
-    Emits the merged image embeddings plus one DeepStack feature tensor per
-    ``deepstack_visual_indexes`` entry (each ``[num_tokens, out_hidden]``), all
-    consumed by the decoder handler's DeepStack injection.
+    Input ``pixel_values`` is the processor's patch tensor reshaped to the 2D
+    merge-block grid ``[MH, MW, merge, merge, patch_dim]`` (``MH = h // merge``,
+    ``MW = w // merge`` both dynamic); flattening dims 0..3 restores the
+    processor's merge-block-major patch order, so the reshape is host-side only.
+    Both position tables (the 2D-RoPE frequencies and the interpolated learned
+    ``pos_embed``) are rebuilt from ``arange(shape)`` rather than
+    ``grid_thw.tolist()``, so the grid axes stay symbolic in NNEF: the tower
+    exports once and runs at any resolution, no baking. The attention is the
+    tower's full attention (``cu_seqlens`` spans the whole single image),
+    reimplemented inline so nothing depends on the data-valued ``grid_thw``.
+    Emits merged embeddings + one DeepStack stream per collected block.
     """
 
-    def __init__(self, visual, grid_thw: torch.Tensor):
+    def __init__(self, visual):
         super().__init__()
-        bake_vision_rot_pos_emb(visual, grid_thw)
         self.visual = visual
-        self.register_buffer("grid_thw", grid_thw, persistent=False)
+        self.merge = visual.spatial_merge_size
+        self.num_grid = visual.num_grid_per_side
+        self.deep_idx = list(visual.deepstack_visual_indexes)
+
+    def _rot_pos_emb(self, mh, mw):
+        merge = self.merge
+        h, w = mh * merge, mw * merge
+        dev = self.visual.pos_embed.weight.device
+        block_rows = torch.arange(mh, device=dev)
+        block_cols = torch.arange(mw, device=dev)
+        intra = torch.arange(merge, device=dev)
+        shape = (mh, mw, merge, merge)
+        row_idx = (
+            (
+                block_rows[:, None, None, None] * merge
+                + intra[None, None, :, None]
+            )
+            .expand(shape)
+            .reshape(-1)
+        )
+        col_idx = (
+            (
+                block_cols[None, :, None, None] * merge
+                + intra[None, None, None, :]
+            )
+            .expand(shape)
+            .reshape(-1)
+        )
+        inv = self.visual.rotary_pos_emb.inv_freq
+        row_freqs = torch.outer(torch.arange(h, device=dev).to(inv.dtype), inv)
+        col_freqs = torch.outer(torch.arange(w, device=dev).to(inv.dtype), inv)
+        return torch.cat(
+            [
+                row_freqs.index_select(0, row_idx),
+                col_freqs.index_select(0, col_idx),
+            ],
+            dim=-1,
+        )
+
+    def _pos_embed(self, mh, mw):
+        merge = self.merge
+        h, w = mh * merge, mw * merge
+        grid = self.num_grid
+        emb = self.visual.pos_embed.weight
+        dev = emb.device
+        # linspace(0, grid - 1, n) == arange(n) * (grid - 1) / (n - 1)
+        hs = torch.arange(h, device=dev).to(emb.dtype) * ((grid - 1) / (h - 1))
+        ws = torch.arange(w, device=dev).to(emb.dtype) * ((grid - 1) / (w - 1))
+        hf, wf = hs.int(), ws.int()
+        hc = (hf + 1).clamp(max=grid - 1)
+        wc = (wf + 1).clamp(max=grid - 1)
+        dh, dw = hs - hf.to(emb.dtype), ws - wf.to(emb.dtype)
+        base_h, base_hc = hf * grid, hc * grid
+        idx = [
+            (base_h[:, None] + wf[None]).reshape(-1),
+            (base_h[:, None] + wc[None]).reshape(-1),
+            (base_hc[:, None] + wf[None]).reshape(-1),
+            (base_hc[:, None] + wc[None]).reshape(-1),
+        ]
+        wgt = [
+            ((1 - dh)[:, None] * (1 - dw)[None]).reshape(-1),
+            ((1 - dh)[:, None] * dw[None]).reshape(-1),
+            (dh[:, None] * (1 - dw)[None]).reshape(-1),
+            (dh[:, None] * dw[None]).reshape(-1),
+        ]
+        pe = sum(
+            emb.index_select(0, idx[i]) * wgt[i][:, None] for i in range(4)
+        )  # [h * w, hidden] in row-major
+        hidden = pe.shape[-1]
+        # row-major -> merge-block-major, matching the patch order
+        return (
+            pe.view(mh, merge, mw, merge, hidden)
+            .permute(0, 2, 1, 3, 4)
+            .reshape(h * w, hidden)
+        )
+
+    def _attn(self, blk, x, cos, sin):
+        attn = blk.attn
+        seq = x.shape[0]
+        qkv = (
+            attn.qkv(x).reshape(seq, 3, attn.num_heads, -1).permute(1, 0, 2, 3)
+        )
+        q, k, v = qkv.unbind(0)
+        cos2, sin2 = cos.unsqueeze(1), sin.unsqueeze(1)
+
+        def rope(t_):
+            half = t_.shape[-1] // 2
+            rot = torch.cat((-t_[..., half:], t_[..., :half]), dim=-1)
+            return t_ * cos2 + rot * sin2
+
+        q = rope(q.float()).transpose(0, 1).unsqueeze(0)
+        k = rope(k.float()).transpose(0, 1).unsqueeze(0)
+        v = v.transpose(0, 1).unsqueeze(0).float()
+        w = torch.softmax(
+            torch.matmul(q, k.transpose(2, 3)) * attn.scaling, dim=-1
+        )
+        o = (
+            torch.matmul(w, v)
+            .to(x.dtype)
+            .squeeze(0)
+            .transpose(0, 1)
+            .reshape(seq, -1)
+        )
+        return attn.proj(o)
 
     def forward(self, pixel_values: torch.Tensor):
-        out = self.visual(pixel_values, grid_thw=self.grid_thw)
-        return (out.pooler_output, *out.deepstack_features)
+        merge = self.merge
+        mh, mw = pixel_values.shape[0], pixel_values.shape[1]
+        pd = pixel_values.shape[-1]
+        flat = pixel_values.reshape(mh * mw * merge * merge, pd)
+        hidden = self.visual.patch_embed(flat)
+        hidden = hidden + self._pos_embed(mh, mw)
+        rot = self._rot_pos_emb(mh, mw)
+        emb = torch.cat((rot, rot), dim=-1)
+        cos, sin = emb.cos(), emb.sin()
+        deep = []
+        for i, blk in enumerate(self.visual.blocks):
+            hidden = hidden + self._attn(blk, blk.norm1(hidden), cos, sin)
+            hidden = hidden + blk.mlp(blk.norm2(hidden))
+            if i in self.deep_idx:
+                merger = self.visual.deepstack_merger_list[
+                    self.deep_idx.index(i)
+                ]
+                deep.append(merger(hidden))
+        pooled = self.visual.merger(hidden)
+        return (pooled, *deep)
 
 
 @register_encoder_handler
@@ -594,20 +672,17 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
     MODALITY = "vision"
     ARCH_NAMES = ("qwen3_vl",)
     MODEL_INPUT_NAME = "pixel_values"
+    #: Sample grid (t, h, w) in patch units; h, w are multiples of merge.
     SAMPLE_GRID_THW = (1, 8, 8)
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
-        # bake the rotary arange length to a python int (see qwen2_5_vl)
-        visual = bake_vision_rotary_seqlen(
-            resolve_submodule(hf_model, "model.visual")
-        )
-        grid = torch.tensor([self.SAMPLE_GRID_THW], dtype=torch.long)
-        return Qwen3VLVisionEncoder(visual, grid)
+        return Qwen3VLVisionEncoder(resolve_submodule(hf_model, "model.visual"))
 
     def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
         vision_conf = config_helper.conf.vision_config
-        t, h, w = self.SAMPLE_GRID_THW
-        num_patches = t * h * w
+        merge = vision_conf.spatial_merge_size
+        _, h, w = self.SAMPLE_GRID_THW
+        mh, mw = h // merge, w // merge
         patch_dim = (
             vision_conf.in_channels
             * vision_conf.temporal_patch_size
@@ -615,7 +690,11 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
             * vision_conf.patch_size
         )
         n_deepstack = len(_deepstack_indexes(config_helper.conf))
-        pixel_values = torch.randn((num_patches, patch_dim), dtype=inputs_dtype)
+        # 2D merge-block grid: flattening dims 0..3 is the processor's patch
+        # order, so the host reshapes flat patches to [MH, MW, merge, merge, .].
+        pixel_values = torch.randn(
+            (mh, mw, merge, merge, patch_dim), dtype=inputs_dtype
+        )
         output_names = ["out_image_embeddings"] + [
             deepstack_output_name("image", i) for i in range(n_deepstack)
         ]
@@ -623,8 +702,8 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
             inputs=(pixel_values,),
             input_names=["pixel_values"],
             output_names=output_names,
-            # grid_thw baked constant -> fixed patch count (see qwen2_5_vl).
-            dynamic_axes={},
+            # dynamic resolution: the two grid axes are symbolic in NNEF.
+            dynamic_axes={"pixel_values": {0: "IMG_H", 1: "IMG_W"}},
         )
 
     def build_forward_outputs(
@@ -647,8 +726,8 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
                 hidden_size=config_helper.conf.vision_config.out_hidden_size,
                 placeholder_token_id_attr="image_token_id",
                 # matches the decoder graph's ``in_image_embeddings`` symbol
-                # (the input this contract feeds); the encoder tower itself is
-                # fixed-shape (baked grid).
+                # (the input this contract feeds); the encoder emits a dynamic
+                # number of tokens (its grid axes are symbolic).
                 dynamic_axis="IMG_STATE",
                 injection_layers=tuple(range(n_deepstack)),
                 deepstack_dynamic_axis="IMG_DEEP",
