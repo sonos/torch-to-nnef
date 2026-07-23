@@ -17,9 +17,12 @@ from multimodal_dummy import (
 )
 from transformers import Gemma4Config, Gemma4ForConditionalGeneration
 
+from torch_to_nnef_llm.models.handlers.base import scatter_features_by_mask
 from torch_to_nnef_llm.models.handlers.gemma4_vl import (
+    Gemma4AudioEncoderHandler,
     _grid_position_ids,
     _num_soft_tokens,
+    _sample_audio_frames,
     _sample_grid_side,
 )
 from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
@@ -85,8 +88,8 @@ def _assert_chain_matches_reference(exporter):
     """Encoder embeddings fed to the decoder wrapper reproduce HF logits.
 
     The no-download end-to-end guard (also run on the shrunk dummy config):
-    exercises per-layer input embeddings + the image splice against HF's native
-    multimodal forward.
+    exercises per-layer input embeddings + the image AND video splices (both
+    from the vision tower) against HF's native multimodal forward.
     """
     model = exporter.hf_model_causal.eval()
     ch = exporter.config_helper
@@ -97,26 +100,37 @@ def _assert_chain_matches_reference(exporter):
     pos_ids = _grid_position_ids(side)
     patch_dim = 3 * vc.patch_size * vc.patch_size
     pixel_values = torch.rand(1, side * side, patch_dim)
+    pixel_values_videos = torch.rand(1, side * side, patch_dim)
     image_token_id = conf.image_token_id
+    video_token_id = conf.video_token_id
     vocab_size = ch.decoder_conf.vocab_size
-    filler = next(i for i in range(vocab_size) if i not in {image_token_id})
+    filler = next(
+        i
+        for i in range(vocab_size)
+        if i not in {image_token_id, video_token_id}
+    )
 
-    encoder = exporter.encoder_handlers[0].get_encoder_module(model).eval()
+    vision_enc = exporter.encoder_handlers[0].get_encoder_module(model).eval()
+    video_enc = exporter.encoder_handlers[1].get_encoder_module(model).eval()
     wrapped = exporter.decoder_exporter.wrapped_model.eval()
 
-    seq = 1 + num_tokens + 2
+    seq = 1 + 2 * num_tokens + 2
     input_ids = torch.full((1, seq), filler, dtype=torch.long)
     input_ids[:, 1 : 1 + num_tokens] = image_token_id
+    input_ids[:, 1 + num_tokens : 1 + 2 * num_tokens] = video_token_id
     _, _, past_kv, _ = ch.build_kv_cache_infos(0)
     past_kv = [t_.to(torch.float32) for t_ in past_kv]
 
     with torch.no_grad():
-        img_emb = encoder(pixel_values)
-        chain_logits = wrapped(input_ids, *past_kv, img_emb)[0]
+        img_emb = vision_enc(pixel_values)
+        vid_emb = video_enc(pixel_values_videos)
+        chain_logits = wrapped(input_ids, *past_kv, img_emb, vid_emb)[0]
         ref_logits = model(
             input_ids=input_ids,
             pixel_values=pixel_values,
             image_position_ids=pos_ids,
+            pixel_values_videos=pixel_values_videos.unsqueeze(0),
+            video_position_ids=pos_ids.unsqueeze(0),
         ).logits
 
     kept = chain_logits.shape[1]
@@ -131,6 +145,68 @@ def test_dummy_chain_parity():
         _dummy_config(), Gemma4ForConditionalGeneration, "f32"
     )
     _assert_chain_matches_reference(exporter)
+
+
+def test_dummy_audio_chain_parity():
+    """Audio encoder + merge match HF in PyTorch (tract export pending).
+
+    The audio conformer tower is not yet registered for joint export (needs
+    tract ops), so this validates the recipe directly: run the audio encoder
+    module, splice its soft tokens the way the decoder would, and compare
+    logits to HF's native audio forward.
+    """
+    exporter = build_dummy_exporter(
+        _dummy_config(), Gemma4ForConditionalGeneration, "f32"
+    )
+    model = exporter.hf_model_causal.eval()
+    ch = exporter.config_helper
+    conf = ch.conf
+    ac = conf.audio_config
+    frames = _sample_audio_frames(ac)
+    mel = ac.subsampling_conv_channels[0]
+    input_features = torch.randn(1, frames, mel)
+    feature_mask = torch.ones(1, frames, dtype=torch.bool)
+
+    encoder = Gemma4AudioEncoderHandler().get_encoder_module(model).eval()
+    with torch.no_grad():
+        audio_emb = encoder(input_features)
+    n_audio = audio_emb.shape[0]
+
+    audio_token_id = conf.audio_token_id
+    pad_id = conf.text_config.pad_token_id
+    vocab = ch.decoder_conf.vocab_size
+    filler = next(i for i in range(vocab) if i not in {audio_token_id})
+    seq = 1 + n_audio + 2
+    input_ids = torch.full((1, seq), filler, dtype=torch.long)
+    input_ids[:, 1 : 1 + n_audio] = audio_token_id
+
+    lm = model.model.language_model
+    audio_mask = input_ids == audio_token_id
+    llm_ids = torch.where(
+        audio_mask, torch.full_like(input_ids, pad_id), input_ids
+    )
+    embeds = model.model.get_input_embeddings()(llm_ids)
+    per_layer = lm.get_per_layer_inputs(llm_ids, None)
+    embeds = scatter_features_by_mask(
+        inputs_embeds=embeds, token_mask=audio_mask, features=audio_emb
+    )
+    with torch.no_grad():
+        out = lm(
+            inputs_embeds=embeds,
+            per_layer_inputs=per_layer,
+            attention_mask=None,
+            position_ids=None,
+            use_cache=False,
+        )
+        my_logits = model.lm_head(out.last_hidden_state)
+        ref_logits = model(
+            input_ids=input_ids,
+            input_features=input_features,
+            input_features_mask=feature_mask,
+        ).logits
+
+    assert (my_logits - ref_logits).abs().max().item() < 1e-3
+    assert torch.equal(my_logits.argmax(-1), ref_logits.argmax(-1))
 
 
 @pytest.fixture(scope="module")

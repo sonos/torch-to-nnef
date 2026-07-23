@@ -31,6 +31,7 @@ from .base import (
     EncoderHandler,
     IOSpec,
     StateContext,
+    reset_special_ids_to_filler,
     resolve_submodule,
     scatter_features_by_mask,
 )
@@ -205,13 +206,147 @@ class Gemma4VisionEncoderHandler(EncoderHandler):
         ]
 
 
+@register_encoder_handler
+class Gemma4VideoEncoderHandler(Gemma4VisionEncoderHandler):
+    """Video encoder: the same vision tower applied to video frames.
+
+    ``get_video_features`` just flattens frames through the vision tower, so a
+    single baked frame is identical to the image path (same weights, same
+    graph); only the placeholder token it feeds differs. Registered under the
+    distinct ``"video"`` modality bucket so both encoders coexist.
+    """
+
+    MODALITY = "video"
+
+    def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
+        spec = super().build_input_spec(
+            config_helper=config_helper, inputs_dtype=inputs_dtype
+        )
+        return IOSpec(
+            inputs=spec.inputs,
+            input_names=spec.input_names,
+            output_names=["out_video_embeddings"],
+            dynamic_axes=spec.dynamic_axes,
+        )
+
+    def contracts(self, config_helper) -> T.List[EmbeddingContract]:
+        return [
+            EmbeddingContract(
+                modality="video",
+                hidden_size=config_helper.decoder_conf.hidden_size,
+                placeholder_token_id_attr="video_token_id",
+                dynamic_axis="VIDEO",
+            )
+        ]
+
+
+def _audio_conv_len(length: int) -> int:
+    """Output length of one stride-2, padding-1, kernel-3 conv."""
+    return (length - 1) // 2 + 1
+
+
+def _sample_audio_frames(audio_conf) -> int:
+    """Baked mel-frame count for the audio sample (a few attention chunks)."""
+    return 8 * int(audio_conf.attention_chunk_size)
+
+
+def _num_audio_soft_tokens(audio_conf) -> int:
+    frames = _sample_audio_frames(audio_conf)
+    return _audio_conv_len(_audio_conv_len(frames))  # two /2 subsamples
+
+
+class Gemma4AudioEncoder(torch.nn.Module):
+    """Audio conformer tower + ``embed_audio`` projector, baked feature mask.
+
+    Input ``input_features`` is log-mel ``[1, frames, num_mel_bins]`` (the
+    STFT/mel front-end stays in the HF feature extractor); output is the
+    projected soft tokens ``[num_audio_tokens, text_hidden]``. The valid-frame
+    mask is baked (a full, no-padding chunk), so the tower's padding strip is a
+    reshape.
+
+    NOTE: this branch is validated numerically in PyTorch but is **not yet
+    registered** for joint export: the Universal-Speech-Model conformer uses
+    ``unfold`` / chunked 5D local attention / a relative-shift trick that
+    ``tract`` does not yet cover. Wire it up (register + add ``"audio"`` to the
+    decoder ``MODALITIES``) once those ops land.
+    """
+
+    def __init__(self, audio_tower, embed_audio, input_features_mask):
+        super().__init__()
+        self.audio_tower = audio_tower
+        self.embed_audio = embed_audio
+        self.register_buffer(
+            "input_features_mask", input_features_mask, persistent=False
+        )
+
+    def forward(self, input_features: torch.Tensor) -> torch.Tensor:
+        outputs = self.audio_tower(input_features, self.input_features_mask)
+        pooled = self.embed_audio(inputs_embeds=outputs.last_hidden_state)
+        # no padding -> every frame valid -> the model's boolean strip keeps all
+        return pooled.reshape(-1, pooled.shape[-1])
+
+
+class Gemma4AudioEncoderHandler(EncoderHandler):
+    """Encoder handler for the Gemma 4 audio tower (tract-pending, see above).
+
+    Deliberately not decorated with ``@register_encoder_handler``: the recipe
+    is validated in PyTorch (see the audio chain-parity test) but the conformer
+    tower cannot export to tract yet.
+    """
+
+    MODALITY = "audio"
+    ARCH_NAMES = ("gemma4",)
+    MODEL_INPUT_NAME = "input_features"
+
+    def get_encoder_module(self, hf_model) -> torch.nn.Module:
+        audio_conf = hf_model.config.audio_config
+        frames = _sample_audio_frames(audio_conf)
+        mask = torch.ones(1, frames, dtype=torch.bool)
+        return Gemma4AudioEncoder(
+            resolve_submodule(hf_model, "model.audio_tower"),
+            resolve_submodule(hf_model, "model.embed_audio"),
+            mask,
+        )
+
+    def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
+        audio_conf = config_helper.conf.audio_config
+        frames = _sample_audio_frames(audio_conf)
+        num_mel_bins = audio_conf.subsampling_conv_channels[0]
+        input_features = torch.randn(
+            (1, frames, num_mel_bins), dtype=inputs_dtype
+        )
+        return IOSpec(
+            inputs=(input_features,),
+            input_names=["input_features"],
+            output_names=["out_audio_embeddings"],
+            dynamic_axes={},  # fixed baked chunk length
+        )
+
+    def contracts(self, config_helper) -> T.List[EmbeddingContract]:
+        return [
+            EmbeddingContract(
+                modality="audio",
+                hidden_size=config_helper.decoder_conf.hidden_size,
+                placeholder_token_id_attr="audio_token_id",
+                dynamic_axis="AUD",
+            )
+        ]
+
+
 @register_handler
 class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
-    """Decoder handler for Gemma 4: image embeddings + per-layer inputs."""
+    """Decoder handler for Gemma 4: modality embeddings + per-layer inputs.
+
+    Splices one soft-token stream per modality (image + video today; both come
+    from the vision tower). Audio is a separate branch pending tract support for
+    the conformer encoder, but the decoder splice is modality-neutral and would
+    extend by adding an entry to ``MODALITIES``.
+    """
 
     ARCH_NAMES = ("gemma4",)
-    STATE_INPUT_NAMES = ["in_image_embeddings"]
-    STATE_OUTPUT_NAMES = ["out_image_embeddings"]
+    #: (contract modality, placeholder-token-id config attr), one decoder state
+    #: input/output per modality.
+    MODALITIES = (("image", "image_token_id"), ("video", "video_token_id"))
 
     @staticmethod
     def get_auto_model_class(transformers):
@@ -238,8 +373,11 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ) -> IOSpec:
         del tokenizer, sample_text
-        num_image_tokens = _num_soft_tokens(config_helper.conf.vision_config)
-        effective_seq_len = max(n_input_tokens, num_image_tokens + 2)
+        conf = config_helper.conf
+        # image + video both come from the vision tower -> same soft-token count
+        num_tokens = _num_soft_tokens(conf.vision_config)
+        total_mm = num_tokens * len(self.MODALITIES)
+        effective_seq_len = max(n_input_tokens, total_mm + 2)
         (
             in_cache_names,
             out_cache_names,
@@ -252,26 +390,32 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         )
         hidden_size = config_helper.decoder_conf.hidden_size
         vocab_size = config_helper.decoder_conf.vocab_size
-        image_token_id = config_helper.conf.image_token_id
+        specials = {getattr(conf, attr) for _, attr in self.MODALITIES}
 
         input_ids = torch.randint(0, vocab_size, (1, effective_seq_len))
-        # leave position 0 as a real text token so decode still has one
-        input_ids[input_ids == image_token_id] = (
-            image_token_id + 1
-        ) % vocab_size
-        for idx in range(num_image_tokens):
-            input_ids[:, 1 + idx] = image_token_id
-        image_embeddings = torch.randn(
-            (num_image_tokens, hidden_size), dtype=inputs_dtype
-        )
+        reset_special_ids_to_filler(input_ids, specials, vocab_size)
+        # place each modality's placeholders at a distinct span (pos 0 stays a
+        # real text token so decode still has one).
+        embeddings, state_in, state_out = [], [], []
+        dyn_axes = dict(dynamic_axes)
+        pos = 1
+        for modality, attr in self.MODALITIES:
+            token_id = getattr(conf, attr)
+            input_ids[:, pos : pos + num_tokens] = token_id
+            pos += num_tokens
+            embeddings.append(
+                torch.randn((num_tokens, hidden_size), dtype=inputs_dtype)
+            )
+            in_name = f"in_{modality}_embeddings"
+            state_in.append(in_name)
+            state_out.append(f"out_{modality}_embeddings")
+            dyn_axes[in_name] = {0: modality.upper()}
 
         return IOSpec(
-            inputs=(input_ids, *past_key_values, image_embeddings),
-            input_names=["input_ids"] + in_cache_names + self.STATE_INPUT_NAMES,
-            output_names=["outputs"]
-            + out_cache_names
-            + self.STATE_OUTPUT_NAMES,
-            dynamic_axes={**dynamic_axes, "in_image_embeddings": {0: "IMG"}},
+            inputs=(input_ids, *past_key_values, *embeddings),
+            input_names=["input_ids"] + in_cache_names + state_in,
+            output_names=["outputs"] + out_cache_names + state_out,
+            dynamic_axes=dyn_axes,
         )
 
     @staticmethod
@@ -310,20 +454,28 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
 
     def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
         hf_model = wrapper.model
+        n_mod = len(self.MODALITIES)
+        modality_embeds = list(inputs[-n_mod:])
         input_ids = inputs[0]
-        image_embeddings = inputs[-1]
-        cache_tensors = inputs[1:-1]
+        cache_tensors = inputs[1:-n_mod]
 
         language_model = hf_model.model.language_model
-        text_config = hf_model.config.text_config
-        image_token_id = hf_model.config.image_token_id
+        conf = hf_model.config
+        text_config = conf.text_config
         pad_token_id = text_config.pad_token_id
 
-        image_mask = input_ids == image_token_id
-        # image placeholder ids are out of the text vocab used for embedding /
+        masks = [
+            input_ids == getattr(conf, attr) for _, attr in self.MODALITIES
+        ]
+        multimodal_mask = masks[0]
+        for mask in masks[1:]:
+            multimodal_mask = multimodal_mask | mask
+        # placeholder ids are out of the text vocab used for embedding /
         # per-layer lookup; map them to pad first (matches Gemma4Model.forward).
         llm_input_ids = torch.where(
-            image_mask, torch.full_like(input_ids, pad_token_id), input_ids
+            multimodal_mask,
+            torch.full_like(input_ids, pad_token_id),
+            input_ids,
         )
         inputs_embeds = hf_model.model.get_input_embeddings()(llm_input_ids)
         # per-layer inputs MUST come from the token ids, before the splice: the
@@ -331,11 +483,12 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         per_layer_inputs = language_model.get_per_layer_inputs(
             llm_input_ids, None
         )
-        inputs_embeds = scatter_features_by_mask(
-            inputs_embeds=inputs_embeds,
-            token_mask=image_mask,
-            features=image_embeddings,
-        )
+        for mask, features in zip(masks, modality_embeds, strict=True):
+            inputs_embeds = scatter_features_by_mask(
+                inputs_embeds=inputs_embeds,
+                token_mask=mask,
+                features=features,
+            )
         past_key_values = build_past_kv_dyn_cache(cache_tensors)
 
         past_length = cache_tensors[0].shape[-2] if cache_tensors else 0
@@ -361,7 +514,7 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
                 "past_key_values": past_key_values,
                 "use_cache": True,
             },
-            state={"image_embeddings": image_embeddings},
+            state={"modality_embeds": modality_embeds},
         )
 
     def call_model(self, *, model, state_context, wrapper) -> T.Any:
@@ -378,4 +531,4 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
             state_context=state_context,
             num_logits_to_keep=num_logits_to_keep,
         )
-        return outputs + [state_context.state["image_embeddings"]]
+        return outputs + list(state_context.state["modality_embeds"])
