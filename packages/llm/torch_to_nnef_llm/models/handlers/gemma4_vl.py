@@ -62,82 +62,51 @@ def _grid_position_ids(side: int) -> torch.Tensor:
 
 
 class Gemma4VisionEncoder(torch.nn.Module):
-    """Vision tower + ``embed_vision`` projector with baked patch positions.
+    """Vision tower + ``embed_vision`` projector, DYNAMIC resolution.
 
-    Input ``pixel_values`` is the flattened-patch tensor
-    ``[1, num_patches, 3 * patch_size**2]``; output is the projected soft
-    tokens ``[num_soft_tokens, text_hidden]`` ready for the decoder splice. The
-    2D patch positions are baked constant (full square grid, no padding), so
-    the tower's one-hot position embedding and 2D pooling fold to constants.
+    Input ``pixel_values`` is the 2D patch grid
+    ``[1, G, G, 3 * patch_size**2]``; both spatial axes export as a symbolic
+    dim, so a single graph handles any square resolution. Output is the
+    projected soft tokens ``[num_soft_tokens, text_hidden]``.
 
-    The tower forward is inlined here rather than calling
-    :meth:`Gemma4VisionModel.forward` to sidestep two trace hazards that only
-    matter for padded / variable-resolution inputs, neither of which occurs for
-    a full square grid:
+    The tower forward is reimplemented here to be trace-friendly and
+    exportable under a symbolic grid side:
 
-    - ``create_bidirectional_mask`` (breaks tracing via the transformers masking
-      utils): with no padding every patch attends every patch, i.e. the mask is
-      uniform, so the layers run with ``attention_mask=None``.
-    - the pooler's data-dependent ``hidden_states[pooler_mask]`` padding strip:
-      with no padding ``pooler_mask`` is all-true, so it reduces to a reshape.
+    - patch positions are derived from the grid with ``arange`` (not baked), so
+      they follow the dynamic size;
+    - ``create_bidirectional_mask`` is skipped -- a full grid has no padding, so
+      attention is uniform (``attention_mask=None``);
+    - the model's position/one-hot pooler (data-dependent, and with a dynamic
+      ``num_classes`` under a symbolic size) is replaced by ``avg_pool2d`` over
+      the grid, numerically identical for a clean grid but symbolic-shape
+      exportable.
     """
 
-    def __init__(self, vision_tower, embed_vision, pixel_position_ids):
+    def __init__(self, vision_tower, embed_vision):
         super().__init__()
         self.vision_tower = vision_tower
         self.embed_vision = embed_vision
-        self.register_buffer(
-            "pixel_position_ids", pixel_position_ids, persistent=False
-        )
-        # Precompute the 2D-pooling weights. They depend only on the baked
-        # positions + pooling kernel, so they are constant; folding them here
-        # avoids the pooler's one-hot / floor-divide (which the IR cannot
-        # translate) and leaves a single constant matmul in the graph.
-        self.register_buffer(
-            "_pool_weights", self._pooling_weights(), persistent=False
-        )
-
-    def _pooling_weights(self) -> torch.Tensor:
-        pos_ids = self.pixel_position_ids
-        num_patches = pos_ids.shape[1]
-        pool = int(self.vision_tower.config.pooling_kernel_size)
-        length = num_patches // (pool * pool)
-        clamped = pos_ids.clamp(min=0)[0]  # [num_patches, 2]
-        max_x = int(clamped[:, 0].max().item()) + 1
-        kernel_idxs = clamped // pool
-        kernel_idxs = kernel_idxs[:, 0] + (max_x // pool) * kernel_idxs[:, 1]
-        weights = torch.nn.functional.one_hot(
-            kernel_idxs.long(), length
-        ).float()
-        return weights / (pool * pool)  # [num_patches, length]
-
-    def _patch_embed(self, pixel_values: torch.Tensor) -> torch.Tensor:
-        """Patch embedding with the 2D position lookup as a gather.
-
-        The tower computes position embeddings as ``one_hot(pos) @ table``;
-        with baked constant positions that is an embedding lookup, so we emit an
-        ``index_select`` (which tract handles) instead of the one-hot matmul
-        (which the IR cannot translate).
-        """
-        embedder = self.vision_tower.patch_embedder
-        pos_ids = self.pixel_position_ids
-        table = embedder.position_embedding_table  # [2, pos_emb_size, hidden]
-        clamped = pos_ids.clamp(min=0)
-        pos_x = clamped[..., 0].reshape(-1)
-        pos_y = clamped[..., 1].reshape(-1)
-        pe = table[0].index_select(0, pos_x) + table[1].index_select(0, pos_y)
-        pe = pe.unsqueeze(0)  # [1, num_patches, hidden]
-        scaled = 2 * (pixel_values - 0.5)
-        hidden = embedder.input_proj(
-            scaled.to(embedder.input_proj.weight.dtype)
-        )
-        return hidden + pe
 
     def forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
         tower = self.vision_tower
-        pos_ids = self.pixel_position_ids
+        pool = tower.config.pooling_kernel_size
+        batch, n_rows, n_cols, patch_dim = pixel_values.shape
+        flat = pixel_values.reshape(batch, n_rows * n_cols, patch_dim)
 
-        hidden = self._patch_embed(pixel_values)
+        # row-major (x=col, y=row) patch positions, derived from the grid
+        cols = torch.arange(n_cols, device=pixel_values.device)
+        rows = torch.arange(n_rows, device=pixel_values.device)
+        pos_x = cols.unsqueeze(0).expand(n_rows, n_cols).reshape(-1)
+        pos_y = rows.unsqueeze(1).expand(n_rows, n_cols).reshape(-1)
+        table = tower.patch_embedder.position_embedding_table
+        pos_emb_2d = table[0].index_select(0, pos_x) + table[1].index_select(
+            0, pos_y
+        )
+        proj = tower.patch_embedder.input_proj
+        scaled = 2 * (flat - 0.5)
+        hidden = proj(scaled.to(proj.weight.dtype)) + pos_emb_2d.unsqueeze(0)
+
+        pos_ids = torch.stack([pos_x, pos_y], dim=-1).unsqueeze(0)
         position_embeddings = tower.encoder.rotary_emb(hidden, pos_ids)
         for layer in tower.encoder.layers[: tower.encoder.num_layers]:
             hidden = layer(
@@ -147,17 +116,19 @@ class Gemma4VisionEncoder(torch.nn.Module):
                 position_ids=pos_ids,
             )
 
-        # 2D avg-pool via the precomputed constant weights (see __init__), then
-        # scale as the pooler does. No padding -> the model's boolean strip is a
-        # reshape.
-        pooled = (
-            self._pool_weights.float().transpose(0, 1) @ hidden.float()
-        ).to(hidden.dtype)
+        # 2D avg-pool over the grid (== the model's position-based pooler for a
+        # clean grid, but no one-hot). Pool in f32 like the model, then scale.
+        channels = hidden.shape[-1]
+        grid = hidden.reshape(batch, n_rows, n_cols, channels)
+        grid = grid.permute(0, 3, 1, 2)
+        pooled = torch.nn.functional.avg_pool2d(grid.float(), pool).to(
+            hidden.dtype
+        )
+        pooled = pooled.permute(0, 2, 3, 1).reshape(batch, -1, channels)
         pooled = pooled * (tower.pooler.hidden_size**0.5)
-        pooled = pooled.reshape(-1, pooled.shape[-1])
         if tower.config.standardize:
             pooled = (pooled - tower.std_bias) * tower.std_scale
-        return self.embed_vision(inputs_embeds=pooled)
+        return self.embed_vision(inputs_embeds=pooled.reshape(-1, channels))
 
 
 @register_encoder_handler
@@ -169,30 +140,27 @@ class Gemma4VisionEncoderHandler(EncoderHandler):
     MODEL_INPUT_NAME = "pixel_values"
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
-        vision_conf = hf_model.config.vision_config
-        side = _sample_grid_side(vision_conf)
         return Gemma4VisionEncoder(
             resolve_submodule(hf_model, "model.vision_tower"),
             resolve_submodule(hf_model, "model.embed_vision"),
-            _grid_position_ids(side),
         )
 
     def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:
         vision_conf = config_helper.conf.vision_config
         side = _sample_grid_side(vision_conf)
-        num_patches = side * side
         patch_dim = 3 * vision_conf.patch_size * vision_conf.patch_size
-        # patch pixels are scaled to [-1, 1] inside the tower (2*(x-0.5)); a
-        # [0, 1) sample matches the processor's normalized range.
+        # 2D patch grid [1, G, G, patch_dim]; both spatial axes are symbolic so
+        # one graph serves any square resolution. Pixels are scaled to [-1, 1]
+        # inside the tower (2*(x-0.5)); [0, 1) matches the processor's range.
         pixel_values = torch.rand(
-            (1, num_patches, patch_dim), dtype=inputs_dtype
+            (1, side, side, patch_dim), dtype=inputs_dtype
         )
         return IOSpec(
             inputs=(pixel_values,),
             input_names=["pixel_values"],
             output_names=["out_image_embeddings"],
-            # positions/patch count are baked constant -> no dynamic axis.
-            dynamic_axes={},
+            # both spatial axes symbolic -> one graph handles any resolution.
+            dynamic_axes={"pixel_values": {1: "G", 2: "G"}},
         )
 
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:
@@ -211,9 +179,9 @@ class Gemma4VideoEncoderHandler(Gemma4VisionEncoderHandler):
     """Video encoder: the same vision tower applied to video frames.
 
     ``get_video_features`` just flattens frames through the vision tower, so a
-    single baked frame is identical to the image path (same weights, same
-    graph); only the placeholder token it feeds differs. Registered under the
-    distinct ``"video"`` modality bucket so both encoders coexist.
+    single frame is identical to the image path (same weights, same
+    dynamic-resolution graph); only the placeholder token it feeds differs.
+    Registered under the distinct ``"video"`` modality bucket so both coexist.
     """
 
     MODALITY = "video"

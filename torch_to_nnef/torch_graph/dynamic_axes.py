@@ -321,6 +321,21 @@ def _rule_cat(op, out, dyn_of, full) -> T.Set[int]:
     return res
 
 
+def _rule_stack(op, out, dyn_of, full) -> T.Set[int]:
+    tensors = op.inputs[0]
+    if not isinstance(tensors, FixedTensorList):
+        return full(out)
+    orank = _rank(out) or 1
+    dim = _const_dim(op.inputs[1], orank) if len(op.inputs) > 1 else 0
+    # a new axis of size len(tensors) is inserted at `dim` (static); each
+    # input's dynamic axes shift past the inserted axis.
+    res: T.Set[int] = set()
+    for tnode in tensors.data:
+        for a in dyn_of(tnode):
+            res.add(a + 1 if a >= dim else a)
+    return res
+
+
 def _rule_flatten(op, out, dyn_of, full) -> T.Set[int]:
     src = op.inputs[0]
     rank = _rank(src)
@@ -354,6 +369,7 @@ _KIND_RULES = {
     "aten::flatten": _rule_flatten,
     "aten::index_select": _rule_index_select,
     "aten::cat": _rule_cat,
+    "aten::stack": _rule_stack,
 }
 
 

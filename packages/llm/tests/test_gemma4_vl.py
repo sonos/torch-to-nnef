@@ -9,6 +9,9 @@ input embeddings, and a direct ``language_model`` call (the top-level model
 cannot be fed pre-spliced embeddings). Audio/video/MoE branches are separate.
 """
 
+import tempfile
+from pathlib import Path
+
 import pytest
 import torch
 from multimodal_dummy import (
@@ -17,6 +20,14 @@ from multimodal_dummy import (
 )
 from transformers import Gemma4Config, Gemma4ForConditionalGeneration
 
+from torch_to_nnef import export_model_to_nnef
+from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.tract import TractCheckTolerance, build_io
+from torch_to_nnef_llm.exporter import LM_VAR_SCHEME
+from torch_to_nnef_llm.models.base import (
+    BaseEncoder,
+    update_forward_signature,
+)
 from torch_to_nnef_llm.models.handlers.base import scatter_features_by_mask
 from torch_to_nnef_llm.models.handlers.gemma4_vl import (
     Gemma4AudioEncoderHandler,
@@ -99,8 +110,11 @@ def _assert_chain_matches_reference(exporter):
     num_tokens = _num_soft_tokens(vc)
     pos_ids = _grid_position_ids(side)
     patch_dim = 3 * vc.patch_size * vc.patch_size
-    pixel_values = torch.rand(1, side * side, patch_dim)
-    pixel_values_videos = torch.rand(1, side * side, patch_dim)
+    # encoder takes the 2D grid; the HF reference takes the flattened patches.
+    image_grid = torch.rand(1, side, side, patch_dim)
+    video_grid = torch.rand(1, side, side, patch_dim)
+    pixel_values = image_grid.reshape(1, side * side, patch_dim)
+    pixel_values_videos = video_grid.reshape(1, side * side, patch_dim)
     image_token_id = conf.image_token_id
     video_token_id = conf.video_token_id
     vocab_size = ch.decoder_conf.vocab_size
@@ -122,8 +136,8 @@ def _assert_chain_matches_reference(exporter):
     past_kv = [t_.to(torch.float32) for t_ in past_kv]
 
     with torch.no_grad():
-        img_emb = vision_enc(pixel_values)
-        vid_emb = video_enc(pixel_values_videos)
+        img_emb = vision_enc(image_grid)
+        vid_emb = video_enc(video_grid)
         chain_logits = wrapped(input_ids, *past_kv, img_emb, vid_emb)[0]
         ref_logits = model(
             input_ids=input_ids,
@@ -145,6 +159,65 @@ def test_dummy_chain_parity():
         _dummy_config(), Gemma4ForConditionalGeneration, "f32"
     )
     _assert_chain_matches_reference(exporter)
+
+
+def test_dynamic_resolution_vision_multi_size():
+    """Export ONCE, run tract at several square resolutions.
+
+    Proves the grid axis is genuinely dynamic (not baked) end to end.
+    """
+    exporter = build_dummy_exporter(
+        _dummy_config(), Gemma4ForConditionalGeneration, "f32"
+    )
+    model = exporter.hf_model_causal.eval()
+    handler = exporter.encoder_handlers[0]
+    vc = model.config.vision_config
+    pool = vc.pooling_kernel_size
+    patch_dim = 3 * vc.patch_size * vc.patch_size
+    encoder = handler.get_encoder_module(model).eval()
+    wrapper = BaseEncoder(encoder, handler).eval()
+    io_spec = handler.build_input_spec(
+        config_helper=exporter.config_helper, inputs_dtype=torch.float32
+    )
+    update_forward_signature(wrapper, io_spec)
+    target = TractNNEF(version=TractNNEF.latest_version(), check_io=False)
+
+    def make(side):
+        return (torch.rand(1, side, side, patch_dim),)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpd = Path(tmp)
+        nnef = tmpd / "vision.nnef.tgz"
+        first = make(2 * pool)
+        in_names, out_names = build_io(
+            wrapper, first, tmpd / "i0.npz", tmpd / "o0.npz"
+        )
+        target.dynamic_axes = {in_names[0]: {1: "G", 2: "G"}}
+        export_model_to_nnef(
+            model=wrapper,
+            args=first,
+            file_path_export=nnef,
+            inference_target=target,
+            input_names=in_names,
+            output_names=out_names,
+            nnef_variable_naming_scheme=LM_VAR_SCHEME,
+        )
+        for k, side in enumerate((2 * pool, 3 * pool)):
+            pv = make(side)
+            build_io(
+                wrapper,
+                pv,
+                tmpd / f"i{k}.npz",
+                tmpd / f"o{k}.npz",
+                in_names,
+                out_names,
+            )
+            target.tract_cli.assert_io(
+                nnef,
+                tmpd / f"i{k}.npz",
+                tmpd / f"o{k}.npz",
+                check_tolerance=TractCheckTolerance.APPROXIMATE,
+            )
 
 
 def test_dummy_audio_chain_parity():
