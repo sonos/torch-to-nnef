@@ -30,10 +30,6 @@ from torch_to_nnef.torch_graph import (
     TorchModuleTracer,
     module_tracer_into_ir_graph,
 )
-from torch_to_nnef.torch_graph.dynamic_axes import (
-    compute_dynamic_axis_map,
-    size_query_is_dynamic,
-)
 from torch_to_nnef.torch_graph.ir_naming import (
     DEFAULT_VARNAME_SCHEME,
     VariableNamingScheme,
@@ -164,19 +160,8 @@ class TorchToNGraphExtractor:
             isinstance(self._inference_target, TractNNEF)
             and self._inference_target.dynamic_axes
         ):
-            dyn_map = compute_dynamic_axis_map(
-                self._torch_ir_graph,
-                self._inference_target.dynamic_axes,
-            )
-            self._torch_ir_graph.dynamic_axis_map = dyn_map
             for op_node in operators_nodes:
-                if op_node.kind != ATEN_SIZE_KIND:
-                    continue
-                input_node, axis_node = op_node.inputs
-                # only force dynamic the size queries that actually read a
-                # symbolic axis; a static axis keeps its traced constant so
-                # shape arithmetic (e.g. split sizes) still folds.
-                if size_query_is_dynamic(dyn_map, input_node, axis_node.data):
+                if op_node.kind == ATEN_SIZE_KIND:
                     forward_clean_values_for_dyn_axes(op_node)
         LOGGER.debug("done all forward_clean_values_for_dyn_axes")
 

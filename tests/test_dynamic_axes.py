@@ -281,27 +281,6 @@ test_suite.add(
 )
 
 
-# Static-axis shape query feeding a split while another axis is dynamic
-# (the 2D-RoPE / attention-head pattern): `x.shape[-1] // 2` must fold to a
-# constant even though axis 1 is symbolic, else `split_with_sizes` gets None
-# sizes. Guards per-axis dynamic-shape tracking.
-class StaticAxisSplitUnderDynamic(nn.Module):
-    def forward(self, x):  # x: (B, S, F), S dynamic, F static
-        f = x.shape[-1]
-        half = f // 2
-        a, b = torch.split(x, [half, f - half], dim=-1)
-        return a + b
-
-
-test_suite.add(
-    torch.arange(2 * 12 * 8, dtype=torch.float32).reshape(2, 12, 8),
-    StaticAxisSplitUnderDynamic(),
-    inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
-    ),
-)
-
-
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
