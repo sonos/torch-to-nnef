@@ -16,7 +16,15 @@ import typing as T
 
 import torch
 
-from .base import EmbeddingContract, EncoderHandler, IOSpec, StateContext
+from .base import (
+    EmbeddingContract,
+    EncoderHandler,
+    IOSpec,
+    StateContext,
+    reset_special_ids_to_filler,
+    resolve_submodule,
+    scatter_features_by_mask,
+)
 from .default import DefaultArchitectureHandler
 from .registry import register_encoder_handler, register_handler
 
@@ -26,53 +34,6 @@ def _image_seq_len(conf) -> int:
     vision_conf = conf.vision_config
     patches_per_side = vision_conf.image_size // vision_conf.patch_size
     return int((patches_per_side**2) / (conf.scale_factor**2))
-
-
-def _inject_image_features(
-    *,
-    inputs_embeds: torch.Tensor,
-    token_mask: torch.Tensor,
-    features: torch.Tensor,
-) -> torch.Tensor:
-    """Scatter ``features`` into ``inputs_embeds`` where ``token_mask`` is set.
-
-    ``features`` is the flat ``[num_image_tokens, hidden]`` encoder output; the
-    i-th True slot in row-major order receives ``features[i]``. Written with a
-    gather (not boolean assignment) so it survives tracing to tract.
-    """
-    if features.numel() == 0:
-        return inputs_embeds
-    batch_size, seq_length = token_mask.shape
-    token_counts = token_mask.to(torch.long).sum(dim=-1)
-    total_tokens = int(token_counts.sum().item())
-    if total_tokens == 0:
-        return inputs_embeds
-    if total_tokens != features.shape[0]:
-        raise ValueError(
-            f"feature/slot count mismatch: got {features.shape[0]} "
-            f"feature(s) for {total_tokens} placeholder slot(s) in input_ids"
-        )
-    start_offsets = torch.cumsum(token_counts, dim=0) - token_counts
-    slot_ids = token_mask.to(torch.long).cumsum(dim=-1)
-    slot_ids = slot_ids + start_offsets.unsqueeze(-1)
-    slot_ids = torch.where(token_mask, slot_ids, torch.zeros_like(slot_ids))
-    zero_feature = torch.zeros(
-        (1, features.shape[-1]),
-        dtype=inputs_embeds.dtype,
-        device=inputs_embeds.device,
-    )
-    feature_bank = torch.cat(
-        [
-            zero_feature,
-            features.to(inputs_embeds.device, inputs_embeds.dtype),
-        ],
-        dim=0,
-    )
-    gathered = feature_bank.index_select(0, slot_ids.reshape(-1)).view(
-        batch_size, seq_length, inputs_embeds.shape[-1]
-    )
-    float_mask = token_mask.unsqueeze(-1).to(inputs_embeds.dtype)
-    return inputs_embeds * (1 - float_mask) + gathered * float_mask
 
 
 class Idefics3VisionEncoder(torch.nn.Module):
@@ -136,8 +97,10 @@ class Idefics3VisionEncoderHandler(EncoderHandler):
     ARCH_NAMES = ("idefics3", "smolvlm")
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
-        inner = hf_model.model
-        return Idefics3VisionEncoder(inner.vision_model, inner.connector)
+        return Idefics3VisionEncoder(
+            resolve_submodule(hf_model, "model.vision_model"),
+            resolve_submodule(hf_model, "model.connector"),
+        )
 
     def _text_hidden_size(self, config_helper) -> int:
         return config_helper.decoder_conf.hidden_size
@@ -228,8 +191,7 @@ class Idefics3ArchitectureHandler(DefaultArchitectureHandler):
         image_token_id = config_helper.conf.image_token_id
         vocab_size = config_helper.decoder_conf.vocab_size
         input_ids.random_(0, vocab_size)
-        if vocab_size > 1:
-            input_ids[input_ids == image_token_id] = 1
+        reset_special_ids_to_filler(input_ids, {image_token_id}, vocab_size)
         for idx in range(num_image_tokens):
             # leave position 0 for a real text token so decode still has one
             input_ids[:, 1 + idx] = image_token_id
@@ -257,7 +219,7 @@ class Idefics3ArchitectureHandler(DefaultArchitectureHandler):
 
         inputs_embeds = hf_model.get_input_embeddings()(input_ids)
         image_token_id = hf_model.config.image_token_id
-        inputs_embeds = _inject_image_features(
+        inputs_embeds = scatter_features_by_mask(
             inputs_embeds=inputs_embeds,
             token_mask=input_ids == image_token_id,
             features=image_embeddings,

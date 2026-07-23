@@ -13,10 +13,12 @@ together at export time by a ``multimodal.json`` manifest so a downstream
 runtime can chain them.
 """
 
+import copy
 import json
 import logging
 import typing as T
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 import torch
@@ -56,6 +58,27 @@ DECODER_DIRNAME = "decoder"
 #: Above this parameter count, ``check_io`` roughly doubles peak RAM (the torch
 #: model stays resident while the tract subprocess loads the NNEF), so we warn.
 LARGE_MODEL_CHECK_IO_WARN_PARAMS = 2_000_000_000
+
+#: tract check tolerances ordered loosest-last. Encoders/fp16 need a looser
+#: preset than the decoder default, but we never *tighten* below a tolerance the
+#: caller explicitly chose, so overrides take the looser of the two.
+_TOLERANCE_BY_LOOSENESS = (
+    TractCheckTolerance.EXACT,
+    TractCheckTolerance.APPROXIMATE,
+    TractCheckTolerance.CLOSE,
+    TractCheckTolerance.VERY,
+    TractCheckTolerance.SUPER,
+    TractCheckTolerance.ULTRA,
+)
+
+
+def _loosest_tolerance(
+    a: TractCheckTolerance, b: TractCheckTolerance
+) -> TractCheckTolerance:
+    """Return whichever of ``a``/``b`` tolerates the larger difference."""
+    rank = {t: i for i, t in enumerate(_TOLERANCE_BY_LOOSENESS)}
+    a, b = TractCheckTolerance(a), TractCheckTolerance(b)
+    return a if rank[a] >= rank[b] else b
 
 
 @dataclass
@@ -120,8 +143,8 @@ def build_manifest(
                 entry["deepstack"] = [
                     {
                         "layer": layer,
-                        "name": f"out_{contract.modality}_deepstack_{i}",
-                        "feeds": f"in_{contract.modality}_deepstack_{i}",
+                        "name": contract.deepstack_output_name(i),
+                        "feeds": contract.deepstack_input_name(i),
                         "shape": [deepstack_axis, contract.hidden_size],
                         "dtype": inputs_dtype_str,
                     }
@@ -140,8 +163,8 @@ def build_manifest(
     return manifest
 
 
-def _prefer_sdpa_attention(module: torch.nn.Module) -> None:
-    """Switch a module's eager attention to SDPA in place.
+def _prefer_sdpa_attention(module: torch.nn.Module) -> T.Callable[[], None]:
+    """Switch a module's eager attention to SDPA in place, return an undo.
 
     Vision towers (e.g. SigLIP/Idefics3) default to eager attention, which
     overflows in fp16 (its explicit QK^T/softmax) and which
@@ -151,7 +174,11 @@ def _prefer_sdpa_attention(module: torch.nn.Module) -> None:
     both the torch reference
     (CPU SDPA upcasts internally to f32) and the exported graph (the f32 SDPA
     fragment) through the numerically stable path.
+
+    Returns a callable that restores every flipped config, so the caller can
+    undo the mutation in a ``finally`` and not leave the shared model altered.
     """
+    flipped: T.List[T.Any] = []
     for sub in module.modules():
         config = getattr(sub, "config", None)
         if (
@@ -159,6 +186,13 @@ def _prefer_sdpa_attention(module: torch.nn.Module) -> None:
             and getattr(config, "_attn_implementation", None) == "eager"
         ):
             config._attn_implementation = "sdpa"
+            flipped.append(config)
+
+    def _restore() -> None:
+        for config in flipped:
+            config._attn_implementation = "eager"
+
+    return _restore
 
 
 class MultiModalExporter:
@@ -196,7 +230,7 @@ class MultiModalExporter:
     def hf_model_causal(self):
         return self.decoder_exporter.hf_model_causal
 
-    @property
+    @cached_property
     def contracts(self) -> T.List[EmbeddingContract]:
         return self.handler.contracts(self.config_helper)
 
@@ -211,10 +245,14 @@ class MultiModalExporter:
         model_dir = export_dirpath / label
         model_dir.mkdir(parents=True, exist_ok=True)
 
+        # per-encoder copy: each encoder sets its own dynamic_axes/tolerance and
+        # must not leak them onto the decoder target or a sibling encoder.
+        inference_target = copy.deepcopy(inference_target)
+
         handler.prepare_model_for_export(self.hf_model_causal)
         encoder_module = handler.get_encoder_module(self.hf_model_causal)
         # `export()` already routed fp16 models to SDPA and set the f32
-        # accumulation flags on the shared target; here we only pick the check
+        # accumulation flags on the target; here we only pick the check
         # tolerance.
         is_f16 = any(
             p.dtype == torch.float16 for p in encoder_module.parameters()
@@ -229,12 +267,15 @@ class MultiModalExporter:
         # Encoder towers accumulate more f32 attention drift than the decoder,
         # so each encoder handler declares its own check_io tolerance; fp16
         # towers additionally accumulate fp16 rounding through the deep stack
-        # and need the loosest tract tolerance to verify.
+        # and need the loosest tract tolerance to verify. Loosen only: never
+        # tighten below a tolerance the caller explicitly set.
         if inference_target.check_io:
-            tolerance = handler.CHECK_IO_TOLERANCE
+            required = handler.CHECK_IO_TOLERANCE
             if is_f16:
-                tolerance = TractCheckTolerance.ULTRA
-            inference_target.check_io_tolerance = TractCheckTolerance(tolerance)
+                required = TractCheckTolerance.ULTRA
+            inference_target.check_io_tolerance = _loosest_tolerance(
+                inference_target.check_io_tolerance, required
+            )
 
         # NOTE: encoder towers export uncompressed on purpose. Weight
         # compression (e.g. Q4_0) is applied to the LLM decoder only, via
@@ -283,6 +324,10 @@ class MultiModalExporter:
     ) -> Path:
         """Export the decoder graph, each encoder graph, and the manifest."""
         export_dirpath = Path(export_dirpath)
+        # copy the caller's target: export sets fp16 flags, tolerance and
+        # per-graph dynamic_axes on it, and must not mutate the object the
+        # caller passed (they may reuse it for a later export).
+        inference_target = copy.deepcopy(inference_target)
         if not self.encoder_handlers:
             LOGGER.warning(
                 "no encoder handler registered for model_type '%s'; "
@@ -313,13 +358,17 @@ class MultiModalExporter:
         is_f16 = any(
             p.dtype == torch.float16 for p in self.hf_model_causal.parameters()
         )
+        restore_attn: T.Optional[T.Callable[[], None]] = None
         if is_f16:
-            _prefer_sdpa_attention(self.hf_model_causal)
+            restore_attn = _prefer_sdpa_attention(self.hf_model_causal)
             inference_target.force_norm_in_f32 = True
             inference_target.force_attention_inner_in_f32 = True
             inference_target.force_linear_accumulation_in_f32 = True
             if inference_target.check_io:
-                inference_target.check_io_tolerance = TractCheckTolerance.ULTRA
+                inference_target.check_io_tolerance = _loosest_tolerance(
+                    inference_target.check_io_tolerance,
+                    TractCheckTolerance.ULTRA,
+                )
 
         n_params = self.decoder_exporter.model_n_params
         if (
@@ -339,20 +388,25 @@ class MultiModalExporter:
         # FLAT so the decoder graph lands at decoder/model.nnef.tgz, matching
         # the manifest path (DEEP would nest it under decoder/model/).
         decoder_kwargs.setdefault("export_dir_struct", ExportDirStruct.FLAT)
-        self.decoder_exporter.dump_with_inference_target(
-            inference_target=inference_target,
-            export_dirpath=export_dirpath / DECODER_DIRNAME,
-            naming_scheme=naming_scheme,
-            **decoder_kwargs,
-        )
-
-        encoders = [
-            self._export_one_encoder(
-                handler, inference_target, export_dirpath, naming_scheme
+        # restore the fp16 SDPA flip even if a graph fails to export, so the
+        # shared model is left as the caller handed it over.
+        try:
+            self.decoder_exporter.dump_with_inference_target(
+                inference_target=inference_target,
+                export_dirpath=export_dirpath / DECODER_DIRNAME,
+                naming_scheme=naming_scheme,
+                **decoder_kwargs,
             )
-            for handler in self.encoder_handlers
-        ]
-        manifest_path = self._write_manifest(export_dirpath, encoders)
+            encoders = [
+                self._export_one_encoder(
+                    handler, inference_target, export_dirpath, naming_scheme
+                )
+                for handler in self.encoder_handlers
+            ]
+            manifest_path = self._write_manifest(export_dirpath, encoders)
+        finally:
+            if restore_attn is not None:
+                restore_attn()
         LOGGER.info("wrote multimodal manifest: %s", manifest_path)
         return export_dirpath
 
@@ -384,7 +438,7 @@ def dump_multimodal(
     attn_implementation: T.Optional[str] = None,
     experts_implementation: T.Optional[str] = "auto",
     **kwargs,
-) -> T.Tuple[T.Union[Path, None], "MultiModalExporter"]:
+) -> T.Tuple[Path, "MultiModalExporter"]:
     """Export a multimodal model as coordinated NNEF graphs + a manifest.
 
     Mirrors :func:`~torch_to_nnef_llm.exporter.dump_llm`, but loads via
@@ -433,7 +487,5 @@ def dump_multimodal(
         inference_target=inference_target,
         **dump_kwargs,
     )
-    return (
-        Path(export_dirpath) if export_dirpath else None,
-        exporter,
-    )
+    # export_dirpath is required above, so it is always set here.
+    return (Path(export_dirpath), exporter)

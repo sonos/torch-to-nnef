@@ -60,7 +60,9 @@ def _dummy_config() -> Qwen3VLConfig:
                 reason="qwen3-vl vision f16: same tract `-O` optimizer bug as "
                 "qwen2.5-vl (bit-exact with -O disabled). Fixed in tract main; "
                 "passes once tract >= 0.23.5 is used.",
-                strict=True,
+                # non-strict: if tract backports the fix to a version we gate as
+                # broken it should just pass quietly, not error on xpass.
+                strict=False,
             ),
         ),
     ],

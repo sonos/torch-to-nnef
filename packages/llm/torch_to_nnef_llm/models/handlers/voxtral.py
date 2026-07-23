@@ -17,9 +17,16 @@ import typing as T
 
 import torch
 
-from .base import EmbeddingContract, EncoderHandler, IOSpec, StateContext
+from .base import (
+    EmbeddingContract,
+    EncoderHandler,
+    IOSpec,
+    StateContext,
+    reset_special_ids_to_filler,
+    resolve_submodule,
+    scatter_features_by_mask,
+)
 from .default import DefaultArchitectureHandler
-from .idefics3_vl import _inject_image_features
 from .registry import register_encoder_handler, register_handler
 
 
@@ -60,8 +67,8 @@ class VoxtralAudioEncoderHandler(EncoderHandler):
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         return VoxtralAudioEncoder(
-            hf_model.audio_tower,
-            hf_model.multi_modal_projector,
+            resolve_submodule(hf_model, "audio_tower"),
+            resolve_submodule(hf_model, "multi_modal_projector"),
             hf_model.config.audio_config.intermediate_size,
         )
 
@@ -149,7 +156,7 @@ class VoxtralArchitectureHandler(DefaultArchitectureHandler):
         audio_token_id = config_helper.conf.audio_token_id
 
         input_ids = torch.randint(0, vocab_size, (1, effective_seq_len))
-        input_ids[input_ids == audio_token_id] = 1
+        reset_special_ids_to_filler(input_ids, {audio_token_id}, vocab_size)
         for idx in range(num_audio_tokens):
             input_ids[:, 1 + idx] = audio_token_id
         audio_embeddings = torch.randn(
@@ -175,7 +182,7 @@ class VoxtralArchitectureHandler(DefaultArchitectureHandler):
             inputs=(input_ids, *cache_tensors), wrapper=wrapper
         )
         inputs_embeds = hf_model.get_input_embeddings()(input_ids)
-        inputs_embeds = _inject_image_features(
+        inputs_embeds = scatter_features_by_mask(
             inputs_embeds=inputs_embeds,
             token_mask=input_ids == hf_model.config.audio_token_id,
             features=audio_embeddings,

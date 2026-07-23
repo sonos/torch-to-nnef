@@ -33,6 +33,21 @@ HIDDEN = 8
 FAKE_ARCH = "fake_mm_test"
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _cleanup_fake_encoder_registry():
+    """Drop this module's fake encoder handlers from the global registry.
+
+    The fakes register at import time (module-level decorators) into the
+    process-wide ``_ENCODER_REGISTRY``; without teardown they leak into every
+    later test in the session.
+    """
+    yield
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef_llm.models.handlers.registry import _ENCODER_REGISTRY
+
+    _ENCODER_REGISTRY.pop(FAKE_ARCH, None)
+
+
 class FakeEncoderModule(nn.Module):
     """Maps a [n, ...] input to n embedding rows of width HIDDEN."""
 

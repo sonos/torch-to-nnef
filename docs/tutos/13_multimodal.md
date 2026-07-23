@@ -52,7 +52,7 @@ t2n_export_multimodal_to_tract \
 Equivalently from Python:
 
 ```python
-from torch_to_nnef_llm.exporter import dump_multimodal
+from torch_to_nnef_llm.multimodal_exporter import dump_multimodal
 
 dump_multimodal(
     model_slug="HuggingFaceTB/SmolVLM-256M-Instruct",

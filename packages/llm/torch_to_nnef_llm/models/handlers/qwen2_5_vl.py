@@ -10,18 +10,25 @@
   only the loaded model class differs (no DeepStack in Qwen2.5-VL).
 
 Both handlers are validated in PyTorch (encoder output bit-exact vs
-``get_image_features``, decoder wrapper self-consistent). The encoder graph does
-NOT yet pass tract export: the vision tower emits a bare ``NUMBERTYPE`` scalar
-SSA value (a tensor-scalar used as an int, e.g. ``arange`` over the rotary
-``seqlen``) that torch_to_nnef IR parsing rejects. Fixing that is core IR work,
-tracked separately.
+``get_image_features``, decoder wrapper self-consistent) and export to
+tract in ``f32`` (the vision tower's bare ``NUMBERTYPE`` rotary-seqlen
+scalar is handled by baking it via ``_IntSeqlenRotary``; see
+``qwen3_vl``). Only the ``f16`` vision path is currently gated: not by
+t2n, but by a tract ``-O`` optimizer bug on the ``einsum(acc=f32)``
+accumulation pattern, fixed in tract main.
 """
 
 import typing as T
 
 import torch
 
-from .base import EmbeddingContract, EncoderHandler, IOSpec, StateContext
+from .base import (
+    EmbeddingContract,
+    EncoderHandler,
+    IOSpec,
+    StateContext,
+    resolve_submodule,
+)
 from .qwen3_vl import (
     Qwen3VLArchitectureHandler,
     bake_vision_rotary_seqlen,
@@ -60,7 +67,9 @@ class Qwen25VLVisionEncoderHandler(EncoderHandler):
         return torch.tensor([self.SAMPLE_GRID_THW], dtype=torch.long)
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
-        visual = bake_vision_rotary_seqlen(hf_model.model.visual)
+        visual = bake_vision_rotary_seqlen(
+            resolve_submodule(hf_model, "model.visual")
+        )
         return Qwen25VLVisionEncoder(visual, self._grid_tensor())
 
     def build_input_spec(self, *, config_helper, inputs_dtype) -> IOSpec:

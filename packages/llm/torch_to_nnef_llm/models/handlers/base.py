@@ -4,6 +4,35 @@ from dataclasses import dataclass
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorConsistency
+
+
+def resolve_submodule(root: T.Any, dotted_path: str) -> T.Any:
+    """``getattr`` along a dotted path with an actionable error on a miss.
+
+    Encoder handlers reach into the transformers-internal module layout
+    (``model.visual``, ``vision_tower``, ``audio_tower`` ...), which drifts
+    between transformers releases. A bare ``AttributeError`` surfacing deep in
+    tracing is opaque; this names the missing attribute and the transformers
+    version in play so a handler can be pointed at the renamed path.
+    """
+    obj = root
+    for part in dotted_path.split("."):
+        if not hasattr(obj, part):
+            # pylint: disable-next=import-outside-toplevel
+            import transformers
+
+            raise T2NErrorConsistency(
+                f"expected attribute path {dotted_path!r} on "
+                f"{type(root).__name__}, but {type(obj).__name__} has no "
+                f"{part!r}: the transformers module layout for this "
+                f"architecture likely changed (transformers "
+                f"{transformers.__version__}); update the handler's "
+                "get_encoder_module."
+            )
+        obj = getattr(obj, part)
+    return obj
+
 
 @dataclass
 class IOSpec:
@@ -55,6 +84,106 @@ class EmbeddingContract:
     @property
     def output_name(self) -> str:
         return f"out_{self.modality}_embeddings"
+
+    def deepstack_output_name(self, index: int) -> str:
+        """Encoder output name for the i-th DeepStack residual stream."""
+        return deepstack_output_name(self.modality, index)
+
+    def deepstack_input_name(self, index: int) -> str:
+        """Decoder input name for the i-th DeepStack residual stream."""
+        return deepstack_input_name(self.modality, index)
+
+
+def deepstack_output_name(modality: str, index: int) -> str:
+    """Encoder output name for a modality's i-th DeepStack residual stream.
+
+    Single source of truth for the DeepStack stream naming shared by the
+    encoder graph (outputs), the decoder graph (inputs, via
+    :func:`deepstack_input_name`) and the ``multimodal.json`` manifest.
+    """
+    return f"out_{modality}_deepstack_{index}"
+
+
+def deepstack_input_name(modality: str, index: int) -> str:
+    """Decoder input name for a modality's i-th DeepStack residual stream."""
+    return f"in_{modality}_deepstack_{index}"
+
+
+def reset_special_ids_to_filler(
+    input_ids: torch.Tensor,
+    special_ids: T.Iterable[int],
+    vocab_size: int,
+) -> None:
+    """Rewrite in place any id colliding with a placeholder/special id.
+
+    Sample ``input_ids`` are drawn at random, then the handler places the
+    modality placeholder token at known positions; a random draw that happens
+    to land on a special id would add a stray placeholder slot and break the
+    feature/slot count. A hard-coded reset value (e.g. ``1``) silently fails
+    when a special id equals it, so pick the first id that is itself not
+    special.
+    """
+    specials = {int(s) for s in special_ids}
+    if vocab_size <= len(specials):
+        return
+    filler = next(t for t in range(vocab_size) if t not in specials)
+    for special in specials:
+        input_ids[input_ids == special] = filler
+
+
+def scatter_features_by_mask(
+    *,
+    inputs_embeds: torch.Tensor,
+    token_mask: torch.Tensor,
+    features: torch.Tensor,
+    additive: bool = False,
+) -> torch.Tensor:
+    """Place flat ``[N, hidden]`` features where ``token_mask`` is set.
+
+    The i-th True slot (row-major) receives ``features[i]``. Written with a
+    gather (not boolean assignment) so it survives tracing to tract: boolean
+    advanced indexing has a data-dependent output shape that NNEF shape
+    inference cannot resolve.
+
+    ``additive=False`` replaces the embedding at each masked position (the
+    embedding-injection splice); ``additive=True`` adds the feature on top (the
+    DeepStack residual stream). Shared by every encoder/decoder handler.
+    """
+    if features.numel() == 0:
+        return inputs_embeds
+    batch_size, seq_length = token_mask.shape
+    token_counts = token_mask.to(torch.long).sum(dim=-1)
+    total_tokens = int(token_counts.sum().item())
+    if total_tokens == 0:
+        return inputs_embeds
+    if total_tokens != features.shape[0]:
+        raise ValueError(
+            f"feature/slot count mismatch: got {features.shape[0]} "
+            f"feature(s) for {total_tokens} placeholder slot(s) in input_ids"
+        )
+    start_offsets = torch.cumsum(token_counts, dim=0) - token_counts
+    slot_ids = token_mask.to(torch.long).cumsum(dim=-1)
+    slot_ids = slot_ids + start_offsets.unsqueeze(-1)
+    slot_ids = torch.where(token_mask, slot_ids, torch.zeros_like(slot_ids))
+    zero_feature = torch.zeros(
+        (1, features.shape[-1]),
+        dtype=inputs_embeds.dtype,
+        device=inputs_embeds.device,
+    )
+    feature_bank = torch.cat(
+        [
+            zero_feature,
+            features.to(inputs_embeds.device, inputs_embeds.dtype),
+        ],
+        dim=0,
+    )
+    gathered = feature_bank.index_select(0, slot_ids.reshape(-1)).view(
+        batch_size, seq_length, inputs_embeds.shape[-1]
+    )
+    if additive:
+        return inputs_embeds + gathered
+    float_mask = token_mask.unsqueeze(-1).to(inputs_embeds.dtype)
+    return inputs_embeds * (1 - float_mask) + gathered * float_mask
 
 
 class ArchitectureHandler(ABC):
@@ -113,6 +242,16 @@ class ArchitectureHandler(ABC):
     def prepare_model_for_export(self, model) -> None:
         """Apply architecture-specific model tweaks before wrapping."""
         return None
+
+    def cleanup(self, *, state_context: "StateContext", wrapper) -> None:
+        """Undo any model mutation made in ``build_forward_inputs``.
+
+        Runs in a ``finally`` after every traced forward (see
+        :class:`~torch_to_nnef_llm.models.base.BaseCausal`), so a handler that
+        installs hooks or overrides model attributes to prepare a step restores
+        the model even when the forward raises. No-op by default.
+        """
+        del state_context, wrapper
 
     @abstractmethod
     def build_input_spec(
@@ -203,6 +342,15 @@ class EncoderHandler(ABC):
     def prepare_model_for_export(self, model) -> None:
         """Apply arch tweaks before wrapping (eager attn, merge LoRA)."""
         return None
+
+    def cleanup(self, *, state_context: "StateContext", wrapper) -> None:
+        """Undo any model mutation made in ``build_forward_inputs``.
+
+        Symmetric with :meth:`ArchitectureHandler.cleanup`; runs in a
+        ``finally`` after the encoder forward. No-op by default (encoders are
+        pure today).
+        """
+        del state_context, wrapper
 
     @abstractmethod
     def get_encoder_module(self, hf_model) -> torch.nn.Module:

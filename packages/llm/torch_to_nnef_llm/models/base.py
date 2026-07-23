@@ -393,17 +393,23 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             inputs=inputs,
             wrapper=self,
         )
-        model_outputs = self.handler.call_model(
-            model=self.model,
-            state_context=state_context,
-            wrapper=self,
-        )
-        outputs = self.handler.build_forward_outputs(
-            model=self.model,
-            model_outputs=model_outputs,
-            state_context=state_context,
-            num_logits_to_keep=self.num_logits_to_keep,
-        )
+        # cleanup in a finally so a handler that mutates the model to fake a
+        # step (attribute overrides, forward hooks) restores it even if the
+        # traced forward raises; a leaked hook would corrupt later traces.
+        try:
+            model_outputs = self.handler.call_model(
+                model=self.model,
+                state_context=state_context,
+                wrapper=self,
+            )
+            outputs = self.handler.build_forward_outputs(
+                model=self.model,
+                model_outputs=model_outputs,
+                state_context=state_context,
+                num_logits_to_keep=self.num_logits_to_keep,
+            )
+        finally:
+            self.handler.cleanup(state_context=state_context, wrapper=self)
         if logits_to_keep is not None:
             # the model emitted all positions (num_logits_to_keep == 0); gather
             # the last `logits_to_keep` rows. A data-dependent gather (not a
@@ -443,14 +449,18 @@ class BaseEncoder(TorchToNNEFWrappedLLM):
             inputs=inputs,
             wrapper=self,
         )
-        model_outputs = self.handler.call_encoder(
-            model=self.model,
-            state_context=state_context,
-            wrapper=self,
-        )
-        return tuple(
-            self.handler.build_forward_outputs(
-                model_outputs=model_outputs,
+        try:
+            model_outputs = self.handler.call_encoder(
+                model=self.model,
                 state_context=state_context,
+                wrapper=self,
             )
-        )
+            outputs = tuple(
+                self.handler.build_forward_outputs(
+                    model_outputs=model_outputs,
+                    state_context=state_context,
+                )
+            )
+        finally:
+            self.handler.cleanup(state_context=state_context, wrapper=self)
+        return outputs

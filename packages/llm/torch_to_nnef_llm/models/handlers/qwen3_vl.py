@@ -5,7 +5,17 @@ import torch
 
 from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
 
-from .base import EmbeddingContract, EncoderHandler, IOSpec, StateContext
+from .base import (
+    EmbeddingContract,
+    EncoderHandler,
+    IOSpec,
+    StateContext,
+    deepstack_input_name,
+    deepstack_output_name,
+    reset_special_ids_to_filler,
+    resolve_submodule,
+    scatter_features_by_mask,
+)
 from .default import DefaultArchitectureHandler
 from .registry import register_encoder_handler, register_handler
 
@@ -94,8 +104,11 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         return transformers.Qwen3VLForConditionalGeneration
 
     def prepare_model_for_export(self, model) -> None:
-        # Qwen3-VL currently hits SDPA masking issues during torch.jit tracing.
-        # Force eager attention in export mode to keep the graph traceable.
+        # Qwen3-VL hits SDPA masking issues during torch.jit tracing, so force
+        # eager to keep the decoder graph traceable. This runs during the
+        # decoder dump, after the exporter's global fp16 SDPA routing, so the
+        # qwen3 decoder stays eager in both f32 and f16 (only the vision tower,
+        # whose encoder handler does not force eager, takes the fp16 SDPA path).
         model.config._attn_implementation = "eager"
         if hasattr(model, "model") and hasattr(model.model, "language_model"):
             lang_config = model.model.language_model.config
@@ -174,49 +187,11 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         token_mask: torch.Tensor,
         features: torch.Tensor,
     ) -> torch.Tensor:
-        if features.numel() == 0:
-            return inputs_embeds
-
-        batch_size, seq_length = token_mask.shape
-        token_counts = token_mask.to(torch.long).sum(dim=-1)
-        total_tokens = int(token_counts.sum().item())
-        if total_tokens == 0:
-            return inputs_embeds
-        if total_tokens != features.shape[0]:
-            raise ValueError(
-                f"feature/slot count mismatch: got {features.shape[0]} "
-                f"feature(s) for {total_tokens} placeholder slot(s) in "
-                "input_ids"
-            )
-
-        start_offsets = torch.cumsum(token_counts, dim=0) - token_counts
-        slot_ids = token_mask.to(torch.long).cumsum(dim=-1)
-        slot_ids = slot_ids + start_offsets.unsqueeze(-1)
-        slot_ids = torch.where(
-            token_mask,
-            slot_ids,
-            torch.zeros_like(slot_ids),
+        return scatter_features_by_mask(
+            inputs_embeds=inputs_embeds,
+            token_mask=token_mask,
+            features=features,
         )
-
-        zero_feature = torch.zeros(
-            (1, features.shape[-1]),
-            dtype=inputs_embeds.dtype,
-            device=inputs_embeds.device,
-        )
-        feature_bank = torch.cat(
-            [
-                zero_feature,
-                features.to(inputs_embeds.device, inputs_embeds.dtype),
-            ],
-            dim=0,
-        )
-        gathered = feature_bank.index_select(0, slot_ids.reshape(-1)).view(
-            batch_size,
-            seq_length,
-            inputs_embeds.shape[-1],
-        )
-        token_mask = token_mask.unsqueeze(-1).to(inputs_embeds.dtype)
-        return inputs_embeds * (1 - token_mask) + gathered * token_mask
 
     @staticmethod
     def _static_deepstack_process(
@@ -229,37 +204,16 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         Upstream does ``hidden[mask, :] += visual_embeds`` via boolean advanced
         indexing, whose output shape is data-dependent: NNEF shape inference
         then infers 0 masked rows and the ``+ visual_embeds`` broadcast fails
-        (``[0, H] + [N, H]``). We scatter the embeds to the masked positions
-        with a fixed shape (same ``index_select`` trick as
-        ``_inject_token_features``) and add -- numerically identical, but
-        exportable.
+        (``[0, H] + [N, H]``). ``scatter_features_by_mask(additive=True)``
+        scatters the embeds to the masked positions with a fixed shape and adds
+        -- numerically identical, but exportable.
         """
-        if visual_embeds.numel() == 0:
-            return hidden_states
-        batch_size, seq_length = visual_pos_masks.shape
-        token_counts = visual_pos_masks.to(torch.long).sum(dim=-1)
-        start_offsets = torch.cumsum(token_counts, dim=0) - token_counts
-        slot_ids = visual_pos_masks.to(torch.long).cumsum(dim=-1)
-        slot_ids = slot_ids + start_offsets.unsqueeze(-1)
-        slot_ids = torch.where(
-            visual_pos_masks, slot_ids, torch.zeros_like(slot_ids)
+        return scatter_features_by_mask(
+            inputs_embeds=hidden_states,
+            token_mask=visual_pos_masks,
+            features=visual_embeds,
+            additive=True,
         )
-        zero_feature = torch.zeros(
-            (1, visual_embeds.shape[-1]),
-            dtype=hidden_states.dtype,
-            device=hidden_states.device,
-        )
-        feature_bank = torch.cat(
-            [
-                zero_feature,
-                visual_embeds.to(hidden_states.device, hidden_states.dtype),
-            ],
-            dim=0,
-        )
-        gathered = feature_bank.index_select(0, slot_ids.reshape(-1)).view(
-            batch_size, seq_length, hidden_states.shape[-1]
-        )
-        return hidden_states + gathered
 
     @staticmethod
     def _build_cached_position_ids(
@@ -363,16 +317,11 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         video_token_id = config_helper.conf.video_token_id
 
         input_ids.random_(0, vocab_size)
-        # Reset any random token that lands on a special id to a filler that is
-        # itself not a special id, so the number of placeholder slots matches
-        # exactly the embeddings we provide. A hard-coded reset value collides
-        # when a special id equals it (e.g. image_token_id == 1), leaving stray
-        # placeholders and a feature/slot count mismatch.
-        specials = {vision_start_token_id, image_token_id, video_token_id}
-        if vocab_size > len(specials):
-            filler = next(t for t in range(vocab_size) if t not in specials)
-            for special in specials:
-                input_ids[input_ids == special] = filler
+        reset_special_ids_to_filler(
+            input_ids,
+            {vision_start_token_id, image_token_id, video_token_id},
+            vocab_size,
+        )
         input_ids[:, 0] = vision_start_token_id
         for idx in range(num_image_tokens):
             position = 1 + idx
@@ -390,10 +339,10 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             for _ in range(n_deepstack)
         )
         deepstack_input_names = [
-            f"in_image_deepstack_{i}" for i in range(n_deepstack)
+            deepstack_input_name("image", i) for i in range(n_deepstack)
         ]
         deepstack_output_names = [
-            f"out_image_deepstack_{i}" for i in range(n_deepstack)
+            deepstack_output_name("image", i) for i in range(n_deepstack)
         ]
         deepstack_axes = {
             name: {0: "IMG_DEEP"} for name in deepstack_input_names
@@ -587,19 +536,6 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         rope_deltas = getattr(model_outputs, "rope_deltas", None)
         if rope_deltas is None:
             rope_deltas = state_context.state["last_rope_deltas"]
-        if hasattr(model.model, "rope_deltas"):
-            model.model.rope_deltas = state_context.state["prev_rope_deltas"]
-
-        deepstack_handle = state_context.state.get("deepstack_handle")
-        if deepstack_handle is not None:
-            deepstack_handle.remove()
-        deepstack_lm = state_context.state.get("deepstack_lm")
-        if deepstack_lm is not None and (
-            "_deepstack_process" in vars(deepstack_lm)
-        ):
-            # remove the instance override so the class method resurfaces
-            del deepstack_lm._deepstack_process
-
         return (
             outputs
             + [
@@ -611,6 +547,25 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             ]
             + list(state_context.state.get("deepstack_embeds", []))
         )
+
+    def cleanup(self, *, state_context, wrapper) -> None:
+        # Undo the model mutations build_forward_inputs made to fake a decode
+        # step: the rope_deltas attribute, the DeepStack forward-pre-hook and
+        # the `_deepstack_process` instance override. Runs in a finally so a
+        # forward that raises mid-trace does not leak them into later traces.
+        state = state_context.state
+        model = wrapper.model
+        if hasattr(model.model, "rope_deltas"):
+            model.model.rope_deltas = state.get("prev_rope_deltas")
+        deepstack_handle = state.get("deepstack_handle")
+        if deepstack_handle is not None:
+            deepstack_handle.remove()
+        deepstack_lm = state.get("deepstack_lm")
+        if deepstack_lm is not None and "_deepstack_process" in vars(
+            deepstack_lm
+        ):
+            # remove the instance override so the class method resurfaces
+            del deepstack_lm._deepstack_process
 
 
 class Qwen3VLVisionEncoder(torch.nn.Module):
@@ -642,7 +597,9 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         # bake the rotary arange length to a python int (see qwen2_5_vl)
-        visual = bake_vision_rotary_seqlen(hf_model.model.visual)
+        visual = bake_vision_rotary_seqlen(
+            resolve_submodule(hf_model, "model.visual")
+        )
         grid = torch.tensor([self.SAMPLE_GRID_THW], dtype=torch.long)
         return Qwen3VLVisionEncoder(visual, grid)
 
@@ -659,7 +616,7 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
         n_deepstack = len(_deepstack_indexes(config_helper.conf))
         pixel_values = torch.randn((num_patches, patch_dim), dtype=inputs_dtype)
         output_names = ["out_image_embeddings"] + [
-            f"out_image_deepstack_{i}" for i in range(n_deepstack)
+            deepstack_output_name("image", i) for i in range(n_deepstack)
         ]
         return IOSpec(
             inputs=(pixel_values,),

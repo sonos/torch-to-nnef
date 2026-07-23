@@ -66,7 +66,9 @@ def _dummy_config() -> Qwen2_5_VLConfig:
                 "the emitted graph is correct (bit-exact with -O disabled); "
                 "tract's -O mis-compiles the einsum(acc=f32)+cast pattern. "
                 "Fixed in tract main; passes once tract >= 0.23.5 is used.",
-                strict=True,
+                # non-strict: if tract backports the fix to a version we gate as
+                # broken it should just pass quietly, not error on xpass.
+                strict=False,
             ),
         ),
     ],
