@@ -43,6 +43,12 @@ It shares every flag with `t2n_export_llm_to_tract` (dtype, compression,
 tract version/path, tolerance, `--no-verify`, …); only the model needs to be a
 multimodal checkpoint whose `model_type` has a registered encoder handler.
 
+Use this command (not `t2n_export_llm_to_tract`) for multimodal checkpoints:
+the plain LLM export produces the decoder graph only, so pointing it at a
+multimodal checkpoint would drop the encoder tower(s) and the manifest. To
+prevent that silent under-export, `t2n_export_llm_to_tract` / `dump_llm`
+refuses a checkpoint with registered encoder handlers and points here.
+
 ```bash title="export SmolVLM-256M"
 t2n_export_multimodal_to_tract \
     --model-slug HuggingFaceTB/SmolVLM-256M-Instruct \

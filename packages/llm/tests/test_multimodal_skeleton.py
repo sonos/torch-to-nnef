@@ -11,8 +11,9 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import T2NErrorConsistency
+from torch_to_nnef.exceptions import T2NErrorConsistency, T2NErrorMisuse
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef_llm.exporter import _reject_multimodal_in_llm_dump
 from torch_to_nnef_llm.models.base import BaseEncoder
 from torch_to_nnef_llm.models.handlers import (
     DefaultArchitectureHandler,
@@ -350,3 +351,19 @@ def test_build_manifest_omits_injection_layers_when_absent():
     )
     assert "injection_layers" not in manifest
     assert "deepstack" not in manifest["encoders"][0]
+
+
+def test_dump_llm_refuses_multimodal_checkpoint():
+    """`dump_llm` refuses a multimodal model_type instead of under-exporting.
+
+    The decoder-only path would drop the modality tower(s) + manifest; the
+    guard raises and points at the dedicated multimodal command.
+    """
+    with pytest.raises(T2NErrorMisuse) as exc:
+        _reject_multimodal_in_llm_dump(FAKE_ARCH)
+    msg = str(exc.value)
+    assert "t2n_export_multimodal_to_tract" in msg
+    # it names the modalities the decoder-only path would drop
+    assert "audio" in msg and "vision" in msg
+    # a text-only arch passes through untouched (no raise)
+    _reject_multimodal_in_llm_dump("some_text_only_arch")
