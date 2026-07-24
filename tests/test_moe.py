@@ -163,6 +163,13 @@ def _assert_graph_contains(inference_target, path, fragment):
     assert fragment in graph
 
 
+def _assert_graph_not_contains(inference_target, path, fragment):
+    if not isinstance(inference_target, TractNNEF):
+        return
+    graph = _read_graph_from_archive(path)
+    assert fragment not in graph
+
+
 def _opaque_ref(tensor, tmp_path, name):
     offloaded = OffloadedTensor.from_original_tensor(
         tensor,
@@ -281,6 +288,40 @@ def test_moe_ffn_split_experts_linear_layout(inference_target):
         output_names=["output"],
         inference_target=inference_target,
         callback_post_export=_assert_linear_layout,
+    )
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_accepts_tract_moe_ffn_layout_alias(inference_target):
+    """Reloaded checkpoints may label canonical expert tensors by target op."""
+    _skip_if_unsupported(inference_target)
+    model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=64, k=2)
+    model.moe._t2n_moe_expert_layout = "tract_moe_ffn"
+    model.eval()
+
+    def _assert_canonical_layout(inference_target, path):
+        _assert_graph_not_contains(
+            inference_target,
+            path,
+            "expert_layout = 'linear'",
+        )
+        _assert_moe_expert_weight_shapes(
+            inference_target,
+            path,
+            expected_count=2,
+            expected_shapes={
+                "w1": [4, 32, 64],
+                "w2": [4, 64, 32],
+            },
+        )
+
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 32),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=inference_target,
+        callback_post_export=_assert_canonical_layout,
     )
 
 

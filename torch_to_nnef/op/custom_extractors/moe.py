@@ -674,6 +674,8 @@ def _maybe_quantize_expert_weight(
 
 def _expert_layout(moe) -> str:
     layout = getattr(moe, "_t2n_moe_expert_layout", "canonical")
+    if layout == "tract_moe_ffn":
+        return "canonical"
     if layout not in {"canonical", "linear"}:
         raise T2NErrorNotImplemented(
             f"unsupported MoE expert layout {layout!r}"
