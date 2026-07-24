@@ -51,6 +51,11 @@ class Qwen25VLVisionEncoder(torch.nn.Module):
     ``fullatt_block_indexes`` blocks attend globally. Positions (2D-RoPE) are
     rebuilt from ``arange(shape)``; the final merger output is un-permuted back
     to the processor's row-major merge-block order.
+
+    Mirrors ``Qwen2_5_VisionTransformerPretrainedModel.forward`` in transformers
+    ``modeling_qwen2_5_vl``; the no-download chain-parity test
+    (``test_dummy_chain_parity``) compares this against HF's native forward, so
+    a transformers bump that changes the tower is caught.
     """
 
     def __init__(self, visual):
@@ -214,6 +219,25 @@ class Qwen25VLVisionEncoderHandler(EncoderHandler):
                 dynamic_axis="IMG_STATE",
             )
         ]
+
+    def manifest_input_contract(self, config_helper):
+        vc = config_helper.conf.vision_config
+        merge = vc.spatial_merge_size
+        win = self.merger_window(vc)
+        return {
+            "name": "pixel_values",
+            "layout": ["WIN_H", win, "WIN_W", win, merge, merge, "patch_dim"],
+            "window_size": win,
+            "requires_window_multiple": True,
+            "host_prep": (
+                "Reshape the processor's merge-block-major patches to "
+                f"[NH, {win}, NW, {win}, {merge}, {merge}, patch_dim]. The LLM "
+                f"grid (h // {merge}, w // {merge}) MUST first be zero-padded "
+                f"to a whole number of {win}-wide merger-windows; output "
+                "tokens beyond the true (unpadded) count must be discarded. "
+                "Feeding a non-window-aligned grid produces wrong results."
+            ),
+        }
 
 
 @register_handler

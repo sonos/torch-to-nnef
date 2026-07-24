@@ -335,13 +335,16 @@ class EncoderHandler(ABC):
     CHECK_IO_TOLERANCE: str = "very"
     #: Whether the tower's attention is SDPA-based. The fp16 export routes SDPA
     #: towers through the f32-accumulation rewrite; a tower with custom (non
-    #: SDPA) attention -- e.g. the USM audio conformer -- sets this False so the
+    #: SDPA) attention (e.g. the USM audio conformer) sets this False so the
     #: fp16 test does not require an SDPA op in its graph.
     USES_SDPA_ATTENTION: bool = True
     #: Whether to keep ``force_linear_accumulation_in_f32`` for this encoder in
-    #: fp16. The conformer computes its attention in f32 already; forcing f32
-    #: linear accumulation on top trips a tract ``-O`` mis-compile, so it opts
-    #: out (it still verifies at the loosest tolerance without it).
+    #: fp16. That flag rewrites linear matmuls to accumulate in f32; on the USM
+    #: conformer it triggers the tract ``-O`` optimizer mis-compile on the
+    #: ``einsum(acc=f32)`` + cast pattern (the same bug the Qwen2.5/Qwen3 vision
+    #: fp16 paths gate as xfail, fixed in tract main). The conformer already
+    #: computes its attention in f32, so it opts out and still verifies at the
+    #: loosest tolerance. Revisit once t2n's supported tract carries the fix.
     F16_FORCE_LINEAR_ACCUM_IN_F32: bool = True
     #: Name of the single raw-modality kwarg the encoder module's forward takes
     #: (e.g. "pixel_values", "input_features"). Drives the default
@@ -430,6 +433,19 @@ class EncoderHandler(ABC):
     @abstractmethod
     def contracts(self, config_helper) -> T.List[EmbeddingContract]:
         """Return the embedding contracts this encoder produces."""
+
+    def manifest_input_contract(
+        self, config_helper
+    ) -> T.Optional[T.Dict[str, T.Any]]:
+        """Host-side input contract recorded in ``multimodal.json``.
+
+        Return a JSON-able dict describing how the runtime must shape (and, if
+        needed, pad) the processor output before feeding this encoder graph, or
+        ``None`` to feed the processor tensor as-is. Encoders that changed the
+        input layout for dynamic-resolution export declare it here so a runtime
+        cannot silently mis-feed a reshaped or under-padded input.
+        """
+        return None
 
 
 @dataclass

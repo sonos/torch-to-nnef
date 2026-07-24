@@ -88,6 +88,11 @@ class EncoderArtifact:
     label: str
     rel_path: str
     contracts: T.List[EmbeddingContract]
+    #: optional host-side input contract (how to shape/pad the processor output
+    #: before feeding this encoder graph); surfaced in the manifest so a runtime
+    #: cannot silently mis-feed a reshaped/padded input. ``None`` = feed the
+    #: processor tensor as-is.
+    input_contract: T.Optional[T.Dict[str, T.Any]] = None
 
 
 def build_manifest(
@@ -119,18 +124,20 @@ def build_manifest(
                 "modality": contract.modality,
                 "path": artifact.rel_path,
                 "placeholder_token_id": placeholder_token_id,
-                "outputs": [
-                    {
-                        "name": contract.output_name,
-                        "feeds": contract.input_name,
-                        "shape": [
-                            contract.dynamic_axis,
-                            contract.hidden_size,
-                        ],
-                        "dtype": inputs_dtype_str,
-                    }
-                ],
             }
+            if artifact.input_contract is not None:
+                entry["input"] = artifact.input_contract
+            entry["outputs"] = [
+                {
+                    "name": contract.output_name,
+                    "feeds": contract.input_name,
+                    "shape": [
+                        contract.dynamic_axis,
+                        contract.hidden_size,
+                    ],
+                    "dtype": inputs_dtype_str,
+                }
+            ]
             if contract.injection_layers:
                 # DeepStack: extra residual streams injected at the given
                 # decoder layer indices. The i-th stream is emitted by the
@@ -297,6 +304,7 @@ class MultiModalExporter:
             label=label,
             rel_path=f"{label}/model.nnef.tgz",
             contracts=handler.contracts(self.config_helper),
+            input_contract=handler.manifest_input_contract(self.config_helper),
         )
 
     def _write_manifest(

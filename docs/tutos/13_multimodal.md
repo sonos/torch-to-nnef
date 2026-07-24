@@ -127,6 +127,7 @@ The manifest is the contract a runtime needs to connect the graphs:
 | `encoders[].modality` | `"image"` or `"audio"`. |
 | `encoders[].path` | Relative path to the encoder NNEF archive. |
 | `encoders[].placeholder_token_id` | Decoder input-id whose positions receive the encoder embeddings. |
+| `encoders[].input` *(optional)* | How to shape (and, if needed, pad) the processor output before feeding the encoder graph. Absent means feed the processor tensor as-is. Fields: `name` (encoder input tensor), `layout` (its axes; integers are fixed sizes, strings are dynamic symbols), `host_prep` (human-readable steps). Dynamic-resolution towers set this. Qwen2.5-VL additionally sets `requires_window_multiple: true` and `window_size`: the grid **must** be zero-padded to a whole number of `window_size`-wide merger-windows and the extra output tokens discarded, otherwise the result is wrong. |
 | `encoders[].outputs[].name` | Output tensor of the **encoder** graph. |
 | `encoders[].outputs[].feeds` | Input tensor of the **decoder** graph it must be fed into. |
 | `encoders[].outputs[].shape` | `[dynamic_axis_symbol, hidden_size]`. |
@@ -140,7 +141,11 @@ For a request that contains media:
 
 1. Run the **encoder** graph on the preprocessed media (pixel values, or log-mel
    `input_features` produced by the HuggingFace feature extractor, which stays
-   host-side). It yields the `outputs[].name` embeddings.
+   host-side). When `encoders[].input` is present, first shape (and pad) the
+   processor output as its `host_prep` describes; for a tower with
+   `requires_window_multiple`, honoring the padding and discarding the extra
+   output tokens is mandatory for correctness. It yields the `outputs[].name`
+   embeddings.
 2. Feed those embeddings into the **decoder** graph input named by
    `outputs[].feeds`, and mark the sequence positions where `input_ids ==
    placeholder_token_id` so the decoder splices them in place of the placeholder

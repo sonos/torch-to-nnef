@@ -532,6 +532,11 @@ class Qwen3VLVisionEncoder(torch.nn.Module):
     tower's full attention (``cu_seqlens`` spans the whole single image),
     reimplemented inline so nothing depends on the data-valued ``grid_thw``.
     Emits merged embeddings + one DeepStack stream per collected block.
+
+    Mirrors ``Qwen3VLVisionModel.forward`` in transformers
+    ``modeling_qwen3_vl``; the no-download DeepStack chain-parity test
+    (``test_dummy_deepstack_chain_parity``) compares this against HF's native
+    forward, so a transformers bump that changes the tower is caught.
     """
 
     def __init__(self, visual):
@@ -540,6 +545,13 @@ class Qwen3VLVisionEncoder(torch.nn.Module):
         self.merge = visual.spatial_merge_size
         self.num_grid = visual.num_grid_per_side
         self.deep_idx = list(visual.deepstack_visual_indexes)
+        # `_pos_embed` divides by (h - 1) with h = mh * merge (mh >= 1); a
+        # merge >= 2 keeps h >= 2 so the denominator is >= 1. Qwen3-VL always
+        # uses spatial_merge_size == 2; guard the assumption explicitly rather
+        # than emit a silent NaN on a degenerate merge == 1 config.
+        assert self.merge >= 2, (
+            f"spatial_merge_size must be >= 2, got {self.merge}"
+        )
 
     def _rot_pos_emb(self, mh, mw):
         merge = self.merge
@@ -582,7 +594,9 @@ class Qwen3VLVisionEncoder(torch.nn.Module):
         grid = self.num_grid
         emb = self.visual.pos_embed.weight
         dev = emb.device
-        # linspace(0, grid - 1, n) == arange(n) * (grid - 1) / (n - 1)
+        # linspace(0, grid - 1, n) as arange(n) * (grid - 1) / (n - 1); valid
+        # for n >= 2, which holds since h, w = mh|mw * merge and merge >= 2
+        # (asserted in __init__).
         hs = torch.arange(h, device=dev).to(emb.dtype) * ((grid - 1) / (h - 1))
         ws = torch.arange(w, device=dev).to(emb.dtype) * ((grid - 1) / (w - 1))
         hf, wf = hs.int(), ws.int()
@@ -733,3 +747,15 @@ class Qwen3VLVisionEncoderHandler(EncoderHandler):
                 deepstack_dynamic_axis="IMG_DEEP",
             )
         ]
+
+    def manifest_input_contract(self, config_helper):
+        merge = config_helper.conf.vision_config.spatial_merge_size
+        return {
+            "name": "pixel_values",
+            "layout": ["MH", "MW", merge, merge, "patch_dim"],
+            "host_prep": (
+                "Reshape the processor's merge-block-major patches to "
+                f"[MH, MW, {merge}, {merge}, patch_dim] (MH = h // {merge}, "
+                f"MW = w // {merge}); pure reshape, no padding."
+            ),
+        }

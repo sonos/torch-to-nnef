@@ -69,13 +69,17 @@ class Gemma4VisionEncoder(torch.nn.Module):
     dim, so a single graph handles any square resolution. Output is the
     projected soft tokens ``[num_soft_tokens, text_hidden]``.
 
-    The tower forward is reimplemented here to be trace-friendly and
+    Mirrors ``Gemma4VisionModel.forward`` / ``get_image_features`` in
+    transformers ``modeling_gemma4``; the no-download chain-parity test
+    (``test_dummy_chain_parity``) compares this against HF's native forward, so
+    a transformers bump that changes the tower is caught rather than silently
+    diverging. The forward is reimplemented here to be trace-friendly and
     exportable under a symbolic grid side:
 
     - patch positions are derived from the grid with ``arange`` (not baked), so
       they follow the dynamic size;
-    - ``create_bidirectional_mask`` is skipped -- a full grid has no padding, so
-      attention is uniform (``attention_mask=None``);
+    - ``create_bidirectional_mask`` is skipped (a full grid has no padding, so
+      attention is uniform, ``attention_mask=None``);
     - the model's position/one-hot pooler (data-dependent, and with a dynamic
       ``num_classes`` under a symbolic size) is replaced by ``avg_pool2d`` over
       the grid, numerically identical for a clean grid but symbolic-shape
@@ -173,6 +177,16 @@ class Gemma4VisionEncoderHandler(EncoderHandler):
             )
         ]
 
+    def manifest_input_contract(self, config_helper):
+        return {
+            "name": "pixel_values",
+            "layout": [1, "G", "G", "patch_dim"],
+            "host_prep": (
+                "Arrange the patch embeddings as the 2D grid "
+                "[1, n_rows, n_cols, patch_dim]; pure reshape, no padding."
+            ),
+        }
+
 
 @register_encoder_handler
 class Gemma4VideoEncoderHandler(Gemma4VisionEncoderHandler):
@@ -255,6 +269,10 @@ class Gemma4AudioEncoder(torch.nn.Module):
     STFT/mel front-end stays in the HF feature extractor); output is the
     projected soft tokens ``[num_audio_tokens, text_hidden]``.
 
+    Mirrors ``Gemma4AudioModel.forward`` in transformers ``modeling_gemma4``;
+    ``test_dummy_audio_chain_parity`` compares this against HF's native audio
+    forward, catching a transformers bump that changes the tower.
+
     The Universal-Speech-Model conformer's chunked-local-attention mask is built
     by ``create_bidirectional_mask``, which does not trace. For a fixed full
     chunk that mask is constant, so it is precomputed once and injected as a
@@ -309,10 +327,10 @@ class Gemma4AudioEncoderHandler(EncoderHandler):
     MODALITY = "audio"
     ARCH_NAMES = ("gemma4",)
     MODEL_INPUT_NAME = "input_features"
-    #: the conformer uses custom (non-SDPA) chunked-local attention...
+    #: the conformer uses custom (non-SDPA) chunked-local attention and
+    #: computes it in f32 already; see the base-class docs for why both opt out
+    #: of the fp16 SDPA rewrite and of f32 linear accumulation (tract ``-O``).
     USES_SDPA_ATTENTION = False
-    #: ...and computes it in f32 already, so forcing f32 linear accumulation on
-    #: top trips a tract ``-O`` mis-compile (see base class).
     F16_FORCE_LINEAR_ACCUM_IN_F32 = False
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:

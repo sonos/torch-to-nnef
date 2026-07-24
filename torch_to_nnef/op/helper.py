@@ -984,25 +984,30 @@ class OpHelper:
             inputs=self.data_nodes_to_nnef_tensors(node.inputs),
         )
 
-    def _implicit_operand_cast(self, node, inp, to_str):
-        """Emit a dtype-promotion cast for one binary-op operand.
+    def emit_dtype_cast(self, node, tensor, to_tract_dtype, full_name=None):
+        """Emit a shape-preserving ``tract_core_cast`` for one operand.
 
-        ``add_single_output_op`` shapes its output from ``node.outputs[0]``
-        (the parent op's result). For a cast that is wrong: a cast preserves
-        its operand's shape, and the inflated shape would fool the downstream
-        rank aligner (:func:`maybe_align_inputs_ranks`) into thinking the
-        operand is already full-rank, skipping the broadcast unsqueeze. A
-        lower-rank operand would then mis-broadcast under tract's left-aligned
-        expansion (torch right-aligns). Restore the operand's own shape.
+        A dtype cast never changes shape, but ``add_single_output_op`` shapes
+        the emitted op's output from ``node.outputs[0]`` (the parent op's
+        result). When the cast is an *auxiliary* op (e.g. an implicit
+        dtype-promotion inserted for a binary op, or a bool/branch cast for a
+        ``select``) whose operand has a lower rank than the parent output, that
+        borrowed shape fools the rank aligner (:func:`maybe_align_inputs_ranks`)
+        into thinking the operand is already full-rank, so it skips the
+        broadcast unsqueeze and the operand mis-broadcasts under tract's
+        left-aligned expansion (torch right-aligns). Restore the operand's own
+        shape so every emitted cast is faithful regardless of the parent node.
         """
+        if full_name is None:
+            full_name = f"{tensor.name}_as_{to_tract_dtype}"
         out = self.add_single_output_op_from_nnef_tensors(
             node=node,
             nnef_op_type="tract_core_cast",
-            inputs=inp,
-            attrs={"to": to_str},
-            force_full_output_tensor_name=f"{inp.name}_as_{to_str}",
+            inputs=tensor,
+            attrs={"to": to_tract_dtype},
+            force_full_output_tensor_name=full_name,
         )
-        out.shape = tuple(inp.shape)
+        out.shape = tuple(tensor.shape)
         return out
 
     def _implicits_input_casting(self, node, nnef_op_type, inputs):
@@ -1050,7 +1055,7 @@ class OpHelper:
             for idx, inp in enumerate(inputs):
                 if inp.dtype != dtype_target:
                     to_str = numpy_dtype_to_tract_str(dtype_target)
-                    out = self._implicit_operand_cast(node, inp, to_str)
+                    out = self.emit_dtype_cast(node, inp, to_str)
                     inputs[idx] = out
             return tuple(inputs)
 
@@ -1066,7 +1071,7 @@ class OpHelper:
             dtype_target = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[lowest_idx]
             for idx, inp in enumerate(inputs):
                 to_str = numpy_dtype_to_tract_str(dtype_target)
-                out = self._implicit_operand_cast(node, inp, to_str)
+                out = self.emit_dtype_cast(node, inp, to_str)
                 inputs[idx] = out
         if nnef_op_type not in OPS_IMPLICIT_CAST_BY_OUTPUT_DTYPE:
             return inputs
@@ -1114,7 +1119,7 @@ class OpHelper:
                     inputs[idx] = retagged
                     continue
                 to_str = numpy_dtype_to_tract_str(final_dtype)
-                out = self._implicit_operand_cast(node, inp, to_str)
+                out = self.emit_dtype_cast(node, inp, to_str)
                 inputs[idx] = out
         return tuple(inputs)
 
