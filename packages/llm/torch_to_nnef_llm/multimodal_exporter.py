@@ -346,10 +346,13 @@ class MultiModalExporter:
         # caller passed (they may reuse it for a later export).
         inference_target = copy.deepcopy(inference_target)
         if not self.encoder_handlers:
-            LOGGER.warning(
-                "no encoder handler registered for model_type '%s'; "
-                "exporting decoder only",
-                self.config_helper.conf.model_type,
+            model_type = self.config_helper.conf.model_type
+            raise T2NErrorMisuse(
+                f"'{model_type}' has no registered encoder handler, so it is "
+                "not a supported multimodal architecture: the export has no "
+                "encoder tower to produce and would degrade to a decoder-only "
+                "graph. Use `t2n_export_llm_to_tract` (dump_llm) for a "
+                "text/decoder-only export."
             )
         # the projected encoder embeddings are spliced into the decoder token
         # sequence, so their hidden size must equal the decoder's; catch a

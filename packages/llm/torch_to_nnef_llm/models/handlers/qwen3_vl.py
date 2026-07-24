@@ -3,6 +3,7 @@ import typing as T
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorConsistency
 from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
 
 from .base import (
@@ -547,11 +548,13 @@ class Qwen3VLVisionEncoder(torch.nn.Module):
         self.deep_idx = list(visual.deepstack_visual_indexes)
         # `_pos_embed` divides by (h - 1) with h = mh * merge (mh >= 1); a
         # merge >= 2 keeps h >= 2 so the denominator is >= 1. Qwen3-VL always
-        # uses spatial_merge_size == 2; guard the assumption explicitly rather
-        # than emit a silent NaN on a degenerate merge == 1 config.
-        assert self.merge >= 2, (
-            f"spatial_merge_size must be >= 2, got {self.merge}"
-        )
+        # uses spatial_merge_size == 2; guard the assumption explicitly (a bare
+        # assert would be stripped under `python -O`, silently re-enabling the
+        # NaN on a degenerate merge == 1 config).
+        if self.merge < 2:
+            raise T2NErrorConsistency(
+                f"spatial_merge_size must be >= 2, got {self.merge}"
+            )
 
     def _rot_pos_emb(self, mh, mw):
         merge = self.merge

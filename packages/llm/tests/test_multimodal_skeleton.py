@@ -367,3 +367,32 @@ def test_dump_llm_refuses_multimodal_checkpoint():
     assert "audio" in msg and "vision" in msg
     # a text-only arch passes through untouched (no raise)
     _reject_multimodal_in_llm_dump("some_text_only_arch")
+
+
+def test_export_refuses_non_multimodal_architecture(tmp_path):
+    """`MultiModalExporter.export` refuses an arch with no encoder handler.
+
+    Symmetric to the ``dump_llm`` guard: the multimodal path must error, not
+    silently degrade to a decoder-only graph. Uses a tiny random-weight text
+    model (no download, no tract: the guard fires before any export work).
+    """
+    # pylint: disable-next=import-outside-toplevel
+    from multimodal_dummy import build_dummy_exporter
+    from transformers import LlamaConfig, LlamaForCausalLM
+
+    cfg = LlamaConfig(
+        hidden_size=16,
+        intermediate_size=32,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        num_key_value_heads=1,
+        vocab_size=64,
+    )
+    exporter = build_dummy_exporter(cfg, LlamaForCausalLM, "f32")
+    assert exporter.encoder_handlers == []  # llama has no encoder handler
+    target = exporter.decoder_exporter.build_inference_target(no_verify=True)
+    with pytest.raises(T2NErrorMisuse) as exc:
+        exporter.export(tmp_path / "mm", target)
+    msg = str(exc.value)
+    assert "not a supported multimodal architecture" in msg
+    assert "t2n_export_llm_to_tract" in msg

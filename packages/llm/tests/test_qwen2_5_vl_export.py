@@ -270,6 +270,25 @@ def test_dummy_dynamic_resolution_multi_size():
             )
 
 
+def test_manifest_records_window_alignment_contract():
+    """The manifest MUST carry Qwen2.5-VL's window-alignment host contract.
+
+    A runtime that feeds a non-window-aligned grid gets wrong output, so
+    ``requires_window_multiple`` / ``window_size`` are the safety net; guard
+    that a refactor cannot silently drop them from ``manifest_input_contract``.
+    """
+    exporter = build_dummy_exporter(
+        _dummy_config(), Qwen2_5_VLForConditionalGeneration, "f32"
+    )
+    handler = exporter.encoder_handlers[0]
+    vc = exporter.hf_model_causal.config.vision_config
+    contract = handler.manifest_input_contract(exporter.config_helper)
+    assert contract is not None
+    assert contract["name"] == "pixel_values"
+    assert contract["requires_window_multiple"] is True
+    assert contract["window_size"] == handler.merger_window(vc)
+
+
 @pytest.mark.experimental
 def test_chain_matches_reference(exporter):
     _assert_chain_matches_reference(exporter)
