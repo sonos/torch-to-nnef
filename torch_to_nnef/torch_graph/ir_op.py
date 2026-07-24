@@ -52,6 +52,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ARANGE,
     ATEN_BADDMM,
     ATEN_BARTLETT_WINDOW,
+    ATEN_BUCKETIZE,
     ATEN_CLONE,
     ATEN_CONTIGUOUS_KIND,
     ATEN_CONV1D,
@@ -89,6 +90,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_REPEAT_INTERLEAVE,
     ATEN_SCALAR_TENSOR,
     ATEN_SCALED_DOT_PRODUCT_ATTENTION,
+    ATEN_SEARCHSORTED,
     ATEN_SELECT,
     ATEN_SIZE_KIND,
     ATEN_STARTID,
@@ -601,10 +603,10 @@ INFER_RULES = {
     # picks an overload it can't satisfy). Output shape matches the
     # input argument (`input` for bucketize, `values` for
     # searchsorted): short-circuit instead of calling op_ref.
-    "aten::bucketize": InferRule(
+    ATEN_BUCKETIZE: InferRule(
         lambda inp, *_: inp.shape, 1, require_dtype=False
     ),
-    "aten::searchsorted": InferRule(
+    ATEN_SEARCHSORTED: InferRule(
         lambda _seq, vals, *_: vals.shape, 2, require_dtype=False
     ),
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),

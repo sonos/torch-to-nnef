@@ -3,6 +3,14 @@
 
 ## [Unreleased]
 
+### Added
+- **Multimodal joint export (vision/audio-language)** (LLM): a modality-neutral abstraction that exports a model's **encoder** tower(s) and its **LLM decoder** as two coordinated NNEF graphs tied by a `multimodal.json` manifest, using the embedding-injection pattern (the encoder emits embeddings, the decoder splices them at a placeholder token). New CLI `t2n_export_multimodal_to_tract` (worker `dump_multimodal`), sharing every flag with the LLM CLI, plus tutorial `docs/tutos/13_multimodal.md`. Families: SmolVLM / Idefics3, Gemma 3, Gemma 4 (image + video + the USM audio conformer), Qwen2.5-VL, Qwen3-VL (with DeepStack), and Voxtral audio. The two entry points refuse the wrong model with an actionable error (the LLM export rejects a multimodal checkpoint and vice-versa, rather than silently under-exporting).
+- **Dynamic-resolution vision encoders**: the Gemma 4 vision/video, Qwen3-VL, and Qwen2.5-VL vision towers export **once** and run at any resolution on tract (the grid axes stay symbolic), instead of one graph per fixed size. Qwen2.5-VL records its window-alignment host contract (`requires_window_multiple` / `window_size`) in the manifest so a runtime cannot silently mis-feed a non-aligned grid.
+- **Sound per-axis dynamic-shape tracking** (core): under `dynamic_axes`, a shape query on a provably-static axis now constant-folds even when another axis of the same tensor is dynamic (previously every shape-derived value was forced dynamic, so e.g. a `split` sized from a static axis failed to lower). Over-approximating and structural, so a genuinely symbolic dimension is never baked. Adds an `aten::stack` dynamic-axis rule and registers `aten::clip` (a `clamp` alias).
+
+### Fixed
+- **f16 export: the implicit dtype-promotion cast keeps its operand's own shape.** A lower-rank operand promoted for a binary op used to borrow the parent op's output shape, which fooled the rank aligner into skipping the broadcast unsqueeze; the operand then mis-broadcast under tract's left-aligned expansion (e.g. a `[D]` per-channel scale blew up against a `[1, N, D]` tensor). General fix for any fp16 model.
+
 ## [0.24.3] - 2026-07-09
 
 ### Added

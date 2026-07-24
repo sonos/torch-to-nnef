@@ -162,22 +162,16 @@ def floor_divide(node, op_helper, inference_target, torch_graph, **kwargs):
     alias it on our side.
     """
     input_node, divisor_node = node.inputs
-    if (
-        input_node.data
-        and divisor_node.data
-        and not inference_target.has_dynamic_axes
-    ):
-        # avoid graph computation since static
-        idata = float(
-            input_node.data.tolist()
-            if isinstance(input_node, TensorVariable)
-            else input_node.data
-        )
-        ddata = float(
-            divisor_node.data.tolist()
-            if isinstance(divisor_node, TensorVariable)
-            else divisor_node.data
-        )
+    if input_node.data is not None and divisor_node.data is not None:
+        # both operands concrete -> fold (a genuinely-dynamic operand has
+        # data=None here, so this never bakes a symbolic dim, even under
+        # dynamic_axes). Preserve int-ness: shape arithmetic (e.g.
+        # head_dim // 2 feeding a slice bound) must stay integer, else a float
+        # bound clashes with tract's symbolic (TDim) axis size.
+        def _scalar(n):
+            return n.data.tolist() if isinstance(n, TensorVariable) else n.data
+
+        idata, ddata = _scalar(input_node), _scalar(divisor_node)
         torch_graph.remap_node(
             node.outputs[0],
             PythonConstant(name=node.outputs[0].name, data=idata // ddata),
