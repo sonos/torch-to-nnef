@@ -109,7 +109,7 @@ exclude = ["packages"]
 
 [build-system]
 # be sure to install pip >= 23.2 to avoid build issues
-requires = ["setuptools>42", "hatchling>=1.20", "packaging>=24.0"]
+requires = ["setuptools>=83.0.0", "hatchling>=1.20", "packaging>=24.0"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
