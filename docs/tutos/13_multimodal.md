@@ -14,8 +14,8 @@
     - [ ] The [Large Language Models](./5_llm.md) tutorial
     - [ ] 10 min to read this page
 
-Most popular open multimodal models (SmolVLM/Idefics3, Gemma 3, Qwen2.5-VL,
-Qwen3-VL, Voxtral, …) share one export-friendly pattern: a modality **encoder**
+Most popular open multimodal models (Qwen3-VL, Gemma 4, Qwen2.5-VL, Gemma 3,
+SmolVLM/Idefics3, Voxtral, …) share one export-friendly pattern: a modality **encoder**
 (vision tower or audio tower) turns pixels/mel features into embeddings, and
 those embeddings are **spliced into the token embedding sequence** of a normal
 causal **decoder** at the positions of a placeholder token (`<image>`,
