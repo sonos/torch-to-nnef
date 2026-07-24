@@ -308,6 +308,7 @@ Python inference example
 ```python
 import nemo_asr_tract
 
+
 def main():
     # Load the exported NeMo ASR model
     model_path = "./dump_parakeet_v3_06B"
@@ -325,6 +326,7 @@ def main():
     for i, t in enumerate(transcripts):
         print(f"Transcription[{i}]: '{t.text}'")
         print(f"Items[{i}]: {t.items}")
+
 
 if __name__ == "__main__":
     main()
@@ -388,6 +390,7 @@ To define a new runner or model, inherit from the base class and implement the r
 ```python
 from nemo_asr_tract.eval.runner import AsRRunner
 
+
 class MyCustomRunner(AsRRunner):
     def __init__(self, model: str, device: int = 0):
         super().__init__(model, device)
@@ -409,7 +412,6 @@ class MyCustomRunner(AsRRunner):
 
     def transcribe_from_wav_paths(self, wav_paths: List[str]):
         return []
-
 ```
 
 The custom runner can then be selected via the `--model_runner_class` argument in the evaluation CLI.
