@@ -14,6 +14,7 @@ runtime can chain them.
 """
 
 import copy
+import inspect
 import json
 import logging
 import typing as T
@@ -431,17 +432,35 @@ class MultiModalExporter:
         return export_dirpath
 
 
-#: kwargs consumed by `build_inference_target` (not by the decoder dump call).
-_INFERENCE_TARGET_ONLY_KWARGS = (
-    "tract_specific_path",
-    "tract_specific_version",
-    "tract_specific_properties",
-    "force_f32_attention",
-    "force_f32_linear_accumulator",
-    "force_f32_normalization",
-    "reify_sdpa_operator",
-    "tract_check_io_tolerance",
-)
+def _split_inference_target_kwargs(exporter, dump_kwargs):
+    """Route flat dump kwargs to ``build_inference_target`` vs the dump call.
+
+    ``dump_multimodal`` gets one flat kwarg set (shared with the LLM CLI) but
+    must build the inference target before calling ``export``. Rather than
+    hardcode which kwargs the target consumes (a list that silently rots when a
+    new inference-target option is added in t2n core), derive it from the two
+    method signatures:
+
+    - a ``build_inference_target`` parameter the decoder dump does NOT also
+      accept is target-only and is consumed here (popped from ``dump_kwargs``);
+    - a parameter both accept (``no_verify``, ``compression_*``) is passed to
+      the target AND left in ``dump_kwargs`` for the dump.
+
+    A new target parameter added in core is then routed automatically.
+    """
+    decoder = exporter.decoder_exporter
+    target_params = set(
+        inspect.signature(decoder.build_inference_target).parameters
+    )
+    dump_params = set(
+        inspect.signature(decoder.dump_with_inference_target).parameters
+    )
+    target_kwargs = {
+        key: dump_kwargs[key] for key in target_params if key in dump_kwargs
+    }
+    for key in target_params - dump_params:  # target-only: consume it
+        dump_kwargs.pop(key, None)
+    return target_kwargs
 
 
 def dump_multimodal(
@@ -485,16 +504,9 @@ def dump_multimodal(
         experts_implementation=experts_implementation,
     )
     dump_kwargs = _normalize_dump_kwargs(kwargs)
-    target_kwargs = {
-        key: dump_kwargs.pop(key)
-        for key in _INFERENCE_TARGET_ONLY_KWARGS
-        if key in dump_kwargs
-    }
+    target_kwargs = _split_inference_target_kwargs(exporter, dump_kwargs)
     inference_target = exporter.decoder_exporter.build_inference_target(
-        **target_kwargs,
-        no_verify=dump_kwargs.get("no_verify", False),
-        compression_method=dump_kwargs.get("compression_method"),
-        compression_registry=dump_kwargs.get("compression_registry"),
+        **target_kwargs
     )
     # the manifest records the decoder at ``decoder/model.nnef.tgz``; force the
     # FLAT layout so the graph lands there (DEEP would nest it one level down).
