@@ -29,34 +29,47 @@ from tests.utils import (
 from torch_to_nnef.inference_target import TractNNEF
 
 
-@torch.library.custom_op(
-    "t2n_extra::gated_delta_scan",
-    mutates_args=(),
-    schema=(
-        "(Tensor q, Tensor k, Tensor v, Tensor g, Tensor beta, Tensor s0) "
-        "-> (Tensor, Tensor)"
-    ),
-)
-def _gated_delta_scan(q, k, v, g, beta, s0):
-    """Pure-torch reference: the gated-delta recurrence over T (axis 2)."""
-    state = s0
-    ys = []
-    for t in range(q.shape[2]):
-        q_t, k_t, v_t = q[:, :, t], k[:, :, t], v[:, :, t]
-        g_t = g[:, :, t].exp()[..., None, None]
-        beta_t = beta[:, :, t][..., None]
-        state = state * g_t
-        kv = (state * k_t.unsqueeze(-1)).sum(-2)
-        delta = (v_t - kv) * beta_t
-        state = state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
-        ys.append((state * q_t.unsqueeze(-1)).sum(-2))
-    return torch.stack(ys, dim=2), state
+def _op_already_defined() -> bool:
+    try:
+        _ = torch.ops.t2n_extra.gated_delta_scan
+    except (AttributeError, RuntimeError):
+        return False
+    return True
 
 
-@_gated_delta_scan.register_fake
-def _meta(q, k, v, g, beta, s0):
-    b, h, t, _ = q.shape
-    return q.new_empty((b, h, t, v.shape[-1])), s0.new_empty(s0.shape)
+# Register idempotently: the qwen3_5 LLM handler defines the same op (also
+# guarded), so a repo-root pytest that collects both this core test and the
+# packages/llm tests in one process must not re-register (that raises
+# "operator already exists" at import and fails collection).
+if not _op_already_defined():
+
+    @torch.library.custom_op(
+        "t2n_extra::gated_delta_scan",
+        mutates_args=(),
+        schema=(
+            "(Tensor q, Tensor k, Tensor v, Tensor g, Tensor beta, Tensor s0) "
+            "-> (Tensor, Tensor)"
+        ),
+    )
+    def _gated_delta_scan(q, k, v, g, beta, s0):
+        """Pure-torch reference: the gated-delta recurrence over T (axis 2)."""
+        state = s0
+        ys = []
+        for t in range(q.shape[2]):
+            q_t, k_t, v_t = q[:, :, t], k[:, :, t], v[:, :, t]
+            g_t = g[:, :, t].exp()[..., None, None]
+            beta_t = beta[:, :, t][..., None]
+            state = state * g_t
+            kv = (state * k_t.unsqueeze(-1)).sum(-2)
+            delta = (v_t - kv) * beta_t
+            state = state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
+            ys.append((state * q_t.unsqueeze(-1)).sum(-2))
+        return torch.stack(ys, dim=2), state
+
+    @_gated_delta_scan.register_fake
+    def _meta(q, k, v, g, beta, s0):
+        b, h, t, _ = q.shape
+        return q.new_empty((b, h, t, v.shape[-1])), s0.new_empty(s0.shape)
 
 
 class _ScanMod(torch.nn.Module):
