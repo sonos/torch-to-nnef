@@ -1,0 +1,97 @@
+extension tract_registry tract_core;
+
+# Per-timestep body of Qwen3.5's gated-delta-net linear-attention scan.
+#
+# Convention (matches mamba_ssm_scan): tract keeps the scan axis with
+# size scan_pace = 1 inside the body, so each `scan` input arrives one
+# rank higher than the stateful shape -- squeeze axis 0 first.
+#
+# Math (matches torch_recurrent_gated_delta_rule per step; the q*scale,
+# l2norm and GQA repeat are done OUTSIDE the op as plain elementwise):
+#   S = S_prev * exp(g_t)                     (broadcast decay)
+#   kv = sum_k( S * k_t )                      (contract the key axis)
+#   delta = (v_t - kv) * beta_t
+#   S = S + k_t (outer) delta
+#   y_t = sum_k( S * q_t )                     (contract the key axis)
+#
+# Shapes (after the leading-1 squeeze); hk = key head dim, hv = value:
+#   S_prev: (B, H, hk, hv)                     -- state, rank 4
+#   q_t/k_t: (B, H, hk)   v_t: (B, H, hv)      -- arrived rank 4
+#   g_t/beta_t: (B, H)                          -- arrived rank 3
+# Outputs:
+#   S_t: (B, H, hk, hv)                        -- recurrence (== S_prev shape)
+#   y_t: (B, H, 1, hv)                         -- key axis reduced (kept as 1);
+#                                                the scan stacks it into T.
+fragment gated_delta_step(
+    S_prev: tensor<scalar>,
+    q_t: tensor<scalar>,
+    k_t: tensor<scalar>,
+    v_t: tensor<scalar>,
+    g_t: tensor<scalar>,
+    beta_t: tensor<scalar>
+) -> ( S_t: tensor<scalar>, y_t: tensor<scalar> ) {
+    q_s = squeeze(q_t, axes = [0]);      # (B, H, hk)
+    k_s = squeeze(k_t, axes = [0]);      # (B, H, hk)
+    v_s = squeeze(v_t, axes = [0]);      # (B, H, hv)
+    g_s = squeeze(g_t, axes = [0]);      # (B, H)
+    b_s = squeeze(beta_t, axes = [0]);   # (B, H)
+
+    # decay: S_prev * exp(g), broadcast g over (hk, hv)
+    g_b = unsqueeze(unsqueeze(exp(g_s), axes = [2]), axes = [3]);  # (B,H,1,1)
+    S_decay = S_prev * g_b;                                        # (B,H,hk,hv)
+
+    # kv = sum over hk of (S_decay * k), keep the reduced axis as 1
+    k_col = unsqueeze(k_s, axes = [3]);              # (B, H, hk, 1)
+    kv = sum_reduce(S_decay * k_col, axes = [2]);    # (B, H, 1, hv)
+
+    # delta = (v - kv) * beta
+    v_row = unsqueeze(v_s, axes = [2]);              # (B, H, 1, hv)
+    b_b = unsqueeze(unsqueeze(b_s, axes = [2]), axes = [3]);  # (B,H,1,1)
+    delta = (v_row - kv) * b_b;                      # (B, H, 1, hv)
+
+    # S += outer(k, delta)  -> (B,H,hk,1) * (B,H,1,hv)
+    S_t = S_decay + k_col * delta;                   # (B, H, hk, hv)
+
+    # y = sum over hk of (S * q); keep reduced axis (becomes the T stack axis)
+    q_col = unsqueeze(q_s, axes = [3]);              # (B, H, hk, 1)
+    y_t = sum_reduce(S_t * q_col, axes = [2]);       # (B, H, 1, hv)
+}
+
+
+# Whole-sequence gated-delta scan over T. Wraps `gated_delta_step` in
+# `tract_core_scan`. The t2n handler pre-transposes so the time axis is at
+# position 0 of every `scan` input:
+#   q, k: (T, B, H, hk)   v: (T, B, H, hv)   g, beta: (T, B, H)
+#   s_init: (B, H, hk, hv)                    (state, unchanged)
+# Outputs:
+#   scan_y : (B, H, T, hv)   per-step y stacked at axis 2
+#   s_final: (B, H, hk, hv)  final recurrent state
+fragment gated_delta_scan(
+    q: tensor<scalar>,
+    k: tensor<scalar>,
+    v: tensor<scalar>,
+    g: tensor<scalar>,
+    beta: tensor<scalar>,
+    s_init: tensor<scalar>,
+    scan_pace: integer
+) -> ( scan_y: tensor<scalar>, s_final: tensor<scalar> ) {
+    (scan_y, s_final) = tract_core_scan(
+        body = "gated_delta_step",
+        scan = [
+            ("q_t", q, 0, scan_pace),
+            ("k_t", k, 0, scan_pace),
+            ("v_t", v, 0, scan_pace),
+            ("g_t", g, 0, scan_pace),
+            ("beta_t", beta, 0, scan_pace)
+        ],
+        full = [],
+        state = [
+            ("S_prev", s_init, "S_t")
+        ],
+        output = [
+            ("y_t", "full", 2, scan_pace),
+            ("S_t", "last", 0, scan_pace)
+        ],
+        skip = 0
+    );
+}

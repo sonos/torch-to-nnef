@@ -176,3 +176,89 @@ def ssm_scan_y(
         name_to_tensor=name_to_tensor,
         y_only=True,
     )
+
+
+@register("gated_delta_scan")
+def gated_delta_scan(
+    g, node, name_to_tensor, op_helper, inference_target, **kwargs
+) -> T.List[str]:
+    """Emit a `gated_delta_scan` fragment call (Qwen3.5 gated-delta-net).
+
+    Torch side:
+        t2n_extra::gated_delta_scan(q, k, v, g, beta, s0) -> (y, s_final)
+    with (time axis at 2):
+        q, k    (B, H, T, hk)   v  (B, H, T, hv)
+        g, beta (B, H, T)       s0 (B, H, hk, hv)
+    The scan iterates axis 0, so pre-transpose the per-step inputs to put
+    time first (s0 is the state, left as-is), then the fragment wraps
+    `tract_core_scan`. Outputs: y (B, H, T, hv), s_final (B, H, hk, hv).
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "t2n_extra::gated_delta_scan requires a TractNNEF target"
+        )
+    q_in, k_in, v_in, g_in, beta_in, s0_in = node.inputs
+    q = op_helper.get_or_add_tensor_variable_in_nnef(q_in)
+    k = op_helper.get_or_add_tensor_variable_in_nnef(k_in)
+    v = op_helper.get_or_add_tensor_variable_in_nnef(v_in)
+    gg = op_helper.get_or_add_tensor_variable_in_nnef(g_in)
+    beta = op_helper.get_or_add_tensor_variable_in_nnef(beta_in)
+    s0 = op_helper.get_or_add_tensor_variable_in_nnef(s0_in)
+
+    def _rank(t):
+        return len(t.shape)
+
+    if _rank(q) != 4 or _rank(k) != 4 or _rank(v) != 4:
+        raise T2NErrorInvalidArgument(
+            "'q'/'k'/'v' must be rank-4 (B, H, T, head_dim)"
+        )
+    if _rank(gg) != 3 or _rank(beta) != 3:
+        raise T2NErrorInvalidArgument("'g'/'beta' must be rank-3 (B, H, T)")
+    if _rank(s0) != 4:
+        raise T2NErrorInvalidArgument(
+            "'s0' must be rank-4 (B, H, key_head_dim, value_head_dim)"
+        )
+
+    b, h, t = q.shape[:3]
+    hv = v.shape[-1]
+
+    def _time_first_4d(src):  # (B, H, T, D) -> (T, B, H, D)
+        return op_helper.add_intermediate_op(
+            src=src,
+            op_type="transpose",
+            attrs={"axes": [2, 0, 1, 3]},
+            new_shape=[src.shape[2], src.shape[0], src.shape[1], src.shape[3]],
+            suffix="scan_time_first",
+        )
+
+    def _time_first_3d(src):  # (B, H, T) -> (T, B, H)
+        return op_helper.add_intermediate_op(
+            src=src,
+            op_type="transpose",
+            attrs={"axes": [2, 0, 1]},
+            new_shape=[src.shape[2], src.shape[0], src.shape[1]],
+            suffix="scan_time_first",
+        )
+
+    q_p, k_p, v_p = _time_first_4d(q), _time_first_4d(k), _time_first_4d(v)
+    g_p, beta_p = _time_first_3d(gg), _time_first_3d(beta)
+
+    y_final = NTensor(
+        g, name=node.outputs[0].export_name, dtype=q.dtype, shape=(b, h, t, hv)
+    )
+    name_to_tensor[node.outputs[0].export_name] = y_final
+    s_final = NTensor(
+        g,
+        name=node.outputs[1].export_name,
+        dtype=s0.dtype,
+        shape=tuple(s0.shape),
+    )
+    name_to_tensor[node.outputs[1].export_name] = s_final
+    NOperation(
+        g,
+        type="gated_delta_scan",
+        attribs={"scan_pace": 1},
+        inputs=(q_p, k_p, v_p, g_p, beta_p, s0),
+        outputs=(y_final, s_final),
+    )
+    return ["gated_delta_scan"]
