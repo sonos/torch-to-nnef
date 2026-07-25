@@ -230,6 +230,9 @@ def test_dump_llm_routes_reified_sdpa_input_upcast_policy(
     captured_inference_target = {}
 
     class _Exporter:
+        # non-multimodal model_type so dump_llm's multimodal guard passes
+        model_infos = SimpleNamespace(conf=SimpleNamespace(model_type="fake"))
+
         def build_inference_target(self, **kwargs):
             captured_inference_target.update(kwargs)
             return object()
