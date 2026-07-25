@@ -65,12 +65,10 @@ def _nnef_cast(op_helper, node, tensor, to_tract_dtype: str, suffix: str = ""):
     name = f"{tensor.name}_cast_{to_tract_dtype}"
     if suffix:
         name = f"{name}_{suffix}"
-    return op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        nnef_op_type="tract_core_cast",
-        inputs=tensor,
-        attrs={"to": to_tract_dtype},
-        force_full_output_tensor_name=name,
+    # go through the shared shape-preserving cast: a cast keeps the operand's
+    # shape, not the parent node's output shape (see `emit_dtype_cast`).
+    return op_helper.emit_dtype_cast(
+        node, tensor, to_tract_dtype, full_name=name
     )
 
 

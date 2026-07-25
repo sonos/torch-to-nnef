@@ -197,3 +197,33 @@ def test_arange_f16_exports():
         test_input=torch.arange(4).reshape(1, 4).half(),
         inference_target=TRACT_INFERENCES_TO_TESTS_APPROX[0],
     )
+
+
+@pytest.mark.skipif(
+    condition=not TRACT_INFERENCES_TO_TESTS_APPROX or torch_version() < "2.2.0",
+    reason="no tract target, or torch too old for CPU fp16 ops",
+)
+def test_f16_promotion_cast_keeps_lower_rank_operand():
+    """A mixed-dtype binary op with a lower-rank operand must keep its rank.
+
+    The implicit dtype-promotion cast (f16 -> f32 here) must preserve the
+    operand's own shape, not borrow the parent op's output shape: otherwise the
+    rank aligner sees a full-rank operand, skips the broadcast unsqueeze, and
+    the operand mis-broadcasts under tract's left-aligned expansion (a ``[D]``
+    operand blew up against a ``[1, N, D]`` tensor). Exercised in the wild by
+    the gemma4 audio conformer's ``q.float() * softplus(per_dim_scale[D])``.
+    """
+
+    class LowRankPromote(nn.Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.scale = nn.Parameter(torch.rand(dim, dtype=torch.float16))
+
+        def forward(self, x):  # x: [1, N, D] f16
+            return x.float() * self.scale  # f32 [1, N, D] * f16 [D]
+
+    check_model_io_test(
+        LowRankPromote(4),
+        test_input=torch.rand(1, 3, 4).half(),
+        inference_target=TRACT_INFERENCES_TO_TESTS_APPROX[0],
+    )

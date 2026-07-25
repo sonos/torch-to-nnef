@@ -23,6 +23,7 @@ from torch_to_nnef_llm.config import (
 )
 from torch_to_nnef_llm.exporter import DEFAULT_HF_DOWNLOAD_N_RETRIES, dump_llm
 from torch_to_nnef_llm.models.base import DYNAMIC_LOGITS_TO_KEEP
+from torch_to_nnef_llm.multimodal_exporter import dump_multimodal
 
 LOGGER = logging.getLogger(__name__)
 
@@ -351,7 +352,8 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
     return args
 
 
-def main():
+def _parse_cli_to_kwargs() -> T.Tuple[T.Dict[str, T.Any], int]:
+    """Parse the shared CLI args into ``dump_*`` kwargs + a log level."""
     log = init_log()
     args = parser_cli()
     log_level = log.INFO
@@ -370,7 +372,26 @@ def main():
         "reify_sdpa_operator"
     ):
         kwargs["attn_implementation"] = "sdpa"
+    return kwargs, log_level
+
+
+def main():
+    kwargs, log_level = _parse_cli_to_kwargs()
     dump_llm(
+        **kwargs,
+        log_level=log_level,
+    )
+
+
+def main_multimodal():
+    """CLI entry to export a multimodal model (encoder(s) + decoder + manifest).
+
+    Shares every flag with the LLM export CLI; the model_slug/local_dir just
+    needs to point at a multimodal checkpoint whose model_type has a registered
+    encoder handler.
+    """
+    kwargs, log_level = _parse_cli_to_kwargs()
+    dump_multimodal(
         **kwargs,
         log_level=log_level,
     )
