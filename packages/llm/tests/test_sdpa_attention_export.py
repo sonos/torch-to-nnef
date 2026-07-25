@@ -167,6 +167,9 @@ def test_dump_llm_routes_reified_sdpa_to_loader(monkeypatch, tmp_path):
     captured_dump = {}
 
     class _Exporter:
+        # non-multimodal model_type so dump_llm's multimodal guard passes
+        model_infos = SimpleNamespace(conf=SimpleNamespace(model_type="fake"))
+
         def dump(self, **kwargs):
             captured_dump.update(kwargs)
 
@@ -191,6 +194,9 @@ def test_dump_llm_routes_experts_implementation_to_loader(
     captured_load = {}
 
     class _Exporter:
+        # non-multimodal model_type so dump_llm's multimodal guard passes
+        model_infos = SimpleNamespace(conf=SimpleNamespace(model_type="fake"))
+
         def dump(self, **kwargs):
             del kwargs
 

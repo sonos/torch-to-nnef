@@ -43,6 +43,7 @@ test = [
 
 [project.scripts]
 t2n_export_llm_to_tract = "torch_to_nnef_llm.cli:main"
+t2n_export_multimodal_to_tract = "torch_to_nnef_llm.cli:main_multimodal"
 t2n_export_peft_to_nnef = "torch_to_nnef_llm.peft.cli:main"
 
 [project.urls]

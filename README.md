@@ -62,6 +62,7 @@ Any `nn.Module` whose `forward` takes and returns tensors can be exported out of
 
 - [Dynamic axes](https://sonos.github.io/torch-to-nnef/latest/tutos/4_dynamic_axes/) : variable batch and streamable dimensions
 - [Large Language Models](https://sonos.github.io/torch-to-nnef/latest/tutos/5_llm/) and [quantized models](https://sonos.github.io/torch-to-nnef/latest/tutos/6_quantization/)
+- [Multimodal models (vision & audio)](https://sonos.github.io/torch-to-nnef/latest/tutos/13_multimodal/): encoder + decoder as coordinated NNEF graphs
 - [NeMo ASR models](https://sonos.github.io/torch-to-nnef/latest/tutos/10_nemo/)
 - [Offloaded tensors](https://sonos.github.io/torch-to-nnef/latest/tutos/7_offloaded_tensor/), [tensor-only / PEFT exports](https://sonos.github.io/torch-to-nnef/latest/tutos/9_peft/), and [custom operators](https://sonos.github.io/torch-to-nnef/latest/tutos/8_custom_operator/)
 
