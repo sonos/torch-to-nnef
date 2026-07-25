@@ -34,7 +34,13 @@ from transformers import (
 
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef_llm.models.handlers.base import scatter_features_by_mask
+
+# ``--dtype`` presets. f16 lets a bigger checkpoint load + export in half the
+# memory (a real Holo model in f32 is large); the Rust demo casts each input to
+# whatever dtype the graph expects, so f16 needs no runtime change there.
+_DTYPES = {"f32": torch.float32, "f16": torch.float16}
 
 # Importing the handler registers the torch-side ``t2n_extra::gated_delta_scan``
 # op and exposes the production modules the demo reuses (so the streaming
@@ -208,11 +214,12 @@ def _zero_states(text_conf, n_past, dtype):
     return _DEC_HANDLER._build_state_inputs(text_conf, n_past, dtype)[0]
 
 
-def _build_sample(encoder, model, processor, args):
+def _build_sample(encoder, model, processor, args, dtype):
     """Build the (image, prompt) sample the two graphs are traced/run on.
 
     Returns pixel_values, input_ids, the host-side RoPE cos/sin (prompt table +
-    a decode-continuation table), the causal mask, and the image embeddings.
+    a decode-continuation table), the causal mask, and the image embeddings, all
+    in ``dtype`` (so the traced graph is that dtype).
     """
     conf = model.config
     tc = conf.text_config
@@ -249,14 +256,14 @@ def _build_sample(encoder, model, processor, args):
         pixel_values = (
             proc["pixel_values"]
             .reshape(mh, mw, merge, merge, patch_dim)
-            .float()
+            .to(dtype)
         )
     else:
         h, w = 8, 8
         mh, mw = h // merge, w // merge
         grid = torch.tensor([[1, h, w]], dtype=torch.long)
         num_img = mh * mw
-        pixel_values = torch.randn(mh, mw, merge, merge, patch_dim)
+        pixel_values = torch.randn(mh, mw, merge, merge, patch_dim).to(dtype)
         prompt_ids = torch.randint(4, tc.vocab_size, (1, 4))
         input_ids = torch.cat(
             [
@@ -296,9 +303,11 @@ def _build_sample(encoder, model, processor, args):
     )
     with torch.no_grad():
         cos_tbl, sin_tbl = rotary(hidden0, dec_pos)  # [1, n_decode, rot_dim]
-    neg = torch.finfo(torch.float32).min
-    mask = torch.triu(torch.full((seq, seq), neg), diagonal=1).view(
-        1, 1, seq, seq
+    neg = torch.finfo(dtype).min
+    mask = (
+        torch.triu(torch.full((seq, seq), neg), diagonal=1)
+        .view(1, 1, seq, seq)
+        .to(dtype)
     )
     return SimpleNamespace(
         input_ids=input_ids,
@@ -349,13 +358,17 @@ def _write_manifest_and_bins(args, model, s, layout, dec_in, dec_out):
     }
     (args.out / "holo.json").write_text(json.dumps(manifest, indent=2))
     # Flat little-endian .bin files: the Rust demo reads them with std only
-    # (no npy/npz dependency). Shapes come from holo.json.
+    # (no npy/npz dependency). Always f32 on disk (the Rust side casts each
+    # input to the graph's dtype), so a f16 export still ships f32 bins.
     s.input_ids.numpy().astype("<i8").tofile(args.out / "input_ids.bin")
-    s.pixel_values.numpy().astype("<f4").tofile(args.out / "pixel_values.bin")
-    s.cos.numpy().astype("<f4").tofile(args.out / "cos.bin")
-    s.sin.numpy().astype("<f4").tofile(args.out / "sin.bin")
-    s.cos_tbl.numpy().astype("<f4").tofile(args.out / "cos_table.bin")
-    s.sin_tbl.numpy().astype("<f4").tofile(args.out / "sin_table.bin")
+    for name, tensor in [
+        ("pixel_values", s.pixel_values),
+        ("cos", s.cos),
+        ("sin", s.sin),
+        ("cos_table", s.cos_tbl),
+        ("sin_table", s.sin_tbl),
+    ]:
+        tensor.float().numpy().astype("<f4").tofile(args.out / f"{name}.bin")
     n_img = int((s.input_ids == conf.image_token_id).sum())
     print(f"[holo] wrote holo.json + *.bin to {args.out}")
     print(f"[holo] seq={s.seq} img_tokens={n_img} layers={len(layout)}")
@@ -372,6 +385,12 @@ def main() -> None:
     ap.add_argument("--image", type=Path, default=None)
     ap.add_argument("--prompt", default="Where should I click?")
     ap.add_argument("--out", type=Path, default=Path("./exp"))
+    ap.add_argument(
+        "--dtype",
+        default="f32",
+        choices=sorted(_DTYPES),
+        help="Load + export precision. f16 halves memory for big checkpoints.",
+    )
     ap.add_argument("--no-check-io", action="store_true")
     ap.add_argument(
         "--verify",
@@ -383,15 +402,17 @@ def main() -> None:
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     torch.manual_seed(0)  # reproducible dummy weights across runs
+    dtype = _DTYPES[args.dtype]
 
     if args.dummy or args.repo is None:
-        print("[holo] building tiny dummy qwen3_5 model")
+        print(f"[holo] building tiny dummy qwen3_5 model ({args.dtype})")
         model = Qwen3_5ForConditionalGeneration(_dummy_config()).eval()
+        model = model.to(dtype)
         processor = None
     else:
-        print(f"[holo] loading {args.repo}")
+        print(f"[holo] loading {args.repo} ({args.dtype})")
         model = Qwen3_5ForConditionalGeneration.from_pretrained(
-            args.repo, torch_dtype=torch.float32
+            args.repo, torch_dtype=dtype
         ).eval()
         processor = AutoProcessor.from_pretrained(args.repo)
     model.config._attn_implementation = "eager"
@@ -400,13 +421,23 @@ def main() -> None:
 
     encoder = Qwen35VisionEncoder(model.model.visual).eval()
     decoder = StreamingHybridDecoder(model).eval()
-    s = _build_sample(encoder, model, processor, args)
+    s = _build_sample(encoder, model, processor, args, dtype)
+
+    # f16 accumulates more drift than f32, so verify against the looser preset
+    # every fp16 export uses (the tiny dummy barely diverges regardless).
+    tol = (
+        TractCheckTolerance.ULTRA
+        if dtype == torch.float16
+        else TractCheckTolerance.APPROXIMATE
+    )
 
     # ---- export vision encoder ----
     enc_path = args.out / "vision.nnef.tgz"
     enc_args = (s.pixel_values,)
     tgt = TractNNEF(
-        version=TractNNEF.latest_version(), check_io=not args.no_check_io
+        version=TractNNEF.latest_version(),
+        check_io=not args.no_check_io,
+        check_io_tolerance=tol,
     )
     tgt.dynamic_axes = {"pixel_values": {0: "MH", 1: "MW"}}
     print(f"[holo] exporting vision encoder -> {enc_path}")
@@ -422,7 +453,7 @@ def main() -> None:
     # ---- export streaming decoder ----
     in_state_names, out_state_names = _DEC_HANDLER._state_names(tc)
     layout = _manifest_layers(tc)
-    states = _zero_states(tc, 0, torch.float32)
+    states = _zero_states(tc, 0, dtype)
     dec_args = (s.input_ids, s.cos, s.sin, s.mask, s.image_embeddings, *states)
     dec_in_names = [
         "input_ids",
@@ -445,7 +476,9 @@ def main() -> None:
             dec_axes[name] = {2: "P"}
     dec_path = args.out / "decoder.nnef.tgz"
     tgt2 = TractNNEF(
-        version=TractNNEF.latest_version(), check_io=not args.no_check_io
+        version=TractNNEF.latest_version(),
+        check_io=not args.no_check_io,
+        check_io_tolerance=tol,
     )
     tgt2.dynamic_axes = dec_axes
     print(f"[holo] exporting streaming decoder -> {dec_path}")
@@ -483,23 +516,26 @@ def _torch_greedy(
     decoder, input_ids, cos, sin, cos_tbl, sin_tbl, image_embeddings, tc, n_new
 ):
     """Greedy decode mirroring the Rust loop, for parity checking."""
-    neg = torch.finfo(torch.float32).min
+    dtype = cos.dtype
+    neg = torch.finfo(dtype).min
     seq = input_ids.shape[1]
-    mask = torch.triu(torch.full((seq, seq), neg), diagonal=1).view(
-        1, 1, seq, seq
+    mask = (
+        torch.triu(torch.full((seq, seq), neg), diagonal=1)
+        .view(1, 1, seq, seq)
+        .to(dtype)
     )
-    states = _zero_states(tc, 0, torch.float32)
+    states = _zero_states(tc, 0, dtype)
     with torch.no_grad():
         out = decoder(input_ids, cos, sin, mask, image_embeddings, *states)
     logits, states = out[0], list(out[1:])
     nxt = int(logits[0, -1].argmax())
     gen = [nxt]
-    empty_img = torch.zeros((0, tc.hidden_size))
+    empty_img = torch.zeros((0, tc.hidden_size), dtype=dtype)
     past = seq
     for step in range(n_new - 1):
         c = cos_tbl[:, step : step + 1]
         s = sin_tbl[:, step : step + 1]
-        m = torch.zeros(1, 1, 1, past + 1)
+        m = torch.zeros(1, 1, 1, past + 1, dtype=dtype)
         with torch.no_grad():
             out = decoder(torch.tensor([[nxt]]), c, s, m, empty_img, *states)
         logits, states = out[0], list(out[1:])

@@ -1,4 +1,5 @@
 exp/
+exp_*/
 *.nnef.tgz
 *.bin
 holo.json

@@ -355,7 +355,10 @@ class _HybridGDNForward:
         y, rec_state_out = torch.ops.t2n_extra.gated_delta_scan(
             q_p, k_p, v_p, g_p, beta_p, rec_state_in
         )
-        core = y.transpose(1, 2).reshape(-1, gdn.head_v_dim)
+        # `g` is upcast to f32 for stability (matches HF), so the scan runs in
+        # f32; cast back to the module dtype before the gated norm + out_proj
+        # (no-op in f32; required so a f16 model does not hit a dtype mismatch).
+        core = y.transpose(1, 2).reshape(-1, gdn.head_v_dim).to(hidden.dtype)
         core = gdn.norm(core, z.reshape(-1, gdn.head_v_dim)).reshape(
             batch, seq, -1
         )
@@ -487,8 +490,12 @@ class Qwen35ArchitectureHandler(ArchitectureHandler):
                 state_inputs.append(
                     torch.zeros((1, conv_dim, conv_k - 1), dtype=inputs_dtype)
                 )
+                # The recurrent state is kept in f32 even for a f16 model: the
+                # gated-delta recurrence runs in f32 (g is upcast for stability,
+                # matching HF, which stores recurrent_states in f32), so the
+                # scan state carried across steps must be f32 too.
                 state_inputs.append(
-                    torch.zeros((1, n_v, h_k, h_v), dtype=inputs_dtype)
+                    torch.zeros((1, n_v, h_k, h_v), dtype=torch.float32)
                 )
                 next(name_it)
                 next(name_it)

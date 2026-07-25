@@ -29,7 +29,19 @@ python export.py --dummy --out ./exp
 # a real checkpoint + screenshot:
 python export.py --repo Hcompany/Holo-3.1-0.8B \
     --image screenshot.png --prompt "Click the search bar" --out ./exp
+
+# a bigger checkpoint in half precision (fits in half the memory):
+python export.py --repo <bigger-qwen3_5-vlm> --dtype f16 \
+    --image screenshot.png --out ./exp
 ```
+
+**Any size is just the `--repo` parameter.** Everything downstream (layer
+count, the gated-delta / attention split from `config.layer_types`, hidden size,
+GDN and attention head dims, vision depth) is read from the checkpoint config,
+so a bigger Holo / Qwen3.5-VL model needs no code change. `--dtype f16` loads
+and exports in half precision for the large checkpoints; the Rust runtime casts
+each input to whatever dtype the graph expects, so it needs no change either
+(the gated-delta recurrent state stays f32, as in the reference kernels).
 
 This writes to `./exp`:
 

@@ -151,8 +151,14 @@ fn zero_states(layers: &[Layer], n_past: usize) -> TractResult<Vec<Tensor>> {
             )?);
         } else {
             let n = l.num_kv_heads * n_past * l.head_dim;
-            out.push(f32_tensor(&[1, l.num_kv_heads, n_past, l.head_dim], vec![0.0; n])?);
-            out.push(f32_tensor(&[1, l.num_kv_heads, n_past, l.head_dim], vec![0.0; n])?);
+            out.push(f32_tensor(
+                &[1, l.num_kv_heads, n_past, l.head_dim],
+                vec![0.0; n],
+            )?);
+            out.push(f32_tensor(
+                &[1, l.num_kv_heads, n_past, l.head_dim],
+                vec![0.0; n],
+            )?);
         }
     }
     Ok(out)
@@ -183,6 +189,26 @@ fn argmax(slice: &[f32]) -> usize {
     best.0
 }
 
+/// Cast a tensor to `target` (no-op if it already matches).
+fn to_dt(t: Tensor, target: DatumType) -> TractResult<Tensor> {
+    if t.datum_type() == target {
+        Ok(t)
+    } else {
+        Ok(t.cast_to_dt(target)?.into_owned())
+    }
+}
+
+/// Cast each input to the dtype the plan expects for that position, so the
+/// f32 tensors this demo builds run against an f32 OR an f16 graph unchanged.
+fn cast_inputs(plan: &Plan, inputs: TVec<Tensor>) -> TractResult<TVec<TValue>> {
+    let mut out: TVec<TValue> = tvec!();
+    for (ix, t) in inputs.into_iter().enumerate() {
+        let want = plan.model().input_fact(ix)?.datum_type;
+        out.push(to_dt(t, want)?.into_tvalue());
+    }
+    Ok(out)
+}
+
 /// Run the decoder once. `inputs` are in `decoder_input_order`:
 /// input_ids, cos, sin, mask, image_embeddings, then per-layer states.
 /// Returns (logits, new_states).
@@ -195,18 +221,14 @@ fn run_decoder(
     image_embeddings: Tensor,
     states: Vec<Tensor>,
 ) -> TractResult<(Vec<f32>, Vec<Tensor>)> {
-    let mut inputs: TVec<TValue> = tvec!(
-        input_ids.into_tvalue(),
-        cos.into_tvalue(),
-        sin.into_tvalue(),
-        mask.into_tvalue(),
-        image_embeddings.into_tvalue(),
-    );
-    for s in states {
-        inputs.push(s.into_tvalue());
-    }
-    let outputs = SimpleState::new(decoder)?.run(inputs)?;
-    let logits = outputs[0].try_as_plain()?.as_slice::<f32>()?.to_vec();
+    let mut raw: TVec<Tensor> = tvec!(input_ids, cos, sin, mask, image_embeddings);
+    raw.extend(states);
+    let outputs = SimpleState::new(decoder)?.run(cast_inputs(decoder, raw)?)?;
+    // logits may come back f16 on a half-precision graph; read them as f32.
+    let logits = to_dt(outputs[0].clone().into_tensor(), DatumType::F32)?
+        .try_as_plain()?
+        .as_slice::<f32>()?
+        .to_vec();
     let new_states = outputs[1..]
         .iter()
         .map(|t| t.clone().into_tensor())
@@ -216,8 +238,7 @@ fn run_decoder(
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args = parse_args();
-    let manifest: Manifest =
-        serde_json::from_slice(&std::fs::read(args.dir.join("holo.json"))?)?;
+    let manifest: Manifest = serde_json::from_slice(&std::fs::read(args.dir.join("holo.json"))?)?;
     println!(
         "[holo] repo={} hidden={} vocab={} layers={} (img_tokens={})",
         manifest.repo,
@@ -251,7 +272,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let sin_tbl = read_bin_f32(&args.dir.join("sin_table.bin"))?;
 
     // ---- vision encoder ----
-    let enc_out = encoder.run(tvec!(pixel_values.into_tvalue()))?;
+    let enc_out = encoder.run(cast_inputs(&encoder, tvec!(pixel_values))?)?;
     let image_embeddings = enc_out[0].clone().into_tensor();
     println!("[holo] image embeddings: {:?}", image_embeddings.shape());
 
@@ -300,7 +321,11 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         past += 1;
     }
 
-    println!("[holo] generated {} token ids: {:?}", generated.len(), generated);
+    println!(
+        "[holo] generated {} token ids: {:?}",
+        generated.len(),
+        generated
+    );
     println!(
         "[holo] (decode a real checkpoint's tokens with its tokenizer to read \
          the UI-grounding coordinates)"
