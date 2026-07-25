@@ -52,6 +52,10 @@ from torch_to_nnef_llm.models.base import (
     update_forward_signature,
     use_dtype_dyn_cache,
 )
+from torch_to_nnef_llm.models.handlers import (
+    get_encoder_handlers,
+    is_multimodal,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -1098,6 +1102,27 @@ class StateLessF32LayerNorm(nn.Module):
         ).to(input.dtype)
 
 
+def _reject_multimodal_in_llm_dump(model_type: str) -> None:
+    """Refuse to export a multimodal checkpoint via the decoder-only path.
+
+    ``dump_llm`` exports the decoder graph only. Pointed at a multimodal
+    checkpoint it would silently drop the modality tower(s) and the
+    ``multimodal.json`` manifest, producing a subtly-incomplete export; refuse
+    and point at the dedicated command.
+    """
+    if not is_multimodal(model_type):
+        return
+    modalities = sorted({h.MODALITY for h in get_encoder_handlers(model_type)})
+    raise T2NErrorMisuse(
+        f"'{model_type}' is a multimodal checkpoint with registered "
+        f"encoder(s) for {modalities}. `dump_llm` exports the decoder graph "
+        "only (no encoder graphs, no multimodal.json), which would silently "
+        "drop the modality tower(s). Use `t2n_export_multimodal_to_tract` "
+        "(dump_multimodal) to export the encoder(s), decoder, and manifest "
+        "together."
+    )
+
+
 def dump_llm(
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
@@ -1132,6 +1157,7 @@ def dump_llm(
         attn_implementation=attn_implementation,
         experts_implementation=experts_implementation,
     )
+    _reject_multimodal_in_llm_dump(exporter.model_infos.conf.model_type)
     dump_kwargs = _normalize_dump_kwargs(kwargs)
     exporter.dump(**dump_kwargs)
     export_path = dump_kwargs.get("export_dirpath")

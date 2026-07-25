@@ -356,9 +356,9 @@ def clamp_max(g, node, name_to_tensor, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_op_ids=["clamp", "clip"])
 def clamp(g, node, name_to_tensor, **kwargs):
-    """Map PyTorch: 'aten:clamp' to NNEF.
+    """Map PyTorch: 'aten:clamp' (and its 'clip' alias) to NNEF.
 
     PyTorch's `clamp(input, min=None, max=None)` skips a bound when it
     is `None` (the unset sentinel): NOT when it is 0.0. The earlier

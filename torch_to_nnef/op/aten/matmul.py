@@ -36,6 +36,115 @@ def _get_padding_same_symetric(
     return padding
 
 
+def _emit_conv_op_with_optional_f32_accumulation(
+    g,
+    node,
+    name_to_tensor,
+    inference_target,
+    *,
+    input_node,
+    weight_ref,
+    bias_ref,
+    output_tensor,
+    conv_type,
+    attribs,
+    null_ref,
+):
+    """Emit the NNEF ``conv``/``deconv`` op, optionally accumulating in f32.
+
+    NNEF ``conv`` has no ``acc`` attribute (unlike the ``tract_core_einsum``
+    used by ``linear``), so when the input is fp16 and
+    ``inference_target.force_linear_accumulation_in_f32`` is set we sandwich
+    the op between casts: lift input/weight/bias to f32, run the conv in f32,
+    then cast the result back to the traced output dtype. Without this the
+    fp16 conv accumulator diverges from PyTorch's CPU f16 kernels (which
+    accumulate in f32) -- e.g. a vision patch-embedding conv drifts ~14% and
+    the following norms amplify it. Mirrors the ``layer_norm`` and ``linear``
+    f32-accumulation paths.
+    """
+    input_ref = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    upcast_f32 = (
+        isinstance(inference_target, TractNNEF)
+        and input_node.dtype == torch.float16
+        and inference_target.force_linear_accumulation_in_f32
+    )
+    if upcast_f32 and inference_target.version < "0.21.11":
+        LOGGER.warning(
+            "conv can not yet accumulate in f32 (waiting tract>=0.21.11),"
+            " fallback to f16"
+        )
+        upcast_f32 = False
+
+    if not upcast_f32:
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type=conv_type,
+            name=f"{node.outputs[0].export_name}_op",
+            inputs=(input_ref, weight_ref, bias_ref),
+            outputs=output_tensor,
+            attribs=attribs,
+            force_consistent_inputs_shapes=False,
+        )
+        return []
+
+    input_f32 = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=input_ref,
+        attrs={"to": "f32"},
+        output_tensor_name_suffix="_inf32",
+    )
+    weight_f32 = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=weight_ref,
+        attrs={"to": "f32"},
+        output_tensor_name_suffix="_wf32",
+    )
+    conv_inputs = [input_f32, weight_f32]
+    if bias_ref is not null_ref:
+        conv_inputs.append(
+            add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_cast",
+                inputs=bias_ref,
+                attrs={"to": "f32"},
+                output_tensor_name_suffix="_bf32",
+            )
+        )
+    else:
+        conv_inputs.append(bias_ref)
+    conv_f32 = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        conv_type,
+        inputs=conv_inputs,
+        attrs=attribs,
+        output_tensor_name_suffix="_accf32",
+        force_consistent_inputs_shapes=False,
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="tract_core_cast",
+        name=f"{node.outputs[0].export_name}_op",
+        inputs=conv_f32,
+        outputs=output_tensor,
+        attribs={"to": TORCH_DTYPE_TO_TRACT_STR[node.outputs[0].dtype]},
+    )
+    return ["tract_core"]
+
+
 @OP_REGISTRY.register(
     # Most of these aten symbols never reach the trace: pytorch
     # decomposes them through `aten::_convolution_mode` or
@@ -114,17 +223,16 @@ def _convolution_mode(
         null_ref,
     )
 
-    cast_and_add_nnef_operation(
-        name_to_tensor=name_to_tensor,
-        graph=g,
-        type="conv",
-        name=f"{node.outputs[0].export_name}_op",
-        inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            weight_ref,
-            bias_ref,
-        ),
-        outputs=output_tensor,
+    return _emit_conv_op_with_optional_f32_accumulation(
+        g,
+        node,
+        name_to_tensor,
+        inference_target,
+        input_node=input_node,
+        weight_ref=weight_ref,
+        bias_ref=bias_ref,
+        output_tensor=output_tensor,
+        conv_type="conv",
         attribs={
             "dilation": list(dilation),
             "padding": [
@@ -134,7 +242,7 @@ def _convolution_mode(
             "groups": groups,
             "border": "constant",
         },
-        force_consistent_inputs_shapes=False,
+        null_ref=null_ref,
     )
 
 
@@ -240,17 +348,16 @@ def _emit_conv(
                 pad_after -= op
         nnef_padding.append((pad_before, pad_after))
 
-    cast_and_add_nnef_operation(
-        name_to_tensor=name_to_tensor,
-        graph=g,
-        type="deconv" if transposed else "conv",
-        name=f"{node.outputs[0].export_name}_op",
-        inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            weight_ref,
-            bias_ref,
-        ),
-        outputs=output_tensor,
+    return _emit_conv_op_with_optional_f32_accumulation(
+        g,
+        node,
+        name_to_tensor,
+        inference_target,
+        input_node=input_node,
+        weight_ref=weight_ref,
+        bias_ref=bias_ref,
+        output_tensor=output_tensor,
+        conv_type="deconv" if transposed else "conv",
         attribs={
             "dilation": list(dilation),
             "padding": nnef_padding,
@@ -258,7 +365,7 @@ def _emit_conv(
             "groups": groups,
             "border": "constant",
         },
-        force_consistent_inputs_shapes=False,
+        null_ref=null_ref,
     )
 
 
@@ -280,7 +387,7 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         _,  # cuda_enabled
         _,  # allow_tf32
     ) = node.inputs
-    _emit_conv(
+    return _emit_conv(
         g,
         node,
         name_to_tensor,
@@ -325,7 +432,7 @@ def conv_transpose_nd(
         groups_node,
         dilation_node,
     ) = node.inputs
-    _emit_conv(
+    return _emit_conv(
         g,
         node,
         name_to_tensor,
@@ -452,7 +559,11 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
                 " fallback to f16"
             )
         else:
-            if input_node.rank == 3:
+            if input_node.rank == 2:
+                expr = "ij,kj->ik"
+                if weight_node.rank != 2:
+                    raise T2NErrorNotImplemented(weight_node.rank)
+            elif input_node.rank == 3:
                 expr = "bij,kj->bik"
                 if weight_node.rank != 2:
                     raise T2NErrorNotImplemented(weight_node.rank)

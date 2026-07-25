@@ -341,13 +341,25 @@ class TensorVariable(Data):
             # dtype, mirroring how INT scalars were already handled.
             dtype = scalar_dtype
             shape = [1]
+        elif node_type.kind() == NUMBERTYPE_KIND:
+            parent_node = node_c_value.node()
+            if parent_node.kind() == ATEN_SCALARIMPLICIT:
+                inner_type = parent_node.input().type()
+                stype = inner_type.scalarType()
+                dtype = str_to_torch_dtype(stype) if stype else None
+                shape = inner_type.sizes()
+            else:
+                # A bare `Scalar`/number SSA value with no `ScalarImplicit`
+                # wrapper: e.g. `Tensor.item()` (`aten::item -> Scalar`), or a
+                # submodule `forward(seqlen)` parameter typed `Scalar` because
+                # it was called with a 0-d tensor (Qwen2.5-VL's vision tower
+                # passes `grid_thw.max()` into a rotary embedding -> `arange`).
+                # Represent as an int64 scalar; the recursive-input path
+                # (`_parse_inputs`) overrides dtype/shape from the concrete
+                # traced argument when one is available.
+                dtype = torch.int64
+                shape = [1]
         else:
-            if node_type.kind() == NUMBERTYPE_KIND:
-                parent_node = node_c_value.node()
-                if parent_node.kind() == ATEN_SCALARIMPLICIT:
-                    node_type = parent_node.input().type()
-                else:
-                    raise T2NErrorNotImplemented()
             stype = node_type.scalarType()
             dtype = str_to_torch_dtype(stype) if stype else None
             shape = node_type.sizes()

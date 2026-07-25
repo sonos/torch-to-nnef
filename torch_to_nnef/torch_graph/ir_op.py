@@ -52,6 +52,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ARANGE,
     ATEN_BADDMM,
     ATEN_BARTLETT_WINDOW,
+    ATEN_BUCKETIZE,
     ATEN_CLONE,
     ATEN_CONTIGUOUS_KIND,
     ATEN_CONV1D,
@@ -89,6 +90,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_REPEAT_INTERLEAVE,
     ATEN_SCALAR_TENSOR,
     ATEN_SCALED_DOT_PRODUCT_ATTENTION,
+    ATEN_SEARCHSORTED,
     ATEN_SELECT,
     ATEN_SIZE_KIND,
     ATEN_STARTID,
@@ -149,6 +151,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_NEW_EMPTY: cls.aten_new_empty,
             ATEN_FULL: cls.aten_full,
             ATEN_FULL_LIKE: cls.aten_full_like,
+            ATEN_GATHER: cls.aten_gather,
             ATEN_GELU: cls.aten_gelu,
             ATEN_LINALG_NORM: cls.aten_linalg_norm,
             ATEN_LINALG_VECTOR_NORM: cls.aten_linalg_norm,
@@ -188,6 +191,19 @@ class InputsAlignBetweenAtenAndTorch:
         args = list(args)
         args[0] = args[0].bool()
         args = tuple(args)
+        return args, kwargs
+
+    @staticmethod
+    def aten_gather(args, kwargs):
+        # `torch.gather` (and the `aten::gather` overload packet) take
+        # `sparse_grad` as a keyword-only argument; the IR hands it to us as a
+        # 4th positional. Passing it positionally makes PyTorch's overload
+        # resolver flip to the `dimname` overload (`str dim`) and raise an
+        # int->str cast error. Route it through the kwarg so the `int dim`
+        # overload is selected.
+        if len(args) >= 4:
+            kwargs["sparse_grad"] = args[3]
+            args = tuple(args[:3])
         return args, kwargs
 
     @staticmethod
@@ -381,6 +397,20 @@ def _infer_shape_embedding_output(
     return torch.Size(bx + ax[1:])
 
 
+def _infer_shape_sdpa(query, key, value) -> torch.Size:
+    """Infer `scaled_dot_product_attention` output shape without executing it.
+
+    Output follows the query layout with the value's feature size:
+    ``(*query.shape[:-1], value.shape[-1])``. Executing the real op during
+    shape inference is both value-sensitive (an inf/nan placeholder mask makes
+    the softmax raise) and dtype-sensitive (placeholder q/k/v dtypes need not
+    agree, and torch's SDPA rejects mixed dtypes), so short-circuit like the
+    other trace-hostile ops.
+    """
+    del key
+    return torch.Size(list(query.shape[:-1]) + [value.shape[-1]])
+
+
 def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
     """Infer output tensor shape of `aten::matmul` without executing it.
 
@@ -514,9 +544,17 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
 def _build_empty_tensor_from_infer_trace(
     fn_infer_trace: T.Callable, inputs, qte_inputs_to_use: int
 ) -> torch.Tensor:
-    """Utility to build zero tensor of given dtype and shape."""
+    """Build a finite placeholder of the inferred dtype and shape.
+
+    Only the shape/dtype matter for inference, but this placeholder is fed
+    forward to rule-less ops that get executed (e.g. attention/softmax), so it
+    must be finite: ``torch.empty`` returns uninitialised memory that -- read
+    as ``float16`` -- is routinely ``inf``/``nan`` and makes those downstream
+    ops fail at trace time. ``zeros`` keeps it finite (as the name always
+    implied).
+    """
     infered_shape = fn_infer_trace(*inputs[:qte_inputs_to_use])
-    return torch.empty(infered_shape, dtype=inputs[0].dtype)
+    return torch.zeros(infered_shape, dtype=inputs[0].dtype)
 
 
 def _tensors_share_storage(left: torch.Tensor, right: torch.Tensor) -> bool:
@@ -565,13 +603,16 @@ INFER_RULES = {
     # picks an overload it can't satisfy). Output shape matches the
     # input argument (`input` for bucketize, `values` for
     # searchsorted): short-circuit instead of calling op_ref.
-    "aten::bucketize": InferRule(
+    ATEN_BUCKETIZE: InferRule(
         lambda inp, *_: inp.shape, 1, require_dtype=False
     ),
-    "aten::searchsorted": InferRule(
+    ATEN_SEARCHSORTED: InferRule(
         lambda _seq, vals, *_: vals.shape, 2, require_dtype=False
     ),
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
+    ATEN_SCALED_DOT_PRODUCT_ATTENTION: InferRule(
+        _infer_shape_sdpa, 3, require_dtype=False
+    ),
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
     ATEN_GROUPED_MM: InferRule(_infer_shape_grouped_mm_output, 2),
@@ -839,6 +880,14 @@ class TorchOp:
                     and not hasattr(arg, "dtype")
                 ):
                     return self.call_op()
+
+        # The placeholder below only carries shape/dtype (uninitialised
+        # memory). When every input is constant the caller constant-folds this
+        # output via `set_data`, so it must be the REAL value: bake it with
+        # `call_op` instead, otherwise the garbage placeholder becomes the
+        # folded constant (silently wrong, e.g. Qwen3-VL `pos_embed(idx)`).
+        if self.has_constant_inputs:
+            return self.call_op()
 
         return _build_empty_tensor_from_infer_trace(
             rule.fn, self.args, rule.arity
