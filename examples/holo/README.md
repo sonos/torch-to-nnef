@@ -1,0 +1,76 @@
+# Holo-3.1 (Qwen3.5-VL) — single-binary tract demo
+
+Export **Hcompany/Holo-3.1** (a GUI-agent VLM, `model_type = "qwen3_5"`) to NNEF
+and run the whole thing in a **single Rust + tract binary**: a screenshot's
+patches go through the vision tower, the embeddings splice into the prompt, and
+the hybrid gated-delta-net decoder greedy-generates the answer (UI-grounding
+click coordinates), threading its state across steps.
+
+The decoder is the interesting part. Per `config.layer_types`, three of every
+four layers are **gated-delta-net (GDN) linear-attention** layers — a streaming
+depthwise conv state plus a matrix recurrent state, whose recurrence lowers to
+the `t2n_extra::gated_delta_scan` op (a `tract_core_scan`) — and the fourth is a
+standard attention layer with a KV cache. The Rust runtime threads all three
+state kinds across the generation loop, exactly like a KV cache.
+
+## Layout
+
+- `export.py` — produces the two NNEF graphs + `holo.json` manifest + a sample
+  input, from a real checkpoint or a tiny random dummy (no download).
+- `holo-rs/` — the Rust binary: loads both graphs, runs encoder → decoder
+  prefill → greedy decode, prints the generated token ids.
+
+## 1. Export
+
+```bash
+# tiny random model, no download — proves the pipeline (CI / plumbing):
+python export.py --dummy --out ./exp
+
+# a real checkpoint + screenshot:
+python export.py --repo Hcompany/Holo-3.1-0.8B \
+    --image screenshot.png --prompt "Click the search bar" --out ./exp
+```
+
+This writes to `./exp`:
+
+| file | what |
+|---|---|
+| `vision.nnef.tgz` | vision tower, dynamic resolution (grid axes symbolic) |
+| `decoder.nnef.tgz` | streaming hybrid decoder (one graph: prefill + decode) |
+| `holo.json` | shapes + per-layer state layout + decoder I/O order |
+| `*.bin` | sample `input_ids` / `pixel_values` / RoPE `cos`,`sin` (+ decode table) |
+
+The **streaming** decoder differs from the manifest joint export
+(`t2n_export_multimodal_to_tract`): the RoPE `cos`/`sin`, the causal mask, and
+every layer's state are runtime **inputs**, so one dynamic graph serves both
+prefill (S>1, zero states) and decode (S=1, carried states) and stays exact on
+tract (`check_io` passes).
+
+RoPE (interleaved mRoPE) is computed **host-side**, not in-graph: the mRoPE
+strided scatter does not lower faithfully to tract, and cos/sin are cheap to
+precompute (the vision tower already takes its position embeddings the same
+way). `export.py` computes the prompt cos/sin with transformers' `get_rope_index`
++ rotary (image tokens get a 2-D grid) and a decode-continuation table for the
+generated text positions; the Rust side just indexes the table by step. The
+`--verify N` flag prints a torch greedy-decode of the same loop so you can
+confirm the Rust tokens match bit-for-bit (they do on the dummy export).
+
+## 2. Run
+
+```bash
+cd holo-rs
+cargo run --release -- --dir ../exp --max-new-tokens 16
+```
+
+On the `--dummy` export the weights are random, so the token ids are not
+meaningful — the point is that the full two-graph tract pipeline (vision encoder
++ hybrid GDN/attention decoder with conv + recurrent + KV state) runs end to
+end. Point `--dir` at a real-checkpoint export and decode the ids with the
+model's tokenizer to read the grounding coordinates.
+
+## Notes
+
+- `tract-nnef` is pinned to the same revision as the `mamba` examples (the last
+  main rev before the f32 AMX dispatch regression on M=1 matmuls).
+- The vision tower exports **once** and runs at any resolution; only the decoder
+  needs the streaming treatment.
