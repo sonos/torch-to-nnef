@@ -294,11 +294,13 @@ def _reduction_specs() -> T.List[OpSpec]:
             # `sum-dim-broad` / `sum-dtype`; APPROXIMATE's 1e-6 atol is too
             # tight.
             name="sum-dim",
+            aten_ops=("sum",),
             sample_st=_reduction_sample_st("sum"),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="sum-dim-broad",
+            aten_ops=("sum",),
             sample_st=_sum_full_or_multi_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
@@ -306,26 +308,31 @@ def _reduction_specs() -> T.List[OpSpec]:
             # See `sum-dim`: post-cancellation absolute error exceeds
             # APPROXIMATE for the mean as well.
             name="mean-dim",
+            aten_ops=("mean",),
             sample_st=_reduction_sample_st("mean"),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="max-dim",
+            aten_ops=("max",),
             sample_st=_reduction_sample_st("max"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="min-dim",
+            aten_ops=("min",),
             sample_st=_reduction_sample_st("min"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="max-full",
+            aten_ops=("max",),
             sample_st=_minmax_full_reduction_sample_st("max"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="min-full",
+            aten_ops=("min",),
             sample_st=_minmax_full_reduction_sample_st("min"),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -334,11 +341,13 @@ def _reduction_specs() -> T.List[OpSpec]:
         # needed.
         OpSpec(
             name="argmax-dim",
+            aten_ops=("argmax",),
             sample_st=_reduction_sample_st("argmax"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="argmin-dim",
+            aten_ops=("argmin",),
             sample_st=_reduction_sample_st("argmin"),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -351,6 +360,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         # bumps past 0.22.1.
         OpSpec(
             name="any-dim-xfail",
+            aten_ops=("any",),
             sample_st=_bool_reduction_sample_st("any"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -361,6 +371,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="all-dim-xfail",
+            aten_ops=("all",),
             sample_st=_bool_reduction_sample_st("all"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -373,6 +384,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         # for long axes and small values, so CLOSE rather than APPROXIMATE.
         OpSpec(
             name="prod-dim",
+            aten_ops=("prod",),
             sample_st=_prod_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
@@ -385,6 +397,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         # the intermediate-shape builder to track dyn-axis symbols.
         OpSpec(
             name="var-dim",
+            aten_ops=("var",),
             sample_st=_var_std_sample_st("var"),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_skip_reason=(
@@ -394,6 +407,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="std-dim",
+            aten_ops=("std",),
             sample_st=_var_std_sample_st("std"),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_skip_reason=(
@@ -467,16 +481,19 @@ def _reduction_dtype_kwarg_specs() -> T.List[OpSpec]:
             # 1e-6 atol. Match `sum-dim-broad`'s rationale (accumulated
             # float error needs CLOSE).
             name="sum-dtype",
+            aten_ops=("sum",),
             sample_st=_reduction_dtype_kwarg_sample_st("sum"),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="mean-dtype",
+            aten_ops=("mean",),
             sample_st=_reduction_dtype_kwarg_sample_st("mean"),
             tolerance=APPROX,
         ),
         OpSpec(
             name="prod-dtype",
+            aten_ops=("prod",),
             sample_st=_reduction_dtype_kwarg_sample_st("prod"),
             tolerance=CLOSE,
         ),
@@ -520,6 +537,7 @@ def _aminmax_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="aminmax",
+            aten_ops=("aminmax",),
             sample_st=_aminmax_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             # Routes through `reducer_helper` like amax/amin -- the
@@ -587,6 +605,7 @@ def _var_std_mean_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="var_mean",
+            aten_ops=("var_mean",),
             sample_st=_var_std_mean_sample_st("var_mean"),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_skip_reason=(
@@ -596,6 +615,7 @@ def _var_std_mean_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="std_mean",
+            aten_ops=("std_mean",),
             sample_st=_var_std_mean_sample_st("std_mean"),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_skip_reason=(

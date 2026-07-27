@@ -60,6 +60,7 @@ def _activation_specs() -> T.List[OpSpec]:
     specs: T.List[OpSpec] = [
         OpSpec(
             name=name,
+            aten_ops=(name,),
             sample_st=_unary_sample_st(op, domain=_ACT_DOMAIN),
             tolerance=tol,
         )
@@ -77,16 +78,19 @@ def _activation_specs() -> T.List[OpSpec]:
         [
             OpSpec(
                 name="leaky_relu",
+                aten_ops=("leaky_relu",),
                 sample_st=_unary_sample_st(leaky_relu, domain=_ACT_DOMAIN),
                 tolerance=EXACT,
             ),
             OpSpec(
                 name="elu",
+                aten_ops=("elu",),
                 sample_st=_unary_sample_st(elu_default, domain=_ACT_DOMAIN),
                 tolerance=VERY,
             ),
             OpSpec(
                 name="hardtanh",
+                aten_ops=("hardtanh",),
                 sample_st=_unary_sample_st(
                     hardtanh_default, domain=_ACT_DOMAIN
                 ),
@@ -94,6 +98,7 @@ def _activation_specs() -> T.List[OpSpec]:
             ),
             OpSpec(
                 name="softplus",
+                aten_ops=("softplus",),
                 sample_st=_unary_sample_st(
                     softplus_default, domain=_ACT_DOMAIN
                 ),
@@ -137,6 +142,7 @@ def _activation_specs() -> T.List[OpSpec]:
     specs.append(
         OpSpec(
             name="threshold",
+            aten_ops=("threshold",),
             sample_st=_threshold_sample(),
             tolerance=EXACT,
         )
@@ -260,26 +266,31 @@ def _activation_specs() -> T.List[OpSpec]:
         [
             OpSpec(
                 name="gelu-broad",
+                aten_ops=("gelu",),
                 sample_st=_gelu_kwarg_sample(),
                 tolerance=VERY,
             ),
             OpSpec(
                 name="leaky_relu-broad",
+                aten_ops=("leaky_relu",),
                 sample_st=_leaky_relu_kwarg_sample(),
                 tolerance=EXACT,
             ),
             OpSpec(
                 name="elu-alpha",
+                aten_ops=("elu",),
                 sample_st=_elu_kwarg_sample(),
                 tolerance=VERY,
             ),
             OpSpec(
                 name="hardtanh-broad",
+                aten_ops=("hardtanh",),
                 sample_st=_hardtanh_kwarg_sample(),
                 tolerance=EXACT,
             ),
             OpSpec(
                 name="softplus-broad",
+                aten_ops=("softplus",),
                 sample_st=_softplus_kwarg_sample(),
                 tolerance=SUPER,
             ),
@@ -328,11 +339,13 @@ def _softmax_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="softmax",
+            aten_ops=("softmax",),
             sample_st=_softmax_dim_sample_st("softmax"),
             tolerance=TractCheckTolerance.VERY,
         ),
         OpSpec(
             name="log_softmax",
+            aten_ops=("log_softmax",),
             sample_st=_softmax_dim_sample_st("log_softmax"),
             tolerance=TractCheckTolerance.VERY,
         ),
