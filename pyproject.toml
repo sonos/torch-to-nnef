@@ -159,6 +159,7 @@ markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
     "serial",
     "proptest: hypothesis-driven property-based tests (run with '-m proptest')",
+    "proptest_onnx: ONNX-export support measurement sweep (run with '-m proptest_onnx')",
 ]
 
 ## Note: isort-style configuration like `known-first-party` must live under
@@ -264,6 +265,8 @@ commands = [
         "--ignore=tests/test_fft.py",
         "--ignore=tests/test_mod.py",
         "--ignore=tests/test_primitive_proptest.py",
+        "--ignore=tests/test_primitive_proptest_onnx.py",
+        "--ignore=tests/test_proptest_aten_attribution.py",
         "tests",
     ],
     [
@@ -287,6 +290,8 @@ commands = [
         "--ignore=tests/test_fft.py",
         "--ignore=tests/test_mod.py",
         "--ignore=tests/test_primitive_proptest.py",
+        "--ignore=tests/test_primitive_proptest_onnx.py",
+        "--ignore=tests/test_proptest_aten_attribution.py",
         "tests",
     ],
     [
@@ -314,6 +319,8 @@ commands = [
         "--ignore=tests/test_fft.py",
         "--ignore=tests/test_mod.py",
         "--ignore=tests/test_primitive_proptest.py",
+        "--ignore=tests/test_primitive_proptest_onnx.py",
+        "--ignore=tests/test_proptest_aten_attribution.py",
         "tests",
     ],
     [
@@ -337,6 +344,8 @@ commands = [
         "--ignore=tests/test_fft.py",
         "--ignore=tests/test_mod.py",
         "--ignore=tests/test_primitive_proptest.py",
+        "--ignore=tests/test_primitive_proptest_onnx.py",
+        "--ignore=tests/test_proptest_aten_attribution.py",
         "tests",
     ],
     [
@@ -465,6 +474,49 @@ commands = [
         "-v",
         "--hypothesis-show-statistics",
         "tests/test_primitive_proptest.py",
+    ],
+]
+
+# -- ONNX support measurement (feeds the support page) ----------------------
+# Measures what `torch.onnx.export(dynamo=True)` does with every proptest
+# spec and writes the graded artifact the support page reads. On-demand,
+# like proptest_nightly: an ONNX gap is not a t2n regression, so this must
+# never be able to turn a contributor's PR red, and it is not in the
+# ci-core matrix.
+#
+# Torch is pinned newer than the 2.6 the `proptest` envs use, because the
+# TorchScript ONNX exporter was removed in 2.9 and `dynamo=True` is the
+# only remaining path. Those envs must stay on 2.6.
+#
+# The `ci` hypothesis profile is deliberate here, not a cost compromise:
+# it derandomizes, so the committed artifact is reproducible and a grade
+# change shows up in review as a real change rather than as draw noise.
+# For a deeper sweep, override with T2N_HYP_PROFILE=nightly (200 examples,
+# random draws, several hours).
+#
+# Refresh flow: run this env, then regenerate the page (see
+# docs/contributing/onnx_support_page.md).
+[tool.tox.env.proptest_onnx]
+basepython = ["python3.13"]
+deps = [
+    "--index-url=https://download.pytorch.org/whl/cpu",
+    "torch==2.13.*",
+    "onnx",
+    "onnxruntime",
+    # Required by the dynamo ONNX exporter; deliberately not in the `test`
+    # dependency group so the fast suite gains no dependency.
+    "onnxscript",
+]
+set_env = { T2N_HYP_PROFILE = "ci" }
+commands = [
+    [
+        "pytest",
+        "-m",
+        "proptest_onnx",
+        "-v",
+        "--onnx-report=docs/contributing/onnx_support_measured.json",
+        "tests/test_proptest_aten_attribution.py",
+        "tests/test_primitive_proptest_onnx.py",
     ],
 ]
 

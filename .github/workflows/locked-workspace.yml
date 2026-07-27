@@ -53,4 +53,6 @@ jobs:
             --ignore=tests/test_fft.py \
             --ignore=tests/test_mod.py \
             --ignore=tests/test_primitive_proptest.py \
+            --ignore=tests/test_primitive_proptest_onnx.py \
+            --ignore=tests/test_proptest_aten_attribution.py \
             tests
