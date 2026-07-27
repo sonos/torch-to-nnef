@@ -26,6 +26,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import nnef
 import torch
 from transformers import (
     AutoProcessor,
@@ -317,8 +318,8 @@ def _build_sample(encoder, model, processor, args, dtype):
     )
 
 
-def _write_manifest_and_bins(args, model, s, layout, dec_in, dec_out):
-    """Write ``holo.json`` + the flat little-endian sample ``.bin`` files."""
+def _write_manifest_and_inputs(args, model, s, layout, dec_in, dec_out):
+    """Write ``holo.json`` + the sample inputs as NNEF ``.dat`` tensors."""
     conf = model.config
     tc = conf.text_config
     manifest = {
@@ -333,30 +334,28 @@ def _write_manifest_and_bins(args, model, s, layout, dec_in, dec_out):
             getattr(conf, "eos_token_id", None),
             getattr(tc, "eos_token_id", None),
         ),
-        "spatial_merge_size": s.merge,
-        "patch_dim": s.patch_dim,
         "layers": layout,
         "decoder_input_order": dec_in,
         "decoder_output_order": dec_out,
         "sample": {
-            "seq": s.seq,
-            "grid_mh": int(s.pixel_values.shape[0]),
-            "grid_mw": int(s.pixel_values.shape[1]),
             "num_image_tokens": int((s.input_ids == conf.image_token_id).sum()),
             "prompt_max_pos": s.prompt_max_pos,
         },
     }
     (args.out / "holo.json").write_text(json.dumps(manifest, indent=2))
-    # Flat little-endian .bin files: the Rust demo reads them with std only
-    # (no npy/npz dependency). Float bins are f32 on disk (the Rust side casts
-    # each input to the graph's dtype), so a f16 export still ships f32 bins.
-    s.input_ids.numpy().astype("<i8").tofile(args.out / "input_ids.bin")
-    s.position_ids.numpy().astype("<i8").tofile(args.out / "position_ids.bin")
-    s.pixel_values.float().numpy().astype("<f4").tofile(
-        args.out / "pixel_values.bin"
-    )
+    # Sample inputs as NNEF .dat tensors (self-describing: shape + dtype in the
+    # file), read on the Rust side with tract's native `read_tensor`, so no
+    # hand-rolled byte parsing and no manifest-driven shapes. Floats are written
+    # f32; the Rust side casts each input to whatever dtype the graph expects.
+    for name, arr in [
+        ("input_ids", s.input_ids.numpy().astype("<i8")),
+        ("position_ids", s.position_ids.numpy().astype("<i8")),
+        ("pixel_values", s.pixel_values.float().numpy().astype("<f4")),
+    ]:
+        with open(args.out / f"{name}.dat", "wb") as fh:
+            nnef.write_tensor(fh, arr)
     n_img = int((s.input_ids == conf.image_token_id).sum())
-    print(f"[holo] wrote holo.json + *.bin to {args.out}")
+    print(f"[holo] wrote holo.json + *.dat to {args.out}")
     print(f"[holo] seq={s.seq} img_tokens={n_img} layers={len(layout)}")
 
 
@@ -481,7 +480,7 @@ def main() -> None:
         output_names=dec_out_names,
     )
 
-    _write_manifest_and_bins(
+    _write_manifest_and_inputs(
         args, model, s, layout, dec_in_names, dec_out_names
     )
 

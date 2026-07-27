@@ -1,7 +1,7 @@
 exp/
 exp_*/
 *.nnef.tgz
-*.bin
+*.dat
 holo.json
 __pycache__/
 

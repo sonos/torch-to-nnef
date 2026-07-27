@@ -45,9 +45,6 @@ struct Layer {
 
 #[derive(Debug, Deserialize)]
 struct Sample {
-    seq: usize,
-    grid_mh: usize,
-    grid_mw: usize,
     num_image_tokens: usize,
     prompt_max_pos: i64,
 }
@@ -59,8 +56,6 @@ struct Manifest {
     decoder_path: String,
     hidden_size: usize,
     vocab_size: usize,
-    spatial_merge_size: usize,
-    patch_dim: usize,
     #[serde(default)]
     eos_token_id: Option<i64>,
     layers: Vec<Layer>,
@@ -110,20 +105,12 @@ fn load_model(path: &Path) -> TractResult<Plan> {
         .into_runnable()
 }
 
-fn read_bin_f32(path: &Path) -> std::io::Result<Vec<f32>> {
-    let bytes = std::fs::read(path)?;
-    Ok(bytes
-        .chunks_exact(4)
-        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-        .collect())
-}
-
-fn read_bin_i64(path: &Path) -> std::io::Result<Vec<i64>> {
-    let bytes = std::fs::read(path)?;
-    Ok(bytes
-        .chunks_exact(8)
-        .map(|c| i64::from_le_bytes(c.try_into().unwrap()))
-        .collect())
+/// Read a sample input written by export.py as a NNEF `.dat` tensor. The file
+/// is self-describing (shape + dtype), so tract hands back a typed `Tensor`
+/// with no manual byte parsing or manifest-driven shapes.
+fn read_dat(path: &Path) -> TractResult<Tensor> {
+    let file = std::fs::File::open(path)?;
+    tract_nnef::tensors::read_tensor(std::io::BufReader::new(file))
 }
 
 fn i64_tensor(shape: &[usize], data: Vec<i64>) -> TractResult<Tensor> {
@@ -219,8 +206,7 @@ fn run_decoder(
     image_embeddings: Tensor,
     states: Vec<Tensor>,
 ) -> TractResult<(Vec<f32>, Vec<Tensor>)> {
-    let mut raw: TVec<Tensor> =
-        tvec!(input_ids, position_ids, mask, image_embeddings);
+    let mut raw: TVec<Tensor> = tvec!(input_ids, position_ids, mask, image_embeddings);
     raw.extend(states);
     let outputs = SimpleState::new(decoder)?.run(cast_inputs(decoder, raw)?)?;
     // logits may come back f16 on a half-precision graph; read them as f32.
@@ -251,20 +237,15 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let decoder = load_model(&args.dir.join(&manifest.decoder_path))?;
     println!("[holo] loaded vision encoder + streaming decoder");
 
-    // ---- inputs from the export sample ----
-    let merge = manifest.spatial_merge_size;
-    let (mh, mw) = (manifest.sample.grid_mh, manifest.sample.grid_mw);
-    let pd = manifest.patch_dim;
-    let pixel_values = f32_tensor(
-        &[mh, mw, merge, merge, pd],
-        read_bin_f32(&args.dir.join("pixel_values.bin"))?,
-    )?;
-    let seq = manifest.sample.seq;
-    let input_ids_vec = read_bin_i64(&args.dir.join("input_ids.bin"))?;
-    // The mRoPE t/h/w position layout for the prompt (image tokens get a 2-D
-    // grid) is computed host-side by get_rope_index; the rotary itself runs
-    // in-graph, so the runtime only feeds integer positions.
-    let position_ids_vec = read_bin_i64(&args.dir.join("position_ids.bin"))?;
+    // ---- inputs from the export sample (self-describing NNEF .dat tensors) ----
+    // pixel_values [MH, MW, merge, merge, patch_dim]; input_ids [1, S]; the
+    // prompt mRoPE positions [3, 1, S] (image span laid out host-side by
+    // get_rope_index; the rotary itself runs in-graph). Shapes come from the
+    // tensors, not the manifest.
+    let pixel_values = read_dat(&args.dir.join("pixel_values.dat"))?;
+    let input_ids = read_dat(&args.dir.join("input_ids.dat"))?;
+    let position_ids = read_dat(&args.dir.join("position_ids.dat"))?;
+    let seq = input_ids.shape()[1];
 
     // ---- vision encoder ----
     let enc_out = encoder.run(cast_inputs(&encoder, tvec!(pixel_values))?)?;
@@ -272,8 +253,6 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("[holo] image embeddings: {:?}", image_embeddings.shape());
 
     // ---- decoder prefill ----
-    let input_ids = i64_tensor(&[1, seq], input_ids_vec)?;
-    let position_ids = i64_tensor(&[3, 1, seq], position_ids_vec)?;
     let mask = causal_mask(seq, 0)?;
     let (mut logits, mut states) = run_decoder(
         &decoder,

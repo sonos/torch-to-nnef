@@ -50,7 +50,7 @@ This writes to `./exp`:
 | `vision.nnef.tgz` | vision tower, dynamic resolution (grid axes symbolic) |
 | `decoder.nnef.tgz` | streaming hybrid decoder (one graph: prefill + decode) |
 | `holo.json` | shapes + per-layer state layout + decoder I/O order |
-| `*.bin` | sample `input_ids` / `position_ids` / `pixel_values` |
+| `*.dat` | sample `input_ids` / `position_ids` / `pixel_values` (NNEF tensors) |
 
 The **streaming** decoder differs from the manifest joint export
 (`t2n_export_multimodal_to_tract`): the integer `position_ids`, the causal mask,
