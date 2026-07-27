@@ -49,7 +49,7 @@ struct Sample {
     grid_mh: usize,
     grid_mw: usize,
     num_image_tokens: usize,
-    n_decode_table: usize,
+    prompt_max_pos: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,7 +61,6 @@ struct Manifest {
     vocab_size: usize,
     spatial_merge_size: usize,
     patch_dim: usize,
-    rotary_dim: usize,
     #[serde(default)]
     eos_token_id: Option<i64>,
     layers: Vec<Layer>,
@@ -210,18 +209,18 @@ fn cast_inputs(plan: &Plan, inputs: TVec<Tensor>) -> TractResult<TVec<TValue>> {
 }
 
 /// Run the decoder once. `inputs` are in `decoder_input_order`:
-/// input_ids, cos, sin, mask, image_embeddings, then per-layer states.
+/// input_ids, position_ids, mask, image_embeddings, then per-layer states.
 /// Returns (logits, new_states).
 fn run_decoder(
     decoder: &Plan,
     input_ids: Tensor,
-    cos: Tensor,
-    sin: Tensor,
+    position_ids: Tensor,
     mask: Tensor,
     image_embeddings: Tensor,
     states: Vec<Tensor>,
 ) -> TractResult<(Vec<f32>, Vec<Tensor>)> {
-    let mut raw: TVec<Tensor> = tvec!(input_ids, cos, sin, mask, image_embeddings);
+    let mut raw: TVec<Tensor> =
+        tvec!(input_ids, position_ids, mask, image_embeddings);
     raw.extend(states);
     let outputs = SimpleState::new(decoder)?.run(cast_inputs(decoder, raw)?)?;
     // logits may come back f16 on a half-precision graph; read them as f32.
@@ -261,15 +260,11 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         read_bin_f32(&args.dir.join("pixel_values.bin"))?,
     )?;
     let seq = manifest.sample.seq;
-    let rd = manifest.rotary_dim;
     let input_ids_vec = read_bin_i64(&args.dir.join("input_ids.bin"))?;
-    // RoPE cos/sin computed host-side (mRoPE does not lower faithfully to
-    // tract): prompt tables [1, S, rd] + a decode-continuation table
-    // [1, n_decode, rd] the loop indexes by step.
-    let cos_vec = read_bin_f32(&args.dir.join("cos.bin"))?;
-    let sin_vec = read_bin_f32(&args.dir.join("sin.bin"))?;
-    let cos_tbl = read_bin_f32(&args.dir.join("cos_table.bin"))?;
-    let sin_tbl = read_bin_f32(&args.dir.join("sin_table.bin"))?;
+    // The mRoPE t/h/w position layout for the prompt (image tokens get a 2-D
+    // grid) is computed host-side by get_rope_index; the rotary itself runs
+    // in-graph, so the runtime only feeds integer positions.
+    let position_ids_vec = read_bin_i64(&args.dir.join("position_ids.bin"))?;
 
     // ---- vision encoder ----
     let enc_out = encoder.run(cast_inputs(&encoder, tvec!(pixel_values))?)?;
@@ -278,14 +273,12 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // ---- decoder prefill ----
     let input_ids = i64_tensor(&[1, seq], input_ids_vec)?;
-    let cos = f32_tensor(&[1, seq, rd], cos_vec)?;
-    let sin = f32_tensor(&[1, seq, rd], sin_vec)?;
+    let position_ids = i64_tensor(&[3, 1, seq], position_ids_vec)?;
     let mask = causal_mask(seq, 0)?;
     let (mut logits, mut states) = run_decoder(
         &decoder,
         input_ids,
-        cos,
-        sin,
+        position_ids,
         mask,
         image_embeddings,
         zero_states(&manifest.layers, 0)?,
@@ -297,19 +290,18 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let empty_img = f32_tensor(&[0, manifest.hidden_size], vec![])?;
     let mut generated: Vec<i64> = vec![next];
     let mut past = seq;
-    let n_steps = args.max_new_tokens.min(manifest.sample.n_decode_table);
-    for step in 0..n_steps {
+    for step in 0..args.max_new_tokens {
         if manifest.eos_token_id == Some(next) {
             break;
         }
-        let cos = f32_tensor(&[1, 1, rd], cos_tbl[step * rd..(step + 1) * rd].to_vec())?;
-        let sin = f32_tensor(&[1, 1, rd], sin_tbl[step * rd..(step + 1) * rd].to_vec())?;
+        // text continuation: all three mRoPE channels share the next position
+        let pos = manifest.sample.prompt_max_pos + 1 + step as i64;
+        let position_ids = i64_tensor(&[3, 1, 1], vec![pos, pos, pos])?;
         let mask = causal_mask(1, past)?;
         let out = run_decoder(
             &decoder,
             i64_tensor(&[1, 1], vec![next])?,
-            cos,
-            sin,
+            position_ids,
             mask,
             empty_img.clone(),
             states,

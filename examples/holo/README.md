@@ -50,22 +50,24 @@ This writes to `./exp`:
 | `vision.nnef.tgz` | vision tower, dynamic resolution (grid axes symbolic) |
 | `decoder.nnef.tgz` | streaming hybrid decoder (one graph: prefill + decode) |
 | `holo.json` | shapes + per-layer state layout + decoder I/O order |
-| `*.bin` | sample `input_ids` / `pixel_values` / RoPE `cos`,`sin` (+ decode table) |
+| `*.bin` | sample `input_ids` / `position_ids` / `pixel_values` |
 
 The **streaming** decoder differs from the manifest joint export
-(`t2n_export_multimodal_to_tract`): the RoPE `cos`/`sin`, the causal mask, and
-every layer's state are runtime **inputs**, so one dynamic graph serves both
+(`t2n_export_multimodal_to_tract`): the integer `position_ids`, the causal mask,
+and every layer's state are runtime **inputs**, so one dynamic graph serves both
 prefill (S>1, zero states) and decode (S=1, carried states) and stays exact on
 tract (`check_io` passes).
 
-RoPE (interleaved mRoPE) is computed **host-side**, not in-graph: the mRoPE
-strided scatter does not lower faithfully to tract, and cos/sin are cheap to
-precompute (the vision tower already takes its position embeddings the same
-way). `export.py` computes the prompt cos/sin with transformers' `get_rope_index`
-+ rotary (image tokens get a 2-D grid) and a decode-continuation table for the
-generated text positions; the Rust side just indexes the table by step. The
-`--verify N` flag prints a torch greedy-decode of the same loop so you can
-confirm the Rust tokens match bit-for-bit (they do on the dummy export).
+RoPE (interleaved mRoPE) is computed **in-graph** from `position_ids`. Upstream
+does the mRoPE channel interleave with a strided in-place scatter that does not
+lower faithfully to tract; the export replaces it with an equivalent
+constant-masked sum (bit-exact), so the runtime feeds only integer positions.
+The one part still done host-side is the position *layout*: `export.py` uses
+transformers' `get_rope_index` to place the image span (a 2-D grid) into the
+prompt positions, and the Rust side continues positions sequentially per
+generated token. The `--verify N` flag prints a torch greedy-decode of the same
+loop so you can confirm the Rust tokens match bit-for-bit (they do on the dummy
+export).
 
 ## 2. Run
 

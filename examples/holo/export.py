@@ -8,9 +8,10 @@ Produces, in ``--out`` dir:
     explicitly, so ONE dynamic graph serves both prefill (S>1, zero states) and
     decode (S=1, carried states), which is what a Rust generation loop needs.
   * ``holo.json``         : shapes + per-layer state layout for the runtime.
-  * ``*.bin``             : input_ids + pixel_values + the RoPE cos/sin (prompt
-    + a decode-continuation table), flat little-endian. RoPE is computed HOST
-    side (interleaved mRoPE does not lower faithfully to tract).
+  * ``*.bin``             : input_ids + position_ids + pixel_values, flat
+    little-endian. RoPE runs IN-GRAPH from position_ids (the mRoPE interleave
+    is rewritten as a tract-friendly masked sum); only the position layout for
+    the image span comes from the host (get_rope_index).
 
 Usage:
     python export.py --dummy --out ./exp     # tiny random model, no download
@@ -46,6 +47,7 @@ _DTYPES = {"f32": torch.float32, "f16": torch.float16}
 # op and exposes the production modules the demo reuses (so the streaming
 # decoder cannot drift from the production graph).
 from torch_to_nnef_llm.models.handlers.qwen3_5_vl import (  # noqa: E402
+    InGraphRotary,
     Qwen35ArchitectureHandler,
     Qwen35VisionEncoder,
     _HybridGDNForward,
@@ -110,8 +112,7 @@ class StreamingHybridDecoder(torch.nn.Module):
 
     Signature (one graph, prefill and decode):
         in : input_ids[1, S] int64
-             cos[1, S, rotary_dim] float32   (RoPE, computed host-side)
-             sin[1, S, rotary_dim] float32
+             position_ids[3, 1, S] int64   (the mRoPE t/h/w positions)
              mask[1, 1, S, S+P] float32
              image_embeddings[N_img, H] float32   (empty at decode)
              then per layer, in ``config.layer_types`` order:
@@ -120,21 +121,24 @@ class StreamingHybridDecoder(torch.nn.Module):
         out: logits[1, S, vocab]
              + the same per-layer states, updated
 
-    RoPE (interleaved mRoPE) is computed HOST-side and passed in as cos/sin,
-    not computed in-graph: the interleaved-mRoPE strided scatter does not lower
-    faithfully to tract, and cos/sin are cheap to precompute (the vision tower
-    takes its position embeddings the same way).
+    RoPE (interleaved mRoPE) is computed IN-GRAPH from position_ids via
+    ``InGraphRotary`` (a constant-masked-sum interleave that lowers to tract,
+    unlike upstream's strided scatter), so the runtime feeds integer positions
+    and the graph is fully self-contained. Only the mRoPE position *layout* for
+    the image span still comes from the host (transformers' get_rope_index).
     """
 
     def __init__(self, model):
         super().__init__()
         self.lm = model.model.language_model
         self.lm_head = model.lm_head
+        self.rotary = InGraphRotary(self.lm.rotary_emb)
         self.text_conf = model.config.text_config
         self.layer_types = list(self.text_conf.layer_types)
         self.image_token_id = model.config.image_token_id
 
-    def forward(self, input_ids, cos, sin, mask, image_embeddings, *states):
+    def forward(self, input_ids, position_ids, mask, image_embeddings, *states):
+        cos, sin = self.rotary(position_ids)
         hidden = self.lm.embed_tokens(input_ids)
         hidden = scatter_features_by_mask(
             inputs_embeds=hidden,
@@ -288,21 +292,12 @@ def _build_sample(encoder, model, processor, args, dtype):
             video_grid_thw=None,
             attention_mask=torch.ones_like(input_ids),
         )
+    # get_rope_index gives the mRoPE position LAYOUT (image tokens get a 2-D
+    # grid); the rotary itself runs in-graph, so the sample just carries the
+    # integer positions. Decode continues them sequentially (all channels
+    # equal) from prompt_max_pos, computed by the runtime.
     position_ids = position_ids.long()
-    # RoPE cos/sin, computed host-side (see StreamingHybridDecoder docstring).
-    rotary = model.model.language_model.rotary_emb
-    hidden0 = model.model.language_model.embed_tokens(input_ids)
-    with torch.no_grad():
-        cos, sin = rotary(hidden0, position_ids)  # [1, S, rotary_dim]
-    # decode-continuation table: sequential text positions after the prompt
-    # (all three mRoPE channels equal), so the runtime just indexes by step.
-    n_decode = 128
-    start = int(position_ids.max()) + 1
-    dec_pos = (
-        torch.arange(start, start + n_decode).view(1, 1, -1).expand(3, 1, -1)
-    )
-    with torch.no_grad():
-        cos_tbl, sin_tbl = rotary(hidden0, dec_pos)  # [1, n_decode, rot_dim]
+    prompt_max_pos = int(position_ids.max())
     neg = torch.finfo(dtype).min
     mask = (
         torch.triu(torch.full((seq, seq), neg), diagonal=1)
@@ -313,14 +308,10 @@ def _build_sample(encoder, model, processor, args, dtype):
         input_ids=input_ids,
         pixel_values=pixel_values,
         image_embeddings=image_embeddings,
-        cos=cos,
-        sin=sin,
-        cos_tbl=cos_tbl,
-        sin_tbl=sin_tbl,
+        position_ids=position_ids,
         mask=mask,
         seq=seq,
-        rotary_dim=int(cos.shape[-1]),
-        n_decode=n_decode,
+        prompt_max_pos=prompt_max_pos,
         merge=merge,
         patch_dim=patch_dim,
     )
@@ -344,7 +335,6 @@ def _write_manifest_and_bins(args, model, s, layout, dec_in, dec_out):
         ),
         "spatial_merge_size": s.merge,
         "patch_dim": s.patch_dim,
-        "rotary_dim": s.rotary_dim,
         "layers": layout,
         "decoder_input_order": dec_in,
         "decoder_output_order": dec_out,
@@ -353,22 +343,18 @@ def _write_manifest_and_bins(args, model, s, layout, dec_in, dec_out):
             "grid_mh": int(s.pixel_values.shape[0]),
             "grid_mw": int(s.pixel_values.shape[1]),
             "num_image_tokens": int((s.input_ids == conf.image_token_id).sum()),
-            "n_decode_table": s.n_decode,
+            "prompt_max_pos": s.prompt_max_pos,
         },
     }
     (args.out / "holo.json").write_text(json.dumps(manifest, indent=2))
     # Flat little-endian .bin files: the Rust demo reads them with std only
-    # (no npy/npz dependency). Always f32 on disk (the Rust side casts each
-    # input to the graph's dtype), so a f16 export still ships f32 bins.
+    # (no npy/npz dependency). Float bins are f32 on disk (the Rust side casts
+    # each input to the graph's dtype), so a f16 export still ships f32 bins.
     s.input_ids.numpy().astype("<i8").tofile(args.out / "input_ids.bin")
-    for name, tensor in [
-        ("pixel_values", s.pixel_values),
-        ("cos", s.cos),
-        ("sin", s.sin),
-        ("cos_table", s.cos_tbl),
-        ("sin_table", s.sin_tbl),
-    ]:
-        tensor.float().numpy().astype("<f4").tofile(args.out / f"{name}.bin")
+    s.position_ids.numpy().astype("<i8").tofile(args.out / "position_ids.bin")
+    s.pixel_values.float().numpy().astype("<f4").tofile(
+        args.out / "pixel_values.bin"
+    )
     n_img = int((s.input_ids == conf.image_token_id).sum())
     print(f"[holo] wrote holo.json + *.bin to {args.out}")
     print(f"[holo] seq={s.seq} img_tokens={n_img} layers={len(layout)}")
@@ -454,19 +440,23 @@ def main() -> None:
     in_state_names, out_state_names = _DEC_HANDLER._state_names(tc)
     layout = _manifest_layers(tc)
     states = _zero_states(tc, 0, dtype)
-    dec_args = (s.input_ids, s.cos, s.sin, s.mask, s.image_embeddings, *states)
+    dec_args = (
+        s.input_ids,
+        s.position_ids,
+        s.mask,
+        s.image_embeddings,
+        *states,
+    )
     dec_in_names = [
         "input_ids",
-        "cos",
-        "sin",
+        "position_ids",
         "mask",
         "in_image_embeddings",
     ] + in_state_names
     dec_out_names = ["logits"] + out_state_names
     dec_axes = {
         "input_ids": {1: "S"},
-        "cos": {1: "S"},
-        "sin": {1: "S"},
+        "position_ids": {2: "S"},
         "mask": {2: "S", 3: "SP"},
         "in_image_embeddings": {0: "IMG"},
     }
@@ -501,10 +491,8 @@ def main() -> None:
         ref = _torch_greedy(
             decoder,
             s.input_ids,
-            s.cos,
-            s.sin,
-            s.cos_tbl,
-            s.sin_tbl,
+            s.position_ids,
+            s.prompt_max_pos,
             s.image_embeddings,
             tc,
             args.verify,
@@ -513,10 +501,16 @@ def main() -> None:
 
 
 def _torch_greedy(
-    decoder, input_ids, cos, sin, cos_tbl, sin_tbl, image_embeddings, tc, n_new
+    decoder,
+    input_ids,
+    position_ids,
+    prompt_max_pos,
+    image_embeddings,
+    tc,
+    n_new,
 ):
     """Greedy decode mirroring the Rust loop, for parity checking."""
-    dtype = cos.dtype
+    dtype = image_embeddings.dtype
     neg = torch.finfo(dtype).min
     seq = input_ids.shape[1]
     mask = (
@@ -526,18 +520,19 @@ def _torch_greedy(
     )
     states = _zero_states(tc, 0, dtype)
     with torch.no_grad():
-        out = decoder(input_ids, cos, sin, mask, image_embeddings, *states)
+        out = decoder(input_ids, position_ids, mask, image_embeddings, *states)
     logits, states = out[0], list(out[1:])
     nxt = int(logits[0, -1].argmax())
     gen = [nxt]
     empty_img = torch.zeros((0, tc.hidden_size), dtype=dtype)
     past = seq
     for step in range(n_new - 1):
-        c = cos_tbl[:, step : step + 1]
-        s = sin_tbl[:, step : step + 1]
+        # text continuation: all three mRoPE channels share the next position
+        pos = prompt_max_pos + 1 + step
+        pos_ids = torch.tensor([pos, pos, pos]).view(3, 1, 1)
         m = torch.zeros(1, 1, 1, past + 1, dtype=dtype)
         with torch.no_grad():
-            out = decoder(torch.tensor([[nxt]]), c, s, m, empty_img, *states)
+            out = decoder(torch.tensor([[nxt]]), pos_ids, m, empty_img, *states)
         logits, states = out[0], list(out[1:])
         nxt = int(logits[0, -1].argmax())
         gen.append(nxt)

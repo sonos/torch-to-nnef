@@ -88,6 +88,56 @@ def _rotate_half(x: torch.Tensor) -> torch.Tensor:
     return torch.cat((-x[..., half:], x[..., :half]), dim=-1)
 
 
+class InGraphRotary(torch.nn.Module):
+    """Qwen3.5 text (m)RoPE computed in-graph, tract-exportable.
+
+    Mirrors ``Qwen3_5TextRotaryEmbedding.forward`` but replaces the interleaved
+    mRoPE step, which upstream does with a strided in-place scatter
+    (``freqs_t[..., idx] = freqs[dim, ..., idx]``) that does not lower to tract,
+    with an equivalent constant-masked sum. Which of the three
+    (t, h, w) channels feeds each frequency index is fixed by ``mrope_section``
+    (a config constant), so the interleave is a baked ``[3, freq_dim]`` mask and
+    the whole thing is just matmul + multiply + reduce. Bit-exact with upstream.
+
+    Takes ``position_ids`` ``[3, 1, S]`` and returns ``(cos, sin)`` shaped
+    ``[1, S, rotary_dim]``, so a decoder can consume integer positions and do
+    RoPE in the graph instead of relying on host-precomputed cos/sin.
+    """
+
+    def __init__(self, rotary):
+        super().__init__()
+        self.register_buffer("inv_freq", rotary.inv_freq, persistent=False)
+        self.attention_scaling = rotary.attention_scaling
+        freq_dim = rotary.inv_freq.shape[0]
+        mrope_section = list(rotary.mrope_section)
+        # [3, 1, 1, freq_dim] channel-selection mask matching the upstream
+        # slice(offset, mrope_section[dim] * 3, 3) overwrite pattern.
+        mask = torch.zeros(3, freq_dim)
+        mask[0] = 1.0
+        for dim, offset in enumerate((1, 2), start=1):
+            for j in range(offset, min(mrope_section[dim] * 3, freq_dim), 3):
+                mask[0, j] = 0.0
+                mask[dim, j] = 1.0
+        self.register_buffer(
+            "mrope_mask", mask.view(3, 1, 1, freq_dim), persistent=False
+        )
+
+    def forward(self, position_ids: torch.Tensor):
+        inv = (
+            self.inv_freq[None, None, :, None]
+            .float()
+            .expand(3, position_ids.shape[1], -1, 1)
+        )
+        pos = position_ids[:, :, None, :].float()
+        freqs = (inv @ pos).transpose(2, 3)  # [3, 1, S, freq_dim]
+        freqs = (freqs * self.mrope_mask).sum(0)  # [1, S, freq_dim]
+        emb = torch.cat((freqs, freqs), dim=-1)
+        return (
+            emb.cos() * self.attention_scaling,
+            emb.sin() * self.attention_scaling,
+        )
+
+
 class Qwen35VisionEncoder(torch.nn.Module):
     """Dynamic-resolution Qwen3.5 vision tower (single image, no DeepStack).
 
