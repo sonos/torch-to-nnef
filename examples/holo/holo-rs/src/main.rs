@@ -1,7 +1,7 @@
 //! Single-binary tract demo of the Qwen3.5 dense VLM (Hcompany/Holo-3.1).
 //!
-//! Loads the two NNEF graphs produced by `../export.py` -- the vision tower and
-//! the STREAMING hybrid gated-delta-net decoder -- plus their `holo.json`
+//! Loads the two NNEF graphs produced by `../export.py` (the vision tower and
+//! the STREAMING hybrid gated-delta-net decoder) plus their `holo.json`
 //! manifest, then runs the full pipeline in tract:
 //!
 //!   pixel_values --[vision encoder]--> image embeddings

@@ -6,7 +6,7 @@ Produces, in ``--out`` dir:
     joint export, positions + causal mask are runtime INPUTS and every layer's
     state (gated-delta-net conv+recurrent, or attention KV) is threaded
     explicitly, so ONE dynamic graph serves both prefill (S>1, zero states) and
-    decode (S=1, carried states) -- what a Rust generation loop needs.
+    decode (S=1, carried states), which is what a Rust generation loop needs.
   * ``holo.json``         : shapes + per-layer state layout for the runtime.
   * ``*.bin``             : input_ids + pixel_values + the RoPE cos/sin (prompt
     + a decode-continuation table), flat little-endian. RoPE is computed HOST

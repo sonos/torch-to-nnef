@@ -1,4 +1,4 @@
-# Holo-3.1 (Qwen3.5-VL) — single-binary tract demo
+# Holo-3.1 (Qwen3.5-VL): single-binary tract demo
 
 Export **Hcompany/Holo-3.1** (a GUI-agent VLM, `model_type = "qwen3_5"`) to NNEF
 and run the whole thing in a **single Rust + tract binary**: a screenshot's
@@ -7,23 +7,23 @@ the hybrid gated-delta-net decoder greedy-generates the answer (UI-grounding
 click coordinates), threading its state across steps.
 
 The decoder is the interesting part. Per `config.layer_types`, three of every
-four layers are **gated-delta-net (GDN) linear-attention** layers — a streaming
+four layers are **gated-delta-net (GDN) linear-attention** layers, a streaming
 depthwise conv state plus a matrix recurrent state, whose recurrence lowers to
-the `t2n_extra::gated_delta_scan` op (a `tract_core_scan`) — and the fourth is a
+the `t2n_extra::gated_delta_scan` op (a `tract_core_scan`). The fourth is a
 standard attention layer with a KV cache. The Rust runtime threads all three
 state kinds across the generation loop, exactly like a KV cache.
 
 ## Layout
 
-- `export.py` — produces the two NNEF graphs + `holo.json` manifest + a sample
+- `export.py`: produces the two NNEF graphs + `holo.json` manifest + a sample
   input, from a real checkpoint or a tiny random dummy (no download).
-- `holo-rs/` — the Rust binary: loads both graphs, runs encoder → decoder
-  prefill → greedy decode, prints the generated token ids.
+- `holo-rs/`: the Rust binary. Loads both graphs, runs encoder then decoder
+  prefill then greedy decode, prints the generated token ids.
 
 ## 1. Export
 
 ```bash
-# tiny random model, no download — proves the pipeline (CI / plumbing):
+# tiny random model, no download, proves the pipeline (CI / plumbing):
 python export.py --dummy --out ./exp
 
 # a real checkpoint + screenshot:
@@ -75,7 +75,7 @@ cargo run --release -- --dir ../exp --max-new-tokens 16
 ```
 
 On the `--dummy` export the weights are random, so the token ids are not
-meaningful — the point is that the full two-graph tract pipeline (vision encoder
+meaningful. The point is that the full two-graph tract pipeline (vision encoder
 + hybrid GDN/attention decoder with conv + recurrent + KV state) runs end to
 end. Point `--dir` at a real-checkpoint export and decode the ids with the
 model's tokenizer to read the grounding coordinates.
