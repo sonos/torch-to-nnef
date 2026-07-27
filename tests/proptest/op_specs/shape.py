@@ -801,92 +801,109 @@ def _shape_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="reshape",
+            aten_ops=("reshape",),
             sample_st=_reshape_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="transpose",
+            aten_ops=("transpose",),
             sample_st=_transpose_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="permute",
+            aten_ops=("permute",),
             sample_st=_permute_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="numpy_T",
+            aten_ops=("numpy_T",),
             sample_st=_numpy_T_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="unsqueeze",
+            aten_ops=("unsqueeze",),
             sample_st=_unsqueeze_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="squeeze",
+            aten_ops=("squeeze",),
             sample_st=_squeeze_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="view",
+            aten_ops=("view",),
             sample_st=_view_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="flatten",
+            aten_ops=("flatten",),
             sample_st=_flatten_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="narrow",
+            aten_ops=("narrow",),
             sample_st=_narrow_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="expand",
+            aten_ops=("expand",),
             sample_st=_expand_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="repeat",
+            aten_ops=("repeat",),
             sample_st=_repeat_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="t",
+            aten_ops=("t",),
             sample_st=_t_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="square",
+            aten_ops=("square",),
             sample_st=_square_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="dot",
+            aten_ops=("dot",),
             sample_st=_dot_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="mv",
+            aten_ops=("mv",),
             sample_st=_mv_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="eye",
+            aten_ops=("eye",),
             sample_st=_eye_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="expand_as",
+            aten_ops=("expand_as",),
             sample_st=_expand_as_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=False,
@@ -899,6 +916,7 @@ def _shape_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="reshape_as",
+            aten_ops=("reshape_as",),
             sample_st=_reshape_as_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=False,
@@ -915,6 +933,7 @@ def _shape_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="broadcast_to",
+            aten_ops=("broadcast_to",),
             sample_st=_broadcast_to_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=False,
@@ -929,42 +948,49 @@ def _shape_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="atleast_1d",
+            aten_ops=("atleast_1d",),
             sample_st=_atleast_sample_st(1),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="atleast_2d",
+            aten_ops=("atleast_2d",),
             sample_st=_atleast_sample_st(2),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="atleast_3d",
+            aten_ops=("atleast_3d",),
             sample_st=_atleast_sample_st(3),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="tile",
+            aten_ops=("tile",),
             sample_st=_tile_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="floor_divide",
+            aten_ops=("floor_divide",),
             sample_st=_floor_divide_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="nan_to_num",
+            aten_ops=("nan_to_num",),
             sample_st=_nan_to_num_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="cosine_similarity",
+            aten_ops=("cosine_similarity",),
             sample_st=_cosine_similarity_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
             dynamic_axes_compatible=True,
@@ -1234,31 +1260,37 @@ def _selector_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="select",
+            aten_ops=("select",),
             sample_st=_select_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="index_select",
+            aten_ops=("index_select",),
             sample_st=_index_select_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="gather",
+            aten_ops=("gather",),
             sample_st=_gather_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="advanced_index",
+            aten_ops=("index",),
             sample_st=_advanced_index_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="masked_fill",
+            aten_ops=("masked_fill",),
             sample_st=_masked_fill_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="topk",
+            aten_ops=("topk",),
             sample_st=_topk_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -1955,98 +1987,117 @@ def _concat_split_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="cat",
+            aten_ops=("cat",),
             sample_st=_cat_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="stack",
+            aten_ops=("stack",),
             sample_st=_stack_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="chunk",
+            aten_ops=("chunk",),
             sample_st=_chunk_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="split-int",
+            aten_ops=("split",),
             sample_st=_split_int_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="unfold",
+            aten_ops=("unfold",),
             sample_st=_unfold_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="im2col",
+            aten_ops=("im2col",),
             sample_st=_im2col_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="col2im",
+            aten_ops=("col2im",),
             sample_st=_col2im_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="unbind",
+            aten_ops=("unbind",),
             sample_st=_unbind_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="roll",
+            aten_ops=("roll",),
             sample_st=_roll_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="outer",
+            aten_ops=("outer",),
             sample_st=_outer_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
         ),
         OpSpec(
             name="tril",
+            aten_ops=("tril",),
             sample_st=_triangular_sample_st(torch.tril),
             tolerance=EXACT,
         ),
         OpSpec(
             name="triu",
+            aten_ops=("triu",),
             sample_st=_triangular_sample_st(torch.triu),
             tolerance=EXACT,
         ),
         OpSpec(
             name="flip",
+            aten_ops=("flip",),
             sample_st=_flip_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="mT",
+            aten_ops=("mT",),
             sample_st=_matrix_transpose_sample_st(lambda x: x.mT),
             tolerance=EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="mH",
+            aten_ops=("mH",),
             sample_st=_matrix_transpose_sample_st(lambda x: x.mH),
             tolerance=EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="fliplr",
+            aten_ops=("fliplr",),
             sample_st=_fliplr_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="flipud",
+            aten_ops=("flipud",),
             sample_st=_flipud_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="rot90",
+            aten_ops=("rot90",),
             sample_st=_rot90_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="diagonal",
+            aten_ops=("diagonal",),
             sample_st=_diagonal_sample_st(),
             tolerance=EXACT,
         ),
@@ -2132,16 +2183,19 @@ def _pad_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="pad-constant",
+            aten_ops=("pad",),
             sample_st=_pad_sample_st("constant", max_pad_per_side=3),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="pad-reflect",
+            aten_ops=("pad",),
             sample_st=_pad_sample_st("reflect"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="pad-replicate-xfail",
+            aten_ops=("pad",),
             sample_st=_pad_sample_st("replicate"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2500,16 +2554,19 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="sort",
+            aten_ops=("sort",),
             sample_st=_sort_sample_st("sort"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="argsort",
+            aten_ops=("argsort",),
             sample_st=_sort_sample_st("argsort"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="scatter",
+            aten_ops=("scatter",),
             sample_st=_scatter_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -2520,6 +2577,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         # Flip these to non-xfail once tract 0.23 ships stable.
         OpSpec(
             name="scatter_add-xfail",
+            aten_ops=("scatter_add",),
             sample_st=_scatter_add_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2529,6 +2587,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="scatter_reduce-sum-xfail",
+            aten_ops=("scatter_reduce",),
             sample_st=_scatter_reduce_sample_st("sum"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2538,6 +2597,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="scatter_reduce-prod-xfail",
+            aten_ops=("scatter_reduce",),
             sample_st=_scatter_reduce_sample_st("prod"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2547,6 +2607,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="scatter_reduce-amax-xfail",
+            aten_ops=("scatter_reduce",),
             sample_st=_scatter_reduce_sample_st("amax"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2556,6 +2617,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="scatter_reduce-amin-xfail",
+            aten_ops=("scatter_reduce",),
             sample_st=_scatter_reduce_sample_st("amin"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2565,16 +2627,19 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="select_scatter",
+            aten_ops=("select_scatter",),
             sample_st=_select_scatter_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="slice_scatter",
+            aten_ops=("slice_scatter",),
             sample_st=_slice_scatter_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="slice",
+            aten_ops=("slice",),
             sample_st=_slice_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -2765,6 +2830,7 @@ def _index_pixel_specs() -> T.List[OpSpec]:
         # 0.23.0-dev.4. Flip these once tract 0.23 ships stable.
         OpSpec(
             name="index_fill-xfail",
+            aten_ops=("index_fill",),
             sample_st=_index_fill_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2774,6 +2840,7 @@ def _index_pixel_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="index_copy-xfail",
+            aten_ops=("index_copy",),
             sample_st=_index_copy_sample_st("none"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2783,6 +2850,7 @@ def _index_pixel_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="index_add-xfail",
+            aten_ops=("index_add",),
             sample_st=_index_copy_sample_st("add"),
             tolerance=TractCheckTolerance.APPROXIMATE,
             xfail_reason=(
@@ -2795,17 +2863,20 @@ def _index_pixel_specs() -> T.List[OpSpec]:
         # to tract / NNEF), so dyn-axes works without special-casing.
         OpSpec(
             name="take",
+            aten_ops=("take",),
             sample_st=_take_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="pixel_shuffle",
+            aten_ops=("pixel_shuffle",),
             sample_st=_pixel_shuffle_sample_st(downscale=False),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="pixel_unshuffle",
+            aten_ops=("pixel_unshuffle",),
             sample_st=_pixel_shuffle_sample_st(downscale=True),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -2890,11 +2961,13 @@ def _recent_shape_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="channel_shuffle",
+            aten_ops=("channel_shuffle",),
             sample_st=_channel_shuffle_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="column_stack",
+            aten_ops=("column_stack",),
             sample_st=_column_stack_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -3015,6 +3088,7 @@ def _shape_utility_specs() -> T.List[OpSpec]:
         # dyn-axes works out of the box.
         OpSpec(
             name="broadcast_tensors",
+            aten_ops=("broadcast_tensors",),
             sample_st=_broadcast_tensors_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -3024,12 +3098,14 @@ def _shape_utility_specs() -> T.List[OpSpec]:
         # identifier, so dyn-axes works.
         OpSpec(
             name="meshgrid_ij",
+            aten_ops=("meshgrid",),
             sample_st=_meshgrid_sample_st("ij"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="meshgrid_xy",
+            aten_ops=("meshgrid",),
             sample_st=_meshgrid_sample_st("xy"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -3039,6 +3115,7 @@ def _shape_utility_specs() -> T.List[OpSpec]:
         # across different dyn-axis sizes is a known follow-up.
         OpSpec(
             name="tensor_split-int",
+            aten_ops=("tensor_split",),
             sample_st=_tensor_split_sample_st("int"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_skip_reason=(
@@ -3047,6 +3124,7 @@ def _shape_utility_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="tensor_split-indices",
+            aten_ops=("tensor_split",),
             sample_st=_tensor_split_sample_st("list"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_skip_reason=(
@@ -3184,33 +3262,39 @@ def _alias_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="dstack",
+            aten_ops=("dstack",),
             sample_st=_axis_stack_sample_st(torch.dstack, min_rank=3),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="vsplit",
+            aten_ops=("vsplit",),
             sample_st=_axis_split_sample_st(torch.vsplit, dim=0, min_rank=2),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="hsplit",
+            aten_ops=("hsplit",),
             sample_st=_axis_split_sample_st(torch.hsplit, dim=1, min_rank=2),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="dsplit",
+            aten_ops=("dsplit",),
             sample_st=_axis_split_sample_st(torch.dsplit, dim=2, min_rank=3),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="count_nonzero-dim",
+            aten_ops=("count_nonzero",),
             sample_st=_count_nonzero_sample_st(all_dims=False),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="count_nonzero-all",
+            aten_ops=("count_nonzero",),
             sample_st=_count_nonzero_sample_st(all_dims=True),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -3369,12 +3453,14 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="bucketize",
+            aten_ops=("bucketize",),
             sample_st=_bucketize_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="searchsorted",
+            aten_ops=("searchsorted",),
             sample_st=_searchsorted_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -3384,6 +3470,7 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
         # path is overwrite), so it works on stable.
         OpSpec(
             name="index_put",
+            aten_ops=("index_put_",),
             sample_st=_index_put_sample_st(accumulate=False),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -3392,6 +3479,7 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
         # scatter family.
         OpSpec(
             name="index_put-accum-xfail",
+            aten_ops=("index_put_",),
             sample_st=_index_put_sample_st(accumulate=True),
             tolerance=TractCheckTolerance.APPROXIMATE,
             xfail_reason=(

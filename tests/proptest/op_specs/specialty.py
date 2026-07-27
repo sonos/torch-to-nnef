@@ -251,79 +251,93 @@ def _specialty_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="embedding",
+            aten_ops=("embedding",),
             sample_st=_embedding_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="repeat_interleave",
+            aten_ops=("repeat_interleave",),
             sample_st=_repeat_interleave_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="upsample_nearest2d",
+            aten_ops=("upsample_nearest2d",),
             sample_st=_upsample_nearest2d_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="upsample_nearest1d",
+            aten_ops=("upsample_nearest1d",),
             sample_st=_upsample_nearest_nd_sample_st(spatial_rank=1),
             tolerance=EXACT,
         ),
         OpSpec(
             name="upsample_nearest3d",
+            aten_ops=("upsample_nearest3d",),
             sample_st=_upsample_nearest_nd_sample_st(spatial_rank=3),
             tolerance=EXACT,
         ),
         OpSpec(
             name="upsample_nearest_exact2d",
+            aten_ops=("_upsample_nearest_exact2d",),
             sample_st=_interpolate_nd_sample_st(2, "nearest-exact", None),
             tolerance=EXACT,
             xfail_reason=_RESIZE_XFAIL,
         ),
         OpSpec(
             name="upsample_linear1d",
+            aten_ops=("upsample_linear1d",),
             sample_st=_interpolate_nd_sample_st(1, "linear", False),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
         ),
         OpSpec(
             name="upsample_bilinear2d",
+            aten_ops=("upsample_bilinear2d",),
             sample_st=_interpolate_nd_sample_st(2, "bilinear", False),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
         ),
         OpSpec(
             name="upsample_bilinear2d_align_corners",
+            aten_ops=("upsample_bilinear2d",),
             sample_st=_interpolate_nd_sample_st(2, "bilinear", True),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
         ),
         OpSpec(
             name="upsample_trilinear3d",
+            aten_ops=("upsample_trilinear3d",),
             sample_st=_interpolate_nd_sample_st(3, "trilinear", False),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
         ),
         OpSpec(
             name="upsample_bicubic2d",
+            aten_ops=("upsample_bicubic2d",),
             sample_st=_interpolate_nd_sample_st(2, "bicubic", False),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
         ),
         OpSpec(
             name="grid_sample_bilinear_zeros",
+            aten_ops=("grid_sampler",),
             sample_st=_grid_sample_sample_st("bilinear", "zeros", False),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
         ),
         OpSpec(
             name="grid_sample_nearest_border",
+            aten_ops=("grid_sampler",),
             sample_st=_grid_sample_sample_st("nearest", "border", True),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
         ),
         OpSpec(
             name="grid_sample_bicubic_reflection",
+            aten_ops=("grid_sampler",),
             sample_st=_grid_sample_sample_st("bicubic", "reflection", False),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
@@ -501,21 +515,25 @@ def _prelu_glu_einsum_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="prelu",
+            aten_ops=("prelu",),
             sample_st=_prelu_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="prelu-multi",
+            aten_ops=("prelu",),
             sample_st=_prelu_multi_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="glu",
+            aten_ops=("glu",),
             sample_st=_glu_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
         OpSpec(
             name="einsum",
+            aten_ops=("einsum",),
             sample_st=_einsum_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
@@ -611,47 +629,55 @@ def _max_pool_dropout_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="max_pool2d_with_indices",
+            aten_ops=("max_pool2d_with_indices",),
             sample_st=_max_pool2d_with_indices_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="dropout",
+            aten_ops=("dropout",),
             sample_st=_dropout_eval_sample_st(nn.Dropout),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="alpha_dropout",
+            aten_ops=("alpha_dropout",),
             sample_st=_dropout_eval_sample_st(nn.AlphaDropout),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="feature_dropout",
+            aten_ops=("feature_dropout",),
             sample_st=_dropout_eval_sample_st(nn.Dropout2d),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="feature_alpha_dropout",
+            aten_ops=("feature_alpha_dropout",),
             sample_st=_dropout_eval_sample_st(nn.FeatureAlphaDropout),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="resolve_conj",
+            aten_ops=("resolve_conj",),
             sample_st=_resolve_identity_sample_st("resolve_conj"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="resolve_neg",
+            aten_ops=("resolve_neg",),
             sample_st=_resolve_identity_sample_st("resolve_neg"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="conj_physical",
+            aten_ops=("conj_physical",),
             sample_st=_resolve_identity_sample_st("conj_physical"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -881,30 +907,35 @@ def _distance_specs() -> T.List[OpSpec]:
         # straight away.
         OpSpec(
             name="pairwise_distance",
+            aten_ops=("pairwise_distance",),
             sample_st=_pairwise_distance_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="cross",
+            aten_ops=("cross",),
             sample_st=_cross_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="tensordot",
+            aten_ops=("tensordot",),
             sample_st=_tensordot_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="cdist",
+            aten_ops=("cdist",),
             sample_st=_cdist_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="dist",
+            aten_ops=("dist",),
             sample_st=_dist_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_compatible=True,
@@ -1076,21 +1107,25 @@ def _no_tract_change_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="embedding_bag-sum",
+            aten_ops=("embedding_bag",),
             sample_st=_embedding_bag_static_offsets_sample_st("sum"),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="embedding_bag-mean",
+            aten_ops=("embedding_bag",),
             sample_st=_embedding_bag_static_offsets_sample_st("mean"),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="embedding_bag-max",
+            aten_ops=("embedding_bag",),
             sample_st=_embedding_bag_static_offsets_sample_st("max"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="affine_grid",
+            aten_ops=("affine_grid_generator",),
             sample_st=_affine_grid_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
             # `resolve_attr_axis_size` threads theta's dynamic batch
@@ -1100,11 +1135,13 @@ def _no_tract_change_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="conv_tbc",
+            aten_ops=("conv_tbc",),
             sample_st=_conv_tbc_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="linalg_matrix_norm_fro",
+            aten_ops=("linalg_matrix_norm",),
             sample_st=_linalg_matrix_norm_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_compatible=True,
@@ -1398,12 +1435,14 @@ def _tier_a2_linalg_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="inner",
+            aten_ops=("inner",),
             sample_st=_inner_sample_st(),
             tolerance=CLOSE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="vdot",
+            aten_ops=("vdot",),
             sample_st=_vdot_sample_st(),
             tolerance=CLOSE,
             dynamic_axes_compatible=True,
@@ -1412,6 +1451,7 @@ def _tier_a2_linalg_specs() -> T.List[OpSpec]:
         # input has to be statically known.
         OpSpec(
             name="kron",
+            aten_ops=("kron",),
             sample_st=_kron_sample_st(),
             tolerance=CLOSE,
             dynamic_axes_skip_reason=(
@@ -1420,12 +1460,14 @@ def _tier_a2_linalg_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="diag_1d_to_2d",
+            aten_ops=("diag",),
             sample_st=_diag_1d_to_2d_sample_st(),
             tolerance=CLOSE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="diag_2d_to_1d",
+            aten_ops=("diag",),
             sample_st=_diag_2d_to_1d_sample_st(),
             tolerance=CLOSE,
             dynamic_axes_compatible=True,
@@ -1434,6 +1476,7 @@ def _tier_a2_linalg_specs() -> T.List[OpSpec]:
         # eye(N, N) constant also needs static N.
         OpSpec(
             name="diagflat",
+            aten_ops=("diagflat",),
             sample_st=_diagflat_sample_st(),
             tolerance=CLOSE,
             dynamic_axes_skip_reason=(
@@ -1442,6 +1485,7 @@ def _tier_a2_linalg_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="diag_embed",
+            aten_ops=("diag_embed",),
             sample_st=_diag_embed_sample_st(),
             tolerance=CLOSE,
             dynamic_axes_compatible=True,
@@ -1455,26 +1499,31 @@ def _recent_distance_matmul_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="pdist",
+            aten_ops=("pdist",),
             sample_st=_pdist_sample_st(),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="renorm",
+            aten_ops=("renorm",),
             sample_st=_renorm_sample_st(),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="addbmm",
+            aten_ops=("addbmm",),
             sample_st=_addbmm_sample_st(),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="addmv",
+            aten_ops=("addmv",),
             sample_st=_addmv_sample_st(),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="addr",
+            aten_ops=("addr",),
             sample_st=_addr_sample_st(),
             tolerance=CLOSE,
         ),

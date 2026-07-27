@@ -273,41 +273,49 @@ def _constructors_index_sdpa_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="zeros",
+            aten_ops=("zeros",),
             sample_st=_zeros_from_shape_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="ones",
+            aten_ops=("ones",),
             sample_st=_ones_from_shape_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="full",
+            aten_ops=("full",),
             sample_st=_full_from_shape_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="arange",
+            aten_ops=("arange",),
             sample_st=_arange_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="scalar_tensor",
+            aten_ops=("scalar_tensor",),
             sample_st=_scalar_tensor_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="new_zeros",
+            aten_ops=("new_zeros",),
             sample_st=_new_zeros_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="index",
+            aten_ops=("index",),
             sample_st=_index_advanced_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="sdpa",
+            aten_ops=("scaled_dot_product_attention",),
             sample_st=_sdpa_sample_st(),
             tolerance=VERY,
         ),
@@ -465,26 +473,31 @@ def _fft_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="fft_fft",
+            aten_ops=("fft_fft",),
             sample_st=_fft_sample_st(torch.fft.fft),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="fft_ifft",
+            aten_ops=("fft_ifft",),
             sample_st=_fft_sample_st(torch.fft.ifft),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="fft_rfft",
+            aten_ops=("fft_rfft",),
             sample_st=_fft_sample_st(torch.fft.rfft),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="fft_fftn",
+            aten_ops=("fft_fftn",),
             sample_st=_fftn_sample_st(torch.fft.fftn),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="fft_ifftn",
+            aten_ops=("fft_ifftn",),
             sample_st=_fftn_sample_st(torch.fft.ifftn),
             tolerance=TractCheckTolerance.SUPER,
         ),
@@ -494,6 +507,7 @@ def _fft_specs() -> T.List[OpSpec]:
             # such a spectrum; the comparator then sees real-on-both-
             # sides without needing the view_as_real wrapper.
             name="fft_irfft",
+            aten_ops=("fft_irfft",),
             sample_st=_irfft_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
         ),
@@ -631,31 +645,37 @@ def _glue_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="clone",
+            aten_ops=("clone",),
             sample_st=_identity_unary_sample_st(torch.clone),
             tolerance=EXACT,
         ),
         OpSpec(
             name="contiguous",
+            aten_ops=("contiguous",),
             sample_st=_identity_unary_sample_st(lambda t: t.contiguous()),
             tolerance=EXACT,
         ),
         OpSpec(
             name="detach",
+            aten_ops=("detach",),
             sample_st=_identity_unary_sample_st(lambda t: t.detach()),
             tolerance=EXACT,
         ),
         OpSpec(
             name="to_dtype",
+            aten_ops=("to",),
             sample_st=_to_dtype_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="type_as",
+            aten_ops=("type_as",),
             sample_st=_type_as_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="fill",
+            aten_ops=("fill",),
             sample_st=_fill_sample_st(),
             tolerance=EXACT,
         ),
@@ -743,6 +763,7 @@ def _complex_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="complex",
+            aten_ops=("complex",),
             sample_st=_complex_constructor_sample_st(),
             tolerance=CLOSE,
         ),
@@ -751,6 +772,7 @@ def _complex_specs() -> T.List[OpSpec]:
             # `conjugate` NNEF fragment. (`resolve_conj-complex` is not
             # needed: `resolve_conj` is a no-op on a non-lazy tensor.)
             name="conj-complex",
+            aten_ops=("conj",),
             sample_st=_complex_unary_sample_st(torch.conj),
             tolerance=CLOSE,
         ),
@@ -758,6 +780,7 @@ def _complex_specs() -> T.List[OpSpec]:
             # Mirror of `conj-complex`; `conj_physical` shares the
             # `_emit_conjugate` code path but is a separate aten op.
             name="conj_physical-complex",
+            aten_ops=("conj_physical",),
             sample_st=_complex_unary_sample_st(torch.conj_physical),
             tolerance=CLOSE,
         ),
@@ -771,6 +794,7 @@ def _complex_specs() -> T.List[OpSpec]:
             # than the documented z/|z|. Spec stays xfail until the
             # `sgn_complex` fragment guards against the underflow.
             name="sgn-complex-xfail",
+            aten_ops=("sgn",),
             sample_st=_complex_unary_sample_st(
                 torch.sgn, domain=Interval(-3.0, 3.0)
             ),
