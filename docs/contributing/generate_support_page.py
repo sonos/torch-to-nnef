@@ -14,7 +14,7 @@ import re
 import subprocess
 import sys
 import warnings
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Set
@@ -32,7 +32,158 @@ import bs4  # noqa: E402
 import requests as rq  # noqa: E402
 import rich.progress  # noqa: E402
 
+# The graded ONNX artifact is produced by the proptest sweep
+# (`tests/test_primitive_proptest_onnx.py`), and its grading rules live
+# with it. Importing them keeps one definition of what `partial` means
+# instead of a second copy here that could drift from the measurement.
+from tests.proptest.onnx_report import (  # noqa: E402
+    GRADE_BLOCKED,
+    GRADE_FULL,
+    GRADE_NONE,
+    GRADE_PARTIAL,
+    GRADE_UNTESTED,
+    SCHEMA_VERSION,
+    merge_op_records,
+)
 from torch_to_nnef.op.aten import aten_ops_registry  # noqa: E402
+
+#: Floor for the `aten::` source grep. torch 2.13 yields 1159 raw names
+#: (581 page rows after pruning), and no supported release is anywhere
+#: near this low, so a smaller result means the extraction broke.
+_MIN_PLAUSIBLE_ATEN_NAMES = 400
+
+#: Display-only refinement of `untested`: no spec covers the operator, but
+#: the retired TorchScript listing claimed it was supported. Kept out of
+#: `onnx_report`'s grade vocabulary because it is not a measurement:
+#: it is an unverified historical claim, and the star is what says so.
+DISPLAY_UNTESTED_DOCUMENTED = "untested-documented"
+
+#: Glyph per export grade. `blocked` is not an ONNX verdict: `torch.export`
+#: could not capture the module, so the exporter never saw it.
+GRADE_GLYPH = {
+    GRADE_FULL: "✅",
+    GRADE_PARTIAL: "🟡",
+    GRADE_NONE: "❌",
+    GRADE_BLOCKED: "⚠️",
+    GRADE_UNTESTED: "-",
+    DISPLAY_UNTESTED_DOCUMENTED: "✅*",
+}
+
+#: Filter radio buttons per section flavour. The binary listing keeps the
+#: historical three modes verbatim so its rendered section is unchanged.
+BINARY_FILTER_MODES = (
+    ("all", "All"),
+    ("supported", "Supported only"),
+    ("unsupported", "Unsupported only"),
+)
+GRADED_FILTER_MODES = (
+    ("all", "All"),
+    (GRADE_FULL, "Full"),
+    (GRADE_PARTIAL, "Partial"),
+    (GRADE_NONE, "None"),
+    (GRADE_BLOCKED, "Blocked"),
+    (DISPLAY_UNTESTED_DOCUMENTED, "Claimed, unverified"),
+    (GRADE_UNTESTED, "Untested, no data"),
+)
+
+
+class MeasuredOnnxSupport:
+    """Per-operator ONNX grades, keyed by the page's own row names.
+
+    The artifact is keyed by the aten names the proptest specs declare.
+    Those are chosen to be page-visible, but the page still applies two
+    normalizations of its own (aliases collapse onto their canonical name,
+    and in-place variants merge into the base name), so a measured name
+    can land on a row under a different spelling, and two measured names
+    can land on the same row. Records are merged by summing counters, so
+    the row's grade is derived from every example that reached it.
+    """
+
+    def __init__(
+        self,
+        payload: dict,
+        alias_manager: "AliasManager",
+        page_rows: Set[str],
+    ):
+        schema = payload.get("schema")
+        if schema != SCHEMA_VERSION:
+            # Grades are re-derived from the record's counters, so an
+            # artifact written against a different schema can silently
+            # regrade (missing counters read as zero, which turns a
+            # `none` into `blocked`). Refuse instead.
+            raise ValueError(
+                f"ONNX artifact schema {schema!r} != expected "
+                f"{SCHEMA_VERSION}; regenerate it with "
+                "`tox -e proptest_onnx --onnx-no-reuse`"
+            )
+        self.payload = payload
+        self.regen_index = payload.get("regen_index", 0)
+        self.measurements = payload.get("measurements", {})
+        by_row: dict = defaultdict(list)
+        self.unmapped: Set[str] = set()
+        for op_name, backends in payload.get("ops", {}).items():
+            record = backends.get("onnx")
+            if record is None:
+                continue
+            row = self._normalize(op_name, alias_manager)
+            if row not in page_rows:
+                # Measured but absent from the page's operator list: the
+                # `aten::*` source grep drops `_`-prefixed names, so e.g.
+                # `_upsample_nearest_exact2d` has no row. Recorded so the
+                # generator can report it rather than dropping it silently.
+                self.unmapped.add(op_name)
+                continue
+            by_row[row].append(record)
+        self.rows = {
+            row: merge_op_records(records) for row, records in by_row.items()
+        }
+
+    @staticmethod
+    def _normalize(op_name: str, alias_manager: "AliasManager") -> str:
+        """Map a measured op name onto the page's row name."""
+        name = op_name
+        if alias_manager.is_alias(name):
+            # `absolute` is listed under `abs`, etc.
+            for canonical, aliases in alias_manager.ref_alias.items():
+                if name in aliases:
+                    name = canonical
+                    break
+        if name.endswith("_"):
+            # In-place variants are merged into their base name.
+            name = name[:-1]
+        return name
+
+    def record(self, row: str) -> Optional[dict]:
+        return self.rows.get(row)
+
+    def grade(self, row: str) -> str:
+        record = self.rows.get(row)
+        if record is None:
+            return GRADE_UNTESTED
+        return record.get("export", GRADE_UNTESTED)
+
+    def axis(self, row: str, axis: str) -> str:
+        record = self.rows.get(row)
+        if record is None:
+            return "-"
+        value = record.get(axis, "-")
+        return "-" if value == "not_reached" else value
+
+    @property
+    def newest_measurement(self) -> dict:
+        """The measurement entry describing this regeneration."""
+        if not self.measurements:
+            return {}
+        key = f"m{self.regen_index}"
+        if key in self.measurements:
+            return self.measurements[key]
+        return list(self.measurements.values())[-1]
+
+    def counts(self) -> "Counter":
+        return Counter(
+            record.get("export", GRADE_UNTESTED)
+            for record in self.rows.values()
+        )
 
 
 class LinkToTorchDocCache:
@@ -784,7 +935,21 @@ class FetchFromTorchVersion:
             .decode("utf8")
             .split("\n")
         )
-        return [_ for _ in aten_torch_from_code if not _.startswith("_")]
+        names = [_ for _ in aten_torch_from_code if not _.startswith("_")]
+        # `check_output` only checks the exit code of the last command in
+        # the pipeline, so a failed clone/checkout upstream of `rg` yields
+        # an empty (or tiny) list rather than an error, and the page then
+        # renders with no operator rows at all. Every torch release has
+        # hundreds of `aten::` names, so anything this small means the
+        # checkout is broken, not that PyTorch shrank.
+        if len(names) < _MIN_PLAUSIBLE_ATEN_NAMES:
+            raise RuntimeError(
+                f"only {len(names)} aten names extracted from "
+                f"/tmp/pytorch at v{self.torch_version}.0, expected at "
+                f"least {_MIN_PLAUSIBLE_ATEN_NAMES}. The checkout is "
+                "probably in a bad state; remove /tmp/pytorch and retry."
+            )
+        return names
 
     def get_aliases_from_code(self) -> AliasManager:
         aliases = sorted(
@@ -871,6 +1036,73 @@ def _format_aliases(aliases: List[str]) -> str:
     return ", ".join(aliases)
 
 
+def _write_measured_summary(
+    support_target_msg: str,
+    measured: MeasuredOnnxSupport,
+    aten_torch_from_code: List[str],
+    full_qte: int,
+    full_core: int,
+    measured_core: int,
+    qte_core: int,
+    untested_documented: int,
+    fh,
+):
+    """Headline stats for a measured section.
+
+    Deliberately not the binary section's wording. The measured verdict
+    covers only the operators a proptest spec exercises, so a ratio over
+    the whole `aten::` list would read as "the rest are unsupported" when
+    it really means "the rest are untested". Both denominators are stated.
+    """
+    counts = measured.counts()
+    total_rows = len(aten_torch_from_code)
+    measured_rows = sum(counts.values())
+    entry = measured.newest_measurement
+    env = ", ".join(
+        f"{label} {entry[key]}"
+        for key, label in (
+            ("torch", "torch"),
+            ("onnxruntime", "onnxruntime"),
+            ("opset", "opset"),
+        )
+        if entry.get(key) is not None
+    )
+    print_t(
+        f"{support_target_msg}\n\n"
+        "- fully exportable, among the operators actually measured:\n\n"
+        f"[={counts.get(GRADE_FULL, 0)}/{measured_rows} "
+        f'"{counts.get(GRADE_FULL, 0)}/{measured_rows}"]\n\n'
+        "- of the core PyTorch opset, measured and fully exportable:\n\n"
+        f'[={full_core}/{measured_core} "{full_core}/{measured_core}"]\n\n'
+        f" (core opset size: {qte_core}. Measured {measured_rows} of "
+        f"{total_rows} listed operators."
+        f" Partial: {counts.get(GRADE_PARTIAL, 0)}, "
+        f"none: {counts.get(GRADE_NONE, 0)}, "
+        f"blocked before ONNX: {counts.get(GRADE_BLOCKED, 0)}."
+        f" The remaining {total_rows - measured_rows} have no spec yet: "
+        f"{untested_documented} of them were claimed supported by the "
+        "retired listing but are unverified here (✅*), and "
+        f"{total_rows - measured_rows - untested_documented} have no data "
+        "either way (`-`). Neither means unsupported."
+        f" Measured with {env}.)",
+        file=fh,
+    )
+
+
+def _filter_widget(filter_id: str, modes) -> str:
+    """Radio buttons for one section's row filter."""
+    labels = "".join(
+        f'<label><input type="radio" name="{filter_id}" '
+        f'value="{value}"{" checked" if value == "all" else ""}> '
+        f"{label}</label>\n"
+        for value, label in modes
+    )
+    return (
+        '<div class="op-filter-container" markdown="0">\n'
+        '<form class="op-filter-form">\n' + labels + "</form>\n"
+    )
+
+
 def write_operator_support(
     support_target_name: str,
     support_target_msg: str,
@@ -882,17 +1114,28 @@ def write_operator_support(
     cache_url: LinkToTorchDocCache,
     support_inplace: Set[str],
     support_n_ops_label: str,
+    measured: Optional[MeasuredOnnxSupport] = None,
+    include_documented: bool = True,
 ):
     """Emit one tabbed section.
 
     The table is raw HTML (not a markdown pipe table) so each `<tr>`
     can carry a `supported`/`unsupported` class hooked up by the inline
     filter widget at the top of the section.
+
+    With `measured`, the first column becomes a four-way export grade from
+    the proptest sweep instead of a binary "is there an entry for this
+    name", two informational columns are added (does onnxruntime run the
+    exported graph, do its outputs match torch), and `supported_opset`
+    demotes to a `documented` column so operators no spec covers still
+    carry what the retired PyTorch doc page said about them.
     """
     row_items: List[tuple] = []
     qte_core = 0
     qte_supported_core = 0
     matched_qte = 0
+    measured_core = 0
+    untested_documented = 0
 
     print(f'=== "{support_target_name}"', file=fh)
     print("", file=fh)
@@ -906,14 +1149,27 @@ def write_operator_support(
         is_core = a_from_code in official_aten_names
         is_core_official_str = "✅" if is_core else "-"
 
-        exist_in_support = a_from_code in supported_opset
+        documented = a_from_code in supported_opset
+        if measured is None:
+            grade = GRADE_FULL if documented else GRADE_NONE
+        else:
+            grade = measured.grade(a_from_code)
+        exist_in_support = grade == GRADE_FULL
+        # Display state may refine the grade; counting always uses `grade`,
+        # so a starred row never inflates the measured ratios.
+        display = grade
+        if grade == GRADE_UNTESTED and documented:
+            display = DISPLAY_UNTESTED_DOCUMENTED
+            untested_documented += 1
 
         if is_core:
             qte_core += 1
             if exist_in_support:
                 qte_supported_core += 1
+            if measured is not None and grade != GRADE_UNTESTED:
+                measured_core += 1
 
-        mapped_in_support_str = "✅" if exist_in_support else "❌"
+        mapped_in_support_str = GRADE_GLYPH[display]
         if exist_in_support:
             matched_qte += 1
 
@@ -921,6 +1177,14 @@ def write_operator_support(
         alias_str = _format_aliases(alias_manager.get_aliases(a_from_code))
         torch_url_doc = cache_url.get_url(a_from_code)
         op_name_html = _md_link(a_from_code, torch_url_doc)
+        extra_cells: List[str] = []
+        if measured is not None:
+            extra_cells = [
+                measured.axis(a_from_code, "runtime"),
+                measured.axis(a_from_code, "numerics"),
+            ]
+            if include_documented:
+                extra_cells.append("✅" if documented else "-")
         row_items.append(
             (
                 exist_in_support,
@@ -930,6 +1194,8 @@ def write_operator_support(
                 inplace_str,
                 is_core_official_str,
                 mapped_in_support_str,
+                display,
+                extra_cells,
             )
         )
 
@@ -937,41 +1203,61 @@ def write_operator_support(
     row_items.sort(key=lambda r: -int(r[1]))
 
     print_t("", file=fh)
-    support_n_ops = len([_ for _ in supported_opset if not _.endswith("_")])
-    ratio_total_str = f"{matched_qte}/{len(aten_torch_from_code)}"
-    print_t(
-        f"Total matched operators in {support_target_msg} compared to:\n\n"
-        f"- core PyTorch opset:\n\n"
-        f"[={qte_supported_core}/{qte_core} "
-        f'"{qte_supported_core}/{qte_core}"]\n\n'
-        "-  and support from full `aten::`: \n\n"
-        f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
-        f" (total operators listed as supported by {support_n_ops_label} "
-        f"being {support_n_ops})",
-        file=fh,
-    )
+    if measured is None:
+        support_n_ops = len([_ for _ in supported_opset if not _.endswith("_")])
+        ratio_total_str = f"{matched_qte}/{len(aten_torch_from_code)}"
+        print_t(
+            f"Total matched operators in {support_target_msg} compared to:"
+            "\n\n"
+            f"- core PyTorch opset:\n\n"
+            f"[={qte_supported_core}/{qte_core} "
+            f'"{qte_supported_core}/{qte_core}"]\n\n'
+            "-  and support from full `aten::`: \n\n"
+            f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
+            f" (total operators listed as supported by {support_n_ops_label} "
+            f"being {support_n_ops})",
+            file=fh,
+        )
+    else:
+        _write_measured_summary(
+            support_target_msg,
+            measured,
+            aten_torch_from_code,
+            matched_qte,
+            qte_supported_core,
+            measured_core,
+            qte_core,
+            untested_documented,
+            fh,
+        )
     print_t("", file=fh)
 
     # Filter widget + raw HTML table. The filter scope is a single
     # `.op-filter-container`, so multiple sections (TractNNEF, ONNX) on
     # the same page each get their own independent toggle state.
     filter_id = f"op-filter-{support_target_name}"
+    if measured is None:
+        header_cells = (
+            "<th>translated</th><th>aten name</th><th>aliases</th>"
+            "<th>can in-place</th><th>is core</th>"
+        )
+        modes = BINARY_FILTER_MODES
+    else:
+        documented_header = "<th>documented</th>" if include_documented else ""
+        header_cells = (
+            "<th>export</th><th>aten name</th><th>aliases</th>"
+            "<th>runtime</th><th>numerics</th>"
+            f"{documented_header}"
+            "<th>can in-place</th><th>is core</th>"
+        )
+        modes = GRADED_FILTER_MODES
     print_t(
-        '<div class="op-filter-container" markdown="0">\n'
-        '<form class="op-filter-form">\n'
-        '<label><input type="radio" name="' + filter_id + '" '
-        'value="all" checked> All</label>\n'
-        '<label><input type="radio" name="' + filter_id + '" '
-        'value="supported"> Supported only</label>\n'
-        '<label><input type="radio" name="' + filter_id + '" '
-        'value="unsupported"> Unsupported only</label>\n'
-        "</form>\n"
-        '<table class="op-table">\n'
-        "<thead><tr>"
-        "<th>translated</th><th>aten name</th><th>aliases</th>"
-        "<th>can in-place</th><th>is core</th>"
-        "</tr></thead>\n"
-        "<tbody>",
+        _filter_widget(filter_id, modes)
+        + '<table class="op-table">\n'
+        + "<thead><tr>"
+        + header_cells
+        + "</tr></thead>\n"
+        + "<tbody>",
         file=fh,
     )
     for (
@@ -982,13 +1268,25 @@ def write_operator_support(
         inplace_str,
         is_core_official_str,
         mapped_in_support_str,
+        display,
+        extra_cells,
     ) in row_items:
-        klass = "supported" if exist_in_support else "unsupported"
+        # Binary sections keep the historical two-state class so their
+        # rendered output is unchanged. Graded sections carry only
+        # `grade-<name>`: calling an `untested` row `unsupported` in the
+        # DOM would assert exactly what the grade refuses to assert.
+        if measured is None:
+            klass = "supported" if exist_in_support else "unsupported"
+        else:
+            klass = f"grade-{display}"
+        middle = f"<td>{alias_str}</td>" + "".join(
+            f"<td>{cell}</td>" for cell in extra_cells
+        )
         print_t(
             f'<tr class="op-row {klass}">'
             f"<td>{mapped_in_support_str}</td>"
             f"<td>{op_name_html}</td>"
-            f"<td>{alias_str}</td>"
+            f"{middle}"
             f"<td>{inplace_str}</td>"
             f"<td>{is_core_official_str}</td>"
             "</tr>",
@@ -1006,10 +1304,20 @@ FILTER_SCRIPT = """\
     var rows = form.parentElement.querySelectorAll('tr.op-row');
     rows.forEach(function (tr) {
       var sup = tr.classList.contains('supported');
+      // Graded sections carry `grade-<name>`; binary ones do not, so they
+      // fall back to the two-state reading. Without this, a `partial` row
+      // would show up under "Unsupported only" purely for lacking the
+      // `supported` class.
+      // `[a-z-]` so the hyphenated `grade-untested-documented` state
+      // matches in full; `[a-z]+` would truncate it to `untested` and
+      // make the two untested filters indistinguishable.
+      var graded = tr.className.match(/grade-([a-z-]+)/);
+      var grade = graded ? graded[1] : (sup ? 'full' : 'none');
       var keep =
         mode === 'all' ||
-        (mode === 'supported' && sup) ||
-        (mode === 'unsupported' && !sup);
+        mode === grade ||
+        (mode === 'supported' && grade === 'full') ||
+        (mode === 'unsupported' && grade === 'none');
       tr.style.display = keep ? '' : 'none';
     });
   }
@@ -1021,7 +1329,46 @@ FILTER_SCRIPT = """\
 """
 
 
-def build_markdown_header(fetcher) -> str:
+def _measured_onnx_section_msg(
+    measured: MeasuredOnnxSupport, onnx_url: str, has_documented: bool
+) -> str:
+    """Intro paragraph for the measured ONNX section."""
+    entry = measured.newest_measurement
+    profile = entry.get("profile", "unknown")
+    examples = entry.get("examples", "?")
+    msg = (
+        "`ONNX` support **measured** by exporting real modules with "
+        "`torch.onnx.export(dynamo=True)`, one per operator, over "
+        f"{examples} generated examples each (hypothesis `{profile}` "
+        "profile). Produced by `tox -e proptest_onnx`; see "
+        "[how to refresh it](./onnx_support_page.md)."
+        "\n\n"
+        # No manual indent: `print_t` prefixes every line with the
+        # 4 spaces the tabbed block needs, and 8 would render as code.
+        "The `export` column is about operator coverage only: "
+        "✅ every example exported, 🟡 some did, ❌ none did, "
+        "⚠️ `torch.export` could not even capture the module (so this "
+        "says nothing about ONNX), ✅* no spec covers this operator so we "
+        "have **not** verified it, but the retired listing below claimed "
+        "it was supported, `-` no spec covers it and nothing was ever "
+        "claimed either way. Only ✅ / 🟡 / ❌ are measurements; ✅* is an "
+        "unverified historical claim and is excluded from the counts. "
+        "`runtime` and `numerics` are reported separately because a "
+        "graph that exports but diverges numerically is usually a "
+        "property of the kernel that ran, not a missing operator."
+    )
+    if has_documented:
+        msg += (
+            "\n\nThe `documented` column is what the retired "
+            f"TorchScript-exporter listing ([this page]({onnx_url})) said, "
+            "kept for the operators no spec covers yet."
+        )
+    return msg
+
+
+def build_markdown_header(
+    fetcher, measured: Optional[MeasuredOnnxSupport] = None
+) -> str:
     date = datetime.now().strftime("%d %b %Y")
     ir_url = fetcher.resolved_ir_url or fetcher.url_ir
     ir_note = (
@@ -1035,13 +1382,24 @@ def build_markdown_header(fetcher) -> str:
             "version that still enumerates the core ATen IR)"
         )
     )
+    measured_note = ""
+    if measured is not None:
+        entry = measured.newest_measurement
+        measured_note = (
+            " The `ONNX` section is **not** scraped from PyTorch's docs: "
+            "it is measured by actually exporting one module per operator "
+            f"with torch {entry.get('torch', '?')} at opset "
+            f"{entry.get('opset', '?')} (see that section for how to read "
+            "its columns)."
+        )
     return (
         "!!! note\n"
         "    This table and page are auto generated by "
         "`docs/contributing/generate_support_page.py` and reflect the "
         "PyTorch reference docs at the time of generation."
         f" Targeted torch version: **{fetcher.torch_version}**. "
-        f"Generated on **{date}**.\n\n"
+        f"Generated on **{date}**."
+        f"{measured_note}\n\n"
         "!!! warning\n"
         "     Take these results with a grain of salt: many of the listed "
         "operators never appear in the torch IR graph that "
@@ -1093,7 +1451,35 @@ def build_excluded_appendix() -> str:
     return "\n".join(lines)
 
 
-def build_markdown_page(torch_version: str):
+def _load_measured_onnx(
+    onnx_report_path: Optional[Path],
+    alias_manager: AliasManager,
+    page_rows: Set[str],
+) -> Optional[MeasuredOnnxSupport]:
+    """Load the graded ONNX artifact, if one was supplied."""
+    if onnx_report_path is None:
+        return None
+    if not onnx_report_path.exists():
+        raise FileNotFoundError(
+            f"--onnx-report {onnx_report_path} does not exist. Generate it "
+            "with `tox -e proptest_onnx`."
+        )
+    with onnx_report_path.open("r", encoding="utf8") as fh:
+        payload = json.load(fh)
+    measured = MeasuredOnnxSupport(payload, alias_manager, page_rows)
+    if measured.unmapped:
+        warnings.warn(
+            "measured ONNX operators with no row on this page (the "
+            "`aten::*` source grep drops `_`-prefixed names): "
+            f"{sorted(measured.unmapped)}",
+            stacklevel=2,
+        )
+    return measured
+
+
+def build_markdown_page(
+    torch_version: str, onnx_report_path: Optional[Path] = None
+):
     """Build supported operators markdown page."""
     fetcher = FetchFromTorchVersion(torch_version)
     official_aten_names, official_prim_names = fetcher.get_core_ir()
@@ -1120,12 +1506,16 @@ def build_markdown_page(torch_version: str):
             offset += 1
             support_inplace.add(a[:-1])
 
+    measured = _load_measured_onnx(
+        onnx_report_path, aliases_manager, set(aten_torch_from_code)
+    )
+
     cache_url = fetcher.get_cache_url(aten_torch_from_code)
     with (Path(__file__).parent / "./supported_operators.md").open(
         "w", encoding="utf8"
     ) as fh:
         print(
-            build_markdown_header(fetcher),
+            build_markdown_header(fetcher, measured),
             file=fh,
         )
         write_operator_support(
@@ -1140,20 +1530,25 @@ def build_markdown_page(torch_version: str):
             support_inplace=support_inplace,
             support_n_ops_label="`torch_to_nnef`",
         )
-        if onnx_supported or onnx_unsupported:
+        if measured is not None or onnx_supported or onnx_unsupported:
             onnx_url = fetcher.resolved_onnx_url or fetcher.onnx_support_url
-            onnx_section_msg = (
-                f"builtin PyTorch `ONNX` support based on "
-                f"[this page]({onnx_url})"
-            )
-            if onnx_url != fetcher.onnx_support_url:
-                onnx_section_msg += (
-                    f" (the page for torch {fetcher.torch_version} was "
-                    f"removed upstream in torch 2.9+; falling back to "
-                    f"torch {LAST_TORCH_VERSION_WITH_ONNX_DOC} which is "
-                    "the last version that still ships the TorchScript "
-                    "ONNX support listing)"
+            if measured is not None:
+                onnx_section_msg = _measured_onnx_section_msg(
+                    measured, onnx_url, bool(onnx_supported)
                 )
+            else:
+                onnx_section_msg = (
+                    f"builtin PyTorch `ONNX` support based on "
+                    f"[this page]({onnx_url})"
+                )
+                if onnx_url != fetcher.onnx_support_url:
+                    onnx_section_msg += (
+                        f" (the page for torch {fetcher.torch_version} was "
+                        f"removed upstream in torch 2.9+; falling back to "
+                        f"torch {LAST_TORCH_VERSION_WITH_ONNX_DOC} which is "
+                        "the last version that still ships the TorchScript "
+                        "ONNX support listing)"
+                    )
             write_operator_support(
                 "ONNX",
                 onnx_section_msg,
@@ -1165,6 +1560,8 @@ def build_markdown_page(torch_version: str):
                 cache_url=cache_url,
                 support_inplace=support_inplace,
                 support_n_ops_label="PyTorch's TorchScript ONNX exporter",
+                measured=measured,
+                include_documented=bool(onnx_supported),
             )
         print(FILTER_SCRIPT, file=fh)
         print(build_excluded_appendix(), file=fh)
@@ -1178,20 +1575,52 @@ def parse_args():
     parser.add_argument(
         "--torch-version",
         type=str,
-        required=True,
-        help="Target PyTorch version to generate the report for.",
+        default=None,
+        help=(
+            "Target PyTorch version (X.Y) to generate the report for. "
+            "Defaults to the installed torch, which is also what the ONNX "
+            "sweep measured, so the two cannot silently disagree."
+        ),
+    )
+    parser.add_argument(
+        "--onnx-report",
+        type=Path,
+        default=None,
+        help=(
+            "graded ONNX support artifact from `tox -e proptest_onnx`. "
+            "Given, the ONNX section reports measured export grades; "
+            "omitted, it falls back to scraping PyTorch's retired "
+            "TorchScript-exporter listing."
+        ),
     )
     return parser.parse_args()
 
 
+def installed_torch_version() -> str:
+    """`X.Y` of the installed torch, for use as the default target.
+
+    The ONNX sweep measures whichever torch is installed, so defaulting to
+    it keeps the page's operator list and its measured column describing
+    the same release instead of leaving that to a hand-typed flag.
+    """
+    import torch  # noqa: PLC0415
+
+    major, minor = torch.__version__.split(".")[:2]
+    return f"{major}.{minor}"
+
+
 if __name__ == "__main__":
     args = parse_args()
+    torch_version = args.torch_version or installed_torch_version()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", SyntaxWarning)
-        assert len(re.findall("\.", args.torch_version)) == 1, (
+        assert len(re.findall(r"\.", torch_version)) == 1, (
             "expect X.Y format for torch version"
         )
-    assert args.torch_version.replace(".", "").isdigit(), (
+    assert torch_version.replace(".", "").isdigit(), (
         "expect X.Y format for torch version"
     )
-    build_markdown_page(torch_version=args.torch_version)
+    build_markdown_page(
+        torch_version=torch_version,
+        onnx_report_path=args.onnx_report,
+    )

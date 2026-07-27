@@ -158,11 +158,13 @@ def _pool_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="max_pool1d",
+            aten_ops=("max_pool1d",),
             sample_st=_pool1d_sample_st(F.max_pool1d),
             tolerance=EXACT,
         ),
         OpSpec(
             name="max_pool1d_with_indices",
+            aten_ops=("max_pool1d_with_indices",),
             sample_st=_pool1d_sample_st(
                 F.max_pool1d, op_kwargs={"return_indices": True}
             ),
@@ -171,6 +173,7 @@ def _pool_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="max_pool2d",
+            aten_ops=("max_pool2d",),
             sample_st=_pool2d_sample_st(F.max_pool2d),
             tolerance=EXACT,
         ),
@@ -183,22 +186,26 @@ def _pool_specs() -> T.List[OpSpec]:
             # don't). t2n bug: emitter should either implement
             # count_include_pad=True faithfully or reject it.
             name="avg_pool1d",
+            aten_ops=("avg_pool1d",),
             sample_st=_pool1d_sample_st(F.avg_pool1d, allow_padding=False),
             tolerance=APPROX,
         ),
         OpSpec(
             # Same padding limitation as avg_pool1d.
             name="avg_pool2d",
+            aten_ops=("avg_pool2d",),
             sample_st=_pool2d_sample_st(F.avg_pool2d, allow_padding=False),
             tolerance=APPROX,
         ),
         OpSpec(
             name="adaptive_avg_pool2d",
+            aten_ops=("adaptive_avg_pool2d",),
             sample_st=_adaptive_pool2d_sample_st(F.adaptive_avg_pool2d),
             tolerance=APPROX,
         ),
         OpSpec(
             name="adaptive_max_pool2d",
+            aten_ops=("adaptive_max_pool2d",),
             sample_st=_adaptive_pool2d_sample_st(F.adaptive_max_pool2d),
             tolerance=EXACT,
         ),
@@ -425,22 +432,26 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="conv3d",
+            aten_ops=("conv3d",),
             sample_st=_conv3d_sample_st(),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="max_pool3d",
+            aten_ops=("max_pool3d",),
             sample_st=_pool3d_sample_st(F.max_pool3d),
             tolerance=EXACT,
         ),
         OpSpec(
             # Same count_include_pad caveat as avg_pool1d/2d: padding=0.
             name="avg_pool3d",
+            aten_ops=("avg_pool3d",),
             sample_st=_pool3d_sample_st(F.avg_pool3d, allow_padding=False),
             tolerance=APPROX,
         ),
         OpSpec(
             name="expm1",
+            aten_ops=("expm1",),
             sample_st=_unary_sample_st(
                 torch.expm1, domain=Interval(-10.0, 10.0)
             ),
@@ -448,6 +459,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="log1p",
+            aten_ops=("log1p",),
             sample_st=_unary_sample_st(
                 torch.log1p, domain=Interval(-0.999, 1e3)
             ),
@@ -455,11 +467,13 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="log10",
+            aten_ops=("log10",),
             sample_st=_unary_sample_st(torch.log10, domain=Interval(1e-3, 1e4)),
             tolerance=VERY,
         ),
         OpSpec(
             name="trunc-unary",
+            aten_ops=("trunc",),
             sample_st=_unary_sample_st(
                 torch.trunc, domain=Interval(-100.0, 100.0)
             ),
@@ -467,11 +481,13 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="cumsum",
+            aten_ops=("cumsum",),
             sample_st=_cumsum_sample_st(),
             tolerance=APPROX,
         ),
         OpSpec(
             name="cumprod",
+            aten_ops=("cumprod",),
             sample_st=_cumprod_sample_st(),
             tolerance=APPROX,
         ),
@@ -480,6 +496,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             # (a two-state scan); the running-max stabiliser means
             # CLOSE rather than APPROXIMATE is what we need.
             name="logcumsumexp",
+            aten_ops=("logcumsumexp",),
             sample_st=_logcumsumexp_sample_st(),
             tolerance=CLOSE,
         ),
@@ -493,6 +510,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             # `(-10, 10)` interval, so the spec stays xfail until the
             # sample generator filters them out.
             name="atan2-xfail",
+            aten_ops=("atan2",),
             sample_st=_atan2_sample_st(),
             tolerance=VERY,
             xfail_reason=(
@@ -503,6 +521,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="isnan-xfail",
+            aten_ops=("isnan",),
             sample_st=_classifier_sample_st(torch.isnan),
             tolerance=EXACT,
             xfail_reason=(
@@ -512,6 +531,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="isinf-xfail",
+            aten_ops=("isinf",),
             sample_st=_classifier_sample_st(torch.isinf),
             tolerance=EXACT,
             xfail_reason=(
@@ -520,6 +540,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="isposinf-xfail",
+            aten_ops=("isposinf",),
             sample_st=_classifier_sample_st(torch.isposinf),
             tolerance=EXACT,
             xfail_reason=(
@@ -529,6 +550,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="isneginf-xfail",
+            aten_ops=("isneginf",),
             sample_st=_classifier_sample_st(torch.isneginf),
             tolerance=EXACT,
             xfail_reason=(
@@ -633,11 +655,13 @@ def _conv2d_kwarg_sweep_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="conv2d-dilation-groups",
+            aten_ops=("conv2d",),
             sample_st=_conv2d_dilation_groups_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="max_pool2d-dilation",
+            aten_ops=("max_pool2d",),
             sample_st=_max_pool2d_dilation_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),

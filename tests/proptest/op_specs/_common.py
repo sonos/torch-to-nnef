@@ -50,6 +50,24 @@ class OpSpec:
     # by pytest's skip reason. Only meaningful when
     # `dynamic_axes_compatible=False`.
     dynamic_axes_skip_reason: T.Optional[str] = None
+    # The `aten::` operator name(s) this spec is testing, without the
+    # `aten::` prefix. Used to turn a per-spec result into a per-operator
+    # verdict for the support page (`docs/contributing/`), so these must
+    # be the names that page lists: it builds its rows from a source grep
+    # that drops `_`-prefixed identifiers and merges in-place variants,
+    # which means the name torch puts in the trace is not always the row
+    # name (`conv2d` traces `aten::_convolution`; `sdpa` traces
+    # `aten::scaled_dot_product_attention`).
+    #
+    # Name only the operator(s) actually under test, not every op the
+    # module happens to trace: a spec's failure is attributed to each
+    # name listed here, so adding incidental scaffolding ops would
+    # smear one op's gap across unrelated rows.
+    #
+    # `test_proptest_aten_attribution.py` checks each declared name
+    # against what the spec really traces, so this stays honest as specs
+    # are edited.
+    aten_ops: T.Tuple[str, ...] = ()
 
 
 def _unary_sample_st(

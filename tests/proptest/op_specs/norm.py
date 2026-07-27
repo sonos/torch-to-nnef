@@ -327,11 +327,13 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="matmul",
+            aten_ops=("matmul",),
             sample_st=_matmul_sample_st(),
             tolerance=VERY,
         ),
         OpSpec(
             name="linear",
+            aten_ops=("linear",),
             sample_st=_linear_sample_st(),
             tolerance=VERY,
         ),
@@ -341,11 +343,13 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             # absolute (above VERY but well below SUPER). Same root cause
             # class as group_norm (multi-step f32 reduction precision).
             name="layer_norm",
+            aten_ops=("layer_norm",),
             sample_st=_layer_norm_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="batch_norm1d",
+            aten_ops=("batch_norm",),
             sample_st=_batch_norm1d_sample_st(),
             tolerance=VERY,
         ),
@@ -356,24 +360,28 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
         # shape declarations, so dyn-axes works straight through.
         OpSpec(
             name="instance_norm1d",
+            aten_ops=("instance_norm",),
             sample_st=_instance_norm_sample_st(ndim=1, affine=False),
             tolerance=TractCheckTolerance.SUPER,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="instance_norm2d",
+            aten_ops=("instance_norm",),
             sample_st=_instance_norm_sample_st(ndim=2, affine=False),
             tolerance=TractCheckTolerance.SUPER,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="instance_norm2d_affine",
+            aten_ops=("instance_norm",),
             sample_st=_instance_norm_sample_st(ndim=2, affine=True),
             tolerance=TractCheckTolerance.SUPER,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="instance_norm3d",
+            aten_ops=("instance_norm",),
             sample_st=_instance_norm_sample_st(ndim=3, affine=False),
             tolerance=TractCheckTolerance.SUPER,
             dynamic_axes_compatible=True,
@@ -390,16 +398,19 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             # left-aligned NNEF broadcast pattern after restoration of
             # the original input rank.
             name="group_norm",
+            aten_ops=("group_norm",),
             sample_st=_group_norm_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="conv1d",
+            aten_ops=("conv1d",),
             sample_st=_conv1d_sample_st(),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="conv2d",
+            aten_ops=("conv2d",),
             sample_st=_conv2d_sample_st(),
             tolerance=CLOSE,
         ),
@@ -478,6 +489,7 @@ def _norm_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="vector_norm",
+            aten_ops=("linalg_vector_norm",),
             sample_st=_vector_norm_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
@@ -492,6 +504,7 @@ def _norm_specs() -> T.List[OpSpec]:
             # `prefer_native_tract_rms_norm` to False makes proptest
             # match PyTorch exactly. The fix lives in tract's native op.
             name="rms_norm-xfail",
+            aten_ops=("rms_norm",),
             sample_st=_rms_norm_sample_st(),
             tolerance=TractCheckTolerance.ULTRA,
             xfail_reason=(
@@ -745,31 +758,37 @@ def _norm_topk_cat_kwarg_specs() -> T.List[OpSpec]:
             # very small `eps`). ULTRA matches the practical noise
             # floor for layer_norm under hypothesis.
             name="layer_norm-broad",
+            aten_ops=("layer_norm",),
             sample_st=_layer_norm_kwargs_sample_st(),
             tolerance=TractCheckTolerance.ULTRA,
         ),
         OpSpec(
             name="batch_norm1d-broad",
+            aten_ops=("batch_norm",),
             sample_st=_batch_norm1d_kwargs_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
         OpSpec(
             name="topk-broad",
+            aten_ops=("topk",),
             sample_st=_topk_kwargs_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="sort-broad",
+            aten_ops=("sort",),
             sample_st=_sort_kwargs_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="cat-n-tensors",
+            aten_ops=("cat",),
             sample_st=_cat_n_tensors_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="embedding-padding-idx",
+            aten_ops=("embedding",),
             sample_st=_embedding_padding_idx_sample_st(),
             tolerance=EXACT,
         ),

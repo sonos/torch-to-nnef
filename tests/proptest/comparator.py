@@ -16,6 +16,10 @@ Flow:
 Tract is the only supported target: the Khronos reference interpreter has
 an embryonic op coverage that does not span the breadth of the proptest
 spec catalog.
+
+`compare_arrays` / `resolve_tol` are the tolerance policy, kept public
+here because `onnx_backend.py` measures a different exporter but must
+judge numeric agreement by the same rules.
 """
 
 import subprocess
@@ -41,11 +45,80 @@ from torch_to_nnef.inference_target.tract import (
 )
 from torch_to_nnef.log import log
 
-from .dtypes import lookup_tol
+from .dtypes import Tol, lookup_tol
 
 
 class ProptestComparatorError(AssertionError):
     """Raised when tract output diverges from the PyTorch reference."""
+
+
+def _torch_dtype_from_numpy(np_dtype: np.dtype) -> torch.dtype:
+    """Numpy -> torch dtype lookup for tolerance dispatch."""
+    return NUMPY_TO_TORCH_DTYPE[np.dtype(np_dtype).type]
+
+
+def resolve_tol(
+    npz_dtype: torch.dtype,
+    tolerance: TractCheckTolerance,
+    input_dtypes: T.Sequence[torch.dtype] = (),
+) -> Tol:
+    """Pick the loosest tolerance among the output and float input dtypes.
+
+    f16/bf16 outputs are cast to f32 during NPZ serialization (see
+    `model_wrapper.py:write_output_npz`), which would otherwise have the
+    caller look up the f32 (strict) tolerance for what was really an f16
+    computation.
+    """
+    candidates = [npz_dtype] + [
+        d for d in input_dtypes if dtype_is_floating_point(d)
+    ]
+    candidate_tols = [lookup_tol(d, tolerance) for d in candidates]
+    return max(candidate_tols, key=lambda t: max(t.rtol, t.atol))
+
+
+def compare_arrays(
+    reference: np.ndarray,
+    actual: np.ndarray,
+    name: str,
+    tolerance: TractCheckTolerance,
+    input_dtypes: T.Sequence[torch.dtype] = (),
+) -> None:
+    """Compare one output array against its reference, NaN/Inf-aware.
+
+    Shared by every proptest backend so they all apply one tolerance
+    policy: shape must match exactly, non-float dtypes must be bit-exact,
+    and float dtypes go through `assert_allclose(equal_nan=True)` at the
+    dtype-resolved tolerance.
+
+    Raises:
+        ProptestComparatorError: on shape mismatch, non-float mismatch, or
+            float values outside tolerance.
+    """
+    if reference.shape != actual.shape:
+        raise ProptestComparatorError(
+            f"shape mismatch on output {name!r}: "
+            f"ref={reference.shape} vs actual={actual.shape}"
+        )
+    npz_dtype = _torch_dtype_from_numpy(reference.dtype)
+    if not dtype_is_floating_point(npz_dtype):
+        if not np.array_equal(reference, actual):
+            raise ProptestComparatorError(
+                f"non-float output {name!r} differs "
+                f"(dtype={reference.dtype})\n"
+                f"ref={reference}\nactual={actual}"
+            )
+        return
+    tol = resolve_tol(npz_dtype, tolerance, input_dtypes)
+    try:
+        np.testing.assert_allclose(
+            actual, reference, rtol=tol.rtol, atol=tol.atol, equal_nan=True
+        )
+    except AssertionError as exc:
+        raise ProptestComparatorError(
+            f"output {name!r} diverges "
+            f"(dtype={reference.dtype}, rtol={tol.rtol:g}, "
+            f"atol={tol.atol:g})\n{exc}"
+        ) from exc
 
 
 def _make_no_check_target(target: TractNNEF) -> TractNNEF:
@@ -72,11 +145,6 @@ def _run_tract(cmd: T.List[str]) -> None:
         )
 
 
-def _torch_dtype_from_numpy(np_dtype: np.dtype) -> torch.dtype:
-    """Numpy -> torch dtype lookup for tolerance dispatch."""
-    return NUMPY_TO_TORCH_DTYPE[np.dtype(np_dtype).type]
-
-
 def _compare_npz(
     reference_npz: Path,
     actual_npz: Path,
@@ -86,12 +154,9 @@ def _compare_npz(
 ) -> None:
     """Compare two NPZ files per-output with NaN/Inf-aware semantics.
 
-    `input_dtypes` is the list of dtypes of the original PyTorch inputs.
-    f16/bf16 outputs are cast to f32 during NPZ serialization (see
-    `model_wrapper.py:write_output_npz`), which would otherwise cause
-    the comparator to look up the f32 (strict) tolerance for what was
-    really an f16 computation. We work around that by using the loosest
-    tolerance among (NPZ ref dtype) and (input dtypes).
+    `input_dtypes` is the list of dtypes of the original PyTorch inputs;
+    see `resolve_tol` for why they matter. The per-array comparison lives
+    in `compare_arrays` so the ONNX backend applies the same policy.
     """
     ref_bundle = np.load(reference_npz)
     act_bundle = np.load(actual_npz)
@@ -102,38 +167,13 @@ def _compare_npz(
             f"tract output NPZ is missing keys: {sorted(missing)} (got {got})"
         )
     for name in output_names:
-        ref = ref_bundle[name]
-        act = act_bundle[name]
-        if ref.shape != act.shape:
-            raise ProptestComparatorError(
-                f"shape mismatch on output {name!r}: "
-                f"ref={ref.shape} vs tract={act.shape}"
-            )
-        npz_dtype = _torch_dtype_from_numpy(ref.dtype)
-        if not dtype_is_floating_point(npz_dtype):
-            if not np.array_equal(ref, act):
-                raise ProptestComparatorError(
-                    f"non-float output {name!r} differs (dtype={ref.dtype})\n"
-                    f"ref={ref}\ntract={act}"
-                )
-            continue
-        # Pick the loosest tolerance among the NPZ dtype and any float
-        # input dtypes (f16 -> 100x looser than f32).
-        candidates = [npz_dtype] + [
-            d for d in input_dtypes if dtype_is_floating_point(d)
-        ]
-        candidate_tols = [lookup_tol(d, tolerance) for d in candidates]
-        tol = max(candidate_tols, key=lambda t: max(t.rtol, t.atol))
-        try:
-            np.testing.assert_allclose(
-                act, ref, rtol=tol.rtol, atol=tol.atol, equal_nan=True
-            )
-        except AssertionError as exc:
-            raise ProptestComparatorError(
-                f"output {name!r} diverges "
-                f"(dtype={ref.dtype}, rtol={tol.rtol:g}, atol={tol.atol:g})\n"
-                f"{exc}"
-            ) from exc
+        compare_arrays(
+            ref_bundle[name],
+            act_bundle[name],
+            name=name,
+            tolerance=tolerance,
+            input_dtypes=input_dtypes,
+        )
 
 
 def assert_outputs_close_nan_aware(
