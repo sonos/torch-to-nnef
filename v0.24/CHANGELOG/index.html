@@ -3905,6 +3905,34 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#0245-2026-07-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.24.5] - 2026-07-28
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.24.5] - 2026-07-28">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#0244-2026-07-28" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4017,7 +4045,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -4106,7 +4134,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -4206,7 +4234,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_2" class="md-nav__link">
+  <a href="#changed_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -4256,7 +4284,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_3" class="md-nav__link">
+  <a href="#changed_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -4378,7 +4406,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_4" class="md-nav__link">
+  <a href="#changed_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -4428,7 +4456,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_5" class="md-nav__link">
+  <a href="#changed_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -8376,6 +8404,34 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#0245-2026-07-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.24.5] - 2026-07-28
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.24.5] - 2026-07-28">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#0244-2026-07-28" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8488,7 +8544,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -8577,7 +8633,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -8677,7 +8733,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_2" class="md-nav__link">
+  <a href="#changed_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -8727,7 +8783,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_3" class="md-nav__link">
+  <a href="#changed_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -8849,7 +8905,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_4" class="md-nav__link">
+  <a href="#changed_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -8899,7 +8955,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_5" class="md-nav__link">
+  <a href="#changed_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -12834,6 +12890,13 @@
 
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 <h1 id="changelog">Changelog</h1>
+<h2 id="0245-2026-07-28">[0.24.5] - 2026-07-28</h2>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>The support page's two tabs are now comparable.</strong> The <code>ONNX</code> bars were computed over a measured-only denominator (<code>108/108</code> core, <code>278/296</code> overall, i.e. "of what we tested, how much passed"), so they rendered near-full next to <code>TractNNEF</code>'s <code>130/139</code> and read as the opposite of what the numbers said. Both tabs now use the same denominators, in the same order (core opset size, then the full <code>aten::</code> listing), through one shared helper. The <code>ONNX</code> numerator credits measured <code>full</code> <strong>plus</strong> <code>✅*</code> (claimed by the retired TorchScript listing and never contradicted by a measurement of ours), since an operator no proptest spec covers is a gap in our own coverage rather than an ONNX gap: rows with neither a measurement nor a claim stay out, and a measured <code>partial</code> / <code>none</code> / <code>blocked</code> overrides any claim. The tabs now read <code>133/139</code> core and <code>370/581</code> overall for <code>ONNX</code> against <code>130/139</code> and <code>410/581</code> for <code>TractNNEF</code>, with the strict measured-only ratios (<code>108/108</code> core, <code>278/296</code> overall) kept in the caption underneath.</li>
+<li><strong>New <code>Gap vs ONNX</code> filter on the <code>TractNNEF</code> tab</strong>: the 20 operators the <code>ONNX</code> tab credits and <code>torch_to_nnef</code> does not, which is the implementation shortlist and the one question neither table can answer alone. Six of them are core opset (<code>as_strided</code>, <code>empty</code>, <code>masked_scatter</code>, <code>nonzero</code>, <code>rand</code>, <code>randn</code>).</li>
+<li><strong>Support-page filters now say what they select, carry their row count, and disappear when empty.</strong> <code>None</code> next to <code>All</code> read as "select nothing" and <code>Blocked</code> never said blocked by what, so they became <code>Never exports</code> and <code>Blocked before ONNX</code> (with <code>Full</code> / <code>Partial</code> following as <code>Exports fully</code> / <code>Exports partially</code>); every label carries the number of rows it selects, and a mode matching zero rows is not rendered at all. The <code>export</code> column legend moves out of a prose paragraph into its own admonition next to the table it describes, and the <code>TractNNEF</code> first column header becomes <code>export&amp;run</code>.</li>
+</ul>
 <h2 id="0244-2026-07-28">[0.24.4] - 2026-07-28</h2>
 <h3 id="added">Added</h3>
 <ul>
@@ -12871,7 +12934,7 @@
 <li><strong>Reduced Q40 tensor writer memory</strong>: Q40 serialization streams compact writes instead of buffering the whole tensor, lowering peak memory when exporting Q40-quantized models.</li>
 <li><code>examples/nemo_asr</code>: pin <code>ndarray-npy</code> to <code>0.9</code> (matches tract's ndarray <code>0.16</code>; <code>0.10</code> pulled ndarray <code>0.17</code> and broke the <code>WriteNpyExt</code> bound).</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li><strong>Opaque (quantized / offloaded) params are traced as <code>meta</code> tensors</strong> instead of being materialized as constants during tracing, cutting export-time memory. View/shape ops keep the meta placeholder; constant-index ops (embedding, reshape sizes, gather indices) and integer opaque params still materialize.</li>
 <li><strong>Offload-state dispatch is now generic</strong> (registry-based), decoupling <code>OffloadedTensor</code> from the concrete <code>QTensor</code> so any opaque/quantized tensor type can round-trip through offload.</li>
@@ -12945,7 +13008,7 @@
 <li><strong>Streaming-friendly <code>aten::unfold</code> handler.</strong> Static unfold axis keeps the existing slice-stack lowering (cheap, no extra compute). When the unfold axis is flagged as a streaming dim (via <code>change_dynamic_axes</code>), the handler emits a new <code>unfold</code> NNEF fragment that lowers to a 1D convolution with an identity kernel of shape <code>(size, 1, size)</code>. Tract's existing <code>Conv</code> pulsifier handles the streaming case natively, so unfold over a <code>STREAM</code> axis works without any tract-side changes. Round-tripped in <code>tests/test_dynamic_axes.py</code> for rank-2 (last axis) and rank-3 (middle axis) inputs.</li>
 <li><strong><code>examples/speech_enhancement/dpdfnet/export_pulse.py</code></strong> and companion <code>wav-cleaner-pulse/</code> Rust wrapper: streaming-friendly DPDFNet export that folds the rolling STFT, NN, iSTFT, OLA, and GRU state into a single streaming-axis NNEF artifact, with tract pulse mode handling buffering and state downstream.</li>
 </ul>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li><strong>Breaking: artifact output is suffix-steered.</strong> <code>export_model_to_nnef</code> now selects the output form from the path suffix (<code>None</code> -&gt; directory, <code>0</code> -&gt; <code>.tar</code>, <code>1..9</code> -&gt; <code>.tgz</code> at the matching compression level; default <code>0</code>) and returns the path to the produced artifact. Callers relying on the previous fixed output shape must update accordingly.</li>
 <li><strong><code>trust_remote_code</code> is now opt-out</strong> (LLM): the exporters default to trusting remote code (matching prior behaviour) but emit a warning, and a new <code>--no-trust-remote-code</code> CLI flag disables it for untrusted Hugging Face repositories.</li>
@@ -12994,7 +13057,7 @@
 <li>Parakeet V3 and MarbleNet VAD export tests for NeMo.</li>
 <li>Runtime warning when STFT is used with tract 0.21.14/0.21.15 (known slice-fusion bug).</li>
 </ul>
-<h3 id="changed_2">Changed</h3>
+<h3 id="changed_3">Changed</h3>
 <ul>
 <li>Officially supported tract versions bumped to 0.22.1 and 0.21.15.</li>
 <li>LLM CI matrix now tests transformers 5.0.0 and 5.5.0 on Python 3.13 (replaces 4.55.0).</li>
@@ -13014,7 +13077,7 @@
 <li>tract 0.22.1 on linux x86_64: <code>OptMatMulPack</code> tries to pack F32 tensors as PackedF16 when <code>force_f32_attention=True</code>.</li>
 </ul>
 <h2 id="0230-2026-04-10">[0.23.0] - 2026-04-10</h2>
-<h3 id="changed_3">Changed</h3>
+<h3 id="changed_4">Changed</h3>
 <ul>
 <li>Split into 3 independent packages in a uv workspace monorepo:</li>
 <li><code>torch_to_nnef</code> (core) -- base export library, Python &gt;=3.9</li>
@@ -13088,7 +13151,7 @@
 <li>Tract option: <code>--tract-reify-sdpa</code> to reify SDP attention for improved tract optimizations.</li>
 <li>Versioning: new SemVer 2.0 utilities (<code>SemanticVersion</code>) and helpers integrated; enables correct prerelease/build handling and consistent version comparisons across the codebase.</li>
 </ul>
-<h3 id="changed_4">Changed</h3>
+<h3 id="changed_5">Changed</h3>
 <ul>
 <li>NNEF export artifacts: honoring <code>.nnef.tgz</code> as an intent for the final archive while always writing to the base <code>.nnef</code> path internally; consistent selection of directory (<code>compression=None</code>), <code>.tar</code> (<code>0</code>), or <code>.tgz</code> (<code>1..9</code>).</li>
 <li>Writer: explicit <code>archive_format</code> for predictable <code>.tar</code> vs <code>.tgz</code> emission; avoids unnecessary fragment extensions for Tract targets.</li>
@@ -13116,7 +13179,7 @@
 <li>Analysis tooling for debugging batch-mode encoder issues and SDPA operator behavior</li>
 <li>Support for runtime config in nemo tract rust example to better control the runner.</li>
 </ul>
-<h3 id="changed_5">Changed</h3>
+<h3 id="changed_6">Changed</h3>
 <ul>
 <li>Export performance significantly improved via shape inference speculation system - avoiding redundant model executions during export by guessing shapes for common operations</li>
 <li>NeMo evaluation framework restructured with modular dataset handling, manifest comparison tools, and batch alignment verification utilities</li>

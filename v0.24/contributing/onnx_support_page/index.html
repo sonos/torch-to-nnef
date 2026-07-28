@@ -3787,6 +3787,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reading-the-headline-bars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the headline bars
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reading-a-grade" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4065,6 +4076,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reading-the-headline-bars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the headline bars
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reading-a-grade" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4175,6 +4197,23 @@ rather than different draws. For a deeper sweep:</p>
 </span></code></pre></div>
 <p>A <code>nightly</code> result supersedes a <code>ci</code> one for reuse purposes (more examples
 is strictly more evidence); the reverse is refused.</p>
+<h2 id="reading-the-headline-bars">Reading the headline bars</h2>
+<p>Both bars use the <strong>same denominators as the <code>TractNNEF</code> tab</strong>: the core
+opset size first, then the full <code>aten::</code> listing. That is what makes the
+two tabs comparable at a glance; a bar over "the operators we measured"
+renders near-full whatever the coverage is, and sits next to a bar that
+means something else entirely.</p>
+<p>The numerator is read the same generous way, and this is deliberate: it
+counts what we measured as <code>full</code> <strong>plus</strong> what the retired listing
+claimed and no spec of ours has checked (<code>✅*</code>). Those operators are
+unverified, but the reason they are unverified is a gap in <em>our</em> test
+coverage, and scoring that against ONNX would understate a competing
+exporter for our own shortfall. Rows with neither a measurement nor a
+claim (<code>-</code>) stay out: crediting a claim is not the same as crediting
+silence, and a measured <code>partial</code> or <code>none</code> overrides any claim.</p>
+<p>The caption under the bars splits the two populations apart, so the
+strict "of what we actually tested, how much passed" ratio is still one
+line away.</p>
 <h2 id="reading-a-grade">Reading a grade</h2>
 <p>The <code>export</code> column grades operator coverage only:</p>
 <table>
@@ -4211,11 +4250,14 @@ is strictly more evidence); the reverse is refused.</p>
 </tr>
 </tbody>
 </table>
-<p>Only ✅ / 🟡 / ❌ are measurements. <strong>✅* is an unverified historical claim</strong>
-and is excluded from every count on the page: it exists so the two kinds of
-"we don't know" stay distinguishable, since an operator the old listing
-called supported is a better bet (and a better candidate for a new spec)
-than one nobody ever said anything about. Both are filterable separately.</p>
+<p>Only ✅ / 🟡 / ❌ are measurements. <strong>✅* is an unverified historical
+claim</strong>: the <a href="#reading-the-headline-bars">headline bars</a> count it, so an
+operator we never wrote a spec for is not scored against ONNX, while the
+measured breakdown in the caption excludes it. The state exists so the two
+kinds of "we don't know" stay distinguishable, since an operator the old
+listing called supported is a better bet (and a better candidate for a new
+spec) than one nobody ever said anything about. Both are filterable
+separately.</p>
 <p><code>runtime</code> (does onnxruntime load and run the exported graph) and
 <code>numerics</code> (do its outputs match PyTorch) are reported as separate columns
 on purpose. A graph that exports but diverges numerically is usually a
@@ -4255,7 +4297,7 @@ rather than silently mis-attributing its grade.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 27, 2026 18:42:43 UTC">July 27, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 28, 2026 08:37:54 UTC">July 28, 2026</span>
   </span>
 
     
