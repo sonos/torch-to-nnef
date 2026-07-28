@@ -64,6 +64,14 @@ def _registered_aten_ops() -> T.Set[str]:
 #: broke rather than the page changing.
 _MIN_PARSED_ROWS = 100
 
+#: The column header unique to the TractNNEF table (the ONNX one has
+#: `export` / `runtime` / `numerics` instead).
+_TRACT_HEADER = "export&amp;run"
+
+#: The row classes that table is built from. Both must occur, or the
+#: parse is reading a vocabulary the generator no longer emits.
+_EXPECTED_ROW_CLASSES = ("supported", "unsupported")
+
 
 def _tract_table_lines() -> T.List[str]:
     """Just the `TractNNEF` table's lines.
@@ -81,8 +89,24 @@ def _tract_table_lines() -> T.List[str]:
         f"no <table> found in {SUPPORT_PAGE.name}: the generator's output "
         "shape changed, and every page-based check here is now blind"
     )
-    end = table_starts[1] if len(table_starts) > 1 else len(lines)
-    return lines[table_starts[0] : end]
+    # Identified by its header, not by being first. Both tables carry the
+    # same ~580 rows, so if the generator ever emits the ONNX tab first,
+    # a positional pick would hand every check below a table about a
+    # different exporter and no row count would notice.
+    for index, start in enumerate(table_starts):
+        end = (
+            table_starts[index + 1]
+            if index + 1 < len(table_starts)
+            else len(lines)
+        )
+        block = lines[start:end]
+        if any(_TRACT_HEADER in line for line in block):
+            return block
+    raise AssertionError(
+        f"no table in {SUPPORT_PAGE.name} has a {_TRACT_HEADER!r} column, "
+        "so the TractNNEF table cannot be told apart from the ONNX one. "
+        "The generator's header changed; update `_TRACT_HEADER`."
+    )
 
 
 def _page_unsupported_ops() -> T.Set[str]:
@@ -91,25 +115,36 @@ def _page_unsupported_ops() -> T.Set[str]:
     Read from the generated page rather than recomputed, so this checks
     what a reader actually sees.
     """
-    names, parsed = set(), 0
+    names, parsed, seen_classes = set(), 0, set()
     for line in _tract_table_lines():
         match = _ROW_RE.search(line)
         if match is None:
             continue
         parsed += 1
-        if "unsupported" not in match.group(1).split():
+        classes = match.group(1).split()
+        seen_classes.update(classes)
+        if "unsupported" not in classes:
             continue
         cells = _CELL_RE.findall(match.group(2))
         if len(cells) > 1:
             names.add(_TAG_RE.sub("", cells[1]))
-    # Without this, a change to the generator's row markup makes the
-    # regex match nothing, every set below becomes empty, and the
-    # coverage checks pass by describing an empty page.
+    # Two ways the parse can go blind, and the row count only catches
+    # the first: the markup stops matching `_ROW_RE` at all, or the row
+    # *classes* get renamed so every row parses and none is recognised.
+    # Either way the coverage checks below would pass by describing an
+    # empty page, which is the outcome they exist to prevent.
     assert parsed >= _MIN_PARSED_ROWS, (
         f"parsed only {parsed} rows from {SUPPORT_PAGE.name} (expected at "
         f"least {_MIN_PARSED_ROWS}). `_ROW_RE` no longer matches what "
         "`generate_support_page.py` emits, so the coverage checks in this "
         "module are blind rather than passing."
+    )
+    missing = [c for c in _EXPECTED_ROW_CLASSES if c not in seen_classes]
+    assert not missing, (
+        f"parsed {parsed} rows from {SUPPORT_PAGE.name} but none carries "
+        f"the {missing} class. The generator renamed its row classes, so "
+        "this module reads every row as supported and its coverage "
+        "checks are blind rather than passing."
     )
     return names
 
@@ -205,38 +240,76 @@ def test_gap_spec_declares_aten_ops(spec: OpSpec):
 
 
 @pytest.mark.parametrize("spec", GAP_SPECS, ids=lambda s: s.name)
-def test_gap_operators_are_absent_from_the_registry(spec: OpSpec):
-    """No operator with a gap spec may have an emitter, whatever the stage.
+def test_gap_registry_state_matches_the_declared_stage(spec: OpSpec):
+    """The registry must agree with what the gap says about it.
 
     The cheap half of the anti-rot check: it catches the exact moment
-    someone registers the operator, without exporting anything.
+    someone registers an operator, without exporting anything.
 
-    Every stage is checked, not just `no-emitter`. A gap spec means we
-    ship no translation, so an emitter appearing under any of them is the
-    gap closing. That matters most for the stages the export driver
-    cannot police on its own: `export-error` accepts any `T2NError`, so a
-    spec whose module also exercises a second untranslated operator (the
-    `linalg` solvers, which factorize first) would keep passing on *that*
-    failure long after its own operator was implemented.
+    Which way it points depends on `emitter_registered`, because the
+    stages disagree about whether an emitter exists. `no-emitter` means
+    nothing is registered. `tract-error` is the opposite: NNEF has to be
+    written before tract can refuse it, so an emitter *must* exist, and a
+    blanket "must be absent" rule would make that stage impossible to
+    declare. `export-error` is either, depending on whether the pipeline
+    died before the lookup or an emitter rejected the configuration.
+
+    Checking every stage, not just `no-emitter`, is what keeps a spec
+    from passing on someone else's failure: the `linalg` solvers
+    factorize first, so `lu_solve` would keep failing on `lu_factor`
+    long after `lu_solve` itself was implemented.
 
     Lookup goes through `registry_lookup_names`, because `aten_ops`
-    carries the support-page row name and an emitter registers under the
-    name torch dispatches: `gamma` arrives as `_standard_gamma`, so
-    comparing row names alone would never fire for it.
+    carries the support-page row name while an emitter registers under
+    the name torch dispatches (`gamma` arrives as `_standard_gamma`).
     """
-    assert spec.nnef_gap is not None
+    gap = spec.nnef_gap
+    assert gap is not None
     registered = _registered_aten_ops()
     found = {
         op: [k for k in registry_lookup_names(op) if k in registered]
         for op in spec.aten_ops
     }
+
+    if gap.emitter_registered:
+        missing = sorted(op for op, keys in found.items() if not keys)
+        assert not missing, (
+            f"spec {spec.name!r} declares a `{gap.stage.value}` gap with "
+            f"`emitter_registered=True`, but {missing} has no emitter. "
+            "Either the emitter was removed (drop the flag, and the "
+            "stage is now `no-emitter`), or the flag was set by mistake."
+        )
+        return
+
     hits = {op: keys for op, keys in found.items() if keys}
     assert not hits, (
-        f"spec {spec.name!r} declares a `{spec.nnef_gap.stage.value}` gap "
-        f"but an emitter is registered: {hits}. The gap is closed, so "
-        "delete `nnef_gap=...` from the spec (it already sits in the "
-        "themed module it belongs in), give it a `tolerance` if the "
-        "comparison needs one, and regenerate the support page."
+        f"spec {spec.name!r} declares a `{gap.stage.value}` gap but an "
+        f"emitter is registered: {hits}. Either the gap is closed, in "
+        "which case delete `nnef_gap=...` from the spec (it already sits "
+        "in the themed module it belongs in), give it a `tolerance` if "
+        "the comparison needs one, and regenerate the support page; or "
+        "the failure is downstream of that emitter, in which case set "
+        "`emitter_registered=True` on the gap."
+    )
+
+
+@pytest.mark.parametrize("spec", GAP_SPECS, ids=lambda s: s.name)
+def test_tract_error_gaps_declare_their_emitter(spec: OpSpec):
+    """`tract-error` is only reachable once an emitter exists.
+
+    The stage means NNEF was written and tract then refused it, which
+    cannot happen without a translation. Catching the contradiction here
+    is friendlier than letting the registry check above fail with a
+    message about a gap that has closed.
+    """
+    gap = spec.nnef_gap
+    assert gap is not None
+    if gap.stage is not NnefGapStage.TRACT_ERROR:
+        pytest.skip(f"stage is {gap.stage.value}")
+    assert gap.emitter_registered, (
+        f"spec {spec.name!r} declares `tract-error` without "
+        "`emitter_registered=True`, but tract can only refuse a graph we "
+        "managed to write, which needs an emitter"
     )
 
 

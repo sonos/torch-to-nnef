@@ -83,12 +83,18 @@ def observe_nnef_gap(
         # strategy, and swallowing it as `raw-error` would turn a broken
         # spec into a passing one.
         #
-        # No bundle paths yet: the export needs the io *names*, but the
-        # NPZ payloads are only read by tract, which most gap specs never
-        # reach (a missing emitter raises during translation). Writing
-        # them up front would serialise two bundles per drawn example and
-        # throw them away with the tempdir.
-        input_names, output_names = build_io(model, inputs)
+        # One call, bundles and all, matching the comparator. Deferring
+        # the bundle write until tract is about to run would save two
+        # NPZs per example for the ~88% of specs that never get there,
+        # but it costs a second forward pass: tract would then be fed
+        # inputs captured *after* the export, which is a different run
+        # from the one the graph was traced from.
+        input_names, output_names = build_io(
+            model,
+            inputs,
+            input_bundle_path=inputs_npz,
+            output_bundle_path=outputs_ref_npz,
+        )
         try:
             exported = export_model_to_nnef(
                 model=model,
@@ -109,16 +115,6 @@ def observe_nnef_gap(
             # Not a refusal but a crash: the exporter was supposed to
             # turn every failure into a `T2NError` naming the operator.
             return NnefGapStage.RAW_ERROR
-        # The export survived, so tract is about to run and now needs the
-        # reference bundles on disk.
-        build_io(
-            model,
-            inputs,
-            input_bundle_path=inputs_npz,
-            output_bundle_path=outputs_ref_npz,
-            input_names=input_names,
-            output_names=output_names,
-        )
         try:
             run_tract(
                 inference_target.tract_cli.run_save_outputs_cmd_str(

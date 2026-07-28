@@ -190,7 +190,7 @@ someone planning to close the gap needs to know:
 | --- | --- |
 | `no-emitter` | nothing is registered for the operator at all |
 | `export-error` | an emitter refuses, or the pipeline raises earlier (the RNG factories are constant-folded before the lookup) |
-| `tract-error` | NNEF is written and tract then declines to load or run it |
+| `tract-error` | NNEF is written and tract then declines to load or run it. Needs an emitter to exist, so the gap must also set `emitter_registered=True`, which inverts the registry check from "must be absent" to "must be present" |
 | `raw-error` | the export crashed with something that is not a `T2NError`, so the user gets a bare `TypeError` instead of a message naming the operator. Always a bug on our side, whether or not we ever translate the operator |
 
 Specs whose op draws from an RNG also set `nondeterministic=True`. Export

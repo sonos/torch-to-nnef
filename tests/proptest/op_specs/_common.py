@@ -70,6 +70,18 @@ class NnefGap:
     #: failure when the gap closes, so make it the sentence a reader
     #: needs to decide whether closing it is now the right move.
     reason: str
+    #: True when an emitter *does* exist and the failure happens after
+    #: it, which is the only way to reach `tract-error` (NNEF has to be
+    #: written before tract can refuse it) and one of the two ways to
+    #: reach `export-error` (an emitter that rejects this configuration,
+    #: as opposed to the pipeline dying before the lookup).
+    #:
+    #: The registry guard reads this: with it False the operator must be
+    #: absent from the registry, with it True the operator must be
+    #: present. Without the flag a `tract-error` gap could not be
+    #: declared at all, since the guard would read its emitter as proof
+    #: the gap had closed.
+    emitter_registered: bool = False
     #: Optional tracking issue / PR, when closing the gap is planned.
     tracked_by: T.Optional[str] = None
 

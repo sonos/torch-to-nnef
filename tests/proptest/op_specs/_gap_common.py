@@ -46,6 +46,7 @@ def gap_spec(
     stage: NnefGapStage = NnefGapStage.NO_EMITTER,
     nondeterministic: bool = False,
     tracked_by: T.Optional[str] = None,
+    emitter_registered: bool = False,
 ) -> OpSpec:
     """One spec for one operator we do not translate.
 
@@ -59,7 +60,12 @@ def gap_spec(
         name=op,
         sample_st=sample_st,
         aten_ops=(op,),
-        nnef_gap=NnefGap(stage=stage, reason=reason, tracked_by=tracked_by),
+        nnef_gap=NnefGap(
+            stage=stage,
+            reason=reason,
+            tracked_by=tracked_by,
+            emitter_registered=emitter_registered,
+        ),
         nondeterministic=nondeterministic,
     )
 
