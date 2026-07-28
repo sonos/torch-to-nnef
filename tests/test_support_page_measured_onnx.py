@@ -445,9 +445,7 @@ class TestFilterModeLabels:
 
     def test_blocked_label_says_blocked_by_what(self, gen):
         """It is a `torch.export` failure, never an ONNX verdict."""
-        labels = dict(
-            (value, label) for value, label in gen.GRADED_FILTER_MODES
-        )
+        labels = {value: label for value, label in gen.GRADED_FILTER_MODES}
         assert labels["blocked"] == "Blocked before ONNX"
 
 

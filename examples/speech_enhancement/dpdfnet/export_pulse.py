@@ -323,7 +323,7 @@ class DPDFNetMaskOnly(torch.nn.Module):
     Drops the ``df_op`` head (see module docstring).
     """
 
-    def __init__(self, inner: "DPDFNet") -> None:  # noqa: F821
+    def __init__(self, inner: DPDFNet) -> None:  # noqa: F821
         super().__init__()
         self.inner = inner
 

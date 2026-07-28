@@ -151,5 +151,5 @@ We follow the `.dat` format specification defined in [the Khronos spec](https://
 including support for q8 quantization.
 We also leverage the flexibility left to define new formats, for example:
 `Q4_0` .dat files in a format that is close to isolated [GGML_TYPE_Q4_0](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md),
-and can be exported to tract with our package seamlessly as explained
+and can be exported to tract with our package as explained
 in the [quantization tutorial](../6_quantization).

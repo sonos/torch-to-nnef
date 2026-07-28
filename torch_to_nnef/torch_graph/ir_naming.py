@@ -52,11 +52,12 @@ def apply_nnef_variable_naming_scheme(
         if scheme == VariableNamingScheme.RAW:
             return
         torch_ir_graph.data_nodes.avoid_name_collision = True  # safety
-        {
+        renamers: T.Dict[VariableNamingScheme, T.Callable[..., None]] = {
             VariableNamingScheme.NATURAL_VERBOSE: rename_natural_verbose,
             VariableNamingScheme.NATURAL_VERBOSE_CAMEL: rename_natural_verbose_camel,  # noqa: E501
             VariableNamingScheme.NUMERIC: rename_compact_numeric,
-        }[scheme](torch_ir_graph)
+        }
+        renamers[scheme](torch_ir_graph)
         torch_ir_graph.data_nodes.avoid_name_collision = False
         return
 

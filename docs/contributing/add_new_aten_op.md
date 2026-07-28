@@ -21,7 +21,7 @@ You do not need:
 - compiler experience
 - deep PyTorch internals knowledge
 
-Most operator implementations are 50–150 lines of Python and can be completed in 1–2 evenings.
+Most operator implementations are 50-150 lines of Python and can be completed in 1-2 evenings.
 
 ## Introduction
 

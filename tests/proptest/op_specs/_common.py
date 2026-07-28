@@ -1,7 +1,7 @@
 """Shared types for the proptest op_specs package.
 
 `OpSpec` and `OpSample` are the public types every spec module produces;
-`_unary_sample_st` is the only sample-strategy helper genuinely shared
+`_unary_sample_st` is the only sample-strategy helper actually shared
 across multiple op groups (elementwise unary, activations, conv/pool input
 generation). Group-specific helpers (binary broadcast, pow variants, the
 unary-domain constants) live in their consumer module.

@@ -473,7 +473,7 @@ def _resolve_snapshot_dir(slug: str, huggingface_hub) -> str:
     ``list_repo_files`` has no cache mode and hits the rate-limited ``/tree``
     endpoint even for an already-cached model, so prefer ``snapshot_download``
     with ``local_files_only=True`` (no hub call when cached) and fall back to a
-    networked ``snapshot_download`` only on a genuine cache miss (whose
+    networked ``snapshot_download`` only on a real cache miss (whose
     transient failures the LLMExporter.load retry then covers).
     """
     # local import: huggingface_hub is an optional extra (injected), so it is

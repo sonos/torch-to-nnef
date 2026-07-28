@@ -213,7 +213,7 @@ def test_dummy_chain_parity():
 def test_dummy_dynamic_resolution_multi_size():
     """Export the vision tower ONCE, run tract at several window counts.
 
-    Proves the window-count axes are genuinely dynamic (not baked) end to end,
+    Proves the window-count axes are truly dynamic (not baked) end to end,
     exercising both windowed and full-attention blocks.
     """
     exporter = build_dummy_exporter(

@@ -17,7 +17,7 @@ the same machine, both warm (model loaded, first call discarded):
 | **Our tract FP16** (`--fp16`)   | **9.94×**                 | **9.88×**             |
 
 Tract FP16 is at parity with Kyutai's PyTorch FP32 reference on M4 Pro
-(slight edge on the canonical phrase, slight deficit on TIMIT — within
+(slight edge on the canonical phrase, slight deficit on TIMIT, both within
 noise).
 
 GPU (Metal) is currently a small win: bulk-mode Mimi runs ~5× faster
@@ -55,7 +55,7 @@ Single-voice deployable on disk (`MODE=full` after `./run.sh`):
 
 The two FlowLM graphs duplicate weights (separate NNEF archives); a
 shared-asset packaging step would shave another ~150 MB. `flow_net`
-and `mimi_decode` are still fp32 — fp16 export there is an open
+and `mimi_decode` are still fp32: fp16 export there is an open
 follow-up (~40 MB more saved if validated).
 
 ## Status
@@ -67,7 +67,7 @@ initial bulk-mode revision:
   Total wall ≈ max(AR loop, Mimi decode). Surfaced two tract pulse-mode
   bugs (LCM-merge of stream-axis dims, Deconv overlap-add bias double-add)
   that are tracked in tract PRs #2202 and #2204.
-- ✅ **fp16 export** for FlowLM (`--fp16`) — halves the FlowLM disk
+- ✅ **fp16 export** for FlowLM (`--fp16`): halves the FlowLM disk
   footprint and ~13% per-step speedup. Surfaced an `aten::layer_norm`
   upcast gap in t2n (mirrored from `batch_norm`'s `force_norm_in_f32`
   pattern in this PR).
@@ -85,7 +85,7 @@ Known follow-ups (none blocking):
 - **`past_kv.clone()` per step** in the autoregressive loop: ~8.6 MB
   redundant alloc per step at full dims. Could be amortised by a
   ring-buffer or by exposing the cache as a runtime-managed tensor.
-- `flow_lm_init` traces at static `(T_TEXT, T_VOICE)` — different text
+- `flow_lm_init` traces at static `(T_TEXT, T_VOICE)`: different text
   length needs a re-export. Tract symbol relations would lift this.
 - Three small wrappers around `pocket_tts` (`BulkSelfAttention`,
   `replace_streaming_with_stateless`, a SentencePiece stub for the mini

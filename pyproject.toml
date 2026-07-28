@@ -205,7 +205,10 @@ disable = [
 max-attributes = 15
 
 [tool.mypy]
-python_version = "3.9"
+# Matches the supported range in `classifiers` and the CI matrix (3.10 to
+# 3.14). It was 3.9, which made mypy reject the `zip(..., strict=True)` and
+# `X | Y` syntax already used throughout the codebase.
+python_version = "3.10"
 ignore_missing_imports = true
 
 

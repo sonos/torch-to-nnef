@@ -64,19 +64,22 @@ def _gather_extra_modules(
         mods.extend([m.strip() for m in env_mods.split(",") if m.strip()])
     if discover_extra_entrypoints:
         eps = importlib_metadata.entry_points()
-        group = (
-            eps.select(group="torch_to_nnef.extras")
-            if hasattr(eps, "select")
-            else eps.get("torch_to_nnef.extras", [])
-        )
-        for ep in group:  # type: ignore[assignment]
-            val = getattr(ep, "value", None) or getattr(ep, "module", "")
+        group: T.Iterable[T.Any]
+        if hasattr(eps, "select"):
+            group = eps.select(group="torch_to_nnef.extras")
+        else:
+            # importlib.metadata before 3.10 returned a plain dict.
+            group = eps.get(  # type: ignore[attr-defined]
+                "torch_to_nnef.extras", []
+            )
+        for ep in group:
+            val: str = (
+                getattr(ep, "value", None) or getattr(ep, "module", "") or ""
+            )
             mod_path = val.split(":", 1)[0]
             if mod_path:
                 mods.append(mod_path)
-    # Dedup, preserve order
-    seen: set[str] = set()
-    return [m for m in mods if not (m in seen or seen.add(m))]
+    return dedup_list(mods)
 
 
 def _import_extra_modules(mods_to_import: T.List[str], strict: bool) -> None:
@@ -124,11 +127,9 @@ def _infer_outputs_via_forward(
             NotImplementedError,
         ) as err:
             raise T2NErrorInvalidArgument(
-                (
-                    "skip_eager_forward requested but meta forward failed; "
-                    "provide CPU/meta kernels for custom ops or disable "
-                    "the flag."
-                )
+                "skip_eager_forward requested but meta forward failed; "
+                "provide CPU/meta kernels for custom ops or disable "
+                "the flag."
             ) from err
 
     try:
@@ -398,10 +399,8 @@ def export_model_to_nnef(
         custom_extensions, list
     ):
         raise T2NErrorInvalidArgument(
-            (
-                "custom extensions should be a list, because some extensions "
-                "may be order sensitive (in tract)."
-            )
+            "custom extensions should be a list, because some extensions "
+            "may be order sensitive (in tract)."
         )
 
     # Optionally load external custom-op handler modules. Handlers registered
@@ -952,10 +951,8 @@ def _unsupported_module_alerter(inference_target: InferenceTarget):
         if rnnmod is not None and hasattr(rnnmod, "pack_padded_sequence"):
             orig_pack = rnnmod.pack_padded_sequence
             rnnmod.pack_padded_sequence = UnsupportedRaise(
-                (
-                    "'nn.utils.rnn.pack_padded_sequence' not supported by "
-                    "tract yet. Contribution welcome."
-                )
+                "'nn.utils.rnn.pack_padded_sequence' not supported by "
+                "tract yet. Contribution welcome."
             )
             did_patch_pack = True
         # Patch pad_packed_sequence

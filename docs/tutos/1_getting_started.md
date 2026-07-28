@@ -251,7 +251,7 @@ On classical networks, matrix multiplication operations should dominate the comp
 ## <span style="color:#6666aa">**:material-step-forward:  Step 5.**</span> :material-language-python: tract inference with Python
 
 We just created a great NNEF model, and it has been checked during export to get same output for same input
-between PyTorch and tract (thanks to the `check_io=True` option). That said you may now wish to
+between PyTorch and tract (thanks to the `check_io=True` option). You may now wish to
 interact with it to perform a fully fledged evaluation of the model (to ensure this new inference engine
 does not get imprecise results on some specific samples).
 

@@ -176,7 +176,7 @@ class DatBinHeader:
         This property interprets the ``item_type_vendor`` and ``item_type``
         fields to provide a convenient ``torch.dtype`` object
         for standard types or a ``TractCustomTypes`` enum member
-        for tract‑specific quantised formats.
+        for tract-specific quantised formats.
         """
         if self.item_type_vendor == self.TRACT_ITEM_TYPE_VENDOR:
             return self.TractCustomTypes(self.item_type)

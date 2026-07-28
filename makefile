@@ -1,15 +1,20 @@
 sources = torch_to_nnef packages/llm/torch_to_nnef_llm packages/nemo-asr/torch_to_nnef_nemo
 
-.PHONY: test format lint unittest coverage pre-commit clean
+.PHONY: test format lint prose unittest coverage pre-commit clean
 test: format lint unittest
 
 format:
 	isort $(sources) tests
 	ruff format $(sources) tests
 
-lint:
+# `prose` is a prerequisite rather than a recipe line: as a trailing line it
+# was unreachable, because the mypy step above it currently exits non-zero.
+lint: prose
 	ruff check $(sources) tests
 	mypy $(sources) tests
+
+prose:
+	python3 .github/scripts/check_prose.py
 
 unittest:
 	pytest

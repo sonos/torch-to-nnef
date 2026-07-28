@@ -15,7 +15,7 @@ Regression for the Qwen2.5-VL vision tower window_index
 (``index_padded[index_padded != -100]`` then ``argsort(window_index)``).
 
 The folds bake trace-time values, so they must NOT fire when the value depends
-on a dynamic axis (over-baking). Under ``dynamic_axes`` only genuine constants
+on a dynamic axis (over-baking). Under ``dynamic_axes`` only real constants
 (``.data``) fold; the dynamic-axes tests below export once with a symbolic axis
 and run tract at several sizes to catch a frozen shape/index. (``reshape``/
 ``view`` with ``-1`` needs no fold -- tract resolves it -- so it is only checked

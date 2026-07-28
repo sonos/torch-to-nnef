@@ -20,6 +20,7 @@ import json
 import logging
 import sys
 
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef_nemo.model_loader import load_asr_model_from_nemo_slug
 from torch_to_nnef_nemo.slug_extensions import (
     FINGERPRINTS_PATH,
@@ -38,6 +39,10 @@ def main() -> int:
         asr_model = load_asr_model_from_nemo_slug(slug)
         fp = fingerprint_from_asr_model(asr_model)
         LOGGER.info("  -> %s", fp)
+        if fp is None:
+            raise T2NErrorNotImplemented(
+                f"no encoder fingerprint could be derived for {slug!r}"
+            )
         out[slug] = fp.to_dict()
     FINGERPRINTS_PATH.write_text(
         json.dumps(out, indent=2, sort_keys=True) + "\n",

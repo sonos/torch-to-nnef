@@ -83,11 +83,11 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
    ```
 
    Branch prefixes:
-   * `feat/` — new features (new operators, handlers, …)
-   * `fix/` — bugfixes and hotfixes
-   * `chore/` — version bumps, CI/CD, packaging
-   * `docs/` — documentation only changes
-   * `test/` — test additions or fixes
+   * `feat/`: new features (new operators, handlers, …)
+   * `fix/`: bugfixes and hotfixes
+   * `chore/`: version bumps, CI/CD, packaging
+   * `docs/`: documentation only changes
+   * `test/`: test additions or fixes
 
 7. Make your changes locally.
 
@@ -138,10 +138,11 @@ The subject line should be ≤72 characters. Reference related issues where rele
 Formatting and linting are handled automatically by pre-commit (installed in step 5 above).
 On every commit, the following run automatically:
 
-* **ruff format** — auto-formats code (line length: 80)
-* **ruff check --fix** — lints and auto-fixes where possible
-* **mypy** — type-checks library code (excluding tests)
-* **pyupgrade** — modernises syntax to Python 3.7+
+* **ruff format**: auto-formats code (line length: 80)
+* **ruff check --fix**: lints and auto-fixes where possible
+* **mypy**: type-checks library code (excluding tests)
+* **pyupgrade**: modernises syntax to Python 3.7+
+* **prose check**: rejects banned characters and wording (see [Prose](#prose))
 * Standard file hygiene: trailing whitespace, CRLF, missing newlines, YAML/JSON/TOML validity
 
 Naming conventions follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
@@ -149,8 +150,40 @@ Naming conventions follow the [Google Python Style Guide](https://google.github.
 ### Docstrings
 
 Docstrings are written in [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings).
-They are **encouraged but not required on every item** — the linter will not fail on missing docstrings.
+They are **encouraged but not required on every item**: the linter will not fail on missing docstrings.
 Do add them for any public function or class that isn't self-explanatory, especially if you are adding new functionality.
+
+### Prose
+
+`.github/scripts/check_prose.py` scans every tracked text file, on each commit
+and on each pull request. It rejects two things.
+
+**Characters.** Typographic lookalikes: em dash (U+2014), en dash (U+2013),
+non-breaking hyphen (U+2011), curly quotes and apostrophes (U+2018, U+2019,
+U+201C, U+201D), non-breaking space (U+00A0), zero-width space (U+200B) and
+byte-order mark (U+FEFF). Write ASCII `-`, `'`, `"` and a plain space instead.
+Where one of these was separating clauses, rephrase with `:` or `,`, or split
+the sentence.
+
+This half is a correctness rule rather than a preference: U+2011 renders exactly
+like `-` but breaks `grep`, in-repo search and anchor links, and 25 of them had
+reached words such as `provider-agnostic` before the check existed. **It has no
+escape hatch: no pragma and no per-file exemption.**
+
+Emoji, box-drawing, arrows and mathematical symbols are all fine. Only the
+lookalikes above are rejected.
+
+**Wording.** A short list of words and phrases that read as machine-generated
+rather than written. `BUZZWORDS` and `HEDGING` in the script are the single
+source of truth, so run the check instead of memorising them.
+
+Vendored bundles, wasm-pack output and ASR data tables are out of scope, since
+we do not author them (see `NOT_OURS`).
+
+```bash
+make prose                                       # every tracked file
+python3 .github/scripts/check_prose.py FILE ...  # only these paths
+```
 
 ---
 

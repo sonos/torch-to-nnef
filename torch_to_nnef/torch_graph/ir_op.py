@@ -579,7 +579,7 @@ def _tensors_share_storage(left: torch.Tensor, right: torch.Tensor) -> bool:
 
 @dataclass(frozen=True)
 class InferRule:
-    fn: T.Optional[T.Callable[T.Any, torch.Size]]
+    fn: T.Optional[T.Callable[..., torch.Size]]
     arity: int
     require_dtype: bool = True
     identity: bool = False
@@ -889,6 +889,9 @@ class TorchOp:
         if self.has_constant_inputs:
             return self.call_op()
 
+        if rule.fn is None:
+            # Only identity rules omit `fn`, and those returned above.
+            return self.call_op()
         return _build_empty_tensor_from_infer_trace(
             rule.fn, self.args, rule.arity
         )
