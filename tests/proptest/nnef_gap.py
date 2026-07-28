@@ -129,8 +129,17 @@ def assert_nnef_gap(
         raise NnefGapMismatch(
             f"spec {spec_name!r} declares a `{gap.stage.value}` t2n gap, "
             "but the model exported and ran under tract. The gap is "
-            "closed: drop `nnef_gap` so the spec starts guarding the "
-            "translation, and regenerate the support page.\n"
+            "closed, so finish the job:\n"
+            f"  1. delete `nnef_gap=...` from the {spec_name!r} spec. It "
+            "already lives in the themed module it belongs in, so there "
+            "is nothing to move.\n"
+            "  2. set `tolerance` / `dynamic_axes_compatible` if the "
+            "translation warrants it, since the spec now compares values "
+            "against tract rather than asserting a failure.\n"
+            "  3. regenerate the support page:\n"
+            "     python docs/contributing/generate_support_page.py \\\n"
+            "         --onnx-report docs/contributing/"
+            "onnx_support_measured.json\n"
             f"declared reason: {gap.reason}{tracked}"
         )
     raise NnefGapMismatch(

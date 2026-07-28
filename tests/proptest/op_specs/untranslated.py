@@ -1,39 +1,18 @@
-"""Specs for operators torch_to_nnef does not translate.
+"""Operators we do not translate and deliberately do not measure either.
 
-Every other spec module covers something we ship. This package covers the
-opposite: operators with no emitter, so the ONNX sweep can measure them.
+Everything else we cannot translate carries an `nnef_gap` spec in the
+themed module where it belongs (see `_gap_common.gap_spec`), so the ONNX
+sweep can measure it and the tract driver can assert the gap is real.
+This module is the other half: the rows that get no spec, and why.
 
-Why that matters. Specs previously existed only where t2n succeeds, so
-the measured ONNX population was a strict subset of our own supported
-set. An operator ONNX handles and we do not could never be graded, only
-inherited as an unverified claim from the retired torch listing, or left
-blank. The comparison was structurally blind exactly where we are
-weakest, and the support page's `Gap vs ONNX` filter was capped at the
-handful of rows that listing happened to name.
-
-Each spec declares an `NnefGap`, which the tract driver *asserts* rather
-than trusts (see `tests/proptest/nnef_gap.py`), so a gap that gets closed
-turns into a failing test rather than a stale page.
-
-Modules are grouped by *why* the operator is out of reach, because that
-is what someone planning to close one needs: `linalg` is one missing
-factorization repeated thirty times, `rng` is a format question rather
-than a kernel question, `dataflow` splits into extents a static graph
-cannot declare and layouts NNEF has no word for.
+Recorded rather than left silent, because "we chose not to measure this"
+and "nobody got to it" are different states and only the second is a
+backlog. `tests/test_proptest_nnef_gap.py` checks both directions: an
+unsupported row in neither list fails, and an entry here that stops
+being unsupported fails too.
 """
 
 import typing as T
-
-from .._common import OpSpec
-from . import dataflow, linalg, nn, rng, special, stats
-
-__all__ = ["EXCLUDED", "SPECS"]
-
-_MODULES = (dataflow, linalg, stats, special, rng, nn)
-
-SPECS: T.Tuple[OpSpec, ...] = tuple(
-    spec for module in _MODULES for spec in module.SPECS
-)
 
 #: Rows the support page calls unsupported that deliberately get no spec,
 #: and why. Recorded here rather than left silent: "we chose not to

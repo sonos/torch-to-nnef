@@ -85,7 +85,7 @@ and aten operator is one of [this list](./supported_operators.md), still unsuppo
 
 !!! tip "Which one to pick"
 
-    On the `TractNNEF` tab of that page, the **`Gap vs ONNX`** filter narrows the list to operators we do not translate but PyTorch's ONNX exporter does. Those are the ones where a missing translation is most likely to be blocking somebody, and where an existing implementation elsewhere gives you a reference to work from. Where a spec already measures the operator, its `nnef_gap` reason (in `tests/proptest/op_specs/gaps.py`) says what makes it hard.
+    On the `TractNNEF` tab of that page, the **`Gap vs ONNX`** filter narrows the list to operators we do not translate but PyTorch's ONNX exporter does. Those are the ones where a missing translation is most likely to be blocking somebody, and where an existing implementation elsewhere gives you a reference to work from. Where a spec already measures the operator, its `nnef_gap` reason says what makes it hard.
 
 After that you can edit the file named: `./tests/test_primitive.py` and at the end of it
 after the last `test_suite.add`, add the following **temporary** line:

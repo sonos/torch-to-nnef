@@ -1,4 +1,7 @@
-"""Gap specs for the random-number operators.
+"""Specs for the random-number operators.
+
+All untranslated today, so every spec carries `nnef_gap`; implementing
+one means deleting that field, not moving the spec.
 
 One reason covers nearly all of them: NNEF has no random primitive and
 tract has no RNG state, so there is nothing to lower these onto. That
@@ -21,10 +24,10 @@ import typing as T
 import torch
 from hypothesis import strategies as st
 
-from ...inputs import Interval, tensor_st
-from ...shapes import shape_st
-from .._common import NnefGapStage, OpSample, OpSpec
-from ._helpers import DEFAULT_DOMAIN, GapModule, bounded, gap_spec
+from ..inputs import Interval, tensor_st
+from ..shapes import shape_st
+from ._common import NnefGapStage, OpSample, OpSpec
+from ._gap_common import DEFAULT_DOMAIN, GapModule, bounded, gap_spec
 
 _NO_RNG = "NNEF has no random primitive and tract has no RNG state"
 _FOLDED = f"{_NO_RNG}; constant-folded before the emitter lookup"

@@ -24,7 +24,7 @@ import pytest
 from tests.proptest import nnef_gap as nnef_gap_mod
 from tests.proptest.nnef_gap import NnefGapMismatch, assert_nnef_gap
 from tests.proptest.op_specs import REGISTRY, NnefGap, NnefGapStage, OpSpec
-from tests.proptest.op_specs.gaps import EXCLUDED
+from tests.proptest.op_specs.untranslated import EXCLUDED
 from torch_to_nnef.op.aten import aten_ops_registry
 
 GAP_SPECS: T.Tuple[OpSpec, ...] = tuple(
@@ -88,7 +88,7 @@ def test_every_unsupported_row_is_specced_or_excluded():
     assert not unclassified, (
         "these operators are unsupported on the support page but neither "
         f"measured nor excluded: {sorted(unclassified)}. Add a spec in "
-        "`tests/proptest/op_specs/gaps/`, or an entry in its `EXCLUDED` "
+        "the themed module it belongs in, or an entry in its `EXCLUDED` "
         "map saying why measuring it is not worth it."
     )
 
@@ -118,6 +118,33 @@ def test_excluded_entries_are_still_unsupported():
         f"{sorted(stale)} are listed in `EXCLUDED` but the support page "
         "no longer calls them unsupported. Drop the entries, and give "
         "any that we now translate a normal spec."
+    )
+
+
+def test_page_credits_every_registered_emitter():
+    """The committed page must agree with the live emitter registry.
+
+    The step everyone forgets: you add an emitter, the tests go green,
+    and the page still says the operator is unsupported until somebody
+    regenerates it. Nothing else notices, because the page is a build
+    artifact that only changes when a human runs the generator.
+
+    Compared against the registry rather than by regenerating, so this
+    needs no network and runs in the fast suite. Only registry keys that
+    are page rows are checked: the registry also holds names the page
+    drops (`_`-prefixed spellings, in-place variants it merges), and
+    those legitimately have no row of their own.
+    """
+    if not SUPPORT_PAGE.exists():  # pragma: no cover - page always shipped
+        pytest.skip("generated support page is not in this checkout")
+    rows_marked_unsupported = _page_unsupported_ops()
+    registered = _registered_aten_ops()
+    stale = sorted(registered & rows_marked_unsupported)
+    assert not stale, (
+        f"{stale} have an emitter but the committed support page still "
+        "lists them as unsupported. Regenerate it:\n"
+        "  python docs/contributing/generate_support_page.py \\\n"
+        "      --onnx-report docs/contributing/onnx_support_measured.json"
     )
 
 

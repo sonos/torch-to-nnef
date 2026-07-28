@@ -1,4 +1,7 @@
-"""Gap specs for `torch.special`: Bessel, orthogonal polynomials, ndtr.
+"""Specs for `torch.special`: Bessel, orthogonal polynomials, ndtr.
+
+All untranslated today, so every spec carries `nnef_gap`; implementing
+one means deleting that field, not moving the spec.
 
 The largest single family of operators we do not translate, and the most
 uniform: every one is elementwise, so a spec is just "which function"
@@ -16,9 +19,9 @@ import typing as T
 
 import torch
 
-from ...inputs import Interval
-from .._common import OpSpec
-from ._helpers import binary_st, gap_spec, poly_st, unary_st
+from ..inputs import Interval
+from ._common import OpSpec
+from ._gap_common import binary_st, gap_spec, poly_st, unary_st
 
 _REASON = (
     "no NNEF primitive and no decomposition into one: these are series "

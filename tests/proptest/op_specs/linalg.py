@@ -1,4 +1,8 @@
-"""Gap specs for the dense linear-algebra family.
+"""Specs for the dense linear-algebra family.
+
+Every operator here is untranslated today, so every spec carries
+`nnef_gap`. That is a property of the specs, not of the module: when one
+gets an emitter, its spec stays put and loses the field.
 
 Almost all of these reduce to one missing capability: NNEF has no
 factorization. Give tract an LU, a QR and a symmetric eigendecomposition
@@ -23,9 +27,9 @@ import typing as T
 import torch
 from hypothesis import strategies as st
 
-from ...inputs import Interval, tensor_st
-from .._common import NnefGapStage, OpSample, OpSpec
-from ._helpers import GapModule, gap_spec, matrix_st
+from ..inputs import Interval, tensor_st
+from ._common import NnefGapStage, OpSample, OpSpec
+from ._gap_common import GapModule, gap_spec, matrix_st
 
 _LU = "no NNEF factorization primitive: needs LU"
 _QR = "no NNEF factorization primitive: needs QR / Householder"

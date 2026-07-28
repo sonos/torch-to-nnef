@@ -154,19 +154,17 @@ left blank. The comparison was structurally blind exactly where we are
 weakest, and the `Gap vs ONNX` filter could only ever surface operators
 that the torch 2.8 listing happened to name.
 
-`tests/proptest/op_specs/gaps.py` closes that. Its specs cover operators
-with **no translation at all**, purely so the sweep can measure them.
-Each one sets `OpSpec.nnef_gap`:
+Specs for operators with **no translation at all** close that, purely so
+the sweep can measure them. They live in the same themed module as
+everything else in their family (`linalg.py`, `shape.py`, `reductions.py`
+and so on) and are marked with `OpSpec.nnef_gap`:
 
 ```python
-OpSpec(
-    name="gap-masked_select",
-    sample_st=_masked_select_st(),
-    aten_ops=("masked_select",),
-    nnef_gap=_gap(
-        "output extent depends on the input values, which a static "
-        "NNEF graph cannot declare"
-    ),
+# in tests/proptest/op_specs/shape.py, beside the shape ops we do ship
+gap_spec(
+    "masked_select",
+    mask_st(torch.masked_select, "masked_select"),
+    REASON_DATA_DEPENDENT,
 )
 ```
 
@@ -205,8 +203,12 @@ operator name(s) **as this page lists them**: the page drops
 is not always the row name (`conv2d` traces `aten::_convolution`).
 
 If t2n cannot translate the operator, the spec still belongs in the
-catalog: put it in `gaps.py` with an `nnef_gap` instead of leaving the
-row unmeasured.
+catalog: put it in the themed module it would live in once supported and
+give it an `nnef_gap`, instead of leaving the row unmeasured. Placing it
+by family rather than by support status is deliberate, so that
+implementing the operator later means deleting one field rather than
+moving the spec between files. Rows that get no spec at all are recorded
+in `op_specs/untranslated.py` with a reason.
 
 `tests/test_proptest_aten_attribution.py` traces every spec and checks its
 declaration, so a spec that drifts onto a different operator fails there
