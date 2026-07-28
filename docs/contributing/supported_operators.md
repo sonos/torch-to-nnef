@@ -30,7 +30,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <label><input type="radio" name="op-filter-TractNNEF" value="all" checked> All (581)</label>
     <label><input type="radio" name="op-filter-TractNNEF" value="supported"> Supported only (410)</label>
     <label><input type="radio" name="op-filter-TractNNEF" value="unsupported"> Unsupported only (171)</label>
-    <label><input type="radio" name="op-filter-TractNNEF" value="cross-gap"> Gap vs ONNX (20)</label>
+    <label><input type="radio" name="op-filter-TractNNEF" value="cross-gap"> Gap vs ONNX (44)</label>
     </form>
     <table class="op-table">
     <thead><tr><th>export&amp;run</th><th>aten name</th><th>aliases</th><th>can in-place</th><th>is core</th></tr></thead>
@@ -78,7 +78,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.elu.html">elu</a></td><td></td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.embedding.html">embedding</a></td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty.html">empty</a></td><td></td><td>❌</td><td>✅</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty_strided.html">empty_strided</a></td><td></td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty_strided.html">empty_strided</a></td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.eq.html">eq</a></td><td></td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.erf.html">erf</a></td><td>special_erf</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.exp.html">exp</a></td><td></td><td>✅</td><td>✅</td></tr>
@@ -191,7 +191,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.aminmax.html">aminmax</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.angle.html">angle</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.argsort.html">argsort</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.argwhere.html">argwhere</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.argwhere.html">argwhere</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.as_tensor.html">as_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.atleast_1d.html">atleast_1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.atleast_2d.html">atleast_2d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -215,7 +215,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.broadcast_to.html">broadcast_to</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bucketize.html">bucketize</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cartesian_prod.html">cartesian_prod</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>cauchy</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>cauchy</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cdist.html">cdist</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.celu.html">celu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.chain_matmul.html">chain_matmul</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -255,7 +255,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cummax.html">cummax</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cummin.html">cummin</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cumprod.html">cumprod</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cumulative_trapezoid.html">cumulative_trapezoid</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cumulative_trapezoid.html">cumulative_trapezoid</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.deg2rad.html">deg2rad</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.dequantize.html">dequantize</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.detach.html">detach</a></td><td></td><td>✅</td><td>-</td></tr>
@@ -279,16 +279,16 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.erfinv.html">erfinv</a></td><td>special_erfinv</td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.exp2.html">exp2</a></td><td>special_exp2</td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.expand_as.html">expand_as</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>exponential</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>exponential</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.eye.html">eye</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.feature_alpha_dropout.html">feature_alpha_dropout</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.feature_dropout.html">feature_dropout</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>fft_fftfreq</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_ihfft2</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>fft_ihfftn</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fft_irfftn</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>fft_irfftn</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>fft_rfftfreq</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>fft_rfftn</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>fft_rfftn</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>first</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.flatten.html">flatten</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>flatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
@@ -306,7 +306,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported cross-ok"><td>✅</td><td>frobenius_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>gamma</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.gcd.html">gcd</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>geometric</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>geometric</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.geqrf.html">geqrf</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.glu.html">glu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td>grid_sampler</td><td></td><td>❌</td><td>-</td></tr>
@@ -343,10 +343,10 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.instance_norm.html">instance_norm</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isclose.html">isclose</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isfinite.html">isfinite</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isin.html">isin</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isin.html">isin</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isneginf.html">isneginf</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isposinf.html">isposinf</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isreal.html">isreal</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isreal.html">isreal</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.istft.html">istft</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.kaiser_window.html">kaiser_window</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.kl_div.html">kl_div</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -375,7 +375,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>linalg_lu_solve</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_matrix_exp</td><td>matrix_exp</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td>linalg_matrix_norm</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>linalg_matrix_power</td><td>matrix_power</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>linalg_matrix_power</td><td>matrix_power</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_matrix_rank</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td>linalg_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>linalg_pinv</td><td></td><td>❌</td><td>-</td></tr>
@@ -389,7 +389,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported cross-ok"><td>✅</td><td>linalg_vector_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.linear.html">linear</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.linspace.html">linspace</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>log_normal</td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>log_normal</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td>log_sigmoid</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.log_softmax.html">log_softmax</a></td><td>special_log_softmax</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logaddexp.html">logaddexp</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -407,37 +407,37 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported cross-ok"><td>✅</td><td>mT</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.margin_ranking_loss.html">margin_ranking_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.masked_fill.html">masked_fill</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.masked_select.html">masked_select</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.masked_select.html">masked_select</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.matmul.html">matmul</a></td><td>linalg_matmul</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>matrix_H</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_pool1d.html">max_pool1d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td>max_pool1d_with_indices</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_pool2d.html">max_pool2d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_pool3d.html">max_pool3d</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_unpool2d.html">max_unpool2d</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_unpool3d.html">max_unpool3d</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_unpool2d.html">max_unpool2d</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_unpool3d.html">max_unpool3d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.median.html">median</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.meshgrid.html">meshgrid</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.mish.html">mish</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.mode.html">mode</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.movedim.html">movedim</a></td><td>moveaxis</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.mse_loss.html">mse_loss</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.msort.html">msort</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.multi_margin_loss.html">multi_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.multilabel_margin_loss.html">multilabel_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.msort.html">msort</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.multi_margin_loss.html">multi_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.multilabel_margin_loss.html">multilabel_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.multinomial.html">multinomial</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.mv.html">mv</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.mvlgamma.html">mvlgamma</a></td><td>special_multigammaln</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nan_to_num.html">nan_to_num</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanmean.html">nanmean</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanmedian.html">nanmedian</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanquantile.html">nanquantile</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanquantile.html">nanquantile</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nansum.html">nansum</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.narrow.html">narrow</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.native_channel_shuffle.html">native_channel_shuffle</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>native_multi_head_self_attention</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.new_empty.html">new_empty</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>new_empty_strided</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>new_empty_strided</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.new_full.html">new_full</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.new_ones.html">new_ones</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.new_zeros.html">new_zeros</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -458,20 +458,20 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.ormqr.html">ormqr</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.outer.html">outer</a></td><td>ger</td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pad.html">pad</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>pad_sequence</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>pad_sequence</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pairwise_distance.html">pairwise_distance</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pdist.html">pdist</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pixel_shuffle.html">pixel_shuffle</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pixel_unshuffle.html">pixel_unshuffle</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.poisson.html">poisson</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.poisson_nll_loss.html">poisson_nll_loss</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.poisson_nll_loss.html">poisson_nll_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.polar.html">polar</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.polygamma.html">polygamma</a></td><td>special_polygamma</td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.positive.html">positive</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.prelu.html">prelu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.put.html">put</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.qr.html">qr</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantile.html">quantile</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantile.html">quantile</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>quantize</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantize_per_channel.html">quantize_per_channel</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantize_per_tensor.html">quantize_per_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -506,7 +506,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rnn_tanh_cell.html">rnn_tanh_cell</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.roll.html">roll</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rot90.html">rot90</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rsub.html">rsub</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.scaled_dot_product_attention.html">scaled_dot_product_attention</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -535,7 +535,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row unsupported"><td>❌</td><td>special_chebyshev_polynomial_v</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_chebyshev_polynomial_w</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td>special_entr</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>special_erfcx</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>special_erfcx</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_hermite_polynomial_h</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_hermite_polynomial_he</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td>special_i0e</td><td></td><td>❌</td><td>-</td></tr>
@@ -543,12 +543,12 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported"><td>✅</td><td>special_i1e</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_laguerre_polynomial_l</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_legendre_polynomial_p</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>special_log_ndtr</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>special_log_ndtr</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_modified_bessel_i0</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_modified_bessel_i1</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_modified_bessel_k0</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_modified_bessel_k1</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>special_ndtr</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td>special_ndtr</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_ndtri</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_scaled_modified_bessel_k0</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>special_scaled_modified_bessel_k1</td><td></td><td>❌</td><td>-</td></tr>
@@ -574,7 +574,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.threshold.html">threshold</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.tile.html">tile</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.to.html">to</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.trace.html">trace</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row unsupported cross-ok"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.trace.html">trace</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.transpose.html">transpose</a></td><td>swapaxes, swapdims</td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported cross-ok"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.trapezoid.html">trapezoid</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.trapz.html">trapz</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -629,13 +629,13 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
 
     - core PyTorch opset:
 
-    [=133/139 "133/139"]
+    [=134/139 "134/139"]
 
     -  and support from full `aten::`: 
 
-    [=370/581 "370/581"]
+    [=394/581 "394/581"]
 
-     (**both bars credit unverified claims**: 108 core / 278 overall are measured fully exportable here, plus 25 core / 92 overall that no spec of ours covers and that are counted on the retired listing's word alone (✅*). Leaving those out would report our own missing coverage as an ONNX gap. Of the 296 operators actually measured: 278 full, 1 partial, 17 none, 0 blocked before ONNX, so 108/108 of the measured core operators and 278/296 of all measured ones export fully. The 193 rows with neither a measurement nor a claim (`-`) stay out of the numerator. Measured with torch 2.13.0, onnxruntime 1.26.0, opset 18.)
+     (**both bars credit unverified claims**: 115 core / 321 overall are measured fully exportable here, plus 19 core / 73 overall that no spec of ours covers and that are counted on the retired listing's word alone (✅*). Leaving those out would report our own missing coverage as an ONNX gap. Of the 436 operators actually measured: 321 full, 2 partial, 108 none, 5 blocked before ONNX, so 115/116 of the measured core operators and 321/436 of all measured ones export fully. The 72 rows with neither a measurement nor a claim (`-`) stay out of the numerator. Measured with torch 2.13.0, onnxruntime 1.28.0, opset 18.)
 
     !!! info "How to read this table"
 
@@ -659,11 +659,12 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
     <label><input type="radio" name="op-filter-ONNX" value="all" checked> All (581)</label>
-    <label><input type="radio" name="op-filter-ONNX" value="full"> Exports fully (278)</label>
-    <label><input type="radio" name="op-filter-ONNX" value="partial"> Exports partially (1)</label>
-    <label><input type="radio" name="op-filter-ONNX" value="none"> Never exports (17)</label>
-    <label><input type="radio" name="op-filter-ONNX" value="untested-documented"> Claimed, unverified (92)</label>
-    <label><input type="radio" name="op-filter-ONNX" value="untested"> Untested, no data (193)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="full"> Exports fully (321)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="partial"> Exports partially (2)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="none"> Never exports (108)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="blocked"> Blocked before ONNX (5)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="untested-documented"> Claimed, unverified (73)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="untested"> Untested, no data (72)</label>
     </form>
     <table class="op-table">
     <thead><tr><th>export</th><th>aten name</th><th>aliases</th><th>runtime</th><th>numerics</th><th>documented</th><th>can in-place</th><th>is core</th></tr></thead>
@@ -681,11 +682,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.arange.html">arange</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.argmax.html">argmax</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.argmin.html">argmin</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.as_strided.html">as_strided</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.as_strided.html">as_strided</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.asin.html">asin</a></td><td>arcsin</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.asinh.html">asinh</a></td><td>arcsinh</td><td>full</td><td>match</td><td>-</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.atan.html">atan</a></td><td>arctan</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
-    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.atan2.html">atan2</a></td><td>arctan2</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.atan2.html">atan2</a></td><td>arctan2</td><td>full</td><td>partial</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.atanh.html">atanh</a></td><td>arctanh</td><td>full</td><td>match</td><td>-</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.avg_pool1d.html">avg_pool1d</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.avg_pool2d.html">avg_pool2d</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
@@ -710,8 +711,8 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.div.html">div</a></td><td>divide, true_divide</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.elu.html">elu</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.embedding.html">embedding</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty.html">empty</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty_strided.html">empty_strided</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty.html">empty</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty_strided.html">empty_strided</a></td><td></td><td>full</td><td>-</td><td>-</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.eq.html">eq</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.erf.html">erf</a></td><td>special_erf</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.exp.html">exp</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
@@ -745,7 +746,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logical_or.html">logical_or</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logical_xor.html">logical_xor</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lt.html">lt</a></td><td>less</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.masked_scatter.html">masked_scatter</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.masked_scatter.html">masked_scatter</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.max.html">max</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>max_pool2d_with_indices</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>max_pool3d_with_indices</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
@@ -760,13 +761,13 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.native_layer_norm.html">native_layer_norm</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.ne.html">ne</a></td><td>not_equal</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.neg.html">neg</a></td><td>negative</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nonzero.html">nonzero</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nonzero.html">nonzero</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.permute.html">permute</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.pow.html">pow</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.prod.html">prod</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rand.html">rand</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randn.html">randn</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randperm.html">randperm</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rand.html">rand</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randn.html">randn</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randperm.html">randperm</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.reciprocal.html">reciprocal</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>reflection_pad1d</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>reflection_pad2d</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>✅</td></tr>
@@ -796,7 +797,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.sqrt.html">sqrt</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.squeeze.html">squeeze</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.sub.html">sub</a></td><td>subtract</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
-    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.sum.html">sum</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.sum.html">sum</a></td><td></td><td>full</td><td>partial</td><td>✅</td><td>❌</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.tan.html">tan</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.tanh.html">tanh</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.topk.html">topk</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>✅</td></tr>
@@ -824,7 +825,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.aminmax.html">aminmax</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.angle.html">angle</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.argsort.html">argsort</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.argwhere.html">argwhere</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.argwhere.html">argwhere</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.as_tensor.html">as_tensor</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.atleast_1d.html">atleast_1d</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.atleast_2d.html">atleast_2d</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
@@ -832,13 +833,13 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.baddbmm.html">baddbmm</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bartlett_window.html">bartlett_window</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.batch_norm.html">batch_norm</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bernoulli.html">bernoulli</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bernoulli.html">bernoulli</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>bias_addmm</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.bilinear.html">bilinear</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.binary_cross_entropy.html">binary_cross_entropy</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.binary_cross_entropy_with_logits.html">binary_cross_entropy_with_logits</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bincount.html">bincount</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.binomial.html">binomial</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bincount.html">bincount</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.binomial.html">binomial</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bitwise_left_shift.html">bitwise_left_shift</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bitwise_right_shift.html">bitwise_right_shift</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.blackman_window.html">blackman_window</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
@@ -848,20 +849,20 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.broadcast_to.html">broadcast_to</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.bucketize.html">bucketize</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cartesian_prod.html">cartesian_prod</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>cauchy</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>cauchy</td><td></td><td>full</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cdist.html">cdist</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.celu.html">celu</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.chain_matmul.html">chain_matmul</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.chalf.html">chalf</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.chalf.html">chalf</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.channel_shuffle.html">channel_shuffle</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cholesky.html">cholesky</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cholesky_inverse.html">cholesky_inverse</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cholesky_solve.html">cholesky_solve</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cholesky.html">cholesky</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cholesky_inverse.html">cholesky_inverse</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cholesky_solve.html">cholesky_solve</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.chunk.html">chunk</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>clamp_max</td><td></td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>clamp_min</td><td></td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.column_stack.html">column_stack</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.combinations.html">combinations</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-blocked"><td>⚠️</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.combinations.html">combinations</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.complex.html">complex</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.conj.html">conj</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-partial"><td>🟡</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.conj_physical.html">conj_physical</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
@@ -878,17 +879,17 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-untested"><td>-</td><td>copy_sparse_to_sparse_</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>copy_to</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.copysign.html">copysign</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.corrcoef.html">corrcoef</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-blocked"><td>⚠️</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.corrcoef.html">corrcoef</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.cosine_embedding_loss.html">cosine_embedding_loss</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.cosine_similarity.html">cosine_similarity</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.count_nonzero.html">count_nonzero</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cross.html">cross</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>cross_entropy_loss</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.ctc_loss.html">ctc_loss</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-blocked"><td>⚠️</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.ctc_loss.html">ctc_loss</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cummax.html">cummax</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cummin.html">cummin</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cumprod.html">cumprod</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cumulative_trapezoid.html">cumulative_trapezoid</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.cumulative_trapezoid.html">cumulative_trapezoid</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.deg2rad.html">deg2rad</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.dequantize.html">dequantize</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.detach.html">detach</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
@@ -906,22 +907,22 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.embedding_bag.html">embedding_bag</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.embedding_renorm_.html">embedding_renorm_</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty_like.html">empty_like</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty_permuted.html">empty_permuted</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty_permuted.html">empty_permuted</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.empty_quantized.html">empty_quantized</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.erfc.html">erfc</a></td><td>special_erfc</td><td>full</td><td>match</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.erfinv.html">erfinv</a></td><td>special_erfinv</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.erfinv.html">erfinv</a></td><td>special_erfinv</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.exp2.html">exp2</a></td><td>special_exp2</td><td>full</td><td>match</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.expand_as.html">expand_as</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>exponential</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>exponential</td><td></td><td>full</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.eye.html">eye</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.feature_alpha_dropout.html">feature_alpha_dropout</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.feature_dropout.html">feature_dropout</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>fft_fftfreq</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>fft_ihfft2</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>fft_ihfftn</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>fft_irfftn</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>fft_ihfft2</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>fft_ihfftn</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>fft_irfftn</td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>fft_rfftfreq</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>fft_rfftn</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>fft_rfftn</td><td></td><td>full</td><td>partial</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>first</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.flatten.html">flatten</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>flatten_dense_tensors</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
@@ -933,14 +934,14 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.fmax.html">fmax</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.fmin.html">fmin</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.frac.html">frac</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.fractional_max_pool2d.html">fractional_max_pool2d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.fractional_max_pool3d.html">fractional_max_pool3d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.fractional_max_pool2d.html">fractional_max_pool2d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.fractional_max_pool3d.html">fractional_max_pool3d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.frexp.html">frexp</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>frobenius_norm</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>gamma</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.gcd.html">gcd</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>geometric</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.geqrf.html">geqrf</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>gamma</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.gcd.html">gcd</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>geometric</td><td></td><td>full</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.geqrf.html">geqrf</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.glu.html">glu</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>grid_sampler</td><td></td><td>full</td><td>partial</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.grid_sampler_3d.html">grid_sampler_3d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
@@ -955,156 +956,156 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.hash_tensor.html">hash_tensor</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.heaviside.html">heaviside</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.hinge_embedding_loss.html">hinge_embedding_loss</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.histc.html">histc</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.histogram.html">histogram</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.histogramdd.html">histogramdd</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.histc.html">histc</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.histogram.html">histogram</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.histogramdd.html">histogramdd</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.hsplit.html">hsplit</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.hstack.html">hstack</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.huber_loss.html">huber_loss</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.hypot.html">hypot</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.i0.html">i0</a></td><td>special_i0</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.igamma.html">igamma</a></td><td>special_gammainc</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.igammac.html">igammac</a></td><td>special_gammaincc</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.igamma.html">igamma</a></td><td>special_gammainc</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.igammac.html">igammac</a></td><td>special_gammaincc</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>im2col</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.imag.html">imag</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.index_add.html">index_add</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.index_copy.html">index_copy</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.index_fill.html">index_fill</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>index_put_impl_</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.index_reduce.html">index_reduce</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.index_reduce.html">index_reduce</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.inner.html">inner</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.instance_norm.html">instance_norm</a></td><td></td><td>full</td><td>partial</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isclose.html">isclose</a></td><td></td><td>full</td><td>partial</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isfinite.html">isfinite</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isin.html">isin</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isin.html">isin</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isneginf.html">isneginf</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isposinf.html">isposinf</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isreal.html">isreal</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.isreal.html">isreal</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.istft.html">istft</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.kaiser_window.html">kaiser_window</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.kl_div.html">kl_div</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.kron.html">kron</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.kthvalue.html">kthvalue</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.kthvalue.html">kthvalue</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.l1_loss.html">l1_loss</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.layer_norm.html">layer_norm</a></td><td></td><td>full</td><td>partial</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lcm.html">lcm</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lcm.html">lcm</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.ldexp.html">ldexp</a></td><td></td><td>full</td><td>match</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lerp.html">lerp</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lgamma.html">lgamma</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>linalg__powsum</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_cond</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_cond</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>linalg_cross</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td>linalg_det</td><td>det</td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>linalg_det</td><td>det</td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>linalg_diagonal</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_eig</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_eigh</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_eigvals</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_eigvalsh</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_householder_product</td><td>orgqr</td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_inv</td><td>inverse</td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_ldl_solve</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_lstsq</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_lu</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_lu_solve</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_matrix_exp</td><td>matrix_exp</td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_eig</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_eigh</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_eigvals</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_eigvalsh</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_householder_product</td><td>orgqr</td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_inv</td><td>inverse</td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_ldl_solve</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-blocked"><td>⚠️</td><td>linalg_lstsq</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_lu</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_lu_solve</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_matrix_exp</td><td>matrix_exp</td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>linalg_matrix_norm</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_matrix_power</td><td>matrix_power</td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_matrix_rank</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>linalg_matrix_power</td><td>matrix_power</td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_matrix_rank</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>linalg_norm</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_pinv</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_qr</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_slogdet</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_solve</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_solve_triangular</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_svd</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_tensorinv</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>linalg_tensorsolve</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_pinv</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_qr</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_slogdet</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_solve</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_solve_triangular</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_svd</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_tensorinv</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>linalg_tensorsolve</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>linalg_vector_norm</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.linear.html">linear</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.linspace.html">linspace</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>log_normal</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>log_normal</td><td></td><td>full</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>log_sigmoid</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.log_softmax.html">log_softmax</a></td><td>special_log_softmax</td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logaddexp.html">logaddexp</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logaddexp2.html">logaddexp2</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logcumsumexp.html">logcumsumexp</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logdet.html">logdet</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logdet.html">logdet</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logit.html">logit</a></td><td>special_logit</td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logspace.html">logspace</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.logsumexp.html">logsumexp</a></td><td>special_logsumexp</td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lstm.html">lstm</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lstm_cell.html">lstm_cell</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lu_solve.html">lu_solve</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lu_unpack.html">lu_unpack</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lu_solve.html">lu_solve</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.lu_unpack.html">lu_unpack</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>mH</td><td>adjoint</td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>mT</td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.margin_ranking_loss.html">margin_ranking_loss</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.masked_fill.html">masked_fill</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.masked_select.html">masked_select</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.masked_select.html">masked_select</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.matmul.html">matmul</a></td><td>linalg_matmul</td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>matrix_H</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_pool1d.html">max_pool1d</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>max_pool1d_with_indices</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_pool2d.html">max_pool2d</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_pool3d.html">max_pool3d</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_unpool2d.html">max_unpool2d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_unpool3d.html">max_unpool3d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.median.html">median</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_unpool2d.html">max_unpool2d</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.max_unpool3d.html">max_unpool3d</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.median.html">median</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.meshgrid.html">meshgrid</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.mish.html">mish</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.mode.html">mode</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.mode.html">mode</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.movedim.html">movedim</a></td><td>moveaxis</td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.mse_loss.html">mse_loss</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.msort.html">msort</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.multi_margin_loss.html">multi_margin_loss</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.multilabel_margin_loss.html">multilabel_margin_loss</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.multinomial.html">multinomial</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.msort.html">msort</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.multi_margin_loss.html">multi_margin_loss</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.multilabel_margin_loss.html">multilabel_margin_loss</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.multinomial.html">multinomial</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.mv.html">mv</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.mvlgamma.html">mvlgamma</a></td><td>special_multigammaln</td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nan_to_num.html">nan_to_num</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanmean.html">nanmean</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanmedian.html">nanmedian</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanquantile.html">nanquantile</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanmedian.html">nanmedian</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nanquantile.html">nanquantile</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nansum.html">nansum</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.narrow.html">narrow</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.native_channel_shuffle.html">native_channel_shuffle</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>native_multi_head_self_attention</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.new_empty.html">new_empty</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>new_empty_strided</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>new_empty_strided</td><td></td><td>full</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.new_full.html">new_full</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.new_ones.html">new_ones</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.new_zeros.html">new_zeros</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nextafter.html">nextafter</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nextafter.html">nextafter</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.nll_loss.html">nll_loss</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>nll_loss2d</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>nll_loss_nd</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td>nonzero_numpy</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nonzero_static.html">nonzero_static</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>nonzero_numpy</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nonzero_static.html">nonzero_static</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.norm.html">norm</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.normal.html">normal</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nuclear_norm.html">nuclear_norm</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.normal.html">normal</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nuclear_norm.html">nuclear_norm</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.numel.html">numel</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>numpy_T</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.one_hot.html">one_hot</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.ones.html">ones</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.ones_like.html">ones_like</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.ormqr.html">ormqr</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.ormqr.html">ormqr</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.outer.html">outer</a></td><td>ger</td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pad.html">pad</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>pad_sequence</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>pad_sequence</td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pairwise_distance.html">pairwise_distance</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pdist.html">pdist</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pixel_shuffle.html">pixel_shuffle</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.pixel_unshuffle.html">pixel_unshuffle</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.poisson.html">poisson</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.poisson_nll_loss.html">poisson_nll_loss</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.poisson.html">poisson</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.poisson_nll_loss.html">poisson_nll_loss</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.polar.html">polar</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.polygamma.html">polygamma</a></td><td>special_polygamma</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.polygamma.html">polygamma</a></td><td>special_polygamma</td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.positive.html">positive</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.prelu.html">prelu</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.put.html">put</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.qr.html">qr</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantile.html">quantile</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.put.html">put</a></td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.qr.html">qr</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantile.html">quantile</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>quantize</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantize_per_channel.html">quantize_per_channel</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantize_per_tensor.html">quantize_per_tensor</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
@@ -1116,12 +1117,12 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantized_max_pool2d.html">quantized_max_pool2d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.quantized_max_pool3d.html">quantized_max_pool3d</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rad2deg.html">rad2deg</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rand_like.html">rand_like</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randint.html">randint</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randint_like.html">randint_like</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randn_like.html">randn_like</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>random</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.range.html">range</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rand_like.html">rand_like</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randint.html">randint</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randint_like.html">randint_like</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.randn_like.html">randn_like</a></td><td></td><td>full</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-blocked"><td>⚠️</td><td>random</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.range.html">range</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.ravel.html">ravel</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.real.html">real</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.relu6.html">relu6</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
@@ -1139,13 +1140,13 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rnn_tanh_cell.html">rnn_tanh_cell</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.roll.html">roll</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rot90.html">rot90</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>rrelu_with_noise</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>rrelu_with_noise</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.rsub.html">rsub</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.scaled_dot_product_attention.html">scaled_dot_product_attention</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.searchsorted.html">searchsorted</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>second</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.segment_reduce.html">segment_reduce</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.segment_reduce.html">segment_reduce</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.selu.html">selu</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.set_.html">set_</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.sgn.html">sgn</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
@@ -1158,45 +1159,45 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.softmax.html">softmax</a></td><td>special_softmax</td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.softplus.html">softplus</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.softshrink.html">softshrink</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_airy_ai</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_bessel_j0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_bessel_j1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_bessel_y0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_bessel_y1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_chebyshev_polynomial_t</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_chebyshev_polynomial_u</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_chebyshev_polynomial_v</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_chebyshev_polynomial_w</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_airy_ai</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_bessel_j0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_bessel_j1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_bessel_y0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_bessel_y1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_chebyshev_polynomial_t</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_chebyshev_polynomial_u</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_chebyshev_polynomial_v</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_chebyshev_polynomial_w</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>special_entr</td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_erfcx</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_hermite_polynomial_h</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_hermite_polynomial_he</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>special_erfcx</td><td></td><td>full</td><td>partial</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_hermite_polynomial_h</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_hermite_polynomial_he</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td>special_i0e</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td>special_i1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-none"><td>❌</td><td>special_i1e</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_laguerre_polynomial_l</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_legendre_polynomial_p</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_log_ndtr</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_modified_bessel_i0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_modified_bessel_i1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_modified_bessel_k0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_modified_bessel_k1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_ndtr</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_ndtri</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_scaled_modified_bessel_k0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_scaled_modified_bessel_k1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_shifted_chebyshev_polynomial_t</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_shifted_chebyshev_polynomial_u</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_shifted_chebyshev_polynomial_v</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_shifted_chebyshev_polynomial_w</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_spherical_bessel_j0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_laguerre_polynomial_l</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_legendre_polynomial_p</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>special_log_ndtr</td><td></td><td>full</td><td>partial</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_modified_bessel_i0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_modified_bessel_i1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_modified_bessel_k0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_modified_bessel_k1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>special_ndtr</td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_ndtri</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_scaled_modified_bessel_k0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_scaled_modified_bessel_k1</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_shifted_chebyshev_polynomial_t</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_shifted_chebyshev_polynomial_u</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_shifted_chebyshev_polynomial_v</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_shifted_chebyshev_polynomial_w</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_spherical_bessel_j0</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td>special_xlog1py</td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>special_zeta</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>special_zeta</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.split.html">split</a></td><td></td><td>full</td><td>partial</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.square.html">square</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.stack.html">stack</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.std.html">std</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.std_mean.html">std_mean</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.std.html">std</a></td><td></td><td>full</td><td>partial</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.std_mean.html">std_mean</a></td><td></td><td>full</td><td>partial</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.stft.html">stft</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.t.html">t</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.take.html">take</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
@@ -1207,11 +1208,11 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.threshold.html">threshold</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.tile.html">tile</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.Tensor.to.html">to</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.trace.html">trace</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.trace.html">trace</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.transpose.html">transpose</a></td><td>swapaxes, swapdims</td><td>full</td><td>match</td><td>✅</td><td>✅</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.trapezoid.html">trapezoid</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.trapz.html">trapz</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.triangular_solve.html">triangular_solve</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.triangular_solve.html">triangular_solve</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.tril.html">tril</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.tril_indices.html">tril_indices</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.triplet_margin_loss.html">triplet_margin_loss</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
@@ -1222,10 +1223,10 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <tr class="op-row grade-untested-documented"><td>✅*</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.unflatten.html">unflatten</a></td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested"><td>-</td><td>unflatten_dense_tensors</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-full"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.nn.functional.unfold.html">unfold</a></td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>uniform</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.unique_consecutive.html">unique_consecutive</a></td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested-documented"><td>✅*</td><td>unique_dim</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row grade-untested"><td>-</td><td>unique_dim_consecutive</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>uniform</td><td></td><td>-</td><td>-</td><td>-</td><td>✅</td><td>-</td></tr>
+    <tr class="op-row grade-partial"><td>🟡</td><td><a href="https://docs.pytorch.org/docs/2.13/generated/torch.unique_consecutive.html">unique_consecutive</a></td><td></td><td>full</td><td>match</td><td>-</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-full"><td>✅</td><td>unique_dim</td><td></td><td>full</td><td>match</td><td>✅</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row grade-none"><td>❌</td><td>unique_dim_consecutive</td><td></td><td>-</td><td>-</td><td>-</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>unsafe_chunk</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>unsafe_split</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>
     <tr class="op-row grade-untested-documented"><td>✅*</td><td>unsafe_split_with_sizes</td><td></td><td>-</td><td>-</td><td>✅</td><td>❌</td><td>-</td></tr>

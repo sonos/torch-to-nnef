@@ -26,8 +26,21 @@ from ..shapes import (
     ternary_broadcast_shapes_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
+)
+from ._gap_common import (
+    REASON_DATA_DEPENDENT,
+    REASON_LAYOUT,
+    as_strided_st,
+    gap_spec,
+    index_pair_st,
+    mask_st,
+    nonzero_st,
+    rows_st,
+    segment_st,
+    small_int_st,
 )
 
 
@@ -3492,6 +3505,147 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
 
 # 3D conv/pool + numerical helpers + classifiers
 
+
+def _data_dependent_extent_specs() -> T.Tuple[OpSpec, ...]:
+    """Ops whose output extent depends on the values, not the shapes.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- data-dependent extent --
+        gap_spec("nonzero", nonzero_st(as_tuple=False), REASON_DATA_DEPENDENT),
+        gap_spec(
+            "nonzero_numpy",
+            nonzero_st(as_tuple=True),
+            f"`nonzero(as_tuple=True)`: {REASON_DATA_DEPENDENT}, once per axis",
+        ),
+        gap_spec(
+            "argwhere",
+            small_int_st(torch.argwhere, "argwhere", lo=0, hi=2),
+            f"the same as `nonzero`: {REASON_DATA_DEPENDENT}",
+        ),
+        gap_spec(
+            "masked_select",
+            mask_st(torch.masked_select, "masked_select"),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_dim",
+            rows_st(lambda t: torch.unique(t, dim=0), "unique_dim"),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_consecutive",
+            small_int_st(torch.unique_consecutive, "unique_consecutive", hi=2),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_dim_consecutive",
+            rows_st(
+                lambda t: torch.unique_consecutive(t, dim=0),
+                "unique_dim_consecutive",
+            ),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "combinations",
+            small_int_st(
+                lambda t: torch.combinations(t, r=2), "combinations", max_rank=1
+            ),
+            "output length is a binomial coefficient of the input length: "
+            "static, but no emitter builds the index pairs",
+        ),
+        gap_spec(
+            "nonzero_static",
+            small_int_st(
+                lambda t: torch.nonzero_static(t, size=3),
+                "nonzero_static",
+                hi=2,
+            ),
+            "the padded form of `nonzero`, so the extent *is* static here; "
+            "it fails before the emitter lookup instead",
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+    )
+
+
+def _strided_view_specs() -> T.Tuple[OpSpec, ...]:
+    """Views described by strides rather than by shape.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- layout --
+        gap_spec("as_strided", as_strided_st(), REASON_LAYOUT),
+    )
+
+
+def _scatter_specs() -> T.Tuple[OpSpec, ...]:
+    """Writes at runtime-computed positions.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- scatter / gather variants --
+        gap_spec(
+            "masked_scatter",
+            mask_st(
+                lambda t, m, s: t.masked_scatter(m, s),
+                "masked_scatter",
+                with_source=True,
+            ),
+            "consumes the source in mask order, so the read index is itself "
+            "a cumulative sum of the mask",
+        ),
+        gap_spec(
+            "put",
+            index_pair_st(
+                # Flattened so the source has two elements whatever the
+                # drawn column count is.
+                lambda t, s: t.clone().put_(
+                    torch.tensor([0, 2]), s.reshape(-1)[:2]
+                ),
+                "put",
+            ),
+            "indexes the flattened tensor, so a lowering has to reshape "
+            "around it; no emitter does",
+        ),
+        gap_spec(
+            "index_reduce",
+            index_pair_st(
+                lambda t, s: t.clone().index_reduce_(
+                    0, torch.tensor([0, 1]), s, "amax"
+                ),
+                "index_reduce",
+            ),
+            "no emitter, and the export crashes with a bare TypeError "
+            "instead of naming the operator",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+        gap_spec(
+            "segment_reduce",
+            segment_st(),
+            "segment lengths are a second, ragged shape the graph would "
+            "have to carry",
+        ),
+        gap_spec(
+            "pad_sequence",
+            index_pair_st(
+                lambda a, b: torch.nn.utils.rnn.pad_sequence([a, b]),
+                "pad_sequence",
+            ),
+            "pads to the longest input, so the output extent depends on a "
+            "list of shapes rather than on one",
+        ),
+    )
+
+
 SPECS = (
     *_shape_specs(),
     *_concat_split_specs(),
@@ -3503,4 +3657,7 @@ SPECS = (
     *_alias_specs(),
     *_bucketize_searchsorted_specs(),
     *_recent_shape_specs(),
+    *_data_dependent_extent_specs(),
+    *_strided_view_specs(),
+    *_scatter_specs(),
 )

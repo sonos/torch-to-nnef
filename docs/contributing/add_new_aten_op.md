@@ -45,7 +45,7 @@ To implement a new operator we need to follow the following steps:
 - [ ] 2. :material-bug-check: Check we obtain as expected the following form of exception:
 
 ```bash
-torch_to_nnef.exceptions.T2NErrorNotImplemented:
+torch_to_nnef.exceptions.T2NErrorMissingOpEmitter:
 '$operator_aten_name' operator as not yet been translated to NNEF or registred
 ```
 
@@ -82,6 +82,10 @@ about the operator you are willing to support just contact directly the maintain
 Let's checkout the git project and create a new branch to `torch_to_nnef` named:
  `feat/{inference_target}-aten-{aten_operator_name}` where inference target is `tract`,`khronos`
 and aten operator is one of [this list](./supported_operators.md), still unsupported.
+
+!!! tip "Which one to pick"
+
+    On the `TractNNEF` tab of that page, the **`Gap vs ONNX`** filter narrows the list to operators we do not translate but PyTorch's ONNX exporter does. Those are the ones where a missing translation is most likely to be blocking somebody, and where an existing implementation elsewhere gives you a reference to work from. Where a spec already measures the operator, its `nnef_gap` reason says what makes it hard.
 
 After that you can edit the file named: `./tests/test_primitive.py` and at the end of it
 after the last `test_suite.add`, add the following **temporary** line:
@@ -145,9 +149,11 @@ Other useful environment variable you can activate are:
 While adding new operators test it may happen you do not observe the error (following example in step 1.)
 
 ```bash
-torch_to_nnef.exceptions.T2NErrorNotImplemented:
+torch_to_nnef.exceptions.T2NErrorMissingOpEmitter:
 'svd' operator as not yet been translated to NNEF or registred
 ```
+
+`T2NErrorMissingOpEmitter` is the narrow one: it means no emitter is registered at all. Its parent `T2NErrorNotImplemented` is also raised by emitters that *do* exist but refuse a particular dtype, rank or attribute combination, so seeing the parent class instead means the operator is partly supported already and the work is inside that emitter.
 
 If that happen you can either [file an issue](./guidelines.md) or [try to debug](./debugging.md) yourself.
 

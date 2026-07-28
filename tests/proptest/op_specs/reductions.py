@@ -16,8 +16,18 @@ from ..joint import (
     reduction_dim_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
+)
+from ._gap_common import (
+    REASON_DATA_BINS,
+    REASON_SORT,
+    gap_spec,
+    matrix_rows_st,
+    small_int_st,
+    unary_st,
+    vector_st,
 )
 
 
@@ -628,9 +638,132 @@ def _var_std_mean_specs() -> T.List[OpSpec]:
 
 # Registry assembly
 
+
+def _order_statistic_specs() -> T.Tuple[OpSpec, ...]:
+    """Rank-based reductions: a sort plus a gather, uncomposed.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- order statistics --
+        gap_spec("median", unary_st(torch.median, "median"), REASON_SORT),
+        gap_spec(
+            "nanmedian", unary_st(torch.nanmedian, "nanmedian"), REASON_SORT
+        ),
+        gap_spec(
+            "msort", unary_st(torch.msort, "msort", min_rank=2), REASON_SORT
+        ),
+        gap_spec(
+            "kthvalue",
+            unary_st(
+                lambda x: torch.kthvalue(x, 1, dim=-1)[0],
+                "kthvalue",
+                min_rank=2,
+            ),
+            REASON_SORT,
+        ),
+        gap_spec(
+            "quantile",
+            unary_st(lambda x: torch.quantile(x, 0.5), "quantile"),
+            REASON_SORT,
+        ),
+        gap_spec(
+            "nanquantile",
+            unary_st(lambda x: torch.nanquantile(x, 0.5), "nanquantile"),
+            REASON_SORT,
+        ),
+        gap_spec(
+            "mode",
+            small_int_st(
+                lambda x: torch.mode(x, dim=-1)[0], "mode", min_rank=2
+            ),
+            "needs a count-and-compare over equal values, which has no "
+            "NNEF idiom",
+        ),
+    )
+
+
+def _histogram_specs() -> T.Tuple[OpSpec, ...]:
+    """Counting reductions whose output extent follows the data.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- histograms and counting --
+        gap_spec(
+            "bincount",
+            vector_st(
+                torch.bincount,
+                "bincount",
+                dtype=torch.int64,
+                domain=Interval(0, 6),
+            ),
+            "output length is `max(input) + 1`, so it is data-dependent",
+        ),
+        gap_spec(
+            "histc",
+            vector_st(lambda x: torch.histc(x, bins=4), "histc"),
+            REASON_DATA_BINS,
+        ),
+        gap_spec(
+            "histogram",
+            vector_st(lambda x: torch.histogram(x, bins=4)[0], "histogram"),
+            REASON_DATA_BINS,
+        ),
+        gap_spec(
+            "histogramdd",
+            # `bins` must have one entry per innermost axis, so the column
+            # count is fixed rather than drawn.
+            matrix_rows_st(
+                lambda x: torch.histogramdd(x, bins=[3, 3])[0],
+                "histogramdd",
+                min_cols=2,
+                max_cols=2,
+            ),
+            f"{REASON_DATA_BINS}; also fails before the emitter lookup",
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+    )
+
+
+def _correlation_specs() -> T.Tuple[OpSpec, ...]:
+    """Second-order statistics over an axis.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- statistics --
+        gap_spec(
+            "corrcoef",
+            matrix_rows_st(torch.corrcoef, "corrcoef"),
+            "expressible as a centred matmul plus a normalisation, but no "
+            "emitter composes it",
+        ),
+        gap_spec(
+            "cumulative_trapezoid",
+            unary_st(
+                lambda x: torch.cumulative_trapezoid(x, dim=-1),
+                "cumulative_trapezoid",
+                min_rank=2,
+            ),
+            "expressible as a cumulative sum of averaged neighbours, but no "
+            "emitter composes it",
+        ),
+    )
+
+
 SPECS = (
     *_reduction_specs(),
     *_reduction_dtype_kwarg_specs(),
     *_aminmax_specs(),
     *_var_std_mean_specs(),
+    *_order_statistic_specs(),
+    *_histogram_specs(),
+    *_correlation_specs(),
 )

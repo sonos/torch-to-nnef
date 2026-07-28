@@ -24,6 +24,11 @@ from ._common import (
     OpSample,
     OpSpec,
 )
+from ._gap_common import (
+    REASON_FFT_AXES,
+    gap_spec,
+    spectral_st,
+)
 
 
 def _embedding_sample_st() -> st.SearchStrategy[OpSample]:
@@ -1533,6 +1538,41 @@ def _recent_distance_matmul_specs() -> T.List[OpSpec]:
 # Constructors (input-less in PyTorch, wrapped with a shape-coupled input)
 # + advanced index + SDPA
 
+
+def _nd_fft_specs() -> T.Tuple[OpSpec, ...]:
+    """The n-dimensional and half-complex members of the FFT family.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- spectral --
+        gap_spec(
+            "fft_rfftn",
+            spectral_st(lambda x: torch.fft.rfftn(x).real, "fft_rfftn"),
+            REASON_FFT_AXES,
+        ),
+        gap_spec(
+            "fft_irfftn",
+            spectral_st(
+                lambda x: torch.fft.irfftn(x.to(torch.complex64)), "fft_irfftn"
+            ),
+            REASON_FFT_AXES,
+        ),
+        gap_spec(
+            "fft_ihfft2",
+            spectral_st(lambda x: torch.fft.ihfft2(x).real, "fft_ihfft2"),
+            REASON_FFT_AXES,
+        ),
+        gap_spec(
+            "fft_ihfftn",
+            spectral_st(lambda x: torch.fft.ihfftn(x).real, "fft_ihfftn"),
+            REASON_FFT_AXES,
+        ),
+    )
+
+
 SPECS = (
     *_specialty_specs(),
     *_prelu_glu_einsum_specs(),
@@ -1541,4 +1581,5 @@ SPECS = (
     *_no_tract_change_specs(),
     *_recent_distance_matmul_specs(),
     *_tier_a2_linalg_specs(),
+    *_nd_fft_specs(),
 )

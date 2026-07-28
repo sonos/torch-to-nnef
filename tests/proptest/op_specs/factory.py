@@ -21,6 +21,11 @@ from ._common import (
     OpSample,
     OpSpec,
 )
+from ._gap_common import (
+    REASON_LAYOUT,
+    gap_spec,
+    shape_only_st,
+)
 
 
 class _ZerosFromShapeOf(torch.nn.Module):
@@ -809,9 +814,63 @@ def _complex_specs() -> T.List[OpSpec]:
     ]
 
 
+def _uninitialized_specs() -> T.Tuple[OpSpec, ...]:
+    """Allocations with no defined contents, plus the deprecated range.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        gap_spec(
+            "empty",
+            shape_only_st(
+                lambda t: torch.empty(t.shape, dtype=t.dtype), "empty"
+            ),
+            "allocates without initializing, so there is nothing for a "
+            "declarative graph to describe",
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "empty_strided",
+            shape_only_st(
+                lambda t: torch.empty_strided((2, 2), (2, 1)) + t.sum() * 0,
+                "empty_strided",
+            ),
+            f"{REASON_LAYOUT}; uninitialized as well",
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "new_empty_strided",
+            shape_only_st(
+                lambda t: t.new_empty_strided((2, 2), (2, 1)),
+                "new_empty_strided",
+            ),
+            f"{REASON_LAYOUT}; uninitialized as well",
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "empty_permuted",
+            shape_only_st(
+                lambda t: torch.empty_permuted((2, 2), (1, 0)) + t.sum() * 0,
+                "empty_permuted",
+            ),
+            f"{REASON_LAYOUT}; uninitialized as well",
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "range",
+            shape_only_st(lambda t: torch.range(0, 4) + t.sum() * 0, "range"),
+            "the inclusive-end variant of `arange`, which we do translate; "
+            "no emitter maps the deprecated spelling onto it",
+        ),
+    )
+
+
 SPECS = (
     *_constructors_index_sdpa_specs(),
     *_fft_specs(),
     *_glue_specs(),
     *_complex_specs(),
+    *_uninitialized_specs(),
 )

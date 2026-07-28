@@ -20,9 +20,15 @@ from ..shapes import (
     shape_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
     _unary_sample_st,
+)
+from ._gap_common import (
+    gap_spec,
+    image_st,
+    unpool,
 )
 
 
@@ -668,8 +674,69 @@ def _conv2d_kwarg_sweep_specs() -> T.List[OpSpec]:
     ]
 
 
+def _unpool_specs() -> T.Tuple[OpSpec, ...]:
+    """Pooling inverses: a scatter into a larger buffer.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- pooling --
+        gap_spec(
+            "max_unpool2d",
+            image_st(unpool(2), "max_unpool2d", rank=2),
+            "the inverse of a pooling: a scatter into a larger buffer at "
+            "runtime-known indices, which no emitter builds",
+        ),
+        gap_spec(
+            "max_unpool3d",
+            image_st(unpool(3), "max_unpool3d", rank=3),
+            "the 3-D form of the same scatter as `max_unpool2d`",
+        ),
+    )
+
+
+def _fractional_pool_specs() -> T.Tuple[OpSpec, ...]:
+    """Pooling with randomly chosen regions.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        gap_spec(
+            "fractional_max_pool2d",
+            image_st(
+                lambda x: F.fractional_max_pool2d(x, 2, output_size=(2, 2)),
+                "fractional_max_pool2d",
+                rank=2,
+                side=5,
+            ),
+            "picks its pooling regions at random, so it carries the RNG "
+            "problem into a layer; it also fails before the emitter lookup",
+            stage=NnefGapStage.EXPORT_ERROR,
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "fractional_max_pool3d",
+            image_st(
+                lambda x: F.fractional_max_pool3d(x, 2, output_size=(2, 2, 2)),
+                "fractional_max_pool3d",
+                rank=3,
+                side=5,
+            ),
+            "the 3-D form of `fractional_max_pool2d`, same RNG problem",
+            stage=NnefGapStage.EXPORT_ERROR,
+            nondeterministic=True,
+        ),
+    )
+
+
 SPECS = (
     *_pool_specs(),
     *_conv3d_pool3d_helpers_specs(),
     *_conv2d_kwarg_sweep_specs(),
+    *_unpool_specs(),
+    *_fractional_pool_specs(),
 )

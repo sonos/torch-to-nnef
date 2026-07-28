@@ -20,29 +20,9 @@ import torch
 from hypothesis import given, settings
 
 from .proptest.op_specs import REGISTRY, OpSample, OpSpec
+from .proptest.trace_names import KNOWN_TRACE_RENAMES
 
 pytestmark = pytest.mark.proptest_onnx
-
-#: Declared name -> the name(s) torch actually emits in the trace.
-#:
-#: Two reasons a declared name legitimately never appears:
-#:   - torch renames the op on the way into the graph (`conv2d` is
-#:     dispatched through `aten::_convolution`),
-#:   - the op is a composite that PyTorch decomposes before tracing, so
-#:     only its constituents survive.
-#: Either way the spec is still testing the declared op, which is the
-#: name the support page lists, so the declaration is the useful one.
-KNOWN_TRACE_RENAMES: T.Dict[str, T.Tuple[str, ...]] = {
-    "conv1d": ("_convolution",),
-    "conv2d": ("_convolution",),
-    "conv3d": ("_convolution",),
-    # tanhshrink(x) == x - tanh(x), decomposed at trace time.
-    "tanhshrink": ("sub", "tanh"),
-    # `Tensor.fill_` on a traced tensor lands as a `full_like` + copy.
-    "fill": ("full_like",),
-    # conj on a complex tensor goes through the lazy-conjugate path.
-    "conj": ("_conj", "resolve_conj", "view_as_real", "view_as_complex"),
-}
 
 
 def _traced_aten_ops(sample: OpSample) -> T.Set[str]:
@@ -73,7 +53,15 @@ def test_spec_declares_the_op_it_traces(spec: OpSpec) -> None:
     def _inner(sample: OpSample) -> None:
         traced = _traced_aten_ops(sample)
         for declared in spec.aten_ops:
-            accepted = (declared, *KNOWN_TRACE_RENAMES.get(declared, ()))
+            # The page merges an in-place variant into its base row, so
+            # a row named `uniform` is the only home a traced
+            # `aten::uniform_` has. Accept it generically rather than
+            # listing every mutating op in KNOWN_TRACE_RENAMES.
+            accepted = (
+                declared,
+                f"{declared}_",
+                *KNOWN_TRACE_RENAMES.get(declared, ()),
+            )
             assert any(name in traced for name in accepted), (
                 f"spec {spec.name!r} declares aten op {declared!r} but "
                 f"traces {sorted(traced)}. Either fix `aten_ops` or, if "
