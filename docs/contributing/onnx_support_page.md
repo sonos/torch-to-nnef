@@ -90,6 +90,27 @@ T2N_HYP_PROFILE=nightly tox -e proptest_onnx   # 200 examples, several hours
 A `nightly` result supersedes a `ci` one for reuse purposes (more examples
 is strictly more evidence); the reverse is refused.
 
+## Reading the headline bars
+
+Both bars use the **same denominators as the `TractNNEF` tab**: the core
+opset size first, then the full `aten::` listing. That is what makes the
+two tabs comparable at a glance; a bar over "the operators we measured"
+renders near-full whatever the coverage is, and sits next to a bar that
+means something else entirely.
+
+The numerator is read the same generous way, and this is deliberate: it
+counts what we measured as `full` **plus** what the retired listing
+claimed and no spec of ours has checked (`✅*`). Those operators are
+unverified, but the reason they are unverified is a gap in *our* test
+coverage, and scoring that against ONNX would understate a competing
+exporter for our own shortfall. Rows with neither a measurement nor a
+claim (`-`) stay out: crediting a claim is not the same as crediting
+silence, and a measured `partial` or `none` overrides any claim.
+
+The caption under the bars splits the two populations apart, so the
+strict "of what we actually tested, how much passed" ratio is still one
+line away.
+
 ## Reading a grade
 
 The `export` column grades operator coverage only:
@@ -103,11 +124,14 @@ The `export` column grades operator coverage only:
 | ✅\* claimed | no spec covers it, so we did **not** verify it, but the retired listing claimed it was supported |
 | `-` `untested` | no spec covers it and nothing was ever claimed either way. **Not** unsupported |
 
-Only ✅ / 🟡 / ❌ are measurements. **✅\* is an unverified historical claim**
-and is excluded from every count on the page: it exists so the two kinds of
-"we don't know" stay distinguishable, since an operator the old listing
-called supported is a better bet (and a better candidate for a new spec)
-than one nobody ever said anything about. Both are filterable separately.
+Only ✅ / 🟡 / ❌ are measurements. **✅\* is an unverified historical
+claim**: the [headline bars](#reading-the-headline-bars) count it, so an
+operator we never wrote a spec for is not scored against ONNX, while the
+measured breakdown in the caption excludes it. The state exists so the two
+kinds of "we don't know" stay distinguishable, since an operator the old
+listing called supported is a better bet (and a better candidate for a new
+spec) than one nobody ever said anything about. Both are filterable
+separately.
 
 `runtime` (does onnxruntime load and run the exported graph) and
 `numerics` (do its outputs match PyTorch) are reported as separate columns
