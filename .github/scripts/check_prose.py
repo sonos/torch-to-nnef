@@ -110,9 +110,11 @@ NOT_OURS: tuple[str, ...] = (
     # "myriad" or "seamless" would otherwise hard-fail a gate with no
     # per-line exemption, and the text cannot be edited by hand.
     ".lock",
-    # ASR text-normalisation tables, where a word like "revolutionise" is a
-    # dictionary key rather than prose.
-    "/normalizer/",
+    # One ASR text-normalisation table, where a word like "revolutionise" is a
+    # dictionary key rather than prose. Named precisely rather than skipping
+    # the whole normalizer/ package: its other modules are ordinary code and
+    # are checked (data_utils.py, normalizer.py, __init__.py).
+    "/normalizer/english_abbreviations.py",
 )
 
 #: The rule and its fixtures have to spell out every banned word as data, so

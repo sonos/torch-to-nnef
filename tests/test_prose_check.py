@@ -142,7 +142,8 @@ def test_not_ours_paths_are_out_of_scope():
         "docs/html/uPlot.iife.min.js", check_prose.NOT_OURS
     )
     assert check_prose.matches(
-        "examples/nemo_asr/src/x/normalizer/abbr.py", check_prose.NOT_OURS
+        "examples/nemo_asr/src/x/normalizer/english_abbreviations.py",
+        check_prose.NOT_OURS,
     )
     assert not check_prose.matches(
         "docs/html/vad/plot.js", check_prose.NOT_OURS
@@ -235,6 +236,28 @@ def test_missing_path_is_reported(tmp_path):
 
     assert len(found) == 1
     assert "does not exist" in found[0].what
+
+
+def test_examples_are_in_scope():
+    """examples/ is authored here, so the gate covers it.
+
+    Only the one ASR abbreviation table is out of scope, not the whole
+    normalizer package around it.
+    """
+    normalizer = "examples/nemo_asr/src/nemo_asr_py/nemo_asr_tract/normalizer"
+
+    assert not check_prose.matches(
+        "examples/tts/pocket_tts/mimi_decode.py", check_prose.NOT_OURS
+    )
+    assert not check_prose.matches(
+        f"{normalizer}/normalizer.py", check_prose.NOT_OURS
+    )
+    assert not check_prose.matches(
+        f"{normalizer}/data_utils.py", check_prose.NOT_OURS
+    )
+    assert check_prose.matches(
+        f"{normalizer}/english_abbreviations.py", check_prose.NOT_OURS
+    )
 
 
 def test_lockfiles_are_out_of_scope():
