@@ -4,11 +4,10 @@ Usage: python scripts/hf_pull.py <repo_id> [<repo_id> ...]
 
 ``snapshot_download``s each repo with backoff, retrying only transient errors
 (429 rate limit + 5xx) and skipping permanent ones (401/403/404) immediately.
-Best-effort: a repo that cannot be fetched after retries is logged and skipped,
-so warming the cache only ever helps and the caller that actually needs the
-model still fails on its own terms. On the retry path only HF request errors
-are handled; an unexpected (non-request) error is left to propagate rather than
-be masked.
+Best-effort in the strong sense: nothing that happens here fails the build. A
+repo that cannot be fetched after retries is logged and skipped, so warming the
+cache only ever helps and the caller that actually needs the model still fails
+on its own terms.
 
 The first attempt uses the default download path, so a healthy Xet backend is
 used and stays exercised; only if that fails does the retry loop switch to
@@ -36,7 +35,6 @@ import sys
 import time
 
 from huggingface_hub import constants, snapshot_download
-from huggingface_hub.errors import HfHubHTTPError
 
 # Auth/missing (401/403/404, e.g. a gated repo without a token) will never
 # succeed on retry, so skip those immediately. Everything else (429 rate limit,
@@ -82,8 +80,8 @@ def prefetch(repo_id: str, attempts: int = 5, base_delay: float = 3.0) -> None:
     # exercised. The catch is broad only to decide whether to fall back: the
     # Xet backend is a Rust extension raising its own types (a ConnectionError
     # here, a RuntimeError on the next call), so it cannot be enumerated.
-    # Nothing is swallowed, since a failure that is not specific to Xet recurs
-    # on the LFS path below, where the narrow classification still applies.
+    # Nothing is swallowed: a failure that is not specific to Xet recurs on
+    # the LFS path below, and every attempt prints what it saw.
     if not constants.HF_HUB_DISABLE_XET:
         try:
             snapshot_download(repo_id)
@@ -97,11 +95,21 @@ def prefetch(repo_id: str, attempts: int = 5, base_delay: float = 3.0) -> None:
             snapshot_download(repo_id)
             print(f"[hf_pull] ok: {repo_id}")
             return
-        # HfHubHTTPError is the base of every HF HTTP error (429/5xx + auth/404,
-        # and the LocalEntryNotFoundError that wraps a rate-limited fetch), and
-        # imports without the requests/httpx backend (which the minimal prefetch
-        # env lacks). A non-HF error is unexpected and is left to propagate.
-        except HfHubHTTPError as e:
+        # Deliberately broad, for the same reason as the Xet attempt
+        # above: the failures that reach here are transport-level and
+        # come from whichever backend huggingface_hub is built on, so
+        # enumerating their types is whack-a-mole. Observed so far: the
+        # Xet extension's ConnectionError/RuntimeError, and httpx's
+        # RemoteProtocolError when the CDN truncates a response
+        # mid-body. None is an HfHubHTTPError, all are retryable, and
+        # each one that escapes fails a step whose entire contract is to
+        # warm a cache without ever failing the build.
+        #
+        # Nothing is hidden: `_http_status` still short-circuits the
+        # permanent statuses, and anything it cannot classify is printed
+        # with its type name and retried, so a genuine bug shows up in
+        # the log and then loses the cache warm rather than the job.
+        except Exception as e:  # noqa: BLE001  pylint: disable=broad-except
             status = _http_status(e)
             if status in PERMANENT:
                 print(f"[hf_pull] skip {repo_id}: HTTP {status} (permanent)")
