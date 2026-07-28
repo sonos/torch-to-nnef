@@ -15,7 +15,7 @@ exists and could not be refreshed.
 
 The `dynamo` exporter that replaced it does not ship an equivalent table.
 But the [proptest catalog](./internal_design.md) already builds real
-modules covering 300+ `aten::` operators, so the support level can simply
+modules covering 440+ `aten::` operators, so the support level can simply
 be measured: export each one and record what happens.
 
 Measuring also surfaces something a doc table cannot express. Support is
@@ -55,7 +55,7 @@ measured on the next run and appears on the next regeneration.
 
 ### Cost and reuse
 
-A full sweep is ~370 specs x 25 examples, each one an export plus an
+A full sweep is ~510 specs x 25 examples, each one an export plus an
 onnxruntime run. To keep repeat regenerations cheap, a grade of `full` can
 be **carried over** from the previous artifact, but only when:
 
