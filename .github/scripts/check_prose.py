@@ -139,6 +139,8 @@ UTF16_32_BOMS = (
 
 
 class Violation(NamedTuple):
+    """One banned character or word, located."""
+
     path: str
     line: int
     col: int
@@ -147,6 +149,7 @@ class Violation(NamedTuple):
 
 
 def matches(path: str, markers: tuple[str, ...]) -> bool:
+    """Whether any marker appears in ``path``."""
     return any(marker in path for marker in markers)
 
 
@@ -186,52 +189,60 @@ def tracked_files() -> list[str]:
     return [str(root / p) for p in proc.stdout.split("\0") if p]
 
 
-def scan(path: str, check_words: bool = True) -> list[Violation]:
-    """Collect violations in one file, or nothing if it is not text."""
+def read_text(path: str) -> tuple[str | None, list[Violation]]:
+    """Return the file's text, or why it cannot be checked.
+
+    ``(None, [])`` means "nothing to check here" (a symlink, a directory, a
+    binary). ``(None, [violation])`` means the file should have been checkable
+    and was not, which is reported rather than passed over: a silent skip is an
+    exemption, and this gate has none.
+    """
     node = pathlib.Path(path)
     # A symlink's hits belong to its target: docs/CHANGELOG.md and friends
     # would otherwise be reported twice, once at a path nobody can edit.
     if node.is_symlink():
-        return []
+        return None, []
     if not node.exists():
         # Never silently: a mistyped or wrongly-relative argument used to be
         # reported as clean, so a per-file run could give a green result over
         # files it had not opened.
-        return [Violation(path, 1, 1, "path does not exist", "check the path")]
+        return None, [
+            Violation(path, 1, 1, "path does not exist", "check the path")
+        ]
     if not node.is_file():
-        return []  # directory, fifo, ...
+        return None, []  # directory, fifo, ...
     raw = node.read_bytes()
     if raw[:4] in UTF16_32_BOMS or raw[:2] in UTF16_32_BOMS:
         # Checked before the NUL sniff below: UTF-16/UTF-32 text is full of
         # 0x00 bytes, so the binary heuristic would classify it as binary and
         # exempt exactly the typography this gate exists to block.
-        return [
-            Violation(
-                path,
-                1,
-                1,
-                "file is UTF-16/UTF-32, not UTF-8",
-                "re-save as UTF-8 (it cannot be checked otherwise)",
-            )
-        ]
-    if b"\0" in raw[:NUL_SNIFF_BYTES]:
-        return []  # binary (*.wasm, *.png, ...)
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        # Reporting this as clean would be a silent exemption: a cp1252 file
-        # stores an em dash as a single 0x97 byte, so the gate would pass
-        # exactly the typography it exists to block. Undecodable text is an
-        # error the author has to resolve.
-        return [
-            Violation(
-                path,
-                1,
-                1,
-                "file is not valid UTF-8",
-                "re-save as UTF-8 (it cannot be checked otherwise)",
-            )
-        ]
+        why = "file is UTF-16/UTF-32, not UTF-8"
+    elif b"\0" in raw[:NUL_SNIFF_BYTES]:
+        return None, []  # binary (*.wasm, *.png, ...)
+    else:
+        try:
+            return raw.decode("utf-8"), []
+        except UnicodeDecodeError:
+            # Reporting this as clean would be a silent exemption: a cp1252
+            # file stores an em dash as a single 0x97 byte, so the gate would
+            # pass exactly the typography it exists to block.
+            why = "file is not valid UTF-8"
+    return None, [
+        Violation(
+            path,
+            1,
+            1,
+            why,
+            "re-save as UTF-8 (it cannot be checked otherwise)",
+        )
+    ]
+
+
+def scan(path: str, check_words: bool = True) -> list[Violation]:
+    """Collect violations in one file, or nothing if it is not text."""
+    text, unreadable = read_text(path)
+    if text is None:
+        return unreadable
 
     found: list[Violation] = []
     for lineno, line in enumerate(text.split("\n"), 1):
@@ -255,6 +266,7 @@ def scan(path: str, check_words: bool = True) -> list[Violation]:
 
 
 def main(argv: list[str]) -> int:
+    """Check ``argv`` paths, or every tracked file when it is empty."""
     if argv:
         paths = argv
     else:

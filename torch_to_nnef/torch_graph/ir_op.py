@@ -886,12 +886,12 @@ class TorchOp:
         # output via `set_data`, so it must be the REAL value: bake it with
         # `call_op` instead, otherwise the garbage placeholder becomes the
         # folded constant (silently wrong, e.g. Qwen3-VL `pos_embed(idx)`).
-        if self.has_constant_inputs:
+        # `rule.fn is None` is folded in here rather than tested separately:
+        # both cases fall back to the real op, and only identity rules omit
+        # `fn`, so that arm is unreachable today.
+        if self.has_constant_inputs or rule.fn is None:
             return self.call_op()
 
-        if rule.fn is None:
-            # Only identity rules omit `fn`, and those returned above.
-            return self.call_op()
         return _build_empty_tensor_from_infer_trace(
             rule.fn, self.args, rule.arity
         )
