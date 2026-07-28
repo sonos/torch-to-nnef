@@ -427,13 +427,13 @@ class TestFilterModeLabels:
     def test_cross_gap_uses_its_own_tally(self, gen):
         """It counts an intersection, not rows of one display state."""
         modes = gen.counted_modes(
-            ((gen.CROSS_GAP_MODE, "Missing here"),), {}, 10, 3
+            ((gen.CROSS_GAP_MODE, "Gap vs ONNX"),), {}, 10, 3
         )
-        assert modes == ((gen.CROSS_GAP_MODE, "Missing here (3)"),)
+        assert modes == ((gen.CROSS_GAP_MODE, "Gap vs ONNX (3)"),)
 
     def test_cross_gap_disappears_when_nothing_is_missing(self, gen):
         modes = gen.counted_modes(
-            ((gen.CROSS_GAP_MODE, "Missing here"),), {}, 10, 0
+            ((gen.CROSS_GAP_MODE, "Gap vs ONNX"),), {}, 10, 0
         )
         assert modes == ()
 

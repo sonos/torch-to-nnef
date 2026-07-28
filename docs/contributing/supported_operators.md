@@ -30,7 +30,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
     <label><input type="radio" name="op-filter-TractNNEF" value="all" checked> All (581)</label>
     <label><input type="radio" name="op-filter-TractNNEF" value="supported"> Supported only (410)</label>
     <label><input type="radio" name="op-filter-TractNNEF" value="unsupported"> Unsupported only (171)</label>
-    <label><input type="radio" name="op-filter-TractNNEF" value="cross-gap"> Missing here, credited by ONNX (20)</label>
+    <label><input type="radio" name="op-filter-TractNNEF" value="cross-gap"> Gap vs ONNX (20)</label>
     </form>
     <table class="op-table">
     <thead><tr><th>export&amp;run</th><th>aten name</th><th>aliases</th><th>can in-place</th><th>is core</th></tr></thead>
