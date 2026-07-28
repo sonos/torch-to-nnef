@@ -103,6 +103,24 @@ def test_excluded_entries_have_no_spec():
     )
 
 
+def test_excluded_entries_are_still_unsupported():
+    """An exclusion must still describe an unsupported row.
+
+    The other direction of the coverage check, and the one that rots
+    quietly: implementing an excluded operator leaves behind an entry
+    saying we chose not to measure something we now translate, and
+    nothing else would ever notice.
+    """
+    if not SUPPORT_PAGE.exists():  # pragma: no cover - page always shipped
+        pytest.skip("generated support page is not in this checkout")
+    stale = set(EXCLUDED) - _page_unsupported_ops()
+    assert not stale, (
+        f"{sorted(stale)} are listed in `EXCLUDED` but the support page "
+        "no longer calls them unsupported. Drop the entries, and give "
+        "any that we now translate a normal spec."
+    )
+
+
 @pytest.mark.parametrize("spec", GAP_SPECS, ids=lambda s: s.name)
 def test_gap_spec_declares_aten_ops(spec: OpSpec):
     """A gap nobody can attribute to an operator is not worth recording."""
