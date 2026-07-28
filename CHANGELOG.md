@@ -1,6 +1,13 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
+## [0.24.5] - 2026-07-28
+
+### Changed
+- **The support page's two tabs are now comparable.** The `ONNX` bars were computed over a measured-only denominator (`108/108` core, `278/296` overall, i.e. "of what we tested, how much passed"), so they rendered near-full next to `TractNNEF`'s `130/139` and read as the opposite of what the numbers said. Both tabs now use the same denominators, in the same order (core opset size, then the full `aten::` listing), through one shared helper. The `ONNX` numerator credits measured `full` **plus** `✅*` (claimed by the retired TorchScript listing and never contradicted by a measurement of ours), since an operator no proptest spec covers is a gap in our own coverage rather than an ONNX gap: rows with neither a measurement nor a claim stay out, and a measured `partial` / `none` / `blocked` overrides any claim. The tabs now read `133/139` core and `370/581` overall for `ONNX` against `130/139` and `410/581` for `TractNNEF`, with the strict measured-only ratios (`108/108` core, `278/296` overall) kept in the caption underneath.
+- **New `Gap vs ONNX` filter on the `TractNNEF` tab**: the 20 operators the `ONNX` tab credits and `torch_to_nnef` does not, which is the implementation shortlist and the one question neither table can answer alone. Six of them are core opset (`as_strided`, `empty`, `masked_scatter`, `nonzero`, `rand`, `randn`).
+- **Support-page filters now say what they select, carry their row count, and disappear when empty.** `None` next to `All` read as "select nothing" and `Blocked` never said blocked by what, so they became `Never exports` and `Blocked before ONNX` (with `Full` / `Partial` following as `Exports fully` / `Exports partially`); every label carries the number of rows it selects, and a mode matching zero rows is not rendered at all. The `export` column legend moves out of a prose paragraph into its own admonition next to the table it describes, and the `TractNNEF` first column header becomes `export&run`.
+
 ## [0.24.4] - 2026-07-28
 
 ### Added
