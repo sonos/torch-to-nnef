@@ -85,12 +85,15 @@ CROSS_GAP_MODE = "cross-gap"
 
 #: Class marking a row the other tab credits as supported.
 CROSS_OK_CLASS = "cross-ok"
+#: Labels say what the filter selects, not what the grade is called. Next
+#: to "All", a radio labelled "None" reads as "select nothing", and
+#: "Blocked" does not say blocked by what (`torch.export`, never ONNX).
 GRADED_FILTER_MODES = (
     ("all", "All"),
-    (GRADE_FULL, "Full"),
-    (GRADE_PARTIAL, "Partial"),
-    (GRADE_NONE, "None"),
-    (GRADE_BLOCKED, "Blocked"),
+    (GRADE_FULL, "Exports fully"),
+    (GRADE_PARTIAL, "Exports partially"),
+    (GRADE_NONE, "Never exports"),
+    (GRADE_BLOCKED, "Blocked before ONNX"),
     (DISPLAY_UNTESTED_DOCUMENTED, "Claimed, unverified"),
     (GRADE_UNTESTED, "Untested, no data"),
 )
@@ -1133,6 +1136,34 @@ def _write_measured_summary(
     )
 
 
+#: Binary-section filter values that select a grade under another name.
+_MODE_ALIASES = {"supported": GRADE_FULL, "unsupported": GRADE_NONE}
+
+
+def counted_modes(modes, display_counts, total: int, cross_gap_qte: int):
+    """Label each filter with its row count, and drop the empty ones.
+
+    A radio that selects nothing is worse than absent: it invites a click
+    that empties the table and says nothing about why. `blocked` is 0
+    whenever `torch.export` captured every module, which is the normal
+    case, so the mode list has to follow the data rather than be fixed.
+
+    The counts double as the section's summary: they say how the rows
+    split without the reader clicking through every mode.
+    """
+    counted = []
+    for value, label in modes:
+        if value == "all":
+            count = total
+        elif value == CROSS_GAP_MODE:
+            count = cross_gap_qte
+        else:
+            count = display_counts.get(_MODE_ALIASES.get(value, value), 0)
+        if count:
+            counted.append((value, f"{label} ({count})"))
+    return tuple(counted)
+
+
 def _filter_widget(filter_id: str, modes) -> str:
     """Radio buttons for one section's row filter."""
     labels = "".join(
@@ -1313,9 +1344,13 @@ def write_operator_support(
         )
         modes = GRADED_FILTER_MODES
     if cross_support is not None:
-        modes = modes + (
-            (CROSS_GAP_MODE, f"{cross_gap_label} ({cross_gap_qte})"),
-        )
+        modes = modes + ((CROSS_GAP_MODE, cross_gap_label),)
+    # Trailing unpack rather than a fixed index: the row tuple grows, and
+    # a stale offset here would silently count the wrong field.
+    display_counts = Counter(
+        display for *_, display, _cells, _cross_ok in row_items
+    )
+    modes = counted_modes(modes, display_counts, len(row_items), cross_gap_qte)
     print_t(
         _filter_widget(filter_id, modes)
         + '<table class="op-table">\n'

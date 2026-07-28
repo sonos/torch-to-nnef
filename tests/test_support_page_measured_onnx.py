@@ -388,6 +388,69 @@ class TestCrossSectionGapFilter:
         assert pattern.search(f"op-row {gen.CROSS_OK_CLASS}") is None
 
 
+class TestFilterModeLabels:
+    """Radios follow the data: counted, and absent when they select none."""
+
+    def test_empty_modes_are_dropped(self, gen):
+        """`blocked` is 0 in the normal case; the radio must not show."""
+        modes = gen.counted_modes(
+            gen.GRADED_FILTER_MODES, {GRADE_FULL: 3}, 3, 0
+        )
+        values = [value for value, _label in modes]
+        assert "blocked" not in values
+        assert GRADE_FULL in values
+
+    def test_labels_carry_their_count(self, gen):
+        modes = gen.counted_modes(
+            ((GRADE_FULL, "Exports fully"),), {GRADE_FULL: 7}, 7, 0
+        )
+        assert modes == ((GRADE_FULL, "Exports fully (7)"),)
+
+    def test_all_counts_every_row(self, gen):
+        modes = gen.counted_modes((("all", "All"),), {GRADE_FULL: 2}, 9, 0)
+        assert modes == (("all", "All (9)"),)
+
+    def test_binary_labels_map_onto_the_grades_they_select(self, gen):
+        """`supported` selects `full` rows, `unsupported` selects `none`."""
+        modes = gen.counted_modes(
+            gen.BINARY_FILTER_MODES,
+            {GRADE_FULL: 4, GRADE_NONE: 6},
+            10,
+            0,
+        )
+        assert modes == (
+            ("all", "All (10)"),
+            ("supported", "Supported only (4)"),
+            ("unsupported", "Unsupported only (6)"),
+        )
+
+    def test_cross_gap_uses_its_own_tally(self, gen):
+        """It counts an intersection, not rows of one display state."""
+        modes = gen.counted_modes(
+            ((gen.CROSS_GAP_MODE, "Missing here"),), {}, 10, 3
+        )
+        assert modes == ((gen.CROSS_GAP_MODE, "Missing here (3)"),)
+
+    def test_cross_gap_disappears_when_nothing_is_missing(self, gen):
+        modes = gen.counted_modes(
+            ((gen.CROSS_GAP_MODE, "Missing here"),), {}, 10, 0
+        )
+        assert modes == ()
+
+    def test_no_label_is_a_bare_none(self, gen):
+        """A bare `None` next to `All` reads as "select nothing"."""
+        labels = [label for _value, label in gen.GRADED_FILTER_MODES]
+        assert "None" not in labels
+        assert "Never exports" in labels
+
+    def test_blocked_label_says_blocked_by_what(self, gen):
+        """It is a `torch.export` failure, never an ONNX verdict."""
+        labels = dict(
+            (value, label) for value, label in gen.GRADED_FILTER_MODES
+        )
+        assert labels["blocked"] == "Blocked before ONNX"
+
+
 class TestColumnLegend:
     def test_legend_is_its_own_admonition(self, gen):
         legend = gen._measured_onnx_legend("http://x", True)  # noqa: SLF001

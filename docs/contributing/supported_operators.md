@@ -27,9 +27,9 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
-    <label><input type="radio" name="op-filter-TractNNEF" value="all" checked> All</label>
-    <label><input type="radio" name="op-filter-TractNNEF" value="supported"> Supported only</label>
-    <label><input type="radio" name="op-filter-TractNNEF" value="unsupported"> Unsupported only</label>
+    <label><input type="radio" name="op-filter-TractNNEF" value="all" checked> All (581)</label>
+    <label><input type="radio" name="op-filter-TractNNEF" value="supported"> Supported only (410)</label>
+    <label><input type="radio" name="op-filter-TractNNEF" value="unsupported"> Unsupported only (171)</label>
     <label><input type="radio" name="op-filter-TractNNEF" value="cross-gap"> Missing here, credited by ONNX (20)</label>
     </form>
     <table class="op-table">
@@ -658,13 +658,12 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
-    <label><input type="radio" name="op-filter-ONNX" value="all" checked> All</label>
-    <label><input type="radio" name="op-filter-ONNX" value="full"> Full</label>
-    <label><input type="radio" name="op-filter-ONNX" value="partial"> Partial</label>
-    <label><input type="radio" name="op-filter-ONNX" value="none"> None</label>
-    <label><input type="radio" name="op-filter-ONNX" value="blocked"> Blocked</label>
-    <label><input type="radio" name="op-filter-ONNX" value="untested-documented"> Claimed, unverified</label>
-    <label><input type="radio" name="op-filter-ONNX" value="untested"> Untested, no data</label>
+    <label><input type="radio" name="op-filter-ONNX" value="all" checked> All (581)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="full"> Exports fully (278)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="partial"> Exports partially (1)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="none"> Never exports (17)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="untested-documented"> Claimed, unverified (92)</label>
+    <label><input type="radio" name="op-filter-ONNX" value="untested"> Untested, no data (193)</label>
     </form>
     <table class="op-table">
     <thead><tr><th>export</th><th>aten name</th><th>aliases</th><th>runtime</th><th>numerics</th><th>documented</th><th>can in-place</th><th>is core</th></tr></thead>
