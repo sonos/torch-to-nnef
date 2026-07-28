@@ -283,6 +283,26 @@ class ReuseIndex:
             return None
         return measurement_id
 
+    def _numerics_were_skipped(self, op_name: str) -> bool:
+        """Did the stored measurement deliberately not compare values?
+
+        Read from the counters rather than a stored flag, because a
+        reused record is copied forward from an older artifact and would
+        not carry one. The signature is exact: `measure_example` returns
+        `runtime=ok` with numerics unreached only when `check_numerics`
+        was off, so a record that ran under onnxruntime yet never reached
+        the numerics axis was measured with that axis disabled.
+
+        The distinction matters because "we chose not to compare" and "we
+        never got that far" look identical in `numerics_reached` alone,
+        and treating the second as the first refuses reuse for every op
+        whose runtime fails.
+        """
+        record = self._ops.get(op_name, {}).get("onnx") or {}
+        return bool(record.get("runtime_ok")) and not record.get(
+            "numerics_reached"
+        )
+
     def reuse_for(
         self,
         spec_name: str,
@@ -305,8 +325,7 @@ class ReuseIndex:
         if any(mid is None for mid in measurement_ids):
             return False
         if check_numerics and any(
-            not self._ops.get(op, {}).get("onnx", {}).get("numerics_reached")
-            for op in aten_ops
+            self._numerics_were_skipped(op) for op in aten_ops
         ):
             return False
         self.reused_specs[spec_name] = measurement_ids[0]  # type: ignore[assignment]

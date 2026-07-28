@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "regen_index": 3,
+  "regen_index": 4,
   "measurements": {
     "m1": {
       "torch": "2.13.0",
@@ -37,6 +37,18 @@
       "examples": 25,
       "profile": "ci",
       "generated_utc": "2026-07-28T16:55:41+00:00"
+    },
+    "m4": {
+      "torch": "2.13.0",
+      "onnx": "1.22.0",
+      "onnxruntime": "1.28.0",
+      "onnxscript": "0.7.1",
+      "opset": 18,
+      "path": "dynamo",
+      "check_numerics": true,
+      "examples": 25,
+      "profile": "ci",
+      "generated_utc": "2026-07-28T17:34:07+00:00"
     }
   },
   "ops": {
@@ -77,8 +89,8 @@
           "abs",
           "abs-broad"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "acos": {
@@ -138,7 +150,7 @@
           "adaptive_avg_pool2d"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "adaptive_max_pool2d": {
@@ -219,8 +231,8 @@
         "specs": [
           "addcdiv"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "addmv": {
@@ -540,7 +552,7 @@
           "atan"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "atan2": {
@@ -620,7 +632,7 @@
           "atleast_2d"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "atleast_3d": {
@@ -721,7 +733,7 @@
           "batch_norm1d-broad"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "bernoulli": {
@@ -741,7 +753,7 @@
           "bernoulli"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "binary_cross_entropy": {
@@ -800,7 +812,7 @@
         "specs": [
           "bincount"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -820,7 +832,7 @@
         "specs": [
           "binomial"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -861,7 +873,7 @@
           "bitwise_left_shift"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "bitwise_not": {
@@ -920,8 +932,8 @@
         "specs": [
           "bitwise_right_shift"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "bitwise_xor": {
@@ -1001,7 +1013,7 @@
           "bucketize"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "cat": {
@@ -1042,7 +1054,7 @@
           "cauchy"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "cdist": {
@@ -1061,7 +1073,7 @@
         "specs": [
           "cdist"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1101,7 +1113,7 @@
         "specs": [
           "chalf"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1141,7 +1153,7 @@
         "specs": [
           "cholesky"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1161,7 +1173,7 @@
         "specs": [
           "cholesky_inverse"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1181,7 +1193,7 @@
         "specs": [
           "cholesky_solve"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1201,8 +1213,8 @@
         "specs": [
           "chunk"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "clamp": {
@@ -1301,7 +1313,7 @@
         "specs": [
           "combinations"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1362,7 +1374,7 @@
           "conj_physical",
           "conj_physical-complex"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1463,7 +1475,7 @@
         "specs": [
           "conv_tbc"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1483,7 +1495,7 @@
         "specs": [
           "copysign"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1503,7 +1515,7 @@
         "specs": [
           "corrcoef"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1565,7 +1577,7 @@
           "cosine_embedding_loss"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "cosine_similarity": {
@@ -1584,8 +1596,8 @@
         "specs": [
           "cosine_similarity"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "count_nonzero": {
@@ -1626,7 +1638,7 @@
           "cross"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "cross_entropy_loss": {
@@ -1665,7 +1677,7 @@
         "specs": [
           "ctc_loss"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1685,7 +1697,7 @@
         "specs": [
           "cumprod"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1786,8 +1798,8 @@
           "diag_1d_to_2d",
           "diag_2d_to_1d"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "diag_embed": {
@@ -1826,8 +1838,8 @@
         "specs": [
           "diagflat"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "diagonal": {
@@ -1868,7 +1880,7 @@
           "diff_n2"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "digamma": {
@@ -1887,7 +1899,7 @@
         "specs": [
           "digamma"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -1908,7 +1920,7 @@
           "dist"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "div": {
@@ -1970,7 +1982,7 @@
           "dropout"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "dsplit": {
@@ -1990,7 +2002,7 @@
           "dsplit"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "dstack": {
@@ -2114,7 +2126,7 @@
           "empty"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "empty_permuted": {
@@ -2133,7 +2145,7 @@
         "specs": [
           "empty_permuted"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2153,7 +2165,7 @@
         "specs": [
           "empty_strided"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2234,7 +2246,7 @@
         "specs": [
           "erfinv"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2356,7 +2368,7 @@
           "exponential"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "eye": {
@@ -2415,8 +2427,8 @@
         "specs": [
           "feature_dropout"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "fft_fft": {
@@ -2515,7 +2527,7 @@
         "specs": [
           "fft_ihfft2"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2535,7 +2547,7 @@
         "specs": [
           "fft_ihfftn"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2635,8 +2647,8 @@
         "specs": [
           "fill"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "flatten": {
@@ -2735,8 +2747,8 @@
         "specs": [
           "float_power"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "floor": {
@@ -2755,8 +2767,8 @@
         "specs": [
           "floor"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "floor_divide": {
@@ -2796,7 +2808,7 @@
         "specs": [
           "fmax"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2816,7 +2828,7 @@
         "specs": [
           "fmin"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2876,7 +2888,7 @@
         "specs": [
           "fractional_max_pool2d"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2896,7 +2908,7 @@
         "specs": [
           "fractional_max_pool3d"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2916,7 +2928,7 @@
         "specs": [
           "frexp"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -2976,7 +2988,7 @@
         "specs": [
           "gamma"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3016,7 +3028,7 @@
         "specs": [
           "gcd"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3037,8 +3049,8 @@
           "ge",
           "ge-broad"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "gelu": {
@@ -3079,7 +3091,7 @@
           "geometric"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "geqrf": {
@@ -3098,7 +3110,7 @@
         "specs": [
           "geqrf"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3181,8 +3193,8 @@
           "gt",
           "gt-broad"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "hardsigmoid": {
@@ -3282,7 +3294,7 @@
         "specs": [
           "histc"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3302,7 +3314,7 @@
         "specs": [
           "histogram"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3322,7 +3334,7 @@
         "specs": [
           "histogramdd"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3342,8 +3354,8 @@
         "specs": [
           "hsplit"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "huber_loss": {
@@ -3363,7 +3375,7 @@
           "huber_loss"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "hypot": {
@@ -3382,7 +3394,7 @@
         "specs": [
           "hypot"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3402,7 +3414,7 @@
         "specs": [
           "i0"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3422,7 +3434,7 @@
         "specs": [
           "igamma"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3442,7 +3454,7 @@
         "specs": [
           "igammac"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3584,7 +3596,7 @@
         "specs": [
           "index_reduce"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3707,8 +3719,8 @@
         "specs": [
           "isinf-xfail"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "isnan": {
@@ -3727,8 +3739,8 @@
         "specs": [
           "isnan-xfail"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "isneginf": {
@@ -3768,7 +3780,7 @@
           "isposinf-xfail"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "isreal": {
@@ -3809,7 +3821,7 @@
           "kl_div_log_target"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "kron": {
@@ -3848,7 +3860,7 @@
         "specs": [
           "kthvalue"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3909,7 +3921,7 @@
         "specs": [
           "lcm"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -3951,7 +3963,7 @@
           "le-broad"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "leaky_relu": {
@@ -3971,8 +3983,8 @@
           "leaky_relu",
           "leaky_relu-broad"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "lgamma": {
@@ -3991,7 +4003,7 @@
         "specs": [
           "lgamma"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4011,7 +4023,7 @@
         "specs": [
           "linalg_cond"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4051,7 +4063,7 @@
         "specs": [
           "linalg_eig"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4071,7 +4083,7 @@
         "specs": [
           "linalg_eigh"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4091,7 +4103,7 @@
         "specs": [
           "linalg_eigvals"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4111,7 +4123,7 @@
         "specs": [
           "linalg_eigvalsh"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4131,7 +4143,7 @@
         "specs": [
           "linalg_householder_product"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4151,7 +4163,7 @@
         "specs": [
           "linalg_inv"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4171,7 +4183,7 @@
         "specs": [
           "linalg_ldl_solve"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4191,7 +4203,7 @@
         "specs": [
           "linalg_lstsq"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4211,7 +4223,7 @@
         "specs": [
           "linalg_lu"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4231,7 +4243,7 @@
         "specs": [
           "linalg_lu_solve"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4251,7 +4263,7 @@
         "specs": [
           "linalg_matrix_exp"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4292,7 +4304,7 @@
           "linalg_matrix_power"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "linalg_matrix_rank": {
@@ -4311,7 +4323,7 @@
         "specs": [
           "linalg_matrix_rank"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4331,7 +4343,7 @@
         "specs": [
           "linalg_pinv"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4351,7 +4363,7 @@
         "specs": [
           "linalg_qr"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4371,7 +4383,7 @@
         "specs": [
           "linalg_slogdet"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4391,7 +4403,7 @@
         "specs": [
           "linalg_solve"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4411,7 +4423,7 @@
         "specs": [
           "linalg_solve_triangular"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4431,7 +4443,7 @@
         "specs": [
           "linalg_svd"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4451,7 +4463,7 @@
         "specs": [
           "linalg_tensorinv"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4471,7 +4483,7 @@
         "specs": [
           "linalg_tensorsolve"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4512,7 +4524,7 @@
           "linear"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "log": {
@@ -4613,7 +4625,7 @@
           "log_normal"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "log_softmax": {
@@ -4633,7 +4645,7 @@
           "log_softmax"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "logaddexp": {
@@ -4713,7 +4725,7 @@
           "logdet"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "logical_and": {
@@ -4733,7 +4745,7 @@
           "logical_and"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "logical_or": {
@@ -4813,7 +4825,7 @@
         "specs": [
           "lu_solve"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4833,7 +4845,7 @@
         "specs": [
           "lu_unpack"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -4854,7 +4866,7 @@
           "mH"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "mT": {
@@ -4953,7 +4965,7 @@
         "specs": [
           "masked_select"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -5056,8 +5068,8 @@
           "max_pool2d",
           "max_pool2d-dilation"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "max_pool2d_with_indices": {
@@ -5197,7 +5209,7 @@
         "specs": [
           "median"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -5219,7 +5231,7 @@
           "meshgrid_xy"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "min": {
@@ -5280,8 +5292,8 @@
         "specs": [
           "mish"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "mode": {
@@ -5300,7 +5312,7 @@
         "specs": [
           "mode"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -5422,7 +5434,7 @@
           "multinomial"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "mv": {
@@ -5481,7 +5493,7 @@
         "specs": [
           "nanmedian"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -5584,7 +5596,7 @@
           "new_empty_strided"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "new_zeros": {
@@ -5623,7 +5635,7 @@
         "specs": [
           "nextafter"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -5703,7 +5715,7 @@
         "specs": [
           "nonzero_static"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -5724,7 +5736,7 @@
           "normal"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "nuclear_norm": {
@@ -5743,7 +5755,7 @@
         "specs": [
           "nuclear_norm"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -5823,7 +5835,7 @@
         "specs": [
           "ormqr"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -5925,7 +5937,7 @@
         "specs": [
           "pdist"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6005,7 +6017,7 @@
         "specs": [
           "poisson"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6045,7 +6057,7 @@
         "specs": [
           "polygamma"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6107,8 +6119,8 @@
           "prelu",
           "prelu-multi"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "prod": {
@@ -6148,7 +6160,7 @@
         "specs": [
           "put"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6168,7 +6180,7 @@
         "specs": [
           "qr"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6186,10 +6198,10 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-quantile"
+          "quantile"
         ],
-        "measurement": "m2",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "rad2deg": {
@@ -6229,7 +6241,7 @@
           "rand"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "rand_like": {
@@ -6249,7 +6261,7 @@
           "rand_like"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "randint": {
@@ -6269,7 +6281,7 @@
           "randint"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "randint_like": {
@@ -6289,7 +6301,7 @@
           "randint_like"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "randn": {
@@ -6309,7 +6321,7 @@
           "randn"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "randn_like": {
@@ -6328,7 +6340,7 @@
         "specs": [
           "randn_like"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6348,7 +6360,7 @@
         "specs": [
           "random"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6368,7 +6380,7 @@
         "specs": [
           "randperm"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6388,7 +6400,7 @@
         "specs": [
           "range"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6469,7 +6481,7 @@
           "relu6"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "remainder": {
@@ -6609,7 +6621,7 @@
           "resolve_conj"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "resolve_neg": {
@@ -6628,8 +6640,8 @@
         "specs": [
           "resolve_neg"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "rms_norm": {
@@ -6689,7 +6701,7 @@
           "rot90"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "round": {
@@ -6728,7 +6740,7 @@
         "specs": [
           "rrelu"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6748,7 +6760,7 @@
         "specs": [
           "rrelu_with_noise"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6768,8 +6780,8 @@
         "specs": [
           "rsqrt"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "scalar_tensor": {
@@ -6891,7 +6903,7 @@
         "specs": [
           "searchsorted"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6911,7 +6923,7 @@
         "specs": [
           "segment_reduce"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -6991,7 +7003,7 @@
         "specs": [
           "sgn-complex-xfail"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7012,7 +7024,7 @@
           "sigmoid"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "sign": {
@@ -7031,8 +7043,8 @@
         "specs": [
           "sign"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "signbit": {
@@ -7294,7 +7306,7 @@
         "specs": [
           "special_airy_ai"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7314,7 +7326,7 @@
         "specs": [
           "special_bessel_j0"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7334,7 +7346,7 @@
         "specs": [
           "special_bessel_j1"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7354,7 +7366,7 @@
         "specs": [
           "special_bessel_y0"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7374,7 +7386,7 @@
         "specs": [
           "special_bessel_y1"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7394,7 +7406,7 @@
         "specs": [
           "special_chebyshev_polynomial_t"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7414,7 +7426,7 @@
         "specs": [
           "special_chebyshev_polynomial_u"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7434,7 +7446,7 @@
         "specs": [
           "special_chebyshev_polynomial_v"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7454,7 +7466,7 @@
         "specs": [
           "special_chebyshev_polynomial_w"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7514,7 +7526,7 @@
         "specs": [
           "special_hermite_polynomial_h"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7534,7 +7546,7 @@
         "specs": [
           "special_hermite_polynomial_he"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7554,7 +7566,7 @@
         "specs": [
           "special_i0e"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7574,7 +7586,7 @@
         "specs": [
           "special_i1"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7594,7 +7606,7 @@
         "specs": [
           "special_i1e"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7614,7 +7626,7 @@
         "specs": [
           "special_laguerre_polynomial_l"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7634,7 +7646,7 @@
         "specs": [
           "special_legendre_polynomial_p"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7674,7 +7686,7 @@
         "specs": [
           "special_modified_bessel_i0"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7694,7 +7706,7 @@
         "specs": [
           "special_modified_bessel_i1"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7714,7 +7726,7 @@
         "specs": [
           "special_modified_bessel_k0"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7734,7 +7746,7 @@
         "specs": [
           "special_modified_bessel_k1"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7774,7 +7786,7 @@
         "specs": [
           "special_ndtri"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7794,7 +7806,7 @@
         "specs": [
           "special_scaled_modified_bessel_k0"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7814,7 +7826,7 @@
         "specs": [
           "special_scaled_modified_bessel_k1"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7834,7 +7846,7 @@
         "specs": [
           "special_shifted_chebyshev_polynomial_t"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7854,7 +7866,7 @@
         "specs": [
           "special_shifted_chebyshev_polynomial_u"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7874,7 +7886,7 @@
         "specs": [
           "special_shifted_chebyshev_polynomial_v"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7894,7 +7906,7 @@
         "specs": [
           "special_shifted_chebyshev_polynomial_w"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7914,7 +7926,7 @@
         "specs": [
           "special_spherical_bessel_j0"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7954,7 +7966,7 @@
         "specs": [
           "special_zeta"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -7975,7 +7987,7 @@
           "split-int"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "sqrt": {
@@ -7995,8 +8007,8 @@
           "sqrt",
           "sqrt-broad"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "square": {
@@ -8240,8 +8252,8 @@
         "specs": [
           "tanhshrink"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "tensor_split": {
@@ -8301,8 +8313,8 @@
         "specs": [
           "threshold"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "tile": {
@@ -8321,8 +8333,8 @@
         "specs": [
           "tile"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "to": {
@@ -8442,7 +8454,7 @@
         "specs": [
           "triangular_solve"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -8563,7 +8575,7 @@
           "unfold"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "uniform": {
@@ -8582,7 +8594,7 @@
         "specs": [
           "uniform"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -8592,17 +8604,17 @@
         "runtime": "full",
         "numerics": "match",
         "examples": 25,
-        "export_ok": 11,
+        "export_ok": 14,
         "capture_failed": 0,
-        "onnx_gap": 14,
-        "runtime_reached": 11,
-        "runtime_ok": 11,
-        "numerics_reached": 11,
-        "numerics_match": 11,
+        "onnx_gap": 11,
+        "runtime_reached": 14,
+        "runtime_ok": 14,
+        "numerics_reached": 14,
+        "numerics_match": 14,
         "specs": [
           "unique_consecutive"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -8623,7 +8635,7 @@
           "unique_dim"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "unique_dim_consecutive": {
@@ -8642,7 +8654,7 @@
         "specs": [
           "unique_dim_consecutive"
         ],
-        "measurement": "m3",
+        "measurement": "m4",
         "reused": false
       }
     },
@@ -8763,8 +8775,8 @@
         "specs": [
           "upsample_nearest2d"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "upsample_nearest3d": {
@@ -8844,7 +8856,7 @@
           "var_mean"
         ],
         "measurement": "m3",
-        "reused": false
+        "reused": true
       }
     },
     "vdot": {
@@ -8923,8 +8935,8 @@
         "specs": [
           "where"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m4",
+        "reused": false
       }
     },
     "xlogy": {
@@ -8989,39 +9001,21 @@
     }
   },
   "specs": {
-    "adaptive_avg_pool2d": {
+    "abs": {
       "aten_ops": [
-        "adaptive_avg_pool2d"
+        "abs"
       ],
       "examples": 25
     },
-    "atan": {
+    "abs-broad": {
       "aten_ops": [
-        "atan"
+        "abs"
       ],
       "examples": 25
     },
-    "atleast_2d": {
+    "addcdiv": {
       "aten_ops": [
-        "atleast_2d"
-      ],
-      "examples": 25
-    },
-    "batch_norm1d": {
-      "aten_ops": [
-        "batch_norm"
-      ],
-      "examples": 25
-    },
-    "batch_norm1d-broad": {
-      "aten_ops": [
-        "batch_norm"
-      ],
-      "examples": 25
-    },
-    "bernoulli": {
-      "aten_ops": [
-        "bernoulli"
+        "addcdiv"
       ],
       "examples": 25
     },
@@ -9077,21 +9071,9 @@
         }
       ]
     },
-    "bitwise_left_shift": {
+    "bitwise_right_shift": {
       "aten_ops": [
-        "bitwise_left_shift"
-      ],
-      "examples": 25
-    },
-    "bucketize": {
-      "aten_ops": [
-        "bucketize"
-      ],
-      "examples": 25
-    },
-    "cauchy": {
-      "aten_ops": [
-        "cauchy"
+        "bitwise_right_shift"
       ],
       "examples": 25
     },
@@ -9228,6 +9210,12 @@
         }
       ]
     },
+    "chunk": {
+      "aten_ops": [
+        "chunk"
+      ],
+      "examples": 25
+    },
     "combinations": {
       "aten_ops": [
         "combinations"
@@ -9360,15 +9348,9 @@
         }
       ]
     },
-    "cosine_embedding_loss": {
+    "cosine_similarity": {
       "aten_ops": [
-        "cosine_embedding_loss"
-      ],
-      "examples": 25
-    },
-    "cross": {
-      "aten_ops": [
-        "cross"
+        "cosine_similarity"
       ],
       "examples": 25
     },
@@ -9426,15 +9408,21 @@
         }
       ]
     },
-    "diff_n1": {
+    "diag_1d_to_2d": {
       "aten_ops": [
-        "diff"
+        "diag"
       ],
       "examples": 25
     },
-    "diff_n2": {
+    "diag_2d_to_1d": {
       "aten_ops": [
-        "diff"
+        "diag"
+      ],
+      "examples": 25
+    },
+    "diagflat": {
+      "aten_ops": [
+        "diagflat"
       ],
       "examples": 25
     },
@@ -9461,30 +9449,6 @@
           "blocking_op": "prims.digamma"
         }
       ]
-    },
-    "dist": {
-      "aten_ops": [
-        "dist"
-      ],
-      "examples": 25
-    },
-    "dropout": {
-      "aten_ops": [
-        "dropout"
-      ],
-      "examples": 25
-    },
-    "dsplit": {
-      "aten_ops": [
-        "dsplit"
-      ],
-      "examples": 25
-    },
-    "empty": {
-      "aten_ops": [
-        "empty"
-      ],
-      "examples": 25
     },
     "empty_permuted": {
       "aten_ops": [
@@ -9540,9 +9504,9 @@
         }
       ]
     },
-    "exponential": {
+    "feature_dropout": {
       "aten_ops": [
-        "exponential"
+        "feature_dropout"
       ],
       "examples": 25
     },
@@ -9595,6 +9559,24 @@
           "blocking_op": "aten._conj_physical"
         }
       ]
+    },
+    "fill": {
+      "aten_ops": [
+        "fill"
+      ],
+      "examples": 25
+    },
+    "float_power": {
+      "aten_ops": [
+        "float_power"
+      ],
+      "examples": 25
+    },
+    "floor": {
+      "aten_ops": [
+        "floor"
+      ],
+      "examples": 25
     },
     "fmax": {
       "aten_ops": [
@@ -9783,9 +9765,15 @@
         }
       ]
     },
-    "geometric": {
+    "ge": {
       "aten_ops": [
-        "geometric"
+        "ge"
+      ],
+      "examples": 25
+    },
+    "ge-broad": {
+      "aten_ops": [
+        "ge"
       ],
       "examples": 25
     },
@@ -9813,6 +9801,18 @@
           "blocking_op": "aten.geqrf"
         }
       ]
+    },
+    "gt": {
+      "aten_ops": [
+        "gt"
+      ],
+      "examples": 25
+    },
+    "gt-broad": {
+      "aten_ops": [
+        "gt"
+      ],
+      "examples": 25
     },
     "histc": {
       "aten_ops": [
@@ -9886,9 +9886,9 @@
         }
       ]
     },
-    "huber_loss": {
+    "hsplit": {
       "aten_ops": [
-        "huber_loss"
+        "hsplit"
       ],
       "examples": 25
     },
@@ -10030,21 +10030,15 @@
         }
       ]
     },
-    "isposinf-xfail": {
+    "isinf-xfail": {
       "aten_ops": [
-        "isposinf"
+        "isinf"
       ],
       "examples": 25
     },
-    "kl_div": {
+    "isnan-xfail": {
       "aten_ops": [
-        "kl_div"
-      ],
-      "examples": 25
-    },
-    "kl_div_log_target": {
-      "aten_ops": [
-        "kl_div"
+        "isnan"
       ],
       "examples": 25
     },
@@ -10101,15 +10095,15 @@
         }
       ]
     },
-    "le": {
+    "leaky_relu": {
       "aten_ops": [
-        "le"
+        "leaky_relu"
       ],
       "examples": 25
     },
-    "le-broad": {
+    "leaky_relu-broad": {
       "aten_ops": [
-        "le"
+        "leaky_relu"
       ],
       "examples": 25
     },
@@ -10446,12 +10440,6 @@
         }
       ]
     },
-    "linalg_matrix_power": {
-      "aten_ops": [
-        "linalg_matrix_power"
-      ],
-      "examples": 25
-    },
     "linalg_matrix_rank": {
       "aten_ops": [
         "linalg_matrix_rank"
@@ -10695,36 +10683,6 @@
         }
       ]
     },
-    "linear": {
-      "aten_ops": [
-        "linear"
-      ],
-      "examples": 25
-    },
-    "log_normal": {
-      "aten_ops": [
-        "log_normal"
-      ],
-      "examples": 25
-    },
-    "log_softmax": {
-      "aten_ops": [
-        "log_softmax"
-      ],
-      "examples": 25
-    },
-    "logdet": {
-      "aten_ops": [
-        "logdet"
-      ],
-      "examples": 25
-    },
-    "logical_and": {
-      "aten_ops": [
-        "logical_and"
-      ],
-      "examples": 25
-    },
     "lu_solve": {
       "aten_ops": [
         "lu_solve"
@@ -10780,12 +10738,6 @@
         }
       ]
     },
-    "mH": {
-      "aten_ops": [
-        "mH"
-      ],
-      "examples": 25
-    },
     "masked_select": {
       "aten_ops": [
         "masked_select"
@@ -10814,6 +10766,18 @@
         }
       ]
     },
+    "max_pool2d": {
+      "aten_ops": [
+        "max_pool2d"
+      ],
+      "examples": 25
+    },
+    "max_pool2d-dilation": {
+      "aten_ops": [
+        "max_pool2d"
+      ],
+      "examples": 25
+    },
     "median": {
       "aten_ops": [
         "median"
@@ -10838,15 +10802,9 @@
         }
       ]
     },
-    "meshgrid_ij": {
+    "mish": {
       "aten_ops": [
-        "meshgrid"
-      ],
-      "examples": 25
-    },
-    "meshgrid_xy": {
-      "aten_ops": [
-        "meshgrid"
+        "mish"
       ],
       "examples": 25
     },
@@ -10875,12 +10833,6 @@
         }
       ]
     },
-    "multinomial": {
-      "aten_ops": [
-        "multinomial"
-      ],
-      "examples": 25
-    },
     "nanmedian": {
       "aten_ops": [
         "nanmedian"
@@ -10904,12 +10856,6 @@
           "blocking_op": "aten.nanmedian"
         }
       ]
-    },
-    "new_empty_strided": {
-      "aten_ops": [
-        "new_empty_strided"
-      ],
-      "examples": 25
     },
     "nextafter": {
       "aten_ops": [
@@ -10962,12 +10908,6 @@
           "blocking_op": "aten.nonzero_static"
         }
       ]
-    },
-    "normal": {
-      "aten_ops": [
-        "normal"
-      ],
-      "examples": 25
     },
     "nuclear_norm": {
       "aten_ops": [
@@ -11097,6 +11037,18 @@
         }
       ]
     },
+    "prelu": {
+      "aten_ops": [
+        "prelu"
+      ],
+      "examples": 25
+    },
+    "prelu-multi": {
+      "aten_ops": [
+        "prelu"
+      ],
+      "examples": 25
+    },
     "put": {
       "aten_ops": [
         "put"
@@ -11152,33 +11104,9 @@
         }
       ]
     },
-    "rand": {
+    "quantile": {
       "aten_ops": [
-        "rand"
-      ],
-      "examples": 25
-    },
-    "rand_like": {
-      "aten_ops": [
-        "rand_like"
-      ],
-      "examples": 25
-    },
-    "randint": {
-      "aten_ops": [
-        "randint"
-      ],
-      "examples": 25
-    },
-    "randint_like": {
-      "aten_ops": [
-        "randint_like"
-      ],
-      "examples": 25
-    },
-    "randn": {
-      "aten_ops": [
-        "randn"
+        "quantile"
       ],
       "examples": 25
     },
@@ -11259,21 +11187,9 @@
         }
       ]
     },
-    "relu6": {
+    "resolve_neg": {
       "aten_ops": [
-        "relu6"
-      ],
-      "examples": 25
-    },
-    "resolve_conj": {
-      "aten_ops": [
-        "resolve_conj"
-      ],
-      "examples": 25
-    },
-    "rot90": {
-      "aten_ops": [
-        "rot90"
+        "resolve_neg"
       ],
       "examples": 25
     },
@@ -11324,6 +11240,12 @@
           "blocking_op": "aten.rrelu_with_noise_functional"
         }
       ]
+    },
+    "rsqrt": {
+      "aten_ops": [
+        "rsqrt"
+      ],
+      "examples": 25
     },
     "searchsorted": {
       "aten_ops": [
@@ -11403,9 +11325,9 @@
         }
       ]
     },
-    "sigmoid": {
+    "sign": {
       "aten_ops": [
-        "sigmoid"
+        "sign"
       ],
       "examples": 25
     },
@@ -12157,61 +12079,35 @@
         }
       ]
     },
-    "split-int": {
+    "sqrt": {
       "aten_ops": [
-        "split"
+        "sqrt"
       ],
-      "examples": 25,
-      "failures": [
-        {
-          "export": "ok",
-          "runtime": "ok",
-          "numerics": "diverge",
-          "shapes": [
-            [
-              3,
-              6
-            ]
-          ],
-          "dtypes": [
-            "torch.float32"
-          ],
-          "error_type": "ProptestComparatorError",
-          "error_head": "shape mismatch on output 'output_0': ref=(3, 4) vs actual=(3, 3)"
-        },
-        {
-          "export": "ok",
-          "runtime": "ok",
-          "numerics": "diverge",
-          "shapes": [
-            [
-              6,
-              3
-            ]
-          ],
-          "dtypes": [
-            "torch.float32"
-          ],
-          "error_type": "ProptestComparatorError",
-          "error_head": "shape mismatch on output 'output_0': ref=(4, 3) vs actual=(3, 3)"
-        },
-        {
-          "export": "ok",
-          "runtime": "ok",
-          "numerics": "diverge",
-          "shapes": [
-            [
-              5,
-              6
-            ]
-          ],
-          "dtypes": [
-            "torch.float32"
-          ],
-          "error_type": "ProptestComparatorError",
-          "error_head": "shape mismatch on output 'output_0': ref=(5, 5) vs actual=(5, 3)"
-        }
-      ]
+      "examples": 25
+    },
+    "sqrt-broad": {
+      "aten_ops": [
+        "sqrt"
+      ],
+      "examples": 25
+    },
+    "tanhshrink": {
+      "aten_ops": [
+        "tanhshrink"
+      ],
+      "examples": 25
+    },
+    "threshold": {
+      "aten_ops": [
+        "threshold"
+      ],
+      "examples": 25
+    },
+    "tile": {
+      "aten_ops": [
+        "tile"
+      ],
+      "examples": 25
     },
     "triangular_solve": {
       "aten_ops": [
@@ -12242,12 +12138,6 @@
           "blocking_op": "aten.triangular_solve"
         }
       ]
-    },
-    "unfold": {
-      "aten_ops": [
-        "unfold"
-      ],
-      "examples": 25
     },
     "uniform": {
       "aten_ops": [
@@ -12286,14 +12176,14 @@
           "shapes": [
             [
               3,
-              5
+              3
             ]
           ],
           "dtypes": [
             "torch.int64"
           ],
           "error_type": "ConversionError",
-          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=UINT8 | INT8 | UINT16 | INT64 | BOOL | DOUBLE | INT32 | FLOAT | UINT32 | STRING | INT16 | UINT64 | BFLOAT16 | FLOAT16, T2=UINT8 | INT8 | UINT16 | INT64 | BOOL | DOUBLE | INT32 | FLOAT | UINT32 | STRING | INT16 | UINT64 | BFLOAT16 | FLOAT16. Args: (SymbolicTensor(name='anonymous:5233214640', pro"
+          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8, T2=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8. Args: (SymbolicTensor(name='anonymous:5498307760', pro"
         },
         {
           "export": "conversion_failed",
@@ -12309,7 +12199,7 @@
             "torch.int64"
           ],
           "error_type": "ConversionError",
-          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=UINT8 | INT8 | UINT16 | INT64 | BOOL | DOUBLE | INT32 | FLOAT | UINT32 | STRING | INT16 | UINT64 | BFLOAT16 | FLOAT16, T2=UINT8 | INT8 | UINT16 | INT64 | BOOL | DOUBLE | INT32 | FLOAT | UINT32 | STRING | INT16 | UINT64 | BFLOAT16 | FLOAT16. Args: (SymbolicTensor(name='anonymous:5226563056', pro"
+          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8, T2=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8. Args: (SymbolicTensor(name='anonymous:5521935088', pro"
         },
         {
           "export": "conversion_failed",
@@ -12317,23 +12207,17 @@
           "numerics": "not_reached",
           "shapes": [
             [
-              6,
-              4
+              5,
+              6
             ]
           ],
           "dtypes": [
             "torch.int64"
           ],
           "error_type": "ConversionError",
-          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=UINT8 | INT8 | UINT16 | INT64 | BOOL | DOUBLE | INT32 | FLOAT | UINT32 | STRING | INT16 | UINT64 | BFLOAT16 | FLOAT16, T2=UINT8 | INT8 | UINT16 | INT64 | BOOL | DOUBLE | INT32 | FLOAT | UINT32 | STRING | INT16 | UINT64 | BFLOAT16 | FLOAT16. Args: (SymbolicTensor(name='anonymous:5414638512', pro"
+          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8, T2=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8. Args: (SymbolicTensor(name='anonymous:5427881744', pro"
         }
       ]
-    },
-    "unique_dim": {
-      "aten_ops": [
-        "unique_dim"
-      ],
-      "examples": 25
     },
     "unique_dim_consecutive": {
       "aten_ops": [
@@ -12363,22 +12247,6 @@
           "numerics": "not_reached",
           "shapes": [
             [
-              4,
-              2
-            ]
-          ],
-          "dtypes": [
-            "torch.int64"
-          ],
-          "error_type": "ConversionError",
-          "error_head": "Not implemented for x=SymbolicTensor(name='args_0', type=Tensor(INT64), shape=Shape([4, 2])) with rank=2 and dim=0."
-        },
-        {
-          "export": "conversion_failed",
-          "runtime": "not_reached",
-          "numerics": "not_reached",
-          "shapes": [
-            [
               5,
               2
             ]
@@ -12388,24 +12256,36 @@
           ],
           "error_type": "ConversionError",
           "error_head": "Not implemented for x=SymbolicTensor(name='args_0', type=Tensor(INT64), shape=Shape([5, 2])) with rank=2 and dim=0."
+        },
+        {
+          "export": "conversion_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              3,
+              2
+            ]
+          ],
+          "dtypes": [
+            "torch.int64"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "Not implemented for x=SymbolicTensor(name='args_0', type=Tensor(INT64), shape=Shape([3, 2])) with rank=2 and dim=0."
         }
       ]
     },
-    "var_mean": {
+    "upsample_nearest2d": {
       "aten_ops": [
-        "var_mean"
+        "upsample_nearest2d"
       ],
       "examples": 25
     },
-    "abs": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "abs-broad": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
+    "where": {
+      "aten_ops": [
+        "where"
+      ],
+      "examples": 25
     },
     "acos": {
       "aten_ops": [],
@@ -12416,6 +12296,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "adaptive_avg_pool2d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "adaptive_max_pool2d": {
       "aten_ops": [],
@@ -12438,11 +12323,6 @@
       "reused_from": "m1"
     },
     "addbmm": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "addcdiv": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -12527,6 +12407,11 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "atan": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "atan2-xfail": {
       "aten_ops": [],
       "examples": 0,
@@ -12541,6 +12426,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "atleast_2d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "atleast_3d": {
       "aten_ops": [],
@@ -12562,6 +12452,21 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "batch_norm1d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "batch_norm1d-broad": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "bernoulli": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "binary_cross_entropy": {
       "aten_ops": [],
       "examples": 0,
@@ -12577,6 +12482,11 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "bitwise_left_shift": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "bitwise_not": {
       "aten_ops": [],
       "examples": 0,
@@ -12586,11 +12496,6 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
-    },
-    "bitwise_right_shift": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
     },
     "bitwise_xor": {
       "aten_ops": [],
@@ -12607,6 +12512,11 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "bucketize": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "cat": {
       "aten_ops": [],
       "examples": 0,
@@ -12617,17 +12527,17 @@
       "examples": 0,
       "reused_from": "m2"
     },
+    "cauchy": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "ceil": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
     },
     "channel_shuffle": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "chunk": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -12702,10 +12612,10 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "cosine_similarity": {
+    "cosine_embedding_loss": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m3"
     },
     "count_nonzero-all": {
       "aten_ops": [],
@@ -12716,6 +12626,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "cross": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "cross_entropy_loss": {
       "aten_ops": [],
@@ -12742,22 +12657,7 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "diag_1d_to_2d": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "diag_2d_to_1d": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "diag_embed": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "diagflat": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -12766,6 +12666,21 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "diff_n1": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "diff_n2": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "dist": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "div": {
       "aten_ops": [],
@@ -12786,6 +12701,16 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "dropout": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "dsplit": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "dstack": {
       "aten_ops": [],
@@ -12831,6 +12756,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "empty": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "eq": {
       "aten_ops": [],
@@ -12882,17 +12812,17 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "exponential": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "eye": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
     },
     "feature_alpha_dropout": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "feature_dropout": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -12937,11 +12867,6 @@
       "examples": 0,
       "reused_from": "m2"
     },
-    "fill": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "flatten": {
       "aten_ops": [],
       "examples": 0,
@@ -12958,16 +12883,6 @@
       "reused_from": "m1"
     },
     "flipud": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "float_power": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "floor": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -13007,16 +12922,6 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "ge": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "ge-broad": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "gelu": {
       "aten_ops": [],
       "examples": 0,
@@ -13026,6 +12931,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "geometric": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "glu": {
       "aten_ops": [],
@@ -13052,16 +12962,6 @@
       "examples": 0,
       "reused_from": "m2"
     },
-    "gt": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "gt-broad": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "hardsigmoid": {
       "aten_ops": [],
       "examples": 0,
@@ -13087,10 +12987,10 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "hsplit": {
+    "huber_loss": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m3"
     },
     "im2col": {
       "aten_ops": [],
@@ -13167,25 +13067,30 @@
       "examples": 0,
       "reused_from": "m2"
     },
-    "isinf-xfail": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "isnan-xfail": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "isneginf-xfail": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
     },
+    "isposinf-xfail": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "isreal": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
+    },
+    "kl_div": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "kl_div_log_target": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "kron": {
       "aten_ops": [],
@@ -13212,15 +13117,15 @@
       "examples": 0,
       "reused_from": "m2"
     },
-    "leaky_relu": {
+    "le": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m3"
     },
-    "leaky_relu-broad": {
+    "le-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m3"
     },
     "linalg_det": {
       "aten_ops": [],
@@ -13231,6 +13136,16 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "linalg_matrix_power": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "linear": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "log": {
       "aten_ops": [],
@@ -13257,6 +13172,16 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "log_normal": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "log_softmax": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "logaddexp": {
       "aten_ops": [],
       "examples": 0,
@@ -13271,6 +13196,16 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "logdet": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "logical_and": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "logical_or": {
       "aten_ops": [],
@@ -13291,6 +13226,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "mH": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "mT": {
       "aten_ops": [],
@@ -13342,16 +13282,6 @@
       "examples": 0,
       "reused_from": "m2"
     },
-    "max_pool2d": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "max_pool2d-dilation": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "max_pool2d_with_indices": {
       "aten_ops": [],
       "examples": 0,
@@ -13387,6 +13317,16 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "meshgrid_ij": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "meshgrid_xy": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "min-dim": {
       "aten_ops": [],
       "examples": 0,
@@ -13403,11 +13343,6 @@
       "reused_from": "m1"
     },
     "minimum": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "mish": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -13441,6 +13376,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
+    },
+    "multinomial": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "mv": {
       "aten_ops": [],
@@ -13482,6 +13422,11 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "new_empty_strided": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "new_zeros": {
       "aten_ops": [],
       "examples": 0,
@@ -13501,6 +13446,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "normal": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "numpy_T": {
       "aten_ops": [],
@@ -13582,16 +13532,6 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "prelu": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "prelu-multi": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "prod-dim": {
       "aten_ops": [],
       "examples": 0,
@@ -13602,15 +13542,35 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "quantile": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m2"
-    },
     "rad2deg": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "rand": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "rand_like": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "randint": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "randint_like": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "randn": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "ravel": {
       "aten_ops": [],
@@ -13626,6 +13586,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "relu6": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
     },
     "remainder-xfail": {
       "aten_ops": [],
@@ -13657,10 +13622,10 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "resolve_neg": {
+    "resolve_conj": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m3"
     },
     "rms_norm-xfail": {
       "aten_ops": [],
@@ -13672,12 +13637,12 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "round": {
+    "rot90": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m3"
     },
-    "rsqrt": {
+    "round": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -13737,10 +13702,10 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "sign": {
+    "sigmoid": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m3"
     },
     "signbit-xfail": {
       "aten_ops": [],
@@ -13842,15 +13807,10 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "sqrt": {
+    "split-int": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
-    },
-    "sqrt-broad": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m3"
     },
     "square": {
       "aten_ops": [],
@@ -13932,11 +13892,6 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "tanhshrink": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "tensor_split-indices": {
       "aten_ops": [],
       "examples": 0,
@@ -13948,16 +13903,6 @@
       "reused_from": "m1"
     },
     "tensordot": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "threshold": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "tile": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -14017,6 +13962,16 @@
       "examples": 0,
       "reused_from": "m2"
     },
+    "unfold": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
+    "unique_dim": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "unsqueeze": {
       "aten_ops": [],
       "examples": 0,
@@ -14047,11 +14002,6 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "upsample_nearest2d": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "upsample_nearest3d": {
       "aten_ops": [],
       "examples": 0,
@@ -14072,6 +14022,11 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "var_mean": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m3"
+    },
     "vdot": {
       "aten_ops": [],
       "examples": 0,
@@ -14088,11 +14043,6 @@
       "reused_from": "m1"
     },
     "vsplit": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "where": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
