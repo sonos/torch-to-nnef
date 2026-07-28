@@ -20,6 +20,7 @@ on:
       - "examples/**"
       - "torch_to_nnef/**"
       - "packages/**"
+      - "scripts/hf_pull.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/examples-run.yml"

@@ -10,6 +10,9 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/ci-core.yml"
+      # Feeds the zoo jobs' prefetch step and keys their model cache, so a
+      # change to it has to be able to trigger this workflow.
+      - "scripts/hf_pull.py"
   pull_request:
     branches: [main]
     paths:
@@ -19,6 +22,9 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/ci-core.yml"
+      # Feeds the zoo jobs' prefetch step and keys their model cache, so a
+      # change to it has to be able to trigger this workflow.
+      - "scripts/hf_pull.py"
   workflow_dispatch:
 
 permissions:
@@ -77,7 +83,7 @@ jobs:
           path: |
             ~/.cache/torch
             ~/.cache/huggingface
-          key: core-models-${{ hashFiles('tests/test_model_zoo.py', '.github/scripts/hf_prefetch.py') }}
+          key: core-models-${{ hashFiles('tests/test_model_zoo.py', 'scripts/hf_pull.py') }}
           restore-keys: |
             core-models-
 
@@ -88,7 +94,7 @@ jobs:
         if: contains(matrix.tox-env, 'zoo')
         run: |
           python -m pip install "huggingface_hub>=0.23"
-          python .github/scripts/hf_prefetch.py albert-base-v2
+          python scripts/hf_pull.py albert-base-v2
 
       - name: test with tox
         run: tox run -e ${{ matrix.tox-env }}
