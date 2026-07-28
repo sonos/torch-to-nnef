@@ -14,6 +14,12 @@ one. Both directions are errors:
   - it failed somewhere else: the declared stage is describing the wrong
     thing, which would mislead anyone using it to plan work
 
+The stage vocabulary earns its keep on both counts. Some operators never
+reach the emitter lookup at all (the constant-folding pass runs them
+first), and a couple crash with a bare `TypeError` instead of a
+`T2NError`, which is a bug in our error handling regardless of whether we
+ever translate the operator.
+
 Cost is low. `no-emitter`, the common case, raises during graph
 translation, long before tract is invoked.
 """
@@ -61,13 +67,17 @@ def observe_nnef_gap(
         inputs_npz = tmp / "inputs.npz"
         outputs_ref_npz = tmp / "outputs_ref.npz"
         outputs_act_npz = tmp / "outputs_act.npz"
+        # Outside the try on purpose: this only runs the module under
+        # torch. A failure here is a bad draw in the spec's own
+        # strategy, and swallowing it as `raw-error` would turn a broken
+        # spec into a passing one.
+        input_names, output_names = build_io(
+            model,
+            inputs,
+            input_bundle_path=inputs_npz,
+            output_bundle_path=outputs_ref_npz,
+        )
         try:
-            input_names, output_names = build_io(
-                model,
-                inputs,
-                input_bundle_path=inputs_npz,
-                output_bundle_path=outputs_ref_npz,
-            )
             exported = export_model_to_nnef(
                 model=model,
                 args=inputs,
@@ -83,6 +93,10 @@ def observe_nnef_gap(
             return NnefGapStage.NO_EMITTER
         except T2NError:
             return NnefGapStage.EXPORT_ERROR
+        except Exception:  # noqa: BLE001  pylint: disable=broad-except
+            # Not a refusal but a crash: the exporter was supposed to
+            # turn every failure into a `T2NError` naming the operator.
+            return NnefGapStage.RAW_ERROR
         try:
             run_tract(
                 inference_target.tract_cli.run_save_outputs_cmd_str(

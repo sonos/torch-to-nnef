@@ -40,6 +40,13 @@ KNOWN_TRACE_RENAMES: T.Dict[str, T.Tuple[str, ...]] = {
     "tanhshrink": ("sub", "tanh"),
     # `Tensor.fill_` on a traced tensor lands as a `full_like` + copy.
     "fill": ("full_like",),
+    # `torch.unique_consecutive(x, dim=...)` dispatches to the
+    # dim-specific C++ op but keeps the generic name in the trace.
+    "unique_dim_consecutive": ("unique_consecutive",),
+    # There is no public `torch.gamma`: the sampler is
+    # `_standard_gamma`, which the page's source grep drops for being
+    # `_`-prefixed, leaving the bare row name behind.
+    "gamma": ("_standard_gamma",),
     # conj on a complex tensor goes through the lazy-conjugate path.
     "conj": ("_conj", "resolve_conj", "view_as_real", "view_as_complex"),
 }
@@ -73,7 +80,15 @@ def test_spec_declares_the_op_it_traces(spec: OpSpec) -> None:
     def _inner(sample: OpSample) -> None:
         traced = _traced_aten_ops(sample)
         for declared in spec.aten_ops:
-            accepted = (declared, *KNOWN_TRACE_RENAMES.get(declared, ()))
+            # The page merges an in-place variant into its base row, so
+            # a row named `uniform` is the only home a traced
+            # `aten::uniform_` has. Accept it generically rather than
+            # listing every mutating op in KNOWN_TRACE_RENAMES.
+            accepted = (
+                declared,
+                f"{declared}_",
+                *KNOWN_TRACE_RENAMES.get(declared, ()),
+            )
             assert any(name in traced for name in accepted), (
                 f"spec {spec.name!r} declares aten op {declared!r} but "
                 f"traces {sorted(traced)}. Either fix `aten_ops` or, if "

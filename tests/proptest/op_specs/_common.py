@@ -45,6 +45,12 @@ class NnefGapStage(enum.Enum):
     EXPORT_ERROR = "export-error"
     #: NNEF is written, and tract then declines to load or run it.
     TRACT_ERROR = "tract-error"
+    #: The export raised something that is *not* a `T2NError`: an
+    #: unhandled crash rather than a refusal. Always a bug on our side,
+    #: even when the operator is one we never intend to support, because
+    #: the user gets a stray `TypeError` instead of a message naming the
+    #: operator. Recorded rather than hidden so the list stays visible.
+    RAW_ERROR = "raw-error"
 
 
 @dataclass(frozen=True)
