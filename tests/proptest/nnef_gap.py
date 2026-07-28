@@ -37,7 +37,11 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.tract import build_io
 from torch_to_nnef.log import log
 
-from .comparator import ProptestComparatorError, run_tract
+from .comparator import (
+    ProptestComparatorError,
+    make_no_check_target,
+    run_tract,
+)
 from .op_specs import NnefGap, NnefGapStage
 
 
@@ -61,6 +65,13 @@ def observe_nnef_gap(
     `xfail_reason` if its values still disagree).
     """
     model = model.eval()
+    # `check_io` runs tract and compares against torch from *inside*
+    # `export_model_to_nnef`, raising a `T2NError` on divergence. That
+    # would be classified as an export failure, which is both wrong and
+    # unfalsifiable: an RNG operator can never match tract's own draw, so
+    # its spec would keep passing forever once the gap closed. Strip it,
+    # exactly as the comparator does, and judge the tract stage below.
+    inference_target = make_no_check_target(inference_target)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         nnef_path = tmp / "model.nnef"
@@ -71,12 +82,13 @@ def observe_nnef_gap(
         # torch. A failure here is a bad draw in the spec's own
         # strategy, and swallowing it as `raw-error` would turn a broken
         # spec into a passing one.
-        input_names, output_names = build_io(
-            model,
-            inputs,
-            input_bundle_path=inputs_npz,
-            output_bundle_path=outputs_ref_npz,
-        )
+        #
+        # No bundle paths yet: the export needs the io *names*, but the
+        # NPZ payloads are only read by tract, which most gap specs never
+        # reach (a missing emitter raises during translation). Writing
+        # them up front would serialise two bundles per drawn example and
+        # throw them away with the tempdir.
+        input_names, output_names = build_io(model, inputs)
         try:
             exported = export_model_to_nnef(
                 model=model,
@@ -97,6 +109,16 @@ def observe_nnef_gap(
             # Not a refusal but a crash: the exporter was supposed to
             # turn every failure into a `T2NError` naming the operator.
             return NnefGapStage.RAW_ERROR
+        # The export survived, so tract is about to run and now needs the
+        # reference bundles on disk.
+        build_io(
+            model,
+            inputs,
+            input_bundle_path=inputs_npz,
+            output_bundle_path=outputs_ref_npz,
+            input_names=input_names,
+            output_names=output_names,
+        )
         try:
             run_tract(
                 inference_target.tract_cli.run_save_outputs_cmd_str(

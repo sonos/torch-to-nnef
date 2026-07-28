@@ -183,11 +183,15 @@ someone implemented it, and the page with it. So:
 - the ONNX sweep ignores the marker entirely and measures the spec like
   any other. That is the whole point of it existing.
 
-`stage` records where the failure lands: `no-emitter` (nothing
-registered), `export-error` (an emitter refuses, or the pipeline raises
-earlier: the RNG factories are constant-folded before the lookup), or
-`tract-error` (NNEF written, tract declines it). It is the first thing
-someone planning to close the gap needs to know.
+`stage` records where the failure lands, and it is the first thing
+someone planning to close the gap needs to know:
+
+| Stage | Meaning |
+| --- | --- |
+| `no-emitter` | nothing is registered for the operator at all |
+| `export-error` | an emitter refuses, or the pipeline raises earlier (the RNG factories are constant-folded before the lookup) |
+| `tract-error` | NNEF is written and tract then declines to load or run it |
+| `raw-error` | the export crashed with something that is not a `T2NError`, so the user gets a bare `TypeError` instead of a message naming the operator. Always a bug on our side, whether or not we ever translate the operator |
 
 Specs whose op draws from an RNG also set `nondeterministic=True`. Export
 and runtime stay measured; only the numerics axis is skipped, since

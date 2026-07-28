@@ -283,12 +283,31 @@ class ReuseIndex:
             return None
         return measurement_id
 
-    def reuse_for(self, spec_name: str, aten_ops: T.Sequence[str]) -> bool:
-        """Record and report whether `spec_name` can be skipped."""
+    def reuse_for(
+        self,
+        spec_name: str,
+        aten_ops: T.Sequence[str],
+        check_numerics: bool = True,
+    ) -> bool:
+        """Record and report whether `spec_name` can be skipped.
+
+        `check_numerics` is the spec's own setting, which can differ from
+        the sweep's: a nondeterministic op is measured with numerics off,
+        and the environment fingerprint (computed once, per sweep) cannot
+        express that. Without the check below, dropping
+        `nondeterministic=True` from a spec would silently carry forward
+        a record whose numerics axis was never measured, so the very run
+        meant to start measuring it would skip it instead.
+        """
         if not self.enabled or not aten_ops:
             return False
         measurement_ids = [self._reusable_measurement(op) for op in aten_ops]
         if any(mid is None for mid in measurement_ids):
+            return False
+        if check_numerics and any(
+            not self._ops.get(op, {}).get("onnx", {}).get("numerics_reached")
+            for op in aten_ops
+        ):
             return False
         self.reused_specs[spec_name] = measurement_ids[0]  # type: ignore[assignment]
         self.reused_ops.update(aten_ops)

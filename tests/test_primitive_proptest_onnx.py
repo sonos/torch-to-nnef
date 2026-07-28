@@ -41,7 +41,7 @@ def test_onnx_support(spec: OpSpec, onnx_sweep) -> None:
         "be attributed to an operator; see OpSpec.aten_ops"
     )
     if onnx_sweep.reuse and onnx_sweep.reuse.reuse_for(
-        spec.name, spec.aten_ops
+        spec.name, spec.aten_ops, check_numerics=not spec.nondeterministic
     ):
         pytest.skip(
             "carried over from a prior run: every declared op graded "

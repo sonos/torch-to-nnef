@@ -124,11 +124,14 @@ def compare_arrays(
         ) from exc
 
 
-def _make_no_check_target(target: TractNNEF) -> TractNNEF:
+def make_no_check_target(target: TractNNEF) -> TractNNEF:
     """Return a copy of `target` with `check_io=False`.
 
-    We disable the built-in `post_export` assert so the proptest comparator
-    owns the comparison.
+    We disable the built-in `post_export` assert so the caller owns the
+    comparison. Public because `nnef_gap.py` needs it for a different
+    reason: with `check_io` on, a numeric divergence surfaces as a
+    `T2NError` from *inside* the export, which that module would then
+    misread as an export failure.
     """
     twin = deepcopy(target)
     twin.check_io = False
@@ -207,7 +210,7 @@ def assert_outputs_close_nan_aware(
             "proptest comparator is tract-only; got "
             f"{type(inference_target).__name__}"
         )
-    target = _make_no_check_target(inference_target)
+    target = make_no_check_target(inference_target)
     model = model.eval()
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)

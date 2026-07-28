@@ -15,6 +15,7 @@ Run with::
     pytest tests/test_proptest_nnef_gap.py -v
 """
 
+import json
 import re
 import typing as T
 from pathlib import Path
@@ -25,10 +26,18 @@ from tests.proptest import nnef_gap as nnef_gap_mod
 from tests.proptest.nnef_gap import NnefGapMismatch, assert_nnef_gap
 from tests.proptest.op_specs import REGISTRY, NnefGap, NnefGapStage, OpSpec
 from tests.proptest.op_specs.untranslated import EXCLUDED
+from tests.proptest.trace_names import registry_lookup_names
 from torch_to_nnef.op.aten import aten_ops_registry
 
 GAP_SPECS: T.Tuple[OpSpec, ...] = tuple(
     spec for spec in REGISTRY if spec.nnef_gap is not None
+)
+
+ONNX_ARTIFACT = (
+    Path(__file__).parent.parent
+    / "docs"
+    / "contributing"
+    / "onnx_support_measured.json"
 )
 
 SUPPORT_PAGE = (
@@ -50,20 +59,58 @@ def _registered_aten_ops() -> T.Set[str]:
     return set(aten_ops_registry._registry.keys())
 
 
+#: Sanity floor for the page parse. The listing has ~580 rows and only
+#: grows with each torch release, so anything near zero means the parse
+#: broke rather than the page changing.
+_MIN_PARSED_ROWS = 100
+
+
+def _tract_table_lines() -> T.List[str]:
+    """Just the `TractNNEF` table's lines.
+
+    The page renders two tables. Only the first is about our own support;
+    the second is the ONNX measurement, and it reuses the same
+    `unsupported` row class whenever the generator runs *without*
+    `--onnx-report`. Scanning the whole file would then union the two,
+    and every coverage check below would fail for reasons that have
+    nothing to do with the contributor's change.
+    """
+    lines = SUPPORT_PAGE.read_text().splitlines()
+    table_starts = [i for i, line in enumerate(lines) if "<table" in line]
+    assert table_starts, (
+        f"no <table> found in {SUPPORT_PAGE.name}: the generator's output "
+        "shape changed, and every page-based check here is now blind"
+    )
+    end = table_starts[1] if len(table_starts) > 1 else len(lines)
+    return lines[table_starts[0] : end]
+
+
 def _page_unsupported_ops() -> T.Set[str]:
     """Row names the committed support page marks unsupported.
 
     Read from the generated page rather than recomputed, so this checks
     what a reader actually sees.
     """
-    names = set()
-    for line in SUPPORT_PAGE.read_text().splitlines():
+    names, parsed = set(), 0
+    for line in _tract_table_lines():
         match = _ROW_RE.search(line)
-        if match is None or "unsupported" not in match.group(1).split():
+        if match is None:
+            continue
+        parsed += 1
+        if "unsupported" not in match.group(1).split():
             continue
         cells = _CELL_RE.findall(match.group(2))
         if len(cells) > 1:
             names.add(_TAG_RE.sub("", cells[1]))
+    # Without this, a change to the generator's row markup makes the
+    # regex match nothing, every set below becomes empty, and the
+    # coverage checks pass by describing an empty page.
+    assert parsed >= _MIN_PARSED_ROWS, (
+        f"parsed only {parsed} rows from {SUPPORT_PAGE.name} (expected at "
+        f"least {_MIN_PARSED_ROWS}). `_ROW_RE` no longer matches what "
+        "`generate_support_page.py` emits, so the coverage checks in this "
+        "module are blind rather than passing."
+    )
     return names
 
 
@@ -158,26 +205,38 @@ def test_gap_spec_declares_aten_ops(spec: OpSpec):
 
 
 @pytest.mark.parametrize("spec", GAP_SPECS, ids=lambda s: s.name)
-def test_no_emitter_gaps_are_absent_from_the_registry(spec: OpSpec):
-    """A `no-emitter` gap must not have an emitter.
+def test_gap_operators_are_absent_from_the_registry(spec: OpSpec):
+    """No operator with a gap spec may have an emitter, whatever the stage.
 
-    This is the cheap half of the anti-rot check: it catches the exact
-    moment someone registers the operator, without exporting anything.
+    The cheap half of the anti-rot check: it catches the exact moment
+    someone registers the operator, without exporting anything.
 
-    Only `NO_EMITTER` is checked. The other stages describe failures
-    downstream of a registered emitter (or, for `EXPORT_ERROR`, of the
-    constant-folding pass that runs before the lookup), so the registry
-    says nothing about them.
+    Every stage is checked, not just `no-emitter`. A gap spec means we
+    ship no translation, so an emitter appearing under any of them is the
+    gap closing. That matters most for the stages the export driver
+    cannot police on its own: `export-error` accepts any `T2NError`, so a
+    spec whose module also exercises a second untranslated operator (the
+    `linalg` solvers, which factorize first) would keep passing on *that*
+    failure long after its own operator was implemented.
+
+    Lookup goes through `registry_lookup_names`, because `aten_ops`
+    carries the support-page row name and an emitter registers under the
+    name torch dispatches: `gamma` arrives as `_standard_gamma`, so
+    comparing row names alone would never fire for it.
     """
     assert spec.nnef_gap is not None
-    if spec.nnef_gap.stage is not NnefGapStage.NO_EMITTER:
-        pytest.skip(f"stage is {spec.nnef_gap.stage.value}")
-    registered = _registered_aten_ops() & set(spec.aten_ops)
-    assert not registered, (
-        f"spec {spec.name!r} declares a `no-emitter` gap but "
-        f"{sorted(registered)} now has one. The gap is closed: drop "
-        "`nnef_gap`, let the spec assert real agreement with tract, and "
-        "regenerate the support page."
+    registered = _registered_aten_ops()
+    found = {
+        op: [k for k in registry_lookup_names(op) if k in registered]
+        for op in spec.aten_ops
+    }
+    hits = {op: keys for op, keys in found.items() if keys}
+    assert not hits, (
+        f"spec {spec.name!r} declares a `{spec.nnef_gap.stage.value}` gap "
+        f"but an emitter is registered: {hits}. The gap is closed, so "
+        "delete `nnef_gap=...` from the spec (it already sits in the "
+        "themed module it belongs in), give it a `tolerance` if the "
+        "comparison needs one, and regenerate the support page."
     )
 
 
@@ -250,3 +309,25 @@ def test_assert_nnef_gap_rejects_a_moved_failure(monkeypatch):
         _assert_with_observed(
             NnefGapStage.TRACT_ERROR, NnefGapStage.NO_EMITTER, monkeypatch
         )
+
+
+def test_artifact_spec_ids_match_the_catalog():
+    """The measured artifact must name specs that still exist.
+
+    The artifact is the documented way back from a grade to the spec that
+    produced it, and nothing else checks that link: the other guards
+    compare operator names, which survive a spec rename untouched. Renaming
+    a spec without re-running the sweep leaves every grade pointing at an
+    id that collects nothing.
+    """
+    if not ONNX_ARTIFACT.exists():  # pragma: no cover - artifact is shipped
+        pytest.skip("measured ONNX artifact is not in this checkout")
+    recorded = set(json.loads(ONNX_ARTIFACT.read_text()).get("specs", {}))
+    assert recorded, "artifact has no `specs` section to check"
+    unknown = sorted(recorded - {spec.name for spec in REGISTRY})
+    assert not unknown, (
+        f"{len(unknown)} spec ids in {ONNX_ARTIFACT.name} no longer exist "
+        f"in the catalog (e.g. {unknown[:5]}). Re-run the sweep so the "
+        "grades point back at real specs:\n"
+        "  tox -e proptest_onnx"
+    )

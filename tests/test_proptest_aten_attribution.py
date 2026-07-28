@@ -20,36 +20,9 @@ import torch
 from hypothesis import given, settings
 
 from .proptest.op_specs import REGISTRY, OpSample, OpSpec
+from .proptest.trace_names import KNOWN_TRACE_RENAMES
 
 pytestmark = pytest.mark.proptest_onnx
-
-#: Declared name -> the name(s) torch actually emits in the trace.
-#:
-#: Two reasons a declared name legitimately never appears:
-#:   - torch renames the op on the way into the graph (`conv2d` is
-#:     dispatched through `aten::_convolution`),
-#:   - the op is a composite that PyTorch decomposes before tracing, so
-#:     only its constituents survive.
-#: Either way the spec is still testing the declared op, which is the
-#: name the support page lists, so the declaration is the useful one.
-KNOWN_TRACE_RENAMES: T.Dict[str, T.Tuple[str, ...]] = {
-    "conv1d": ("_convolution",),
-    "conv2d": ("_convolution",),
-    "conv3d": ("_convolution",),
-    # tanhshrink(x) == x - tanh(x), decomposed at trace time.
-    "tanhshrink": ("sub", "tanh"),
-    # `Tensor.fill_` on a traced tensor lands as a `full_like` + copy.
-    "fill": ("full_like",),
-    # `torch.unique_consecutive(x, dim=...)` dispatches to the
-    # dim-specific C++ op but keeps the generic name in the trace.
-    "unique_dim_consecutive": ("unique_consecutive",),
-    # There is no public `torch.gamma`: the sampler is
-    # `_standard_gamma`, which the page's source grep drops for being
-    # `_`-prefixed, leaving the bare row name behind.
-    "gamma": ("_standard_gamma",),
-    # conj on a complex tensor goes through the lazy-conjugate path.
-    "conj": ("_conj", "resolve_conj", "view_as_real", "view_as_complex"),
-}
 
 
 def _traced_aten_ops(sample: OpSample) -> T.Set[str]:
