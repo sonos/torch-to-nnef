@@ -18,6 +18,7 @@ from hypothesis import given
 from torch_to_nnef.inference_target import TractNNEF
 
 from .proptest.comparator import assert_outputs_close_nan_aware
+from .proptest.nnef_gap import assert_nnef_gap
 from .proptest.op_specs import REGISTRY, OpSample, OpSpec
 
 pytestmark = pytest.mark.proptest
@@ -34,6 +35,24 @@ def test_op_property(spec: OpSpec) -> None:
         # `xfail_reason` flips the spec back to a normal pass.
         pytest.xfail(spec.xfail_reason)
     target = TractNNEF.latest()
+
+    if spec.nnef_gap is not None:
+        # No translation exists, so there is nothing to compare against.
+        # Assert the declared failure instead: that keeps the marker
+        # honest, and turns "someone implemented this" into a test
+        # failure rather than a stale support page.
+        @given(sample=spec.sample_st)
+        def _inner_gap(sample: OpSample) -> None:
+            assert_nnef_gap(
+                gap=spec.nnef_gap,
+                spec_name=spec.name,
+                model=sample.module,
+                inputs=sample.inputs,
+                inference_target=target,
+            )
+
+        _inner_gap()
+        return
 
     @given(sample=spec.sample_st)
     def _inner(sample: OpSample) -> None:
@@ -75,6 +94,10 @@ def test_op_property_dynamic(spec: OpSpec) -> None:
     """
     if spec.xfail_reason is not None:
         pytest.xfail(spec.xfail_reason)
+    if spec.nnef_gap is not None:
+        # Nothing to gain: the static variant already asserts the gap,
+        # and a missing emitter is missing at any axis configuration.
+        pytest.skip(f"t2n gap ({spec.nnef_gap.stage.value})")
     if not spec.dynamic_axes_compatible:
         pytest.skip(
             spec.dynamic_axes_skip_reason

@@ -143,6 +143,59 @@ into the support glyph would blame the exporter for a runtime issue.
 we have no evidence about ONNX, and reporting "no evidence" as ❌ would
 overstate what was measured.
 
+## Measuring what we cannot translate
+
+The catalog exists to guard our own exporter, so for a long time a spec
+only existed where t2n succeeds. That gave the ONNX column a selection
+bias with a precise shape: **the measured population was a subset of our
+own supported set**. An operator ONNX handles and we do not could never
+be graded ✅, only inherited as a `✅*` claim from the retired listing, or
+left blank. The comparison was structurally blind exactly where we are
+weakest, and the `Gap vs ONNX` filter could only ever surface operators
+that the torch 2.8 listing happened to name.
+
+`tests/proptest/op_specs/gaps.py` closes that. Its specs cover operators
+with **no translation at all**, purely so the sweep can measure them.
+Each one sets `OpSpec.nnef_gap`:
+
+```python
+OpSpec(
+    name="gap-masked_select",
+    sample_st=_masked_select_st(),
+    aten_ops=("masked_select",),
+    nnef_gap=_gap(
+        "output extent depends on the input values, which a static "
+        "NNEF graph cannot declare"
+    ),
+)
+```
+
+The marker is **asserted, not trusted**. A spec that merely skipped the
+tract driver would keep reporting its operator as unsupported long after
+someone implemented it, and the page with it. So:
+
+- the tract driver (`proptest` env) attempts the real export and checks
+  it fails at the declared `stage`. Both "it works now" and "it fails
+  somewhere else" are test failures, with the fix spelled out in the
+  message. This is cheap: a missing emitter raises during translation,
+  before tract is invoked.
+- `tests/test_proptest_nnef_gap.py` runs in the **default** suite and
+  cross-checks every `no-emitter` gap against the live emitter registry,
+  so registering the operator fails a test in the fast job too.
+- the ONNX sweep ignores the marker entirely and measures the spec like
+  any other. That is the whole point of it existing.
+
+`stage` records where the failure lands: `no-emitter` (nothing
+registered), `export-error` (an emitter refuses, or the pipeline raises
+earlier: the RNG factories are constant-folded before the lookup), or
+`tract-error` (NNEF written, tract declines it). It is the first thing
+someone planning to close the gap needs to know.
+
+Specs whose op draws from an RNG also set `nondeterministic=True`. Export
+and runtime stay measured; only the numerics axis is skipped, since
+comparing two independent draws would report the definition of the
+operator rather than anything about the exporter.
+
 ## Adding coverage
 
 An operator shows `-` until some spec claims it. To fix that, add or
@@ -150,6 +203,10 @@ extend a spec in `tests/proptest/op_specs/` and set its `aten_ops` to the
 operator name(s) **as this page lists them**: the page drops
 `_`-prefixed identifiers and merges in-place variants, so the trace name
 is not always the row name (`conv2d` traces `aten::_convolution`).
+
+If t2n cannot translate the operator, the spec still belongs in the
+catalog: put it in `gaps.py` with an `nnef_gap` instead of leaving the
+row unmeasured.
 
 `tests/test_proptest_aten_attribution.py` traces every spec and checks its
 declaration, so a spec that drifts onto a different operator fails there

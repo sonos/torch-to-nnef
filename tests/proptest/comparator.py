@@ -19,7 +19,10 @@ spec catalog.
 
 `compare_arrays` / `resolve_tol` are the tolerance policy, kept public
 here because `onnx_backend.py` measures a different exporter but must
-judge numeric agreement by the same rules.
+judge numeric agreement by the same rules. `run_tract` is public for the
+same reason: `nnef_gap.py` has to invoke tract exactly as this module
+does, since "tract refuses the graph" is one of the failure stages a
+declared gap can name.
 """
 
 import subprocess
@@ -132,7 +135,7 @@ def _make_no_check_target(target: TractNNEF) -> TractNNEF:
     return twin
 
 
-def _run_tract(cmd: T.List[str]) -> None:
+def run_tract(cmd: T.List[str]) -> None:
     """Run tract and surface stderr if it fails."""
     proc = subprocess.run(cmd, capture_output=True, check=False)
     if proc.returncode != 0:
@@ -230,7 +233,7 @@ def assert_outputs_close_nan_aware(
             inference_target=target,
             allow_same_io_names=True,
         )
-        _run_tract(
+        run_tract(
             target.tract_cli.run_save_outputs_cmd_str(
                 exported, inputs_npz, outputs_act_npz
             )

@@ -7,6 +7,7 @@ generation). Group-specific helpers (binary broadcast, pow variants, the
 unary-domain constants) live in their consumer module.
 """
 
+import enum
 import typing as T
 from dataclasses import dataclass
 
@@ -26,6 +27,45 @@ class OpSample:
 
     inputs: T.Tuple[torch.Tensor, ...]
     module: torch.nn.Module
+
+
+class NnefGapStage(enum.Enum):
+    """Where a spec is expected to fail on the way to a running NNEF.
+
+    The stage is asserted, not just declared, so a spec cannot keep
+    claiming a gap that has since been closed.
+    """
+
+    #: No emitter is registered for the operator at all
+    #: (`T2NErrorMissingOpEmitter`). This is what the support page counts
+    #: as unsupported.
+    NO_EMITTER = "no-emitter"
+    #: An emitter exists but refuses what this spec draws, or the export
+    #: pipeline raises some other `T2NError` on the way out.
+    EXPORT_ERROR = "export-error"
+    #: NNEF is written, and tract then declines to load or run it.
+    TRACT_ERROR = "tract-error"
+
+
+@dataclass(frozen=True)
+class NnefGap:
+    """A translation we do not ship, recorded as an expected failure.
+
+    Marks a spec that exists to *measure* rather than to guard: the op is
+    out of reach for t2n today, so the tract driver asserts the failure
+    instead of asserting agreement, while the ONNX sweep measures it like
+    any other spec. Without such specs the ONNX column can only ever be
+    measured where t2n already succeeds, which biases the comparison in
+    our favour precisely where we are weakest.
+    """
+
+    stage: NnefGapStage
+    #: Why it cannot be translated, in one line. Shown in the assertion
+    #: failure when the gap closes, so make it the sentence a reader
+    #: needs to decide whether closing it is now the right move.
+    reason: str
+    #: Optional tracking issue / PR, when closing the gap is planned.
+    tracked_by: T.Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -68,6 +108,24 @@ class OpSpec:
     # against what the spec really traces, so this stays honest as specs
     # are edited.
     aten_ops: T.Tuple[str, ...] = ()
+    # When set, t2n is *expected* not to produce a running NNEF for this
+    # op, and the spec exists to measure the other exporters (and to keep
+    # the gap on the books) rather than to guard a translation we ship.
+    #
+    # Distinct from `xfail_reason`, which marks a translation we *do*
+    # ship whose output currently disagrees with torch. Here there is no
+    # translation to disagree with.
+    #
+    # The tract driver asserts the declared stage really happens, so the
+    # day the gap closes the spec fails and has to be converted into a
+    # normal one. See `tests/proptest/nnef_gap.py`.
+    nnef_gap: T.Optional[NnefGap] = None
+    # When True, two runs of this op on the same input legitimately
+    # differ (anything drawing from an RNG, plus `empty`, whose buffer is
+    # uninitialized). Value comparison is then meaningless, so the ONNX
+    # sweep still measures export and runtime but skips the numerics
+    # axis rather than recording a guaranteed divergence.
+    nondeterministic: bool = False
 
 
 def _unary_sample_st(
