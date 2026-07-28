@@ -24,7 +24,6 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import pathlib
 import re
 import subprocess
@@ -107,6 +106,10 @@ NOT_OURS: tuple[str, ...] = (
     "docs/html/llm_wasm.js",
     "docs/html/vad_wasm.js",
     "docs/html/yolo.js",
+    # Lockfiles are resolver output: a dependency legitimately named
+    # "myriad" or "seamless" would otherwise hard-fail a gate with no
+    # per-line exemption, and the text cannot be edited by hand.
+    ".lock",
     # ASR text-normalisation tables, where a word like "revolutionise" is a
     # dictionary key rather than prose.
     "/normalizer/",
@@ -123,6 +126,15 @@ WORDS_EXEMPT: tuple[str, ...] = (
 
 NUL_SNIFF_BYTES = 8192
 
+#: Byte-order marks for the UTF-16/UTF-32 encodings. A BOM-less UTF-16 file is
+#: indistinguishable from binary by content alone, so it stays out of reach.
+UTF16_32_BOMS = (
+    b"\xff\xfe\x00\x00",  # UTF-32 LE
+    b"\x00\x00\xfe\xff",  # UTF-32 BE
+    b"\xff\xfe",  # UTF-16 LE
+    b"\xfe\xff",  # UTF-16 BE
+)
+
 
 class Violation(NamedTuple):
     path: str
@@ -136,32 +148,40 @@ def matches(path: str, markers: tuple[str, ...]) -> bool:
     return any(marker in path for marker in markers)
 
 
+class NotAWorktree(Exception):
+    """Whole-repo mode was asked for outside a git worktree."""
+
+
 def repo_root() -> pathlib.Path:
     """The worktree root, so the scan does not depend on the caller's cwd."""
-    out = subprocess.run(
+    proc = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
-        check=True,
-    ).stdout
-    return pathlib.Path(out.strip())
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise NotAWorktree(proc.stderr.strip() or "not a git repository")
+    return pathlib.Path(proc.stdout.strip())
 
 
 def tracked_files() -> list[str]:
-    """Every path git knows about, so untracked files and site/ are excluded.
+    """Every tracked path, as absolute paths, so untracked files are excluded.
 
-    ``--full-name`` plus a chdir to the worktree root: plain ``git ls-files``
-    lists only what is under the cwd, so running this from a subdirectory would
-    silently scan a subset and still report success.
+    ``git -C <root> ... --full-name`` rather than a bare ``git ls-files``: the
+    latter lists only what is under the cwd, so running this from a
+    subdirectory would silently scan a subset and still report success. The
+    root is passed to git instead of chdir'ing, which would mutate the cwd of
+    any process that imported this module.
     """
-    os.chdir(repo_root())
-    out = subprocess.run(
-        ["git", "ls-files", "-z", "--full-name"],
+    root = repo_root()
+    proc = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z", "--full-name"],
         capture_output=True,
         text=True,
         check=True,
-    ).stdout
-    return [p for p in out.split("\0") if p]
+    )
+    return [str(root / p) for p in proc.stdout.split("\0") if p]
 
 
 def scan(path: str, check_words: bool = True) -> list[Violation]:
@@ -169,9 +189,29 @@ def scan(path: str, check_words: bool = True) -> list[Violation]:
     node = pathlib.Path(path)
     # A symlink's hits belong to its target: docs/CHANGELOG.md and friends
     # would otherwise be reported twice, once at a path nobody can edit.
-    if node.is_symlink() or not node.is_file():
+    if node.is_symlink():
         return []
+    if not node.exists():
+        # Never silently: a mistyped or wrongly-relative argument used to be
+        # reported as clean, so a per-file run could give a green result over
+        # files it had not opened.
+        return [Violation(path, 1, 1, "path does not exist", "check the path")]
+    if not node.is_file():
+        return []  # directory, fifo, ...
     raw = node.read_bytes()
+    if raw[:4] in UTF16_32_BOMS or raw[:2] in UTF16_32_BOMS:
+        # Checked before the NUL sniff below: UTF-16/UTF-32 text is full of
+        # 0x00 bytes, so the binary heuristic would classify it as binary and
+        # exempt exactly the typography this gate exists to block.
+        return [
+            Violation(
+                path,
+                1,
+                1,
+                "file is UTF-16/UTF-32, not UTF-8",
+                "re-save as UTF-8 (it cannot be checked otherwise)",
+            )
+        ]
     if b"\0" in raw[:NUL_SNIFF_BYTES]:
         return []  # binary (*.wasm, *.png, ...)
     try:
@@ -213,7 +253,17 @@ def scan(path: str, check_words: bool = True) -> list[Violation]:
 
 
 def main(argv: list[str]) -> int:
-    paths = argv or tracked_files()
+    if argv:
+        paths = argv
+    else:
+        try:
+            paths = tracked_files()
+        except NotAWorktree as exp:
+            print(
+                f"::error::cannot enumerate tracked files: {exp}. "
+                "Pass explicit paths to check a non-git tree."
+            )
+            return 1
     checked = 0
     violations: list[Violation] = []
     for path in paths:

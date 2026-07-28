@@ -786,10 +786,12 @@ if T.TYPE_CHECKING:
     # the packages' _optional_types.py. `require_extra_decorator` below swaps
     # the INJECTED default for the real module before the function body runs,
     # so by the time annotated code executes the sentinel branch is gone.
-    # Aliasing to Any reflects that: attribute access on an injected module
-    # stays unchecked instead of erroring on a branch that cannot be reached.
     # Assigning the class directly (`Injected = type(INJECTED)`) reads to mypy
-    # as a *variable*, which makes every such alias invalid as a type.
+    # as a *variable*, which makes every such alias invalid as a type; the
+    # alias below is what keeps those annotations usable at all.
+    # It does NOT silence attribute access on the union's other member:
+    # `Union[X, Any]` still checks X, so an installed-but-untyped
+    # transformers can still produce union-attr errors.
     Injected = T.Any
 else:
     Injected = type(INJECTED)

@@ -210,6 +210,11 @@ max-attributes = 15
 # `X | Y` syntax already used throughout the codebase.
 python_version = "3.10"
 ignore_missing_imports = true
+# Same surface the pre-commit hook excludes, so `make lint` and the hook
+# agree on what is checked. examples/ holds standalone scripts whose
+# same-named siblings in hyphenated directories cannot yield distinct
+# module paths, which made mypy abort instead of checking anything.
+exclude = "(^examples/|tests/)"
 
 
 [[tool.mypy.overrides]]

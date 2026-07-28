@@ -7,11 +7,15 @@ format:
 	isort $(sources) tests
 	ruff format $(sources) tests
 
-# `prose` is a prerequisite rather than a recipe line: as a trailing line it
-# was unreachable, because the mypy step above it currently exits non-zero.
-lint: prose
+lint:
 	ruff check $(sources) tests
-	mypy $(sources) tests
+# Before mypy, which currently exits non-zero (so a trailing line here would be
+# unreachable), and after ruff, so a stray em dash cannot hide code findings.
+	python3 .github/scripts/check_prose.py
+# Not `tests`: CONTRIBUTING documents mypy as type-checking library code
+# "excluding tests", and [tool.mypy] excludes it, so passing it here made
+# mypy fail with "no .py files in directory".
+	mypy $(sources)
 
 prose:
 	python3 .github/scripts/check_prose.py

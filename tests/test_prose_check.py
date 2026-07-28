@@ -176,3 +176,70 @@ def test_main_exits_zero_on_clean_input(tmp_path):
     target.write_text("plain ASCII line\n", encoding="utf-8")
 
     assert check_prose.main([str(target)]) == 0
+
+
+def test_tracked_files_is_cwd_independent_and_absolute(tmp_path, monkeypatch):
+    """The regression `tracked_files` exists to prevent, pinned by a test.
+
+    A bare `git ls-files` lists only what is under the cwd, so running the
+    checker from a subdirectory used to scan a subset and still report success.
+    """
+    from_root = check_prose.tracked_files()
+    monkeypatch.chdir(SCRIPT.parents[2] / "docs")
+    from_subdir = check_prose.tracked_files()
+
+    assert from_root == from_subdir
+    assert len(from_root) > 100
+    assert all(pathlib.Path(p).is_absolute() for p in from_root)
+
+
+def test_tracked_files_does_not_mutate_cwd():
+    """It must not chdir: the module is imported by other processes."""
+    before = pathlib.Path.cwd()
+
+    check_prose.tracked_files()
+
+    assert pathlib.Path.cwd() == before
+
+
+def test_repo_root_raises_outside_a_worktree(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(check_prose.NotAWorktree):
+        check_prose.repo_root()
+
+
+def test_main_diagnoses_a_non_git_tree(tmp_path, monkeypatch, capsys):
+    """Whole-repo mode outside git must explain itself, not traceback."""
+    monkeypatch.chdir(tmp_path)
+
+    rc = check_prose.main([])
+
+    assert rc == 1
+    assert "cannot enumerate tracked files" in capsys.readouterr().out
+
+
+def test_utf16_is_not_silently_exempt(tmp_path):
+    """UTF-16 is full of NUL bytes, so the binary sniff must not claim it."""
+    target = tmp_path / "sample.md"
+    target.write_bytes("a\u2014b\n".encode("utf-16"))
+
+    found = check_prose.scan(str(target))
+
+    assert len(found) == 1
+    assert "UTF-16" in found[0].what
+
+
+def test_missing_path_is_reported(tmp_path):
+    found = check_prose.scan(str(tmp_path / "nope.md"))
+
+    assert len(found) == 1
+    assert "does not exist" in found[0].what
+
+
+def test_lockfiles_are_out_of_scope():
+    """Resolver output: a dependency named `myriad` must not fail the gate."""
+    assert check_prose.matches("uv.lock", check_prose.NOT_OURS)
+    assert check_prose.matches(
+        "examples/nemo_asr/src/nemo_asr_py/uv.lock", check_prose.NOT_OURS
+    )

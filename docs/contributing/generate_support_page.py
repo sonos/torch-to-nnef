@@ -231,12 +231,16 @@ class LinkToTorchDocCache:
         return base
 
     def save(self):
+        # indent=2 plus a trailing newline: the shape pretty-format-json and
+        # end-of-file-fixer enforce, so regenerating the page does not re-churn
+        # the whole cache file on the next commit.
         with self.cache_path.open("w", encoding="utf8") as fh:
             json.dump(
                 {k: sorted(list(v)) for k, v in self.cache_dic.items()},
                 fh,
-                indent=4,
+                indent=2,
             )
+            fh.write("\n")
 
     def add(self, pattern: str, op_name: str, exclusive_pattern: bool = True):
         for k, v in self.cache_dic.items():
