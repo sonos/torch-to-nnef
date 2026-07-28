@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../../../../img/t2n_ico.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -702,6 +702,34 @@
     
   
     12. Exporting JIT-only models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tutos/13_multimodal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13. Multimodal (vision & audio)
   
 
     
@@ -3321,6 +3349,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../torch_graph/dynamic_axes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dynamic_axes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../torch_graph/harden/" class="md-nav__link">
         
   
@@ -3839,6 +3895,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../../../contributing/onnx_support_page/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measured ONNX support
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../../../contributing/add_new_aten_op/" class="md-nav__link">
         
   
@@ -4295,7 +4379,7 @@
               <td><code><a class="autorefs autorefs-internal" title="            min_ (torch_to_nnef.op.aten.reducer.min_)" href="#torch_to_nnef.op.aten.reducer.min_">min_</a></code></td>
               <td>
                 <div class="doc-md-description">
-                  <p>Map PyTorch: 'aten:min' to NNEF.</p>
+                  <p>Map PyTorch: 'aten:min' to NNEF (see :func:<code>max_</code> for the overloads).</p>
                 </div>
               </td>
             </tr>
@@ -4491,6 +4575,9 @@ before evaluating, panicking the downstream <code>sum_reduce</code>.</p>
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:max' to NNEF.</p>
+<p>Three overloads: full reduction <code>max(input)</code> (1 input), dim reduction
+<code>max(input, dim, keepdim)</code> (dim is a PythonConstant), and elementwise
+<code>max(input, other)</code> (other is a tensor). The first two are reductions.</p>
 
 
     </div>
@@ -4530,7 +4617,7 @@ before evaluating, panicking the downstream <code>sum_reduce</code>.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Map PyTorch: 'aten:min' to NNEF.</p>
+        <p>Map PyTorch: 'aten:min' to NNEF (see :func:<code>max_</code> for the overloads).</p>
 
 
     </div>
@@ -4866,7 +4953,7 @@ touches NNEF stdlib ops.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../../../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
