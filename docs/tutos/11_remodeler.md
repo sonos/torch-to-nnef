@@ -3,7 +3,7 @@ search:
   boost: 2
 ---
 
-# 11. Shapes Remodeler (provider‑agnostic)
+# 11. Shapes Remodeler (provider-agnostic)
 
 This tutorial introduces the boundary remodeler: a provider-agnostic way to
 describe and apply IO-boundary transforms (collapse, bind, and symbol aliases)
@@ -37,9 +37,9 @@ Symbol conventions
   `renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, ...] }`.
 - Aliases listed in `renamed_symbols` are honored wherever symbols are referenced (collapse/bind/validation).
 
-Provider‑agnostic Python workflow
+Provider-agnostic Python workflow
 
-The remodeler API is provider‑agnostic. Any provider that can discover
+The remodeler API is provider-agnostic. Any provider that can discover
 subnet signatures can participate. The typical flow is the same:
 
 1) Discover RAW signatures → dump a starter registry
@@ -247,7 +247,7 @@ Validation
   - Ensures `outputs.collapse_dims` references known output names with valid axis indices
   - Verifies `bind_scalar_to_dim_size` sources and symbols exist among dynamic axes
   - Verifies `collapse_dims` symbols exist among dynamic axes per input
-  - Verifies `renamed_symbols` sources exist among the subnet’s dynamic axes
+  - Verifies `renamed_symbols` sources exist among the subnet's dynamic axes
 
 Exporting
 - Use wrapped subnets with `export_model_to_nnef` if you need direct control;

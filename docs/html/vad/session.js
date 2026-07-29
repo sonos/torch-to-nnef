@@ -9,7 +9,7 @@ export class VadSession {
     }
     setMode(m) { this.modes?.set(m); }
     async prepareForFile() {
-        // stop mic handled by page’s live manager if needed; caller ensures it
+        // stop mic handled by page's live manager if needed; caller ensures it
         // Do not reset WASM here; keeping warm state from mic avoids cold-start issues.
         this.modes?.disable(true);
         try { this.plot.clearTitle?.(); } catch { }

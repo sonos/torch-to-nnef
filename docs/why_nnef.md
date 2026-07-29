@@ -8,7 +8,7 @@ NNEF stands for Neural Network Exchange Format.
     ![NNEF Idea](img/nnef_idea.jpg){ align=center }
 </figure>
 
-Introduced in 2018—just a year after ![ONNX](img/onnx.png){: style="width: 100px;margin:0;"}.
+Introduced in 2018, just a year after ![ONNX](img/onnx.png){: style="width: 100px;margin:0;"}.
 
 NNEF addresses the same core challenge as ONNX: providing a standardized way to exchange neural network models across different tools and frameworks.
 
@@ -31,7 +31,7 @@ Beyond the specification itself, Khronos also provides several reference tools t
 
 ## :brain: NNEF Inference Support
 
-As of today, the only inference engine (excluding full training frameworks) that natively supports NNEF as a first-class format is [tract](https://github.com/sonos/tract) — the open-source neural inference engine developed by Sonos.
+As of today, the only inference engine (excluding full training frameworks) that natively supports NNEF as a first-class format is [tract](https://github.com/sonos/tract): the open-source neural inference engine developed by Sonos.
 
 ---
 
@@ -39,11 +39,11 @@ As of today, the only inference engine (excluding full training frameworks) that
 
 1. **Leverages Existing, Widely-Supported Containers**
 
-    Stop reinventing the wheel—NNEF embraces common container systems.
+    Stop reinventing the wheel: NNEF embraces common container systems.
     It's efficient, well-supported, and decouples data storage
     from model structure (think of video formats vs. codecs).
 
-    - Example: `tar` is totally fine—and if you want compression, just apply it.
+    - Example: `tar` is totally fine, and if you want compression, just apply it.
     - Prefer another container format? You're **free to use it**.
 
 2. **Efficient Tensor Storage**
@@ -62,7 +62,7 @@ As of today, the only inference engine (excluding full training frameworks) that
 
     - No control flow complexity
     - Easy to read and edit (e.g., jump to definitions in your favorite editor)
-    - **Flexible and extensible**—it's just **text**.
+    - **Flexible and extensible**: it's just **text**.
 
 4. **Separation of Quantization Logic**
 
@@ -80,7 +80,7 @@ As of today, the only inference engine (excluding full training frameworks) that
 
 1. **No Reference Implementation or Test Suite**
 
-    Only basic converters exist (TensorFlow/ONNX), and a rudimentary interpreter in PyTorch—**nothing production-grade**.
+    Only basic converters exist (TensorFlow/ONNX), and a rudimentary interpreter in PyTorch: **nothing production-grade**.
 
 2. **Image-Centric Design**
 
@@ -117,7 +117,7 @@ As of today, the only inference engine (excluding full training frameworks) that
 
     Enables **flexible architecture composition**.
 
-> These extensions are encapsulated under the concept of **inference targets** in `torch_to_nnef`, allowing inference engines to define their own "NNEF flavor"—while retaining a shared **syntax and graph structure and common set of 'specified' operators**.
+> These extensions are encapsulated under the concept of **inference targets** in `torch_to_nnef`, allowing inference engines to define their own "NNEF flavor", while retaining a shared **syntax and graph structure and common set of 'specified' operators**.
 
 ---
 
@@ -128,7 +128,7 @@ As of today, the only inference engine (excluding full training frameworks) that
     Let's be clear: **ONNX is a great standard.**
     It's **mature**, **widely adopted**, and works well for many neural network applications.
 
-However, ONNX is based on **Protocol Buffers**, which introduce real limitations—**even acknowledged in [their own docs](https://protobuf.dev/overview/)**:
+However, ONNX is based on **Protocol Buffers**, which introduce real limitations, **even acknowledged in [their own docs](https://protobuf.dev/overview/)**:
 
 1. **Not Suitable for Large Data Assets**
 
@@ -144,7 +144,7 @@ However, ONNX is based on **Protocol Buffers**, which introduce real limitations
 ### :material-robot-angry: Opinionated Grievances (Specific to NN Use Cases)
 
 1. **Tightly Coupled Graph & Tensors**
-   Want to patch a model with new PEFT weights or tweak a few parameters? **Good luck**—everything’s entangled.
+   Want to patch a model with new PEFT weights or tweak a few parameters? **Good luck**: everything's entangled.
 
 2. **Unreadable Without Specialized Tools**
    Tools like [TensorBoard](https://www.tensorflow.org/tensorboard) or [Netron](https://netron.app/) are needed for visualization but **difficult to read** when more than 10 I/O tensors are linked to an operator (e.g having long residual connection deforms the graph visuals).
@@ -162,20 +162,20 @@ However, ONNX is based on **Protocol Buffers**, which introduce real limitations
 
 ## :vs: Safetensors
 
-**Safetensors** is essentially a secure, structured list of tensors stored in binary—plus minimal metadata.
+**Safetensors** is essentially a secure, structured list of tensors stored in binary, plus minimal metadata.
 
 1. **Directly Loadable to Devices**
 
 2. **Avoids Pickle Security Issues**
 
-> 🔍 But: Its benefits are tied to loading efficiency—not the format itself.
+> 🔍 But: Its benefits are tied to loading efficiency, not the format itself.
 > It could just as well have been implemented using `tar`.
 
 ### :material-close: Major Drawback
 
 - **No Computation Graph**
 
-    Every model architecture must be **re-implemented manually** on top of the inference engine—**error-prone** and **wasteful**.
+    Every model architecture must be **re-implemented manually** on top of the inference engine: **error-prone** and **wasteful**.
 
 - **No Operator Fusion or Optimization Guidance**
 

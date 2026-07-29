@@ -148,7 +148,7 @@ export class VADPlot {
     }
     setTitle(hz) {
         this.opts = { ...this.opts, title: `VAD detection with FunASR FSMN-VAD @ ${hz}hz:` };
-        // Reapply title on next reset; uPlot doesn’t support live title updates directly without full opts rebuild.
+        // Reapply title on next reset; uPlot doesn't support live title updates directly without full opts rebuild.
     }
 
     clearTitle() {

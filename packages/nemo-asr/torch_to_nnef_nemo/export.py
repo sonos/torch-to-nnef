@@ -13,7 +13,7 @@ from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.base import InferenceTarget
-from torch_to_nnef.inference_target.tract import build_io
+from torch_to_nnef.inference_target.tract import TractNNEF, build_io
 from torch_to_nnef.model_wrapper import build_new_names_and_elements
 from torch_to_nnef.remodeler import prepare_subnet_export
 from torch_to_nnef.remodeler.adapter import RenameOutputs
@@ -45,6 +45,21 @@ from torch_to_nnef_nemo.wrappers import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _with_tract_properties(
+    inference_target: InferenceTarget,
+    specific_properties: T.Dict[str, str],
+) -> InferenceTarget:
+    """Attach tract-specific properties, when the target supports them.
+
+    ``with_specific_properties`` is a :class:`TractNNEF` method, not part of the
+    ``InferenceTarget`` base, so calling it unconditionally would raise
+    ``AttributeError`` on any other target (e.g. ``KhronosNNEF``).
+    """
+    if isinstance(inference_target, TractNNEF):
+        return inference_target.with_specific_properties(specific_properties)
+    return inference_target
 
 
 def _patch_encoder_output_types(
@@ -804,8 +819,9 @@ def export_nemo_asr_model(
         export_model_to_nnef(
             model=model,
             args=export_params.test_input,
-            inference_target=export_params.inference_target.with_specific_properties(
-                export_params.specific_tract_properties
+            inference_target=_with_tract_properties(
+                export_params.inference_target,
+                export_params.specific_tract_properties,
             ),
             input_names=input_names,
             output_names=output_names,

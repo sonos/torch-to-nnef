@@ -47,10 +47,20 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
+
+if TYPE_CHECKING:
+    # Only reachable once `_setup_clone_path` has added the cloned
+    # upstream repo to sys.path, so it stays out of the runtime import
+    # graph. Declared here so the annotation below names something
+    # defined: `from __future__ import annotations` keeps it a string,
+    # and the pyupgrade hook strips quotes, so a quoted forward
+    # reference cannot survive.
+    from model.dpdfnet import DPDFNet
 
 HERE = Path(__file__).resolve().parent
 CLONE = HERE / "_dpdfnet_clone"
@@ -323,7 +333,7 @@ class DPDFNetMaskOnly(torch.nn.Module):
     Drops the ``df_op`` head (see module docstring).
     """
 
-    def __init__(self, inner: "DPDFNet") -> None:  # noqa: F821
+    def __init__(self, inner: DPDFNet) -> None:
         super().__init__()
         self.inner = inner
 

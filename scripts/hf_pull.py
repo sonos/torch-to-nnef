@@ -49,8 +49,9 @@ def _http_status(exc: BaseException) -> "int | None":
     LocalEntryNotFoundError whose cause is the real HfHubHTTPError, so the
     status we must branch on (e.g. 429) is not on the outermost exception.
     """
-    seen = set()
-    cur = exc
+    seen: set = set()
+    # Quoted: this file has no `from __future__ import annotations`.
+    cur: "BaseException | None" = exc
     while cur is not None and id(cur) not in seen:
         seen.add(id(cur))
         status = getattr(getattr(cur, "response", None), "status_code", None)
@@ -107,7 +108,7 @@ def prefetch(repo_id: str, attempts: int = 5, base_delay: float = 3.0) -> None:
         #
         # Nothing is hidden: `_http_status` still short-circuits the
         # permanent statuses, and anything it cannot classify is printed
-        # with its type name and retried, so a genuine bug shows up in
+        # with its type name and retried, so a real bug shows up in
         # the log and then loses the cache warm rather than the job.
         except Exception as e:  # noqa: BLE001  pylint: disable=broad-except
             status = _http_status(e)

@@ -124,11 +124,13 @@ def _print(
     print(graph_str, file=file)
     print("{", file=file)
 
-    versions = {}
+    versions: T.Dict[str, int] = {}
     for op in graph.operations:
         assert all(isinstance(item, Tensor) for item in op.outputs)
 
-        inputs = (
+        # Bound under separate names: rebinding the generator to a tuple
+        # made the variable two different types.
+        input_items = (
             (
                 (
                     from_numpy(maybe_torch_to_np(item.data))
@@ -141,14 +143,18 @@ def _print(
             for item in op.inputs
         )
         inputs = (
-            tuple(inputs) if isinstance(op.inputs, tuple) else (list(inputs),)
+            tuple(input_items)
+            if isinstance(op.inputs, tuple)
+            else (list(input_items),)
         )
 
-        outputs = (nnef.Identifier(as_str(item.name)) for item in op.outputs)
+        output_items = (
+            nnef.Identifier(as_str(item.name)) for item in op.outputs
+        )
         outputs = (
-            tuple(outputs)
+            tuple(output_items)
             if isinstance(op.outputs, tuple)
-            else (list(outputs),)
+            else (list(output_items),)
         )
 
         attribs = {as_str(key): value for key, value in op.attribs.items()}

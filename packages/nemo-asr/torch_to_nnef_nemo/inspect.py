@@ -41,7 +41,9 @@ def _flatten_outputs(
     if isinstance(outs, torch.Tensor):
         outs = (outs,)
     names, tensors, _, _ = build_new_names_and_elements(
-        output_names, outs, default_element_name_tmpl="output_{}"
+        output_names,
+        T.cast(T.Collection, outs),
+        default_element_name_tmpl="output_{}",
     )
     return names, tensors
 
@@ -77,7 +79,7 @@ def _tensor_shape_with_symbols(
         A list mixing ints and symbols representing each dimension.
         Returns an empty list for non-tensor inputs.
     """
-    if not torch.is_tensor(t):
+    if not isinstance(t, torch.Tensor):
         return []
     syms = symbols or {}
     return [syms.get(i, int(dim)) for i, dim in enumerate(list(t.shape))]
@@ -85,7 +87,7 @@ def _tensor_shape_with_symbols(
 
 def _dtype_of(t: object) -> T.Optional[str]:
     """Return the tensor dtype as a short string, if available."""
-    if torch.is_tensor(t):
+    if isinstance(t, torch.Tensor):
         return str(t.dtype).replace("torch.", "")
     return None
 
@@ -136,7 +138,7 @@ def collect_signatures(
             if isinstance(ep.test_input, (list, tuple))
             else []
         )
-        dyn_axes = ep.inference_target.dynamic_axes or {}
+        dyn_axes = getattr(ep.inference_target, "dynamic_axes", None) or {}
         flat_in_names, flat_in_tensors, _, _ = build_new_names_and_elements(
             ep.input_names,
             test_in,
@@ -426,7 +428,7 @@ def _compute_input_transform(
     cfg_binds_src: dict[str, tuple[str, str]],
 ) -> StageInputTransform:
     qname = f"{ss.name}.{i.name}"
-    sym_map = ss.symbol_axes.get(i.name, {})
+    sym_map = (ss.symbol_axes or {}).get(i.name, {})
     remove_syms: set[str] = set(cfg_collapse.get(qname, []))
     known_syms = {str(sym).upper() for sym in sym_map.values()}
     extra = [s for s in remove_syms if s not in known_syms]
@@ -462,7 +464,7 @@ def _compute_input_transform(
             skip=True,
             new_shape=[],
             remap={},
-            notes=list(i.notes),
+            notes=list(i.notes or []),
             bind_flag=bind_flag,
         )
     if i.shape:
@@ -479,7 +481,7 @@ def _compute_input_transform(
             remap[ax - shift] = sym_map[ax]
     else:
         remap = {}
-    notes = list(i.notes)
+    notes = list(i.notes or [])
     if remove_syms:
         notes.append("collapsed:" + ",".join(sorted(remove_syms)))
     return StageInputTransform(
@@ -593,7 +595,7 @@ def _overlay_symbols(
 
     merged_all: list[SubnetSignature] = []
     for ss in all_sigs:
-        merged_axes: dict[str, dict[int, str]] = dict(ss.symbol_axes)
+        merged_axes: dict[str, dict[int, str]] = dict(ss.symbol_axes or {})
         for i in ss.inputs:
             q = f"{ss.name}.{i.name}"
             if q in q_to_axes:

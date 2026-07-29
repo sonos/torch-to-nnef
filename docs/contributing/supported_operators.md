@@ -19,7 +19,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
 
     [=130/139 "130/139"]
 
-    -  and support from full `aten::`: 
+    -  and support from full `aten::`:
 
     [=410/581 "410/581"]
 
@@ -631,7 +631,7 @@ We also exclude a long tail of identifiers that the `aten::*` source-grep picks 
 
     [=134/139 "134/139"]
 
-    -  and support from full `aten::`: 
+    -  and support from full `aten::`:
 
     [=394/581 "394/581"]
 
@@ -1342,4 +1342,3 @@ These names are filtered out of the support tables above because they cannot sur
 
 ??? note "Regex-scrape artifacts (phantom names from f-strings) (1 names)"
     `conv`
-

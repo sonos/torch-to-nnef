@@ -363,7 +363,7 @@ def test_nemo_model_export(model_slug, check_io_tolerance):
 
 
 # ---------------------------------------------------------------------------
-# Config variant tests — VAD-heavy for fast iteration
+# Config variant tests: VAD-heavy for fast iteration
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "model_slug, cfg",
@@ -441,7 +441,7 @@ def test_nemo_export_config_variants(model_slug, cfg):
 
 
 # ---------------------------------------------------------------------------
-# Shape config tests — axis registry loaded from YAML
+# Shape config tests: axis registry loaded from YAML
 # ---------------------------------------------------------------------------
 @pytest.mark.ci_skip
 @pytest.mark.parametrize(

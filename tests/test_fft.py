@@ -439,13 +439,13 @@ class MyISTFT(nn.Module):
         )
 
 
-# Hann at hop=n_fft/2 — the canonical COLA case.
+# Hann at hop=n_fft/2: the canonical COLA case.
 test_suite.add(
     torch.sin(torch.arange(64, dtype=torch.float32) * 0.5).unsqueeze(0),
     MyISTFT(n_fft=8, hop_length=4),
     inference_conditions=_cond_stft_ge_0_22,
 )
-# Hamming window — different scale but still COLA-satisfying at hop=n_fft/2.
+# Hamming window: different scale but still COLA-satisfying at hop=n_fft/2.
 test_suite.add(
     torch.sin(torch.arange(64, dtype=torch.float32) * 0.5).unsqueeze(0),
     MyISTFT(n_fft=8, hop_length=4, window_name="hamming"),
@@ -459,13 +459,13 @@ test_suite.add(
     MyISTFT(n_fft=8, hop_length=4, center=False, window_name="hamming"),
     inference_conditions=_cond_stft_ge_0_22,
 )
-# Rank-3 input (no batch) — synthetic batch axis added by the handler.
+# Rank-3 input (no batch): synthetic batch axis added by the handler.
 test_suite.add(
     torch.sin(torch.arange(64, dtype=torch.float32) * 0.5),
     MyISTFT(n_fft=8, hop_length=4),
     inference_conditions=_cond_stft_ge_0_22,
 )
-# Multi-batch input (B>1) — exercises the OLA chain shape threading.
+# Multi-batch input (B>1): exercises the OLA chain shape threading.
 test_suite.add(
     torch.sin(torch.arange(3 * 64, dtype=torch.float32) * 0.5).reshape(3, 64),
     MyISTFT(n_fft=8, hop_length=4),
