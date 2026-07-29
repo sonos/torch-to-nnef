@@ -5660,7 +5660,7 @@ the input is falsy.</p>
 
         <p><code>torch.load</code> that avoids arbitrary code execution by default.</p>
 <p>Prefers <code>weights_only=True</code> (loads tensors and primitives only). A file
-that genuinely needs full unpickling (a pickled <code>nn.Module</code> or a custom
+that actually needs full unpickling (a pickled <code>nn.Module</code> or a custom
 tensor subclass) falls back to <code>weights_only=False</code> with a warning, since
 that path executes pickled code: only load files you trust. On torch &lt; 1.13
 (no <code>weights_only</code> support) it behaves like a plain <code>torch.load</code>.</p>

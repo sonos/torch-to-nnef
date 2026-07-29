@@ -4768,7 +4768,7 @@ will 'load' then 'decompress' to show final fp tensor.</p>
 
 
 </h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_offload_state</span><span class="p">(</span><span class="n">state</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">type</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_offload_state</span><span class="p">(</span><span class="n">state</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Type</span><span class="p">[</span><span class="n">SupportsOffloadState</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4833,7 +4833,7 @@ unsupported for meta ops (they raise during trace instead of exporting):</p>
 </ul>
 <p>Only shape-propagating uses that flow into a symbolic op
 (linear/matmul/select chains) are supported.</p>
-<p>The "meta" names below must correspond to genuine view/shape ops whose
+<p>The "meta" names below must correspond to real view/shape ops whose
 aten kind lives in <code>ir_op.DERIVED_MODULE_ATTR_OPS</code> (that is where the
 meta result is recognized as aliasing its constant input); keep the two
 lists in sync when adding a new view op.</p>

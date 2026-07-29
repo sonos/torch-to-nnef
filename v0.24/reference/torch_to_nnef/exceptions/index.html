@@ -1115,6 +1115,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#torch_to_nnef.exceptions.T2NErrorMissingOpEmitter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;T2NErrorMissingOpEmitter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.exceptions.T2NErrorNotFoundFile" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4022,6 +4033,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#torch_to_nnef.exceptions.T2NErrorMissingOpEmitter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;T2NErrorMissingOpEmitter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.exceptions.T2NErrorNotFoundFile" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4111,6 +4133,14 @@ should be raised</p>
             <td>
               <div class="doc-md-description">
                 <p>specification of torch_to_nnef export not respected.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            T2NErrorMissingOpEmitter (torch_to_nnef.exceptions.T2NErrorMissingOpEmitter)" href="#torch_to_nnef.exceptions.T2NErrorMissingOpEmitter">T2NErrorMissingOpEmitter</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>No emitter is registered for this operator.</p>
               </div>
             </td>
           </tr>
@@ -4231,6 +4261,47 @@ should be raised</p>
 
 
         <p>specification of torch_to_nnef export not respected.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="torch_to_nnef.exceptions.T2NErrorMissingOpEmitter" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">T2NErrorMissingOpEmitter</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="torch_to_nnef.exceptions.T2NErrorNotImplemented">T2NErrorNotImplemented</span></code></p>
+
+
+
+        <p>No emitter is registered for this operator.</p>
+<p>Narrower than its parent, which an emitter also raises when it exists
+but refuses a particular configuration (an unsupported dtype, rank or
+attribute combination). Only this one means "torch_to_nnef has no
+translation for the operator at all", which is the state the support
+page reports as unsupported.</p>
 
 
 

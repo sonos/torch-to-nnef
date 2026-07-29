@@ -3809,6 +3809,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#measuring-what-we-cannot-translate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring what we cannot translate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#adding-coverage" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4098,6 +4109,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#measuring-what-we-cannot-translate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring what we cannot translate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#adding-coverage" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4141,7 +4163,7 @@ to the torch 2.8 copy, so the column described an exporter that no longer
 exists and could not be refreshed.</p>
 <p>The <code>dynamo</code> exporter that replaced it does not ship an equivalent table.
 But the <a href="../internal_design/">proptest catalog</a> already builds real
-modules covering 300+ <code>aten::</code> operators, so the support level can simply
+modules covering 440+ <code>aten::</code> operators, so the support level can simply
 be measured: export each one and record what happens.</p>
 <p>Measuring also surfaces something a doc table cannot express. Support is
 frequently <strong>partial</strong>: an operator exports at f32 rank-2 and raises at
@@ -4170,7 +4192,7 @@ part of the reuse fingerprint.</p>
 parametrized over the spec registry, so a new spec with <code>aten_ops</code> is
 measured on the next run and appears on the next regeneration.</p>
 <h3 id="cost-and-reuse">Cost and reuse</h3>
-<p>A full sweep is ~370 specs x 25 examples, each one an export plus an
+<p>A full sweep is ~510 specs x 25 examples, each one an export plus an
 onnxruntime run. To keep repeat regenerations cheap, a grade of <code>full</code> can
 be <strong>carried over</strong> from the previous artifact, but only when:</p>
 <ul>
@@ -4266,12 +4288,86 @@ into the support glyph would blame the exporter for a runtime issue.</p>
 <p><code>blocked</code> and <code>untested</code> exist for the same reason: both are cases where
 we have no evidence about ONNX, and reporting "no evidence" as ❌ would
 overstate what was measured.</p>
+<h2 id="measuring-what-we-cannot-translate">Measuring what we cannot translate</h2>
+<p>The catalog exists to guard our own exporter, so for a long time a spec
+only existed where t2n succeeds. That gave the ONNX column a selection
+bias with a precise shape: <strong>the measured population was a subset of our
+own supported set</strong>. An operator ONNX handles and we do not could never
+be graded ✅, only inherited as a <code>✅*</code> claim from the retired listing, or
+left blank. The comparison was structurally blind exactly where we are
+weakest, and the <code>Gap vs ONNX</code> filter could only ever surface operators
+that the torch 2.8 listing happened to name.</p>
+<p>Specs for operators with <strong>no translation at all</strong> close that, purely so
+the sweep can measure them. They live in the same themed module as
+everything else in their family (<code>linalg.py</code>, <code>shape.py</code>, <code>reductions.py</code>
+and so on) and are marked with <code>OpSpec.nnef_gap</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># in tests/proptest/op_specs/shape.py, beside the shape ops we do ship</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">gap_spec</span><span class="p">(</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;masked_select&quot;</span><span class="p">,</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">mask_st</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">masked_select</span><span class="p">,</span> <span class="s2">&quot;masked_select&quot;</span><span class="p">),</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">REASON_DATA_DEPENDENT</span><span class="p">,</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>The marker is <strong>asserted, not trusted</strong>. A spec that merely skipped the
+tract driver would keep reporting its operator as unsupported long after
+someone implemented it, and the page with it. So:</p>
+<ul>
+<li>the tract driver (<code>proptest</code> env) attempts the real export and checks
+  it fails at the declared <code>stage</code>. Both "it works now" and "it fails
+  somewhere else" are test failures, with the fix spelled out in the
+  message. This is cheap: a missing emitter raises during translation,
+  before tract is invoked.</li>
+<li><code>tests/test_proptest_nnef_gap.py</code> runs in the <strong>default</strong> suite and
+  cross-checks every <code>no-emitter</code> gap against the live emitter registry,
+  so registering the operator fails a test in the fast job too.</li>
+<li>the ONNX sweep ignores the marker entirely and measures the spec like
+  any other. That is the whole point of it existing.</li>
+</ul>
+<p><code>stage</code> records where the failure lands, and it is the first thing
+someone planning to close the gap needs to know:</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>no-emitter</code></td>
+<td>nothing is registered for the operator at all</td>
+</tr>
+<tr>
+<td><code>export-error</code></td>
+<td>an emitter refuses, or the pipeline raises earlier (the RNG factories are constant-folded before the lookup)</td>
+</tr>
+<tr>
+<td><code>tract-error</code></td>
+<td>NNEF is written and tract then declines to load or run it. Needs an emitter to exist, so the gap must also set <code>emitter_registered=True</code>, which inverts the registry check from "must be absent" to "must be present"</td>
+</tr>
+<tr>
+<td><code>raw-error</code></td>
+<td>the export crashed with something that is not a <code>T2NError</code>, so the user gets a bare <code>TypeError</code> instead of a message naming the operator. Always a bug on our side, whether or not we ever translate the operator</td>
+</tr>
+</tbody>
+</table>
+<p>Specs whose op draws from an RNG also set <code>nondeterministic=True</code>. Export
+and runtime stay measured; only the numerics axis is skipped, since
+comparing two independent draws would report the definition of the
+operator rather than anything about the exporter.</p>
 <h2 id="adding-coverage">Adding coverage</h2>
 <p>An operator shows <code>-</code> until some spec claims it. To fix that, add or
 extend a spec in <code>tests/proptest/op_specs/</code> and set its <code>aten_ops</code> to the
 operator name(s) <strong>as this page lists them</strong>: the page drops
 <code>_</code>-prefixed identifiers and merges in-place variants, so the trace name
 is not always the row name (<code>conv2d</code> traces <code>aten::_convolution</code>).</p>
+<p>If t2n cannot translate the operator, the spec still belongs in the
+catalog: put it in the themed module it would live in once supported and
+give it an <code>nnef_gap</code>, instead of leaving the row unmeasured. Placing it
+by family rather than by support status is deliberate, so that
+implementing the operator later means deleting one field rather than
+moving the spec between files. Rows that get no spec at all are recorded
+in <code>op_specs/untranslated.py</code> with a reason.</p>
 <p><code>tests/test_proptest_aten_attribution.py</code> traces every spec and checks its
 declaration, so a spec that drifts onto a different operator fails there
 rather than silently mis-attributing its grade.</p>
@@ -4297,7 +4393,7 @@ rather than silently mis-attributing its grade.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 28, 2026 08:37:54 UTC">July 28, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 28, 2026 20:31:13 UTC">July 28, 2026</span>
   </span>
 
     

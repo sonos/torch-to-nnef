@@ -17,7 +17,7 @@ import warnings
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Tuple
 
 # When invoked as ``python docs/contributing/generate_support_page.py``
 # Python seeds ``sys.path[0]`` with this script's directory, which means
@@ -110,7 +110,7 @@ def headline_bars(core_ratio: str, total_ratio: str) -> str:
     return (
         "- core PyTorch opset:\n\n"
         f'[={core_ratio} "{core_ratio}"]\n\n'
-        "-  and support from full `aten::`: \n\n"
+        "-  and support from full `aten::`:\n\n"
         f'[={total_ratio} "{total_ratio}"]\n\n'
     )
 
@@ -231,12 +231,16 @@ class LinkToTorchDocCache:
         return base
 
     def save(self):
+        # indent=2 plus a trailing newline: the shape pretty-format-json and
+        # end-of-file-fixer enforce, so regenerating the page does not re-churn
+        # the whole cache file on the next commit.
         with self.cache_path.open("w", encoding="utf8") as fh:
             json.dump(
                 {k: sorted(list(v)) for k, v in self.cache_dic.items()},
                 fh,
-                indent=4,
+                indent=2,
             )
+            fh.write("\n")
 
     def add(self, pattern: str, op_name: str, exclusive_pattern: bool = True):
         for k, v in self.cache_dic.items():
@@ -266,14 +270,14 @@ class LinkToTorchDocCache:
 class AliasManager:
     def __init__(self, alias_tups: Set[tuple[str, ...]]):
         self._alias_tups = alias_tups
-        self._aliases = set([_[0] for _ in alias_tups])
+        self._aliases = {_[0] for _ in alias_tups}
         self.ref_alias = defaultdict(list)
         for k, v in self._alias_tups:
             self.ref_alias[v].append(k)
 
         # sorted aliases for consistent output
-        for k, v in self.ref_alias.items():
-            self.ref_alias[k] = sorted(v)
+        for canonical, aliases in self.ref_alias.items():
+            self.ref_alias[canonical] = sorted(aliases)
 
     def is_alias(self, op_name: str) -> bool:
         return op_name in self._aliases
@@ -1328,6 +1332,7 @@ def write_operator_support(
     # `.op-filter-container`, so multiple sections (TractNNEF, ONNX) on
     # the same page each get their own independent toggle state.
     filter_id = f"op-filter-{support_target_name}"
+    modes: Tuple[Tuple[str, str], ...]
     if measured is None:
         header_cells = (
             "<th>export&amp;run</th><th>aten name</th><th>aliases</th>"
@@ -1677,9 +1682,8 @@ def build_markdown_page(
     )
 
     cache_url = fetcher.get_cache_url(aten_torch_from_code)
-    with (Path(__file__).parent / "./supported_operators.md").open(
-        "w", encoding="utf8"
-    ) as fh:
+    page_path = Path(__file__).parent / "./supported_operators.md"
+    with page_path.open("w", encoding="utf8") as fh:
         print(
             build_markdown_header(fetcher, measured),
             file=fh,
@@ -1738,6 +1742,13 @@ def build_markdown_page(
             )
         print(FILTER_SCRIPT, file=fh)
         print(build_excluded_appendix(), file=fh)
+    # The final print() follows a block that already ends in a newline, leaving
+    # a trailing blank line that the end-of-file-fixer hook strips. Normalise it
+    # here so a regenerated page matches the committed one byte for byte.
+    page_path.write_text(
+        page_path.read_text(encoding="utf8").rstrip("\n") + "\n",
+        encoding="utf8",
+    )
     cache_url.save()
 
 

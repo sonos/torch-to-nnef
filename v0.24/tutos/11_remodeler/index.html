@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#11-shapes-remodeler-provideragnostic" class="md-skip">
+        <a href="#11-shapes-remodeler-provider-agnostic" class="md-skip">
           Skip to content
         </a>
       
@@ -3917,7 +3917,7 @@
   
 
 
-<h1 id="11-shapes-remodeler-provideragnostic">11. Shapes Remodeler (provider‑agnostic)</h1>
+<h1 id="11-shapes-remodeler-provider-agnostic">11. Shapes Remodeler (provider-agnostic)</h1>
 <p>This tutorial introduces the boundary remodeler: a provider-agnostic way to
 describe and apply IO-boundary transforms (collapse, bind, and symbol aliases)
 for subnets/modules at export time.</p>
@@ -3946,8 +3946,8 @@ for subnets/modules at export time.</p>
 - Batch symbols end with <code>__BATCH</code>. To unify multiple batch-like symbols under a single tract-facing <code>BATCH</code>, declare:
   <code>renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, ...] }</code>.
 - Aliases listed in <code>renamed_symbols</code> are honored wherever symbols are referenced (collapse/bind/validation).</p>
-<p>Provider‑agnostic Python workflow</p>
-<p>The remodeler API is provider‑agnostic. Any provider that can discover
+<p>Provider-agnostic Python workflow</p>
+<p>The remodeler API is provider-agnostic. Any provider that can discover
 subnet signatures can participate. The typical flow is the same:</p>
 <p>1) Discover RAW signatures → dump a starter registry
 2) Edit the YAML (collapse/bind/alias/outputs_keep)
@@ -4126,7 +4126,7 @@ pulsification.</p>
   - Ensures <code>outputs.collapse_dims</code> references known output names with valid axis indices
   - Verifies <code>bind_scalar_to_dim_size</code> sources and symbols exist among dynamic axes
   - Verifies <code>collapse_dims</code> symbols exist among dynamic axes per input
-  - Verifies <code>renamed_symbols</code> sources exist among the subnet’s dynamic axes</p>
+  - Verifies <code>renamed_symbols</code> sources exist among the subnet's dynamic axes</p>
 <p>Exporting
 - Use wrapped subnets with <code>export_model_to_nnef</code> if you need direct control;
   the NeMo CLI already applies the remodel plan during export when a
@@ -4156,7 +4156,7 @@ pulsification.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 8, 2026 14:36:30 UTC">April 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 29, 2026 07:08:44 UTC">July 29, 2026</span>
   </span>
 
     

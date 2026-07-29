@@ -4484,7 +4484,7 @@ boundary contract explicit: <code>target_length = size(targets, TIME)</code>.</p
 <li><code>collapse_dims</code> (inputs) requires the symbol to be dynamic on that input at the selected stage.</li>
 <li><code>collapse_dims</code> (outputs) takes axis indices (integers), not symbols. Only axes of size 1 are squeezed.</li>
 <li><code>bind_scalar_to_dim_size</code> binds a dynamic size as an <code>int64</code> scalar.</li>
-<li><code>outputs_keep</code> filters exported outputs; order follows the subnet’s original <code>output_names</code>. The template always includes it so you can easily trim.</li>
+<li><code>outputs_keep</code> filters exported outputs; order follows the subnet's original <code>output_names</code>. The template always includes it so you can easily trim.</li>
 <li>When batch collapse is detected on inputs, the NeMo registry auto-populates <code>outputs.collapse_dims: [0]</code> for all outputs of that subnet. Explicit config takes precedence.</li>
 </ul>
 <p>Boundary semantics</p>
@@ -4495,7 +4495,7 @@ boundary contract explicit: <code>target_length = size(targets, TIME)</code>.</p
 <li><code>renamed_symbols</code> only affects the tract-facing dynamic axes; inspector views remain namespaced by input (e.g., <code>TARGETS__BATCH</code>).</li>
 </ul>
 <h3 id="quick-commands">Quick commands</h3>
-<p>See also: the <a href="../11_remodeler/">provider‑agnostic remodeler tutorial</a> for programmatic usage and richer inspection:</p>
+<p>See also: the <a href="../11_remodeler/">provider-agnostic remodeler tutorial</a> for programmatic usage and richer inspection:</p>
 <p>Inspect with config applied (human-rich):</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>t2n_export_nemo<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>--model-slug<span class="w"> </span>nvidia/parakeet-tdt-0.6b-v3<span class="w"> </span><span class="se">\</span>
@@ -4695,7 +4695,7 @@ Here is a sample usage (it needs extra eval to run properly).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 24, 2026 21:08:16 UTC">July 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 29, 2026 07:08:44 UTC">July 29, 2026</span>
   </span>
 
     

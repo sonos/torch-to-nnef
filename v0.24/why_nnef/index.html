@@ -4232,7 +4232,7 @@
 <figure>
     <img align="center" alt="NNEF Idea" src="../img/nnef_idea.jpg" />
 </figure>
-<p>Introduced in 2018—just a year after <img alt="ONNX" src="../img/onnx.png" style="width: 100px;margin:0;" />.</p>
+<p>Introduced in 2018, just a year after <img alt="ONNX" src="../img/onnx.png" style="width: 100px;margin:0;" />.</p>
 <p>NNEF addresses the same core challenge as ONNX: providing a standardized way to exchange neural network models across different tools and frameworks.</p>
 <figure>
     <img align="center" alt="Khronos group" src="../img/khronos.png" style="width: 360px;margin:0;" />
@@ -4253,17 +4253,17 @@
 <p>We leverage these Khronos tools for final serialization within <code>torch_to_nnef</code> (thanks <strong>Viktor Gyenes &amp; al</strong> for their continued support on <a href="https://github.com/KhronosGroup/NNEF-Tools"><code>NNEF-tools</code></a>).</p>
 </div>
 <h2 id="nnef-inference-support"><img alt="🧠" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f9e0.svg" title=":brain:" /> NNEF Inference Support</h2>
-<p>As of today, the only inference engine (excluding full training frameworks) that natively supports NNEF as a first-class format is <a href="https://github.com/sonos/tract">tract</a> — the open-source neural inference engine developed by Sonos.</p>
+<p>As of today, the only inference engine (excluding full training frameworks) that natively supports NNEF as a first-class format is <a href="https://github.com/sonos/tract">tract</a>: the open-source neural inference engine developed by Sonos.</p>
 <hr />
 <h2 id="the-good-what-makes-the-nnef-specification-appealing"><img alt="✅" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/2705.svg" title=":white_check_mark:" /> The Good: What Makes the NNEF Specification Appealing</h2>
 <ol>
 <li>
 <p><strong>Leverages Existing, Widely-Supported Containers</strong></p>
-<p>Stop reinventing the wheel—NNEF embraces common container systems.
+<p>Stop reinventing the wheel: NNEF embraces common container systems.
 It's efficient, well-supported, and decouples data storage
 from model structure (think of video formats vs. codecs).</p>
 <ul>
-<li>Example: <code>tar</code> is totally fine—and if you want compression, just apply it.</li>
+<li>Example: <code>tar</code> is totally fine, and if you want compression, just apply it.</li>
 <li>Prefer another container format? You're <strong>free to use it</strong>.</li>
 </ul>
 </li>
@@ -4287,7 +4287,7 @@ from model structure (think of video formats vs. codecs).</p>
 <ul>
 <li>No control flow complexity</li>
 <li>Easy to read and edit (e.g., jump to definitions in your favorite editor)</li>
-<li><strong>Flexible and extensible</strong>—it's just <strong>text</strong>.</li>
+<li><strong>Flexible and extensible</strong>: it's just <strong>text</strong>.</li>
 </ul>
 </li>
 <li>
@@ -4307,7 +4307,7 @@ from model structure (think of video formats vs. codecs).</p>
 <ol>
 <li>
 <p><strong>No Reference Implementation or Test Suite</strong></p>
-<p>Only basic converters exist (TensorFlow/ONNX), and a rudimentary interpreter in PyTorch—<strong>nothing production-grade</strong>.</p>
+<p>Only basic converters exist (TensorFlow/ONNX), and a rudimentary interpreter in PyTorch: <strong>nothing production-grade</strong>.</p>
 </li>
 <li>
 <p><strong>Image-Centric Design</strong></p>
@@ -4348,7 +4348,7 @@ from model structure (think of video formats vs. codecs).</p>
 </li>
 </ol>
 <blockquote>
-<p>These extensions are encapsulated under the concept of <strong>inference targets</strong> in <code>torch_to_nnef</code>, allowing inference engines to define their own "NNEF flavor"—while retaining a shared <strong>syntax and graph structure and common set of 'specified' operators</strong>.</p>
+<p>These extensions are encapsulated under the concept of <strong>inference targets</strong> in <code>torch_to_nnef</code>, allowing inference engines to define their own "NNEF flavor", while retaining a shared <strong>syntax and graph structure and common set of 'specified' operators</strong>.</p>
 </blockquote>
 <hr />
 <h2 id="why-not-onnx-or-other-protocol-buffer-based-formats"><img alt="🤔" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f914.svg" title=":thinking:" /> Why Not ONNX or Other Protocol Buffer-Based Formats?</h2>
@@ -4357,7 +4357,7 @@ from model structure (think of video formats vs. codecs).</p>
 <p>Let's be clear: <strong>ONNX is a great standard.</strong>
 It's <strong>mature</strong>, <strong>widely adopted</strong>, and works well for many neural network applications.</p>
 </div>
-<p>However, ONNX is based on <strong>Protocol Buffers</strong>, which introduce real limitations—<strong>even acknowledged in <a href="https://protobuf.dev/overview/">their own docs</a></strong>:</p>
+<p>However, ONNX is based on <strong>Protocol Buffers</strong>, which introduce real limitations, <strong>even acknowledged in <a href="https://protobuf.dev/overview/">their own docs</a></strong>:</p>
 <ol>
 <li>
 <p><strong>Not Suitable for Large Data Assets</strong></p>
@@ -4379,7 +4379,7 @@ It's <strong>mature</strong>, <strong>widely adopted</strong>, and works well fo
 <ol>
 <li>
 <p><strong>Tightly Coupled Graph &amp; Tensors</strong>
-   Want to patch a model with new PEFT weights or tweak a few parameters? <strong>Good luck</strong>—everything’s entangled.</p>
+   Want to patch a model with new PEFT weights or tweak a few parameters? <strong>Good luck</strong>: everything's entangled.</p>
 </li>
 <li>
 <p><strong>Unreadable Without Specialized Tools</strong>
@@ -4400,7 +4400,7 @@ It's <strong>mature</strong>, <strong>widely adopted</strong>, and works well fo
 </ol>
 <hr />
 <h2 id="safetensors"><img alt="🆚" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f19a.svg" title=":vs:" /> Safetensors</h2>
-<p><strong>Safetensors</strong> is essentially a secure, structured list of tensors stored in binary—plus minimal metadata.</p>
+<p><strong>Safetensors</strong> is essentially a secure, structured list of tensors stored in binary, plus minimal metadata.</p>
 <ol>
 <li>
 <p><strong>Directly Loadable to Devices</strong></p>
@@ -4410,14 +4410,14 @@ It's <strong>mature</strong>, <strong>widely adopted</strong>, and works well fo
 </li>
 </ol>
 <blockquote>
-<p>🔍 But: Its benefits are tied to loading efficiency—not the format itself.
+<p>🔍 But: Its benefits are tied to loading efficiency, not the format itself.
 It could just as well have been implemented using <code>tar</code>.</p>
 </blockquote>
 <h3 id="major-drawback"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span> Major Drawback</h3>
 <ul>
 <li>
 <p><strong>No Computation Graph</strong></p>
-<p>Every model architecture must be <strong>re-implemented manually</strong> on top of the inference engine—<strong>error-prone</strong> and <strong>wasteful</strong>.</p>
+<p>Every model architecture must be <strong>re-implemented manually</strong> on top of the inference engine: <strong>error-prone</strong> and <strong>wasteful</strong>.</p>
 </li>
 <li>
 <p><strong>No Operator Fusion or Optimization Guidance</strong></p>
@@ -4459,7 +4459,7 @@ It could just as well have been implemented using <code>tar</code>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 4, 2026 11:20:21 UTC">May 4, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 29, 2026 07:08:44 UTC">July 29, 2026</span>
   </span>
 
     

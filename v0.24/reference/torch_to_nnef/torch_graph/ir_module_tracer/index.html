@@ -4225,10 +4225,10 @@ This is needed because we have a re-routing based on actual
 module classtype.</p>
 
         <p>Create a tracer for <em>module</em>.</p>
-<p>The tracer stores the original module, an optional pre‑traced
-<code>torch.jit.TracedModule</code> (which allows re‑use of a previously
+<p>The tracer stores the original module, an optional pre-traced
+<code>torch.jit.TracedModule</code> (which allows re-use of a previously
 computed trace), the name of the forward method to trace, and the
-arguments used for tracing.  The arguments are post‑processed by
+arguments used for tracing.  The arguments are post-processed by
 :func:<code>maybe_quantize_args_tensor</code> to ensure compatibility with
 quantized modules.</p>
 
@@ -4320,7 +4320,7 @@ quantized modules.</p>
         <p>Return the underlying PyTorch graph object.</p>
 <p>The actual <code>torch.Graph</code> is retrieved from the traced module.
 When a different forward method is requested (<code>fn_name</code> differs
-from "forward"), the corresponding sub‑graph is returned instead.</p>
+from "forward"), the corresponding sub-graph is returned instead.</p>
 
     </div>
 

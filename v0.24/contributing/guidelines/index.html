@@ -3741,6 +3741,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#ai-assisted-contributions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI-assisted contributions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prose
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4231,6 +4253,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#ai-assisted-contributions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI-assisted contributions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prose
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4373,11 +4417,11 @@ official docs, in docstrings, or even on the web in blog posts, articles, and su
 <div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>git checkout -b feat/my-new-operator
 </span></code></pre></div>
 <p>Branch prefixes:
-   * <code>feat/</code> — new features (new operators, handlers, …)
-   * <code>fix/</code> — bugfixes and hotfixes
-   * <code>chore/</code> — version bumps, CI/CD, packaging
-   * <code>docs/</code> — documentation only changes
-   * <code>test/</code> — test additions or fixes</p>
+   * <code>feat/</code>: new features (new operators, handlers, …)
+   * <code>fix/</code>: bugfixes and hotfixes
+   * <code>chore/</code>: version bumps, CI/CD, packaging
+   * <code>docs/</code>: documentation only changes
+   * <code>test/</code>: test additions or fixes</p>
 <ol>
 <li>
 <p>Make your changes locally.</p>
@@ -4443,17 +4487,76 @@ official docs, in docstrings, or even on the web in blog posts, articles, and su
 <p>Formatting and linting are handled automatically by pre-commit (installed in step 5 above).
 On every commit, the following run automatically:</p>
 <ul>
-<li><strong>ruff format</strong> — auto-formats code (line length: 80)</li>
-<li><strong>ruff check --fix</strong> — lints and auto-fixes where possible</li>
-<li><strong>mypy</strong> — type-checks library code (excluding tests)</li>
-<li><strong>pyupgrade</strong> — modernises syntax to Python 3.7+</li>
+<li><strong>ruff format</strong>: auto-formats code (line length: 80)</li>
+<li><strong>ruff check --fix</strong>: lints and auto-fixes where possible</li>
+<li><strong>mypy</strong>: type-checks library code (excluding tests)</li>
+<li><strong>pyupgrade</strong>: modernises syntax to Python 3.7+</li>
+<li><strong>prose check</strong>: rejects banned characters and wording (see <a href="#prose">Prose</a>)</li>
 <li>Standard file hygiene: trailing whitespace, CRLF, missing newlines, YAML/JSON/TOML validity</li>
 </ul>
 <p>Naming conventions follow the <a href="https://google.github.io/styleguide/pyguide.html">Google Python Style Guide</a>.</p>
 <h3 id="docstrings">Docstrings</h3>
 <p>Docstrings are written in <a href="https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings">Google style</a>.
-They are <strong>encouraged but not required on every item</strong> — the linter will not fail on missing docstrings.
+They are <strong>encouraged but not required on every item</strong>: the linter will not fail on missing docstrings.
 Do add them for any public function or class that isn't self-explanatory, especially if you are adding new functionality.</p>
+<h3 id="ai-assisted-contributions">AI-assisted contributions</h3>
+<p>Using an AI coding assistant is allowed, and needs no disclaimer. Plenty of
+good patches start that way. A patch is judged on its merits, never on how it
+was produced.</p>
+<p>What we do ask is that you own what you send. Read every line as if you had
+typed it, and check that it says something true about <em>this</em> codebase rather
+than something plausible about codebases in general. If a comment explains a
+constraint, verify the constraint still holds.</p>
+<p>The one thing we consistently send back is the register these tools default to.
+It usually shows up as:</p>
+<ul>
+<li>padding that restates the code (<code># increment the counter</code> above <code>i += 1</code>)</li>
+<li>comments describing <em>what</em> a line does, where the useful comment says <em>why</em>
+  it does it, or why the obvious alternative was rejected</li>
+<li>marketing adjectives in technical prose (<code>powerful</code>, <code>elegant</code>, <code>blazing</code>)</li>
+<li>hedging that commits to nothing, and closing paragraphs that summarise the
+  section directly above them</li>
+<li>filler transitions and symmetrical flourishes that add length, not meaning</li>
+<li>typographic lookalikes: em dashes, curly quotes, non-breaking hyphens</li>
+</ul>
+<p>Only the last of those is machine-checkable, and the <a href="#prose">Prose</a> check below
+enforces it. The rest is a review conversation: expect a reviewer to ask you to
+cut it. Shorter is nearly always better, and one comment recording a decision is
+worth ten that describe syntax.</p>
+<p>And that conversation is the part we most want a human in. Reviews are done by
+people, in their own time, and they go much better when someone on the other
+side has the whole change in their head. So when a reviewer asks why something
+is shaped the way it is, answer in your own words: what you tried, what broke,
+what you decided against. A reply that paraphrases the diff back, or that
+reopens a point the thread already settled, spends review attention that is in
+short supply. Staying available to talk a change through counts for more than
+sending a large one.</p>
+<p>That check is a floor, not a proxy for having read your own text. Passing it
+means you avoided the characters and words we reject, not that the writing is
+any good.</p>
+<h3 id="prose">Prose</h3>
+<p><code>.github/scripts/check_prose.py</code> scans every tracked text file, on each commit
+and on each pull request. It rejects two things.</p>
+<p><strong>Characters.</strong> Typographic lookalikes: em dash (U+2014), en dash (U+2013),
+non-breaking hyphen (U+2011), curly quotes and apostrophes (U+2018, U+2019,
+U+201C, U+201D), non-breaking space (U+00A0), zero-width space (U+200B) and
+byte-order mark (U+FEFF). Write ASCII <code>-</code>, <code>'</code>, <code>"</code> and a plain space instead.
+Where one of these was separating clauses, rephrase with <code>:</code> or <code>,</code>, or split
+the sentence.</p>
+<p>This half is a correctness rule rather than a preference: U+2011 renders exactly
+like <code>-</code> but breaks <code>grep</code>, in-repo search and anchor links, and 25 of them had
+reached words such as <code>provider-agnostic</code> before the check existed. <strong>It has no
+escape hatch: no pragma and no per-file exemption.</strong></p>
+<p>Emoji, box-drawing, arrows and mathematical symbols are all fine. Only the
+lookalikes above are rejected.</p>
+<p><strong>Wording.</strong> A short list of words and phrases that read as machine-generated
+rather than written. <code>BUZZWORDS</code> and <code>HEDGING</code> in the script are the single
+source of truth, so run the check instead of memorising them.</p>
+<p>Vendored bundles, wasm-pack output and ASR data tables are out of scope, since
+we do not author them (see <code>NOT_OURS</code>).</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>make<span class="w"> </span>prose<span class="w">                                       </span><span class="c1"># every tracked file</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>python3<span class="w"> </span>.github/scripts/check_prose.py<span class="w"> </span>FILE<span class="w"> </span>...<span class="w">  </span><span class="c1"># only these paths</span>
+</span></code></pre></div>
 <hr />
 <h2 id="pull-request-guidelines">Pull request guidelines</h2>
 <p>Before you submit a pull request, check that it meets these guidelines:</p>
@@ -4468,20 +4571,20 @@ so it is excluded from the fast CI run but can still be run locally with <code>u
 <hr />
 <h2 id="tips">Tips</h2>
 <p>Run a specific test file:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>uv run pytest tests/test_torch_to_nnef.py
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>uv run pytest tests/test_torch_to_nnef.py
 </span></code></pre></div>
 <p>Run only fast tests (CI mode):</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>uv run pytest -m &quot;not ci_skip&quot;
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>uv run pytest -m &quot;not ci_skip&quot;
 </span></code></pre></div>
 <p>Run the deeper static analysis:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>uv run tox -e static_check
+<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>uv run tox -e static_check
 </span></code></pre></div>
 <hr />
 <h2 id="deploying-maintainers-only">Deploying (maintainers only)</h2>
 <p>Make sure all changes are committed, including an entry in <code>CHANGELOG.md</code>. Then:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>uv run bump2version patch  # or: major / minor
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>git push
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>git push --tags
+<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>uv run bump2version patch  # or: major / minor
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>git push
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>git push --tags
 </span></code></pre></div>
 <p>GitHub Actions will deploy to PyPI automatically if tests pass.</p>
 
@@ -4506,7 +4609,7 @@ so it is excluded from the fast CI run but can still be run locally with <code>u
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="March 27, 2026 09:09:51 UTC">March 27, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 29, 2026 07:08:44 UTC">July 29, 2026</span>
   </span>
 
     

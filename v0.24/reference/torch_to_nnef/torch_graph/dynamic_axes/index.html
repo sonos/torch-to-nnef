@@ -4029,11 +4029,11 @@ so <code>aten::size</code> on a provably-static axis can still fold.</p>
 <p>Design (why it is sound):</p>
 <ul>
 <li>The returned set OVER-approximates the truly-dynamic axes. An axis is reported
-  static (absent) only when provably so, so a genuinely symbolic dimension is
+  static (absent) only when provably so, so a truly symbolic dimension is
   never baked to a constant.</li>
 <li>The DEFAULT for any op without an explicit rule is "all axes dynamic". In
   particular the elementwise/broadcasting rule (which assumes right-aligned axis
-  identity) is applied ONLY to a whitelist of genuine elementwise ops; an
+  identity) is applied ONLY to a whitelist of real elementwise ops; an
   axis-reordering op (transpose, permute, ...) that is not explicitly handled
   therefore falls back to all-dynamic rather than being mis-mapped.</li>
 <li>Rules are STRUCTURAL: dynamic-ness is decided from op structure (reshape
