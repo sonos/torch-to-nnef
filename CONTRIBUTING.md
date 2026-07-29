@@ -153,6 +153,47 @@ Docstrings are written in [Google style](https://google.github.io/styleguide/pyg
 They are **encouraged but not required on every item**: the linter will not fail on missing docstrings.
 Do add them for any public function or class that isn't self-explanatory, especially if you are adding new functionality.
 
+### AI-assisted contributions
+
+Using an AI coding assistant is allowed, and needs no disclaimer. Plenty of
+good patches start that way. A patch is judged on its merits, never on how it
+was produced.
+
+What we do ask is that you own what you send. Read every line as if you had
+typed it, and check that it says something true about *this* codebase rather
+than something plausible about codebases in general. If a comment explains a
+constraint, verify the constraint still holds.
+
+The one thing we consistently send back is the register these tools default to.
+It usually shows up as:
+
+* padding that restates the code (`# increment the counter` above `i += 1`)
+* comments describing *what* a line does, where the useful comment says *why*
+  it does it, or why the obvious alternative was rejected
+* marketing adjectives in technical prose (`powerful`, `elegant`, `blazing`)
+* hedging that commits to nothing, and closing paragraphs that summarise the
+  section directly above them
+* filler transitions and symmetrical flourishes that add length, not meaning
+* typographic lookalikes: em dashes, curly quotes, non-breaking hyphens
+
+Only the last of those is machine-checkable, and the [Prose](#prose) check below
+enforces it. The rest is a review conversation: expect a reviewer to ask you to
+cut it. Shorter is nearly always better, and one comment recording a decision is
+worth ten that describe syntax.
+
+And that conversation is the part we most want a human in. Reviews are done by
+people, in their own time, and they go much better when someone on the other
+side has the whole change in their head. So when a reviewer asks why something
+is shaped the way it is, answer in your own words: what you tried, what broke,
+what you decided against. A reply that paraphrases the diff back, or that
+reopens a point the thread already settled, spends review attention that is in
+short supply. Staying available to talk a change through counts for more than
+sending a large one.
+
+That check is a floor, not a proxy for having read your own text. Passing it
+means you avoided the characters and words we reject, not that the writing is
+any good.
+
 ### Prose
 
 `.github/scripts/check_prose.py` scans every tracked text file, on each commit
