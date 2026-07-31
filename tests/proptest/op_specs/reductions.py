@@ -346,6 +346,18 @@ def _reduction_specs() -> T.List[OpSpec]:
             sample_st=_minmax_full_reduction_sample_st("min"),
             tolerance=TractCheckTolerance.EXACT,
         ),
+        OpSpec(
+            name="amax-dim",
+            aten_ops=("amax",),
+            sample_st=_reduction_sample_st("amax"),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="amin-dim",
+            aten_ops=("amin",),
+            sample_st=_reduction_sample_st("amin"),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
         # Argmax / argmin return int64 indices: the comparator's exact
         # int path catches any divergence. Pure index ops, no tolerance
         # needed.

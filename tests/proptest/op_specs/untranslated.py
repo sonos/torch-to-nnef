@@ -1,9 +1,11 @@
-"""Operators we do not translate and deliberately do not measure either.
+"""Operators we do not translate and cannot measure as page rows.
 
 Everything else we cannot translate carries an `nnef_gap` spec in the
 themed module where it belongs (see `_gap_common.gap_spec`), so the ONNX
 sweep can measure it and the tract driver can assert the gap is real.
-This module is the other half: the rows that get no spec, and why.
+This module is the other half: the rows that get no spec because the
+catalog cannot reliably attribute a drawn sample to that support-page
+row, and why.
 
 Recorded rather than left silent, because "we chose not to measure this"
 and "nobody got to it" are different states and only the second is a
@@ -47,41 +49,37 @@ EXCLUDED: T.Dict[str, str] = {
     # -- internal or non-operator rows --
     "first": "not a torch operator; an artefact of the source grep",
     "second": "not a torch operator; an artefact of the source grep",
-    "hash_tensor": "debug helper, never part of an exported graph",
-    "convrelu": "a fusion pattern name rather than a torch-level op",
-    "linalg__powsum": "an internal helper of the `linalg` namespace",
-    "copy_to": "an internal copy helper, not reachable from Python",
-    "flatten_dense_tensors": (
-        "a distributed-training buffer utility, not part of inference"
+    "hash_tensor": (
+        "the row exists in some torch builds, but not in the CI torch "
+        "operator packet, so no portable proptest sample can target it"
     ),
-    "unflatten_dense_tensors": "the inverse of `flatten_dense_tensors`",
-    "embedding_renorm_": "a training-time mutation of the weight table",
-    "index_put_impl_": "the internal spelling of `index_put_`",
+    "convrelu": "a fusion pattern name rather than a torch-level op",
+    "linalg__powsum": (
+        "internal linalg helper present in some torch builds but absent "
+        "from the CI torch operator packet"
+    ),
+    "copy_to": "an internal copy helper, not reachable from Python",
     # -- mutating buffer management --
     "resize_": (
-        "mutates the tensor's storage, which a value-semantics graph "
-        "has no way to express"
+        "eager can call it, but JIT tracing warns that `resize_` cannot "
+        "be represented and emits no `aten::resize_` node"
     ),
-    "set_": "rebinds a tensor to another's storage; same reason as `resize_`",
-    # -- sparse --
-    "copy_sparse_to_sparse_": "t2n has no sparse tensor support at all",
-    "resize_as_sparse_": "t2n has no sparse tensor support at all",
     # -- quantized --
-    # These need a quantized module to produce them, and t2n reaches
-    # quantization through its own path rather than through these aten
-    # rows, so a spec here would measure the harness, not the exporter.
-    "empty_quantized": "needs a quantized tensor to exist first",
-    "quantize": "quantization goes through t2n's own path",
-    "quantize_per_channel": "quantization goes through t2n's own path",
-    "quantize_per_tensor_dynamic": "quantization goes through t2n's own path",
-    "quantized_batch_norm": "needs a prepared quantized module",
-    "quantized_gru": "needs a prepared quantized module",
-    "quantized_lstm": "needs a prepared quantized module",
-    "quantized_max_pool1d": "needs a prepared quantized module",
-    "quantized_max_pool2d": "needs a prepared quantized module",
-    "quantized_max_pool3d": "needs a prepared quantized module",
-    "wrapped_linear_prepack": "a packing helper of the quantized path",
+    "quantize": "no public torch API and no exact `aten::quantize` schema",
+    "quantized_gru": (
+        "the prepared dynamic module exists and eager-runs, but this "
+        "environment's JIT path cannot trace its `forward`, so the "
+        "attribution guard cannot prove `aten::quantized_gru`"
+    ),
+    "quantized_lstm": (
+        "same prepared dynamic-module tracing issue as `quantized_gru`"
+    ),
+    "wrapped_linear_prepack": (
+        "private `_wrapped_linear_prepack` backend op; the local torch "
+        "build has no FBGEMM kernel for a portable attribution sample"
+    ),
     "wrapped_quantized_linear_prepacked": (
-        "a packing helper of the quantized path"
+        "private `_wrapped_quantized_linear_prepacked` backend op; same "
+        "FBGEMM portability issue as `wrapped_linear_prepack`"
     ),
 }

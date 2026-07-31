@@ -18,6 +18,7 @@ from ..shapes import (
     shape_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
 )
@@ -87,6 +88,41 @@ class _NewZerosFromInput(torch.nn.Module):
 
     def forward(self, x):
         return x.new_zeros(x.shape)
+
+
+class _QuantizePerChannel(torch.nn.Module):
+    """Quantize per channel, then dequantize for ordinary tensor outputs."""
+
+    def __init__(self, channels: int):
+        super().__init__()
+        self.register_buffer(
+            "scales", torch.linspace(0.05, 0.15, channels, dtype=torch.double)
+        )
+        self.register_buffer(
+            "zero_points", torch.zeros(channels, dtype=torch.long)
+        )
+
+    def forward(self, x):
+        return torch.quantize_per_channel(
+            x, self.scales, self.zero_points, 1, torch.qint8
+        ).dequantize()
+
+
+class _QuantizePerTensorDynamic(torch.nn.Module):
+    """Dynamic tensor quantization, dequantized before returning."""
+
+    def forward(self, x):
+        return torch.quantize_per_tensor_dynamic(
+            x, torch.qint8, reduce_range=False
+        ).dequantize()
+
+
+class _EmptyQuantized(torch.nn.Module):
+    """`empty_quantized` seeded from a quantized view of the input."""
+
+    def forward(self, x):
+        q = torch.quantize_per_tensor(x, 0.05, 10, torch.quint8)
+        return torch.empty_quantized(q.shape, q).dequantize()
 
 
 def _zeros_from_shape_sample_st() -> st.SearchStrategy[OpSample]:
@@ -196,6 +232,56 @@ def _new_zeros_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         return OpSample(inputs=(x,), module=_NewZerosFromInput())
+
+    return _draw()
+
+
+def _quantize_per_channel_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        channels = draw(st.integers(min_value=2, max_value=4))
+        x = draw(
+            tensor_st(
+                (2, channels),
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_QuantizePerChannel(channels))
+
+    return _draw()
+
+
+def _quantize_per_tensor_dynamic_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(
+            tensor_st(
+                (2, 3),
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_QuantizePerTensorDynamic())
+
+    return _draw()
+
+
+def _empty_quantized_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=3, min_dim=2, max_dim=4))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_EmptyQuantized())
 
     return _draw()
 
@@ -867,10 +953,39 @@ def _uninitialized_specs() -> T.Tuple[OpSpec, ...]:
     )
 
 
+def _quantized_factory_gap_specs() -> T.Tuple[OpSpec, ...]:
+    """Traceable quantized constructors that t2n does not lower."""
+    return (
+        gap_spec(
+            "empty_quantized",
+            _empty_quantized_sample_st(),
+            "allocates an uninitialized quantized tensor; no emitter maps "
+            "the quantized allocation path",
+            stage=NnefGapStage.EXPORT_ERROR,
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "quantize_per_channel",
+            _quantize_per_channel_sample_st(),
+            "creates a quantized tensor with per-channel scales; t2n has "
+            "no lowering for this quantized conversion row",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+        gap_spec(
+            "quantize_per_tensor_dynamic",
+            _quantize_per_tensor_dynamic_sample_st(),
+            "chooses quantization parameters from runtime values, which "
+            "t2n does not lower as an ATen op",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+    )
+
+
 SPECS = (
     *_constructors_index_sdpa_specs(),
     *_fft_specs(),
     *_glue_specs(),
     *_complex_specs(),
     *_uninitialized_specs(),
+    *_quantized_factory_gap_specs(),
 )

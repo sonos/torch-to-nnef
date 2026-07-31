@@ -710,6 +710,12 @@ def _binary_compare_specs() -> T.List[OpSpec]:
 
 
 def _binary_logical_specs() -> T.List[OpSpec]:
+    @st.composite
+    def _logical_not_sample_st(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=4))
+        x = draw(tensor_st(shape, torch.bool))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.logical_not))
+
     cases: T.List[T.Tuple[str, T.Callable]] = [
         ("logical_and", torch.logical_and),
         ("logical_or", torch.logical_or),
@@ -723,6 +729,13 @@ def _binary_logical_specs() -> T.List[OpSpec]:
             tolerance=TractCheckTolerance.EXACT,
         )
         for name, op in cases
+    ] + [
+        OpSpec(
+            name="logical_not",
+            aten_ops=("logical_not",),
+            sample_st=_logical_not_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        )
     ]
 
 

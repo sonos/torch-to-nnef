@@ -106,6 +106,11 @@ class TestRowMapping:
         view = _view(gen, {"relu_": _record()}, {"relu"})
         assert view.grade("relu") == GRADE_FULL
 
+    def test_trailing_underscore_row_is_kept_when_no_base_row_exists(self, gen):
+        view = _view(gen, {"set_": _record()}, {"set_"})
+        assert view.grade("set_") == GRADE_FULL
+        assert not view.unmapped
+
     def test_unknown_row_is_untested_not_unsupported(self, gen):
         view = _view(gen, {"gelu": _record()}, {"gelu", "histc"})
         assert view.grade("histc") == GRADE_UNTESTED
@@ -189,7 +194,6 @@ class TestGlyphs:
             GRADE_NONE,
             GRADE_BLOCKED,
             GRADE_UNTESTED,
-            gen.DISPLAY_UNTESTED_DOCUMENTED,
         ):
             assert grade in gen.GRADE_GLYPH
 
@@ -197,20 +201,13 @@ class TestGlyphs:
         """A row with no spec must not read as "ONNX cannot do this"."""
         assert gen.GRADE_GLYPH[GRADE_UNTESTED] != gen.GRADE_GLYPH[GRADE_NONE]
 
-    def test_claimed_unverified_is_distinct_from_measured_full(self, gen):
-        """`✅*` must not be confusable with a measured `✅`.
-
-        The star is the only thing separating "we exported this 25 times"
-        from "a retired doc page said so and we never checked".
-        """
-        starred = gen.GRADE_GLYPH[gen.DISPLAY_UNTESTED_DOCUMENTED]
-        assert starred != gen.GRADE_GLYPH[GRADE_FULL]
-        assert starred != gen.GRADE_GLYPH[GRADE_UNTESTED]
-        assert "*" in starred
+    def test_claimed_unverified_is_not_an_export_glyph(self, gen):
+        """A historical claim must not look like a measured export."""
+        assert gen.DISPLAY_UNTESTED_DOCUMENTED not in gen.GRADE_GLYPH
 
 
 class TestUntestedDocumentedDisplay:
-    """The `✅*` state is display-only and must not enter the counts."""
+    """Historical claims are filter-only and must not enter counts."""
 
     def test_display_state_is_not_a_report_grade(self, gen):
         from . import proptest
@@ -220,30 +217,22 @@ class TestUntestedDocumentedDisplay:
         assert not hasattr(proptest.onnx_report, "DISPLAY_UNTESTED_DOCUMENTED")
 
     def test_measured_counts_exclude_untested_rows(self, gen):
-        """`counts()` covers measured rows only, starred or not."""
+        """`counts()` covers measured rows only, claimed or not."""
         view = _view(gen, {"gelu": _record()}, {"gelu", "addmm", "histc"})
         counts = view.counts()
         assert counts[GRADE_FULL] == 1
         assert sum(counts.values()) == 1  # addmm / histc contribute nothing
 
-    def test_filter_modes_separate_the_two_untested_states(self, gen):
+    def test_filter_modes_separate_unmeasured_causes(self, gen):
         values = [value for value, _label in gen.GRADED_FILTER_MODES]
         assert gen.DISPLAY_UNTESTED_DOCUMENTED in values
-        assert GRADE_UNTESTED in values
+        assert gen.DISPLAY_NO_SPEC_NO_CLAIM in values
+        assert GRADE_UNTESTED not in values
 
-    def test_filter_script_regex_matches_hyphenated_state(self, gen):
-        """`grade-([a-z]+)` would truncate `untested-documented`."""
-        import re
-
-        pattern = re.search(
-            r"match\(/grade-\(\[([a-z\-\\]+)\]\+\)/\)", gen.FILTER_SCRIPT
-        )
-        assert pattern is not None, "filter regex not found in FILTER_SCRIPT"
-        char_class = pattern.group(1)
-        assert "-" in char_class, (
-            "filter regex must accept '-' or the two untested states "
-            "become indistinguishable in the UI"
-        )
+    def test_filter_script_handles_filter_only_claims(self, gen):
+        """Claimed-only rows are not encoded as export grades."""
+        assert "mode === 'untested-documented'" in gen.FILTER_SCRIPT
+        assert "mode === 'no-spec-no-claim'" in gen.FILTER_SCRIPT
 
 
 class TestHeadlineBars:
@@ -272,6 +261,7 @@ class TestHeadlineBars:
             kwargs.get("qte_core", 3),
             kwargs.get("untested_documented", 0),
             kwargs.get("untested_documented_core", 0),
+            kwargs.get("missing_supported_specs", 0),
             fh,
         )
         return fh.getvalue()
@@ -287,7 +277,7 @@ class TestHeadlineBars:
         assert "[=1/3 " in out  # 3 rows listed, 1 graded full
 
     def test_claimed_rows_are_credited_in_both_bars(self, gen):
-        """`✅*` counts: unverified by us is not evidence against ONNX."""
+        """Historical claims count in bars but are not export grades."""
         out = self._summary(
             gen,
             full_core=1,
@@ -298,6 +288,23 @@ class TestHeadlineBars:
         )
         assert "[=2/5 " in out  # core: 1 measured + 1 claimed
         assert "[=2/3 " in out  # aten: idem, over every listed row
+        assert "Both bars also credit 1 historical ONNX claim" in out
+
+    def test_claimed_rows_only_describe_the_bar_they_affect(self, gen):
+        """The caption must not say both bars when core claims are zero."""
+        out = self._summary(
+            gen,
+            full_core=1,
+            untested_documented_core=0,
+            qte_core=5,
+            full_qte=1,
+            untested_documented=1,
+        )
+        assert "[=1/5 " in out  # core: no historical claim credited
+        assert "[=2/3 " in out  # aten: 1 measured + 1 claimed
+        assert "overall bar also credits 1 historical ONNX claim" in out
+        assert "core bar credits none" in out
+        assert "both bars credit" not in out.lower()
 
     def test_rows_with_no_claim_stay_out_of_the_numerator(self, gen):
         """Crediting claims must not slide into crediting silence."""
@@ -317,6 +324,11 @@ class TestHeadlineBars:
         )
         assert "1/1 of the measured core operators" in out
         assert "1 core / 1 overall are measured fully exportable" in out
+
+    def test_unmeasured_rows_are_split_by_cause(self, gen):
+        out = self._summary(gen, missing_supported_specs=2)
+        assert "2 are TractNNEF-supported rows" in out
+        assert "excluded from proptest" not in out
 
     def test_both_sections_build_bars_from_one_helper(self, gen):
         """Structural guard: duplicated strings drift apart tab by tab."""
@@ -431,6 +443,18 @@ class TestFilterModeLabels:
         )
         assert modes == ((gen.CROSS_GAP_MODE, "Gap vs ONNX (3)"),)
 
+    def test_extra_filters_use_their_own_tallies(self, gen):
+        modes = gen.counted_modes(
+            ((gen.DISPLAY_MISSING_SUPPORTED_SPEC, "Missing supported spec"),),
+            {},
+            10,
+            0,
+            {gen.DISPLAY_MISSING_SUPPORTED_SPEC: 4},
+        )
+        assert modes == (
+            (gen.DISPLAY_MISSING_SUPPORTED_SPEC, "Missing supported spec (4)"),
+        )
+
     def test_cross_gap_disappears_when_nothing_is_missing(self, gen):
         modes = gen.counted_modes(
             ((gen.CROSS_GAP_MODE, "Gap vs ONNX"),), {}, 10, 0
@@ -442,6 +466,7 @@ class TestFilterModeLabels:
         labels = [label for _value, label in gen.GRADED_FILTER_MODES]
         assert "None" not in labels
         assert "Never exports" in labels
+        assert "No spec, no claim" in labels
 
     def test_blocked_label_says_blocked_by_what(self, gen):
         """It is a `torch.export` failure, never an ONNX verdict."""
@@ -470,6 +495,11 @@ class TestColumnLegend:
         intro = gen._measured_onnx_section_msg(view)  # noqa: SLF001
         assert "`export` column" not in intro
         assert "documented" not in intro
+
+    def test_legend_documents_spec_coverage(self, gen):
+        legend = gen._measured_onnx_legend("http://x", True)  # noqa: SLF001
+        assert "`spec coverage`" in legend
+        assert "missing a direct proptest spec" in legend
 
 
 class TestTorchVersionDefault:

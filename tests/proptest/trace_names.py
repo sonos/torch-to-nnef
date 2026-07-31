@@ -29,6 +29,7 @@ DISPATCH_RENAMES: T.Dict[str, T.Tuple[str, ...]] = {
     "conv1d": ("_convolution",),
     "conv2d": ("_convolution",),
     "conv3d": ("_convolution",),
+    "convolution": ("_convolution",),
     # `torch.unique_consecutive(x, dim=...)` dispatches to the
     # dim-specific C++ op but keeps the generic name in the trace.
     "unique_dim_consecutive": ("unique_consecutive",),
@@ -36,6 +37,9 @@ DISPATCH_RENAMES: T.Dict[str, T.Tuple[str, ...]] = {
     # `_standard_gamma`, which the page's source grep drops for being
     # `_`-prefixed, leaving the bare row name behind.
     "gamma": ("_standard_gamma",),
+    # Same page-normalisation shape: the dispatcher spelling is private,
+    # but the row survived without the leading underscore.
+    "index_put_impl_": ("_index_put_impl_",),
 }
 
 #: Declared name -> the constituents torch decomposes it into before
