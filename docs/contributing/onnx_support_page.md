@@ -98,18 +98,14 @@ two tabs comparable at a glance; a bar over "the operators we measured"
 renders near-full whatever the coverage is, and sits next to a bar that
 means something else entirely.
 
-The numerator is read the same generous way, and this is deliberate: it
-counts what we measured as `full` **plus** what the retired listing
-claimed and no spec of ours has checked (`✅*`). Those operators are
-unverified, but the reason they are unverified is a gap in *our* test
-coverage, and scoring that against ONNX would understate a competing
-exporter for our own shortfall. Rows with neither a measurement nor a
-claim (`-`) stay out: crediting a claim is not the same as crediting
-silence, and a measured `partial` or `none` overrides any claim.
+The numerator is the number of rows we measured as `full`. If a future
+torch listing adds a targetable row, add a spec for it before refreshing
+the page. If the row cannot be tied to an attributable proptest graph,
+record it in `tests/proptest/op_specs/untranslated.py` so the generator
+keeps it outside both denominators and explains why in the appendix.
 
-The caption under the bars splits the two populations apart, so the
-strict "of what we actually tested, how much passed" ratio is still one
-line away.
+The caption under the bars keeps the strict "of what we actually tested,
+how much passed" ratio one line away.
 
 ## Reading a grade
 
@@ -121,17 +117,16 @@ The `export` column grades operator coverage only:
 | 🟡 `partial` | some examples exported, others raised. The artifact keeps the failing shapes/dtypes |
 | ❌ `none` | no example exported, and the exporter refused at least one |
 | ⚠️ `blocked` | `torch.export` could not capture the module, so the ONNX exporter never ran. **Not** an ONNX verdict |
-| ✅\* claimed | no spec covers it, so we did **not** verify it, but the retired listing claimed it was supported |
-| `-` `untested` | no spec covers it and nothing was ever claimed either way. **Not** unsupported |
+| `-` | no spec covers it, so we did **not** measure it here. **Not** unsupported |
 
-Only ✅ / 🟡 / ❌ are measurements. **✅\* is an unverified historical
-claim**: the [headline bars](#reading-the-headline-bars) count it, so an
-operator we never wrote a spec for is not scored against ONNX, while the
-measured breakdown in the caption excludes it. The state exists so the two
-kinds of "we don't know" stay distinguishable, since an operator the old
-listing called supported is a better bet (and a better candidate for a new
-spec) than one nobody ever said anything about. Both are filterable
-separately.
+Only ✅ / 🟡 / ❌ are measurements. `-` means unmeasured, not failed.
+A `-` row should be temporary: add a direct spec when the row is
+targetable, or move it to `untranslated.EXCLUDED` when it is not. The
+`documented` column records what the retired listing claimed, and the
+`spec coverage` column says whether this row was measured or why it has
+no direct proptest measurement. Rows that cannot be attributed to a
+proptest graph target are filtered out of both comparison tables and
+listed in the appendix instead.
 
 `runtime` (does onnxruntime load and run the exported graph) and
 `numerics` (do its outputs match PyTorch) are reported as separate columns
@@ -139,9 +134,9 @@ on purpose. A graph that exports but diverges numerically is usually a
 property of the kernel that ran, not a missing operator, so folding either
 into the support glyph would blame the exporter for a runtime issue.
 
-`blocked` and `untested` exist for the same reason: both are cases where
-we have no evidence about ONNX, and reporting "no evidence" as ❌ would
-overstate what was measured.
+`blocked` and no-spec rows exist for the same reason: both are cases
+where we have no evidence about ONNX, and reporting "no evidence" as ❌
+would overstate what was measured.
 
 ## Measuring what we cannot translate
 
@@ -149,7 +144,7 @@ The catalog exists to guard our own exporter, so for a long time a spec
 only existed where t2n succeeds. That gave the ONNX column a selection
 bias with a precise shape: **the measured population was a subset of our
 own supported set**. An operator ONNX handles and we do not could never
-be graded ✅, only inherited as a `✅*` claim from the retired listing, or
+be graded ✅, only inherited as a retired ONNX listing claim, or
 left blank. The comparison was structurally blind exactly where we are
 weakest, and the `Gap vs ONNX` filter could only ever surface operators
 that the torch 2.8 listing happened to name.
@@ -200,19 +195,22 @@ operator rather than anything about the exporter.
 
 ## Adding coverage
 
-An operator shows `-` until some spec claims it. To fix that, add or
-extend a spec in `tests/proptest/op_specs/` and set its `aten_ops` to the
-operator name(s) **as this page lists them**: the page drops
-`_`-prefixed identifiers and merges in-place variants, so the trace name
-is not always the row name (`conv2d` traces `aten::_convolution`).
+An operator shows `missing spec` in the `spec coverage` column until some
+spec claims it. To fix that, add or extend a spec in
+`tests/proptest/op_specs/` and set its `aten_ops` to the operator name(s)
+**as this page lists them**: the page drops `_`-prefixed identifiers and
+merges in-place variants, so the trace name is not always the row name
+(`conv2d` traces `aten::_convolution`).
 
 If t2n cannot translate the operator, the spec still belongs in the
 catalog: put it in the themed module it would live in once supported and
 give it an `nnef_gap`, instead of leaving the row unmeasured. Placing it
 by family rather than by support status is deliberate, so that
 implementing the operator later means deleting one field rather than
-moving the spec between files. Rows that get no spec at all are recorded
-in `op_specs/untranslated.py` with a reason.
+moving the spec between files. Rows that get no spec at all are rare:
+they are recorded in `op_specs/untranslated.py` with a reason and are
+listed in the support page appendix, outside both comparison
+denominators.
 
 `tests/test_proptest_aten_attribution.py` traces every spec and checks its
 declaration, so a spec that drifts onto a different operator fails there

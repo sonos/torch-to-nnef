@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "regen_index": 4,
+  "regen_index": 7,
   "measurements": {
     "m1": {
       "torch": "2.13.0",
@@ -49,6 +49,42 @@
       "examples": 25,
       "profile": "ci",
       "generated_utc": "2026-07-28T17:34:07+00:00"
+    },
+    "m5": {
+      "torch": "2.13.0",
+      "onnx": "1.22.0",
+      "onnxruntime": "1.28.0",
+      "onnxscript": "0.7.1",
+      "opset": 18,
+      "path": "dynamo",
+      "check_numerics": true,
+      "examples": 25,
+      "profile": "ci",
+      "generated_utc": "2026-07-31T15:36:58+00:00"
+    },
+    "m6": {
+      "torch": "2.13.0",
+      "onnx": "1.22.0",
+      "onnxruntime": "1.28.0",
+      "onnxscript": "0.7.1",
+      "opset": 18,
+      "path": "dynamo",
+      "check_numerics": true,
+      "examples": 25,
+      "profile": "ci",
+      "generated_utc": "2026-07-31T18:21:34+00:00"
+    },
+    "m7": {
+      "torch": "2.13.0",
+      "onnx": "1.22.0",
+      "onnxruntime": "1.28.0",
+      "onnxscript": "0.7.1",
+      "opset": 18,
+      "path": "dynamo",
+      "check_numerics": true,
+      "examples": 25,
+      "profile": "ci",
+      "generated_utc": "2026-08-01T15:39:37+00:00"
     }
   },
   "ops": {
@@ -90,7 +126,7 @@
           "abs-broad"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "acos": {
@@ -129,7 +165,27 @@
         "specs": [
           "acosh"
         ],
-        "measurement": "m1",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "adaptive_avg_pool1d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "adaptive_avg_pool1d"
+        ],
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -153,6 +209,46 @@
         "reused": true
       }
     },
+    "adaptive_avg_pool3d": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "adaptive_avg_pool3d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "adaptive_max_pool1d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "adaptive_max_pool1d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "adaptive_max_pool2d": {
       "onnx": {
         "export": "full",
@@ -173,6 +269,26 @@
         "reused": true
       }
     },
+    "adaptive_max_pool3d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "adaptive_max_pool3d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "add": {
       "onnx": {
         "export": "full",
@@ -191,7 +307,7 @@
           "add-alpha",
           "add-broad"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -211,7 +327,7 @@
         "specs": [
           "addbmm"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -232,7 +348,47 @@
           "addcdiv"
         ],
         "measurement": "m4",
+        "reused": true
+      }
+    },
+    "addcmul": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "addcmul"
+        ],
+        "measurement": "m7",
         "reused": false
+      }
+    },
+    "addmm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "addmm"
+        ],
+        "measurement": "m5",
+        "reused": true
       }
     },
     "addmv": {
@@ -271,7 +427,7 @@
         "specs": [
           "addr"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -291,7 +447,27 @@
         "specs": [
           "affine_grid"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
+        "reused": true
+      }
+    },
+    "alias": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "alias"
+        ],
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -311,8 +487,8 @@
         "specs": [
           "all-dim-xfail"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "alpha_dropout": {
@@ -335,6 +511,46 @@
         "reused": true
       }
     },
+    "amax": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "amax-dim"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "amin": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "amin-dim"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
     "aminmax": {
       "onnx": {
         "export": "full",
@@ -353,6 +569,26 @@
         ],
         "measurement": "m1",
         "reused": true
+      }
+    },
+    "angle": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "angle"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "any": {
@@ -469,9 +705,9 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-argwhere"
+          "argwhere"
         ],
-        "measurement": "m2",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -591,8 +827,8 @@
         "specs": [
           "atanh"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "atleast_1d": {
@@ -711,8 +947,48 @@
         "specs": [
           "avg_pool3d"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
+      }
+    },
+    "baddbmm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "baddbmm"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "bartlett_window": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "bartlett_window"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "batch_norm": {
@@ -752,8 +1028,28 @@
         "specs": [
           "bernoulli"
         ],
-        "measurement": "m3",
+        "measurement": "m6",
         "reused": true
+      }
+    },
+    "bilinear": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "bilinear"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "binary_cross_entropy": {
@@ -792,7 +1088,7 @@
         "specs": [
           "binary_cross_entropy_with_logits"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -812,7 +1108,7 @@
         "specs": [
           "bincount"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -832,7 +1128,7 @@
         "specs": [
           "binomial"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -852,7 +1148,7 @@
         "specs": [
           "bitwise_and"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -933,7 +1229,7 @@
           "bitwise_right_shift"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "bitwise_xor": {
@@ -952,8 +1248,68 @@
         "specs": [
           "bitwise_xor"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
+      }
+    },
+    "blackman_window": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "blackman_window"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "block_diag": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "block_diag"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "bmm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "bmm"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "broadcast_tensors": {
@@ -972,7 +1328,7 @@
         "specs": [
           "broadcast_tensors"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -1016,6 +1372,26 @@
         "reused": true
       }
     },
+    "cartesian_prod": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "cartesian_prod"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "cat": {
       "onnx": {
         "export": "full",
@@ -1053,7 +1429,7 @@
         "specs": [
           "cauchy"
         ],
-        "measurement": "m3",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -1073,7 +1449,7 @@
         "specs": [
           "cdist"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1097,6 +1473,46 @@
         "reused": true
       }
     },
+    "celu": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "celu"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "chain_matmul": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "chain_matmul"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "chalf": {
       "onnx": {
         "export": "none",
@@ -1113,7 +1529,7 @@
         "specs": [
           "chalf"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1153,7 +1569,7 @@
         "specs": [
           "cholesky"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1173,7 +1589,7 @@
         "specs": [
           "cholesky_inverse"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1193,7 +1609,7 @@
         "specs": [
           "cholesky_solve"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1214,7 +1630,7 @@
           "chunk"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "clamp": {
@@ -1235,6 +1651,46 @@
         ],
         "measurement": "m2",
         "reused": true
+      }
+    },
+    "clamp_max": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "clamp_max"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "clamp_min": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "clamp_min"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "clone": {
@@ -1313,7 +1769,7 @@
         "specs": [
           "combinations"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1374,8 +1830,28 @@
           "conj_physical",
           "conj_physical-complex"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
+      }
+    },
+    "constant_pad_nd": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "constant_pad_nd"
+        ],
+        "measurement": "m5",
+        "reused": true
       }
     },
     "contiguous": {
@@ -1435,8 +1911,8 @@
           "conv2d",
           "conv2d-dilation-groups"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "conv3d": {
@@ -1455,7 +1931,7 @@
         "specs": [
           "conv3d"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -1475,7 +1951,127 @@
         "specs": [
           "conv_tbc"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "conv_transpose1d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "conv_transpose1d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "conv_transpose2d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "conv_transpose2d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "conv_transpose3d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "conv_transpose3d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "convolution": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "convolution"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "copy": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "copy"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "copy_sparse_to_sparse_": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "copy_sparse_to_sparse_"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1495,7 +2091,7 @@
         "specs": [
           "copysign"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1515,7 +2111,7 @@
         "specs": [
           "corrcoef"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1536,8 +2132,8 @@
           "cos",
           "cos-broad"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "cosh": {
@@ -1556,7 +2152,7 @@
         "specs": [
           "cosh"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -1597,7 +2193,7 @@
           "cosine_similarity"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "count_nonzero": {
@@ -1657,7 +2253,7 @@
         "specs": [
           "cross_entropy_loss"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -1677,7 +2273,47 @@
         "specs": [
           "ctc_loss"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "cummax": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "cummax"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "cummin": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "cummin"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1697,7 +2333,7 @@
         "specs": [
           "cumprod"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -1717,7 +2353,7 @@
         "specs": [
           "cumsum"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -1757,8 +2393,28 @@
         "specs": [
           "deg2rad"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "dequantize": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "quantize_per_tensor"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "detach": {
@@ -1777,7 +2433,7 @@
         "specs": [
           "detach"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -1799,7 +2455,7 @@
           "diag_2d_to_1d"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "diag_embed": {
@@ -1818,8 +2474,8 @@
         "specs": [
           "diag_embed"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "diagflat": {
@@ -1839,7 +2495,7 @@
           "diagflat"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "diagonal": {
@@ -1899,7 +2555,7 @@
         "specs": [
           "digamma"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2105,7 +2761,27 @@
           "embedding_bag-mean",
           "embedding_bag-sum"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "embedding_renorm_": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "embedding_renorm_"
+        ],
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -2129,6 +2805,26 @@
         "reused": true
       }
     },
+    "empty_like": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "empty_like"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "empty_permuted": {
       "onnx": {
         "export": "none",
@@ -2145,7 +2841,27 @@
         "specs": [
           "empty_permuted"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "empty_quantized": {
+      "onnx": {
+        "export": "blocked",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 25,
+        "onnx_gap": 0,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "empty_quantized"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2166,7 +2882,7 @@
           "empty_strided"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "eq": {
@@ -2246,7 +2962,7 @@
         "specs": [
           "erfinv"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2267,7 +2983,7 @@
           "exp",
           "exp-broad"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -2428,7 +3144,7 @@
           "feature_dropout"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "fft_fft": {
@@ -2447,8 +3163,28 @@
         "specs": [
           "fft_fft"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "fft_fftfreq": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "fft_fftfreq"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "fft_fftn": {
@@ -2467,8 +3203,8 @@
         "specs": [
           "fft_fftn"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "fft_ifft": {
@@ -2527,7 +3263,7 @@
         "specs": [
           "fft_ihfft2"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2547,7 +3283,7 @@
         "specs": [
           "fft_ihfftn"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2567,7 +3303,7 @@
         "specs": [
           "fft_irfft"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -2611,6 +3347,26 @@
         "reused": true
       }
     },
+    "fft_rfftfreq": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "fft_rfftfreq"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "fft_rfftn": {
       "onnx": {
         "export": "full",
@@ -2625,10 +3381,10 @@
         "numerics_reached": 25,
         "numerics_match": 22,
         "specs": [
-          "gap-fft_rfftn"
+          "fft_rfftn"
         ],
-        "measurement": "m2",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "fill": {
@@ -2648,7 +3404,7 @@
           "fill"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "flatten": {
@@ -2667,7 +3423,27 @@
         "specs": [
           "flatten"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "flatten_dense_tensors": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "flatten_dense_tensors"
+        ],
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -2748,7 +3524,7 @@
           "float_power"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "floor": {
@@ -2768,7 +3544,7 @@
           "floor"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "floor_divide": {
@@ -2788,7 +3564,7 @@
           "floor_divide",
           "floor_divide-xfail"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -2808,7 +3584,7 @@
         "specs": [
           "fmax"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2828,7 +3604,7 @@
         "specs": [
           "fmin"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2868,7 +3644,7 @@
         "specs": [
           "frac"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -2888,7 +3664,7 @@
         "specs": [
           "fractional_max_pool2d"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2908,7 +3684,7 @@
         "specs": [
           "fractional_max_pool3d"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2928,7 +3704,27 @@
         "specs": [
           "frexp"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "frobenius_norm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "frobenius_norm"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -2988,7 +3784,7 @@
         "specs": [
           "gamma"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3008,7 +3804,7 @@
         "specs": [
           "gather"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -3028,7 +3824,7 @@
         "specs": [
           "gcd"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3050,7 +3846,7 @@
           "ge-broad"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "gelu": {
@@ -3070,7 +3866,7 @@
           "gelu",
           "gelu-broad"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -3090,7 +3886,7 @@
         "specs": [
           "geometric"
         ],
-        "measurement": "m3",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -3110,7 +3906,7 @@
         "specs": [
           "geqrf"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3130,7 +3926,7 @@
         "specs": [
           "glu"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -3156,6 +3952,46 @@
         "reused": true
       }
     },
+    "grid_sampler_2d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "grid_sampler_2d"
+        ],
+        "measurement": "m6",
+        "reused": true
+      }
+    },
+    "grid_sampler_3d": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "grid_sampler_3d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "group_norm": {
       "onnx": {
         "export": "full",
@@ -3176,6 +4012,26 @@
         "reused": true
       }
     },
+    "gru": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "gru"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "gt": {
       "onnx": {
         "export": "full",
@@ -3194,6 +4050,66 @@
           "gt-broad"
         ],
         "measurement": "m4",
+        "reused": true
+      }
+    },
+    "hamming_window": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "diverge",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 0,
+        "specs": [
+          "hamming_window"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "hann_window": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "hann_window"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "hardshrink": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "hardshrink"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3254,7 +4170,7 @@
           "hardtanh",
           "hardtanh-broad"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -3278,6 +4194,26 @@
         "reused": true
       }
     },
+    "hinge_embedding_loss": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "hinge_embedding_loss"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "histc": {
       "onnx": {
         "export": "none",
@@ -3294,7 +4230,7 @@
         "specs": [
           "histc"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3314,7 +4250,7 @@
         "specs": [
           "histogram"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3334,7 +4270,7 @@
         "specs": [
           "histogramdd"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3355,6 +4291,26 @@
           "hsplit"
         ],
         "measurement": "m4",
+        "reused": true
+      }
+    },
+    "hstack": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "hstack"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3394,7 +4350,7 @@
         "specs": [
           "hypot"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3414,7 +4370,7 @@
         "specs": [
           "i0"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3434,7 +4390,7 @@
         "specs": [
           "igamma"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3454,7 +4410,7 @@
         "specs": [
           "igammac"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3474,8 +4430,28 @@
         "specs": [
           "im2col"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "imag": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "imag"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "index": {
@@ -3495,8 +4471,8 @@
           "advanced_index",
           "index"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "index_add": {
@@ -3580,6 +4556,26 @@
         "reused": true
       }
     },
+    "index_put_impl_": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "index_put_impl_"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "index_reduce": {
       "onnx": {
         "export": "none",
@@ -3596,7 +4592,7 @@
         "specs": [
           "index_reduce"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3616,7 +4612,7 @@
         "specs": [
           "index_select"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -3636,7 +4632,7 @@
         "specs": [
           "inner"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -3659,7 +4655,7 @@
           "instance_norm2d_affine",
           "instance_norm3d"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -3679,8 +4675,28 @@
         "specs": [
           "isclose-xfail"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
+      }
+    },
+    "isfinite": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "isfinite"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "isin": {
@@ -3720,7 +4736,7 @@
           "isinf-xfail"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "isnan": {
@@ -3740,7 +4756,7 @@
           "isnan-xfail"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "isneginf": {
@@ -3797,10 +4813,50 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-isreal"
+          "isreal"
         ],
-        "measurement": "m2",
+        "measurement": "m5",
         "reused": true
+      }
+    },
+    "istft": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "istft"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "kaiser_window": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "kaiser_window"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "kl_div": {
@@ -3860,7 +4916,7 @@
         "specs": [
           "kthvalue"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3921,7 +4977,7 @@
         "specs": [
           "lcm"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -3984,6 +5040,26 @@
           "leaky_relu-broad"
         ],
         "measurement": "m4",
+        "reused": true
+      }
+    },
+    "lerp": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "lerp"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4003,7 +5079,7 @@
         "specs": [
           "lgamma"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4023,7 +5099,27 @@
         "specs": [
           "linalg_cond"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "linalg_cross": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "linalg_cross"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4047,6 +5143,26 @@
         "reused": true
       }
     },
+    "linalg_diagonal": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "linalg_diagonal"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "linalg_eig": {
       "onnx": {
         "export": "none",
@@ -4063,7 +5179,7 @@
         "specs": [
           "linalg_eig"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4083,7 +5199,7 @@
         "specs": [
           "linalg_eigh"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4103,7 +5219,7 @@
         "specs": [
           "linalg_eigvals"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4123,7 +5239,7 @@
         "specs": [
           "linalg_eigvalsh"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4143,7 +5259,7 @@
         "specs": [
           "linalg_householder_product"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4163,7 +5279,7 @@
         "specs": [
           "linalg_inv"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4183,7 +5299,7 @@
         "specs": [
           "linalg_ldl_solve"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4203,7 +5319,7 @@
         "specs": [
           "linalg_lstsq"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4223,7 +5339,7 @@
         "specs": [
           "linalg_lu"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4243,7 +5359,7 @@
         "specs": [
           "linalg_lu_solve"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4263,7 +5379,7 @@
         "specs": [
           "linalg_matrix_exp"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4283,7 +5399,7 @@
         "specs": [
           "linalg_matrix_norm_fro"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -4323,7 +5439,27 @@
         "specs": [
           "linalg_matrix_rank"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "linalg_norm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "linalg_norm"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4343,7 +5479,7 @@
         "specs": [
           "linalg_pinv"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4363,7 +5499,7 @@
         "specs": [
           "linalg_qr"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4383,7 +5519,7 @@
         "specs": [
           "linalg_slogdet"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4403,7 +5539,7 @@
         "specs": [
           "linalg_solve"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4423,7 +5559,7 @@
         "specs": [
           "linalg_solve_triangular"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4443,7 +5579,7 @@
         "specs": [
           "linalg_svd"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4463,7 +5599,7 @@
         "specs": [
           "linalg_tensorinv"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4483,7 +5619,7 @@
         "specs": [
           "linalg_tensorsolve"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4503,7 +5639,7 @@
         "specs": [
           "vector_norm"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -4527,6 +5663,26 @@
         "reused": true
       }
     },
+    "linspace": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "linspace"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "log": {
       "onnx": {
         "export": "full",
@@ -4544,8 +5700,8 @@
           "log",
           "log-broad"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "log10": {
@@ -4584,7 +5740,7 @@
         "specs": [
           "log1p"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -4628,6 +5784,26 @@
         "reused": true
       }
     },
+    "log_sigmoid": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "log_sigmoid"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "log_softmax": {
       "onnx": {
         "export": "full",
@@ -4664,8 +5840,8 @@
         "specs": [
           "logaddexp"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "logaddexp2": {
@@ -4748,6 +5924,26 @@
         "reused": true
       }
     },
+    "logical_not": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "logical_not"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
     "logical_or": {
       "onnx": {
         "export": "full",
@@ -4788,6 +5984,86 @@
         "reused": true
       }
     },
+    "logit": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "logit"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "logspace": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "logspace"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "logsumexp": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "logsumexp"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "lstm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "lstm"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "lt": {
       "onnx": {
         "export": "full",
@@ -4825,7 +6101,7 @@
         "specs": [
           "lu_solve"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4845,7 +6121,7 @@
         "specs": [
           "lu_unpack"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4965,7 +6241,7 @@
         "specs": [
           "masked_select"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -4987,6 +6263,26 @@
         ],
         "measurement": "m1",
         "reused": true
+      }
+    },
+    "matrix_H": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "matrix_H"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "max": {
@@ -5027,7 +6323,7 @@
         "specs": [
           "max_pool1d"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -5069,7 +6365,7 @@
           "max_pool2d-dilation"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "max_pool2d_with_indices": {
@@ -5112,6 +6408,26 @@
         "reused": true
       }
     },
+    "max_pool3d_with_indices": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "max_pool3d_with_indices"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
     "max_unpool2d": {
       "onnx": {
         "export": "full",
@@ -5146,9 +6462,9 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-max_unpool3d"
+          "max_unpool3d"
         ],
-        "measurement": "m2",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -5168,7 +6484,7 @@
         "specs": [
           "maximum"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -5209,7 +6525,7 @@
         "specs": [
           "median"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -5252,7 +6568,7 @@
           "min-elementwise",
           "min-full"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -5272,8 +6588,8 @@
         "specs": [
           "minimum"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "mish": {
@@ -5293,7 +6609,27 @@
           "mish"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
+      }
+    },
+    "mm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "mm"
+        ],
+        "measurement": "m5",
+        "reused": true
       }
     },
     "mode": {
@@ -5312,7 +6648,27 @@
         "specs": [
           "mode"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "movedim": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "movedim"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -5332,8 +6688,8 @@
         "specs": [
           "mse_loss"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "msort": {
@@ -5350,10 +6706,10 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-msort"
+          "msort"
         ],
-        "measurement": "m2",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "mul": {
@@ -5373,7 +6729,7 @@
           "mul",
           "mul-broad"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -5433,7 +6789,7 @@
         "specs": [
           "multinomial"
         ],
-        "measurement": "m3",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -5457,6 +6813,26 @@
         "reused": true
       }
     },
+    "mvlgamma": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "mvlgamma"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "nan_to_num": {
       "onnx": {
         "export": "full",
@@ -5477,6 +6853,26 @@
         "reused": true
       }
     },
+    "nanmean": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "nanmean"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "nanmedian": {
       "onnx": {
         "export": "none",
@@ -5493,7 +6889,7 @@
         "specs": [
           "nanmedian"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -5511,10 +6907,30 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-nanquantile"
+          "nanquantile"
         ],
-        "measurement": "m2",
+        "measurement": "m5",
         "reused": true
+      }
+    },
+    "nansum": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "nansum"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "narrow": {
@@ -5534,6 +6950,86 @@
           "narrow"
         ],
         "measurement": "m2",
+        "reused": true
+      }
+    },
+    "native_channel_shuffle": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "native_channel_shuffle"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "native_dropout": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "native_dropout"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "native_group_norm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "partial",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 23,
+        "specs": [
+          "native_group_norm-xfail"
+        ],
+        "measurement": "m6",
+        "reused": true
+      }
+    },
+    "native_layer_norm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "partial",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 24,
+        "specs": [
+          "native_layer_norm-xfail"
+        ],
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -5579,6 +7075,26 @@
         "reused": true
       }
     },
+    "new_empty": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "new_empty"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "new_empty_strided": {
       "onnx": {
         "export": "full",
@@ -5599,6 +7115,46 @@
         "reused": true
       }
     },
+    "new_full": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "new_full"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "new_ones": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "new_ones"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "new_zeros": {
       "onnx": {
         "export": "full",
@@ -5615,8 +7171,8 @@
         "specs": [
           "new_zeros"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "nextafter": {
@@ -5635,7 +7191,47 @@
         "specs": [
           "nextafter"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "nll_loss": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "nll_loss_direct"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "nll_loss2d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "nll_loss2d"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -5655,7 +7251,7 @@
         "specs": [
           "nll_loss"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -5673,9 +7269,9 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-nonzero"
+          "nonzero"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -5715,7 +7311,27 @@
         "specs": [
           "nonzero_static"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "norm": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "norm"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -5755,7 +7371,7 @@
         "specs": [
           "nuclear_norm"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -5777,6 +7393,26 @@
         ],
         "measurement": "m1",
         "reused": true
+      }
+    },
+    "one_hot": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "one_hot"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "ones": {
@@ -5815,7 +7451,7 @@
         "specs": [
           "ones_like"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -5835,7 +7471,7 @@
         "specs": [
           "ormqr"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -5937,7 +7573,7 @@
         "specs": [
           "pdist"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -5977,7 +7613,7 @@
         "specs": [
           "pixel_shuffle"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -6017,7 +7653,7 @@
         "specs": [
           "poisson"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6035,10 +7671,30 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-poisson_nll_loss"
+          "poisson_nll_loss"
         ],
-        "measurement": "m2",
+        "measurement": "m5",
         "reused": true
+      }
+    },
+    "polar": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "polar"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "polygamma": {
@@ -6057,7 +7713,7 @@
         "specs": [
           "polygamma"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6077,8 +7733,8 @@
         "specs": [
           "positive"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "pow": {
@@ -6098,7 +7754,7 @@
           "pow",
           "pow-int-exp"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -6120,7 +7776,7 @@
           "prelu-multi"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "prod": {
@@ -6160,7 +7816,7 @@
         "specs": [
           "put"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6180,7 +7836,7 @@
         "specs": [
           "qr"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6201,6 +7857,146 @@
           "quantile"
         ],
         "measurement": "m4",
+        "reused": true
+      }
+    },
+    "quantize_per_channel": {
+      "onnx": {
+        "export": "blocked",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 25,
+        "onnx_gap": 0,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "quantize_per_channel"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "quantize_per_tensor": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "quantize_per_tensor"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "quantize_per_tensor_dynamic": {
+      "onnx": {
+        "export": "blocked",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 25,
+        "onnx_gap": 0,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "quantize_per_tensor_dynamic"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "quantized_batch_norm": {
+      "onnx": {
+        "export": "blocked",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 25,
+        "onnx_gap": 0,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "quantized_batch_norm"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "quantized_max_pool1d": {
+      "onnx": {
+        "export": "blocked",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 25,
+        "onnx_gap": 0,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "quantized_max_pool1d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "quantized_max_pool2d": {
+      "onnx": {
+        "export": "blocked",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 25,
+        "onnx_gap": 0,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "quantized_max_pool2d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "quantized_max_pool3d": {
+      "onnx": {
+        "export": "blocked",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 25,
+        "onnx_gap": 0,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "quantized_max_pool3d"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6220,7 +8016,7 @@
         "specs": [
           "rad2deg"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -6341,7 +8137,7 @@
           "randn_like"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "random": {
@@ -6360,7 +8156,7 @@
         "specs": [
           "random"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6380,7 +8176,7 @@
         "specs": [
           "randperm"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6400,7 +8196,7 @@
         "specs": [
           "range"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6424,6 +8220,26 @@
         "reused": true
       }
     },
+    "real": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "real"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "reciprocal": {
       "onnx": {
         "export": "full",
@@ -6440,7 +8256,67 @@
         "specs": [
           "reciprocal"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "reflection_pad1d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "reflection_pad1d"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "reflection_pad2d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "reflection_pad2d"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "reflection_pad3d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "reflection_pad3d"
+        ],
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -6460,7 +8336,7 @@
         "specs": [
           "relu"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -6540,7 +8416,7 @@
         "specs": [
           "repeat"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -6561,6 +8437,66 @@
           "repeat_interleave"
         ],
         "measurement": "m1",
+        "reused": true
+      }
+    },
+    "replication_pad1d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "replication_pad1d"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "replication_pad2d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "replication_pad2d-xfail"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
+    "replication_pad3d": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "replication_pad3d-xfail"
+        ],
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -6604,6 +8540,26 @@
         "reused": true
       }
     },
+    "resize_as_sparse_": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "resize_as_sparse_"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "resolve_conj": {
       "onnx": {
         "export": "full",
@@ -6641,7 +8597,7 @@
           "resolve_neg"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "rms_norm": {
@@ -6662,6 +8618,46 @@
         ],
         "measurement": "m1",
         "reused": true
+      }
+    },
+    "rnn_relu": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "rnn_relu"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "rnn_tanh": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "rnn_tanh"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "roll": {
@@ -6720,7 +8716,7 @@
         "specs": [
           "round"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -6740,7 +8736,7 @@
         "specs": [
           "rrelu"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6760,7 +8756,7 @@
         "specs": [
           "rrelu_with_noise"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6781,6 +8777,26 @@
           "rsqrt"
         ],
         "measurement": "m4",
+        "reused": true
+      }
+    },
+    "rsub": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "rsub"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6860,7 +8876,7 @@
         "specs": [
           "scatter_add-xfail"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -6903,7 +8919,7 @@
         "specs": [
           "searchsorted"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6923,7 +8939,7 @@
         "specs": [
           "segment_reduce"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -6987,6 +9003,26 @@
         "reused": true
       }
     },
+    "set_": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "set_"
+        ],
+        "measurement": "m6",
+        "reused": true
+      }
+    },
     "sgn": {
       "onnx": {
         "export": "none",
@@ -7003,7 +9039,7 @@
         "specs": [
           "sgn-complex-xfail"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7044,7 +9080,7 @@
           "sign"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "signbit": {
@@ -7164,7 +9200,7 @@
         "specs": [
           "slice"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -7184,7 +9220,7 @@
         "specs": [
           "slice_scatter"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -7269,6 +9305,26 @@
         "reused": true
       }
     },
+    "softshrink": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "softshrink"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "sort": {
       "onnx": {
         "export": "full",
@@ -7306,7 +9362,7 @@
         "specs": [
           "special_airy_ai"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7326,7 +9382,7 @@
         "specs": [
           "special_bessel_j0"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7346,7 +9402,7 @@
         "specs": [
           "special_bessel_j1"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7366,7 +9422,7 @@
         "specs": [
           "special_bessel_y0"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7386,7 +9442,7 @@
         "specs": [
           "special_bessel_y1"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7406,7 +9462,7 @@
         "specs": [
           "special_chebyshev_polynomial_t"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7426,7 +9482,7 @@
         "specs": [
           "special_chebyshev_polynomial_u"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7446,7 +9502,7 @@
         "specs": [
           "special_chebyshev_polynomial_v"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7466,7 +9522,7 @@
         "specs": [
           "special_chebyshev_polynomial_w"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7504,9 +9560,9 @@
         "numerics_reached": 25,
         "numerics_match": 14,
         "specs": [
-          "gap-special_erfcx"
+          "special_erfcx"
         ],
-        "measurement": "m2",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -7526,7 +9582,7 @@
         "specs": [
           "special_hermite_polynomial_h"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7546,7 +9602,7 @@
         "specs": [
           "special_hermite_polynomial_he"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7566,7 +9622,7 @@
         "specs": [
           "special_i0e"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7586,7 +9642,7 @@
         "specs": [
           "special_i1"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7606,7 +9662,7 @@
         "specs": [
           "special_i1e"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7626,7 +9682,7 @@
         "specs": [
           "special_laguerre_polynomial_l"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7646,7 +9702,7 @@
         "specs": [
           "special_legendre_polynomial_p"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7686,7 +9742,7 @@
         "specs": [
           "special_modified_bessel_i0"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7706,7 +9762,7 @@
         "specs": [
           "special_modified_bessel_i1"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7726,7 +9782,7 @@
         "specs": [
           "special_modified_bessel_k0"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7746,7 +9802,7 @@
         "specs": [
           "special_modified_bessel_k1"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7764,10 +9820,10 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "gap-special_ndtr"
+          "special_ndtr"
         ],
-        "measurement": "m2",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "special_ndtri": {
@@ -7786,7 +9842,7 @@
         "specs": [
           "special_ndtri"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7806,7 +9862,7 @@
         "specs": [
           "special_scaled_modified_bessel_k0"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7826,7 +9882,7 @@
         "specs": [
           "special_scaled_modified_bessel_k1"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7846,7 +9902,7 @@
         "specs": [
           "special_shifted_chebyshev_polynomial_t"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7866,7 +9922,7 @@
         "specs": [
           "special_shifted_chebyshev_polynomial_u"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7886,7 +9942,7 @@
         "specs": [
           "special_shifted_chebyshev_polynomial_v"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7906,7 +9962,7 @@
         "specs": [
           "special_shifted_chebyshev_polynomial_w"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7926,7 +9982,7 @@
         "specs": [
           "special_spherical_bessel_j0"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7946,7 +10002,7 @@
         "specs": [
           "special_xlog1py"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -7966,7 +10022,7 @@
         "specs": [
           "special_zeta"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -7990,6 +10046,26 @@
         "reused": true
       }
     },
+    "split_with_sizes": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "split_with_sizes"
+        ],
+        "measurement": "m5",
+        "reused": true
+      }
+    },
     "sqrt": {
       "onnx": {
         "export": "full",
@@ -8008,7 +10084,7 @@
           "sqrt-broad"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "square": {
@@ -8027,7 +10103,7 @@
         "specs": [
           "square"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -8107,8 +10183,28 @@
         "specs": [
           "std_mean"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
+      }
+    },
+    "stft": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "stft"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "sub": {
@@ -8151,7 +10247,7 @@
           "sum-dim-broad",
           "sum-dtype"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -8195,6 +10291,26 @@
         "reused": true
       }
     },
+    "take_along_dim": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "take_along_dim"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "tan": {
       "onnx": {
         "export": "full",
@@ -8232,7 +10348,7 @@
           "tanh",
           "tanh-broad"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -8253,7 +10369,7 @@
           "tanhshrink"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "tensor_split": {
@@ -8273,7 +10389,7 @@
           "tensor_split-indices",
           "tensor_split-int"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -8293,8 +10409,8 @@
         "specs": [
           "tensordot"
         ],
-        "measurement": "m1",
-        "reused": true
+        "measurement": "m7",
+        "reused": false
       }
     },
     "threshold": {
@@ -8314,7 +10430,7 @@
           "threshold"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "tile": {
@@ -8334,7 +10450,7 @@
           "tile"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "to": {
@@ -8353,7 +10469,7 @@
         "specs": [
           "to_dtype"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -8374,7 +10490,7 @@
           "topk",
           "topk-broad"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
       }
     },
@@ -8438,6 +10554,26 @@
         "reused": true
       }
     },
+    "trapz": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "trapz"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "triangular_solve": {
       "onnx": {
         "export": "none",
@@ -8454,7 +10590,7 @@
         "specs": [
           "triangular_solve"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -8478,6 +10614,46 @@
         "reused": true
       }
     },
+    "tril_indices": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "tril_indices"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "triplet_margin_loss": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "triplet_margin_loss"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "triu": {
       "onnx": {
         "export": "full",
@@ -8498,6 +10674,26 @@
         "reused": true
       }
     },
+    "triu_indices": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "triu_indices"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "trunc": {
       "onnx": {
         "export": "full",
@@ -8514,7 +10710,7 @@
         "specs": [
           "trunc-unary"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -8558,6 +10754,46 @@
         "reused": true
       }
     },
+    "unflatten": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "unflatten"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "unflatten_dense_tensors": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "unflatten_dense_tensors"
+        ],
+        "measurement": "m6",
+        "reused": true
+      }
+    },
     "unfold": {
       "onnx": {
         "export": "full",
@@ -8594,7 +10830,7 @@
         "specs": [
           "uniform"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -8604,17 +10840,17 @@
         "runtime": "full",
         "numerics": "match",
         "examples": 25,
-        "export_ok": 14,
+        "export_ok": 11,
         "capture_failed": 0,
-        "onnx_gap": 11,
-        "runtime_reached": 14,
-        "runtime_ok": 14,
-        "numerics_reached": 14,
-        "numerics_match": 14,
+        "onnx_gap": 14,
+        "runtime_reached": 11,
+        "runtime_ok": 11,
+        "numerics_reached": 11,
+        "numerics_match": 11,
         "specs": [
           "unique_consecutive"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -8654,7 +10890,67 @@
         "specs": [
           "unique_dim_consecutive"
         ],
-        "measurement": "m4",
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "unsafe_chunk": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "unsafe_chunk"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "unsafe_split": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "unsafe_split"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "unsafe_split_with_sizes": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "unsafe_split_with_sizes"
+        ],
+        "measurement": "m7",
         "reused": false
       }
     },
@@ -8674,7 +10970,7 @@
         "specs": [
           "unsqueeze"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -8776,7 +11072,7 @@
           "upsample_nearest2d"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "upsample_nearest3d": {
@@ -8795,7 +11091,7 @@
         "specs": [
           "upsample_nearest3d"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -8815,8 +11111,28 @@
         "specs": [
           "upsample_trilinear3d"
         ],
-        "measurement": "m1",
+        "measurement": "m6",
         "reused": true
+      }
+    },
+    "vander": {
+      "onnx": {
+        "export": "none",
+        "runtime": "not_reached",
+        "numerics": "not_reached",
+        "examples": 25,
+        "export_ok": 0,
+        "capture_failed": 0,
+        "onnx_gap": 25,
+        "runtime_reached": 0,
+        "runtime_ok": 0,
+        "numerics_reached": 0,
+        "numerics_match": 0,
+        "specs": [
+          "vander"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "var": {
@@ -8875,7 +11191,7 @@
         "specs": [
           "vdot"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     },
@@ -8899,6 +11215,66 @@
         "reused": true
       }
     },
+    "view_as": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "view_as"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "view_as_complex": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "view_as_complex"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
+    "view_as_real": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "view_as_real"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "vsplit": {
       "onnx": {
         "export": "full",
@@ -8919,6 +11295,26 @@
         "reused": true
       }
     },
+    "vstack": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "vstack"
+        ],
+        "measurement": "m7",
+        "reused": false
+      }
+    },
     "where": {
       "onnx": {
         "export": "full",
@@ -8936,7 +11332,7 @@
           "where"
         ],
         "measurement": "m4",
-        "reused": false
+        "reused": true
       }
     },
     "xlogy": {
@@ -8957,6 +11353,26 @@
         ],
         "measurement": "m1",
         "reused": true
+      }
+    },
+    "zero": {
+      "onnx": {
+        "export": "full",
+        "runtime": "full",
+        "numerics": "match",
+        "examples": 25,
+        "export_ok": 25,
+        "capture_failed": 0,
+        "onnx_gap": 0,
+        "runtime_reached": 25,
+        "runtime_ok": 25,
+        "numerics_reached": 25,
+        "numerics_match": 25,
+        "specs": [
+          "zero"
+        ],
+        "measurement": "m7",
+        "reused": false
       }
     },
     "zeros": {
@@ -8995,27 +11411,122 @@
         "specs": [
           "zeros_like"
         ],
-        "measurement": "m1",
+        "measurement": "m5",
         "reused": true
       }
     }
   },
   "specs": {
-    "abs": {
+    "acosh": {
       "aten_ops": [
-        "abs"
+        "acosh"
       ],
       "examples": 25
     },
-    "abs-broad": {
+    "adaptive_avg_pool3d": {
       "aten_ops": [
-        "abs"
+        "adaptive_avg_pool3d"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1,
+              2,
+              4,
+              4,
+              4
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten._adaptive_avg_pool3d', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten._adaptive_avg_pool3d"
+        }
+      ]
+    },
+    "adaptive_max_pool1d": {
+      "aten_ops": [
+        "adaptive_max_pool1d"
       ],
       "examples": 25
     },
-    "addcdiv": {
+    "adaptive_max_pool3d": {
       "aten_ops": [
-        "addcdiv"
+        "adaptive_max_pool3d"
+      ],
+      "examples": 25
+    },
+    "addcmul": {
+      "aten_ops": [
+        "addcmul"
+      ],
+      "examples": 25
+    },
+    "advanced_index": {
+      "aten_ops": [
+        "index"
+      ],
+      "examples": 25
+    },
+    "all-dim-xfail": {
+      "aten_ops": [
+        "all"
+      ],
+      "examples": 25
+    },
+    "angle": {
+      "aten_ops": [
+        "angle"
+      ],
+      "examples": 25
+    },
+    "atanh": {
+      "aten_ops": [
+        "atanh"
+      ],
+      "examples": 25
+    },
+    "baddbmm": {
+      "aten_ops": [
+        "baddbmm"
+      ],
+      "examples": 25
+    },
+    "bartlett_window": {
+      "aten_ops": [
+        "bartlett_window"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.bartlett_window', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten.bartlett_window"
+        }
+      ]
+    },
+    "bilinear": {
+      "aten_ops": [
+        "bilinear"
       ],
       "examples": 25
     },
@@ -9071,9 +11582,27 @@
         }
       ]
     },
-    "bitwise_right_shift": {
+    "blackman_window": {
       "aten_ops": [
-        "bitwise_right_shift"
+        "blackman_window"
+      ],
+      "examples": 25
+    },
+    "block_diag": {
+      "aten_ops": [
+        "block_diag"
+      ],
+      "examples": 25
+    },
+    "bmm": {
+      "aten_ops": [
+        "bmm"
+      ],
+      "examples": 25
+    },
+    "cartesian_prod": {
+      "aten_ops": [
+        "cartesian_prod"
       ],
       "examples": 25
     },
@@ -9106,6 +11635,18 @@
           "blocking_op": "aten._cdist_forward"
         }
       ]
+    },
+    "celu": {
+      "aten_ops": [
+        "celu"
+      ],
+      "examples": 25
+    },
+    "chain_matmul": {
+      "aten_ops": [
+        "chain_matmul"
+      ],
+      "examples": 25
     },
     "chalf": {
       "aten_ops": [
@@ -9210,9 +11751,15 @@
         }
       ]
     },
-    "chunk": {
+    "clamp_max": {
       "aten_ops": [
-        "chunk"
+        "clamp_max"
+      ],
+      "examples": 25
+    },
+    "clamp_min": {
+      "aten_ops": [
+        "clamp_min"
       ],
       "examples": 25
     },
@@ -9270,6 +11817,18 @@
         }
       ]
     },
+    "conv2d": {
+      "aten_ops": [
+        "conv2d"
+      ],
+      "examples": 25
+    },
+    "conv2d-dilation-groups": {
+      "aten_ops": [
+        "conv2d"
+      ],
+      "examples": 25
+    },
     "conv_tbc": {
       "aten_ops": [
         "conv_tbc"
@@ -9293,6 +11852,49 @@
           "error_type": "ConversionError",
           "error_head": "No ONNX function found for <OpOverload(op='aten.conv_tbc', overload='default')>. Failure message: No decompositions registered for the real-valued input",
           "blocking_op": "aten.conv_tbc"
+        }
+      ]
+    },
+    "conv_transpose1d": {
+      "aten_ops": [
+        "conv_transpose1d"
+      ],
+      "examples": 25
+    },
+    "conv_transpose2d": {
+      "aten_ops": [
+        "conv_transpose2d"
+      ],
+      "examples": 25
+    },
+    "conv_transpose3d": {
+      "aten_ops": [
+        "conv_transpose3d"
+      ],
+      "examples": 25
+    },
+    "copy_sparse_to_sparse_": {
+      "aten_ops": [
+        "copy_sparse_to_sparse_"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten._to_sparse', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten._to_sparse"
         }
       ]
     },
@@ -9348,9 +11950,15 @@
         }
       ]
     },
-    "cosine_similarity": {
+    "cos": {
       "aten_ops": [
-        "cosine_similarity"
+        "cos"
+      ],
+      "examples": 25
+    },
+    "cos-broad": {
+      "aten_ops": [
+        "cos"
       ],
       "examples": 25
     },
@@ -9384,6 +11992,56 @@
         }
       ]
     },
+    "cummax": {
+      "aten_ops": [
+        "cummax"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              3,
+              2
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.cummax', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten.cummax"
+        }
+      ]
+    },
+    "cummin": {
+      "aten_ops": [
+        "cummin"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              3,
+              2
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.cummin', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten.cummin"
+        }
+      ]
+    },
     "cumprod": {
       "aten_ops": [
         "cumprod"
@@ -9408,21 +12066,15 @@
         }
       ]
     },
-    "diag_1d_to_2d": {
+    "deg2rad": {
       "aten_ops": [
-        "diag"
+        "deg2rad"
       ],
       "examples": 25
     },
-    "diag_2d_to_1d": {
+    "diag_embed": {
       "aten_ops": [
-        "diag"
-      ],
-      "examples": 25
-    },
-    "diagflat": {
-      "aten_ops": [
-        "diagflat"
+        "diag_embed"
       ],
       "examples": 25
     },
@@ -9450,6 +12102,12 @@
         }
       ]
     },
+    "empty_like": {
+      "aten_ops": [
+        "empty_like"
+      ],
+      "examples": 25
+    },
     "empty_permuted": {
       "aten_ops": [
         "empty_permuted"
@@ -9474,11 +12132,28 @@
         }
       ]
     },
-    "empty_strided": {
+    "empty_quantized": {
       "aten_ops": [
-        "empty_strided"
+        "empty_quantized"
       ],
-      "examples": 25
+      "examples": 25,
+      "failures": [
+        {
+          "export": "capture_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "TorchExportError",
+          "error_head": "could not find kernel for aten.empty_quantized.default at dispatch key DispatchKey.CPU"
+        }
+      ]
     },
     "erfinv": {
       "aten_ops": [
@@ -9504,11 +12179,79 @@
         }
       ]
     },
-    "feature_dropout": {
+    "fft_fft": {
       "aten_ops": [
-        "feature_dropout"
+        "fft_fft"
       ],
-      "examples": 25
+      "examples": 25,
+      "failures": [
+        {
+          "export": "ok",
+          "runtime": "ok",
+          "numerics": "diverge",
+          "shapes": [
+            [
+              5,
+              7
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ProptestComparatorError",
+          "error_head": "output 'output_0' diverges (dtype=float32, rtol=1e-06, atol=1e-06)"
+        }
+      ]
+    },
+    "fft_fftfreq": {
+      "aten_ops": [
+        "fft_fftfreq"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.fft_fftfreq', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten.fft_fftfreq"
+        }
+      ]
+    },
+    "fft_fftn": {
+      "aten_ops": [
+        "fft_fftn"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "ok",
+          "runtime": "ok",
+          "numerics": "diverge",
+          "shapes": [
+            [
+              6,
+              6,
+              5
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ProptestComparatorError",
+          "error_head": "output 'output_0' diverges (dtype=float32, rtol=1e-06, atol=1e-06)"
+        }
+      ]
     },
     "fft_ihfft2": {
       "aten_ops": [
@@ -9560,23 +12303,54 @@
         }
       ]
     },
-    "fill": {
+    "fft_rfftfreq": {
       "aten_ops": [
-        "fill"
+        "fft_rfftfreq"
       ],
-      "examples": 25
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.fft_rfftfreq', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten.fft_rfftfreq"
+        }
+      ]
     },
-    "float_power": {
+    "fft_rfftn": {
       "aten_ops": [
-        "float_power"
+        "fft_rfftn"
       ],
-      "examples": 25
-    },
-    "floor": {
-      "aten_ops": [
-        "floor"
-      ],
-      "examples": 25
+      "examples": 25,
+      "failures": [
+        {
+          "export": "ok",
+          "runtime": "ok",
+          "numerics": "diverge",
+          "shapes": [
+            [
+              4,
+              4
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ProptestComparatorError",
+          "error_head": "output 'output_0' diverges (dtype=float32, rtol=1e-06, atol=1e-06)"
+        }
+      ]
     },
     "fmax": {
       "aten_ops": [
@@ -9713,6 +12487,12 @@
         }
       ]
     },
+    "frobenius_norm": {
+      "aten_ops": [
+        "frobenius_norm"
+      ],
+      "examples": 25
+    },
     "gamma": {
       "aten_ops": [
         "gamma"
@@ -9765,18 +12545,6 @@
         }
       ]
     },
-    "ge": {
-      "aten_ops": [
-        "ge"
-      ],
-      "examples": 25
-    },
-    "ge-broad": {
-      "aten_ops": [
-        "ge"
-      ],
-      "examples": 25
-    },
     "geqrf": {
       "aten_ops": [
         "geqrf"
@@ -9802,15 +12570,87 @@
         }
       ]
     },
-    "gt": {
+    "grid_sampler_3d": {
       "aten_ops": [
-        "gt"
+        "grid_sampler_3d"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1,
+              2,
+              3,
+              3,
+              3
+            ],
+            [
+              1,
+              2,
+              2,
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32",
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.grid_sampler_3d', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten.grid_sampler_3d"
+        }
+      ]
+    },
+    "gru": {
+      "aten_ops": [
+        "gru"
       ],
       "examples": 25
     },
-    "gt-broad": {
+    "hamming_window": {
       "aten_ops": [
-        "gt"
+        "hamming_window"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "ok",
+          "runtime": "ok",
+          "numerics": "diverge",
+          "shapes": [
+            [
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ProptestComparatorError",
+          "error_head": "output 'output_0' diverges (dtype=float32, rtol=1e-06, atol=1e-06)"
+        }
+      ]
+    },
+    "hann_window": {
+      "aten_ops": [
+        "hann_window"
+      ],
+      "examples": 25
+    },
+    "hardshrink": {
+      "aten_ops": [
+        "hardshrink"
+      ],
+      "examples": 25
+    },
+    "hinge_embedding_loss": {
+      "aten_ops": [
+        "hinge_embedding_loss"
       ],
       "examples": 25
     },
@@ -9886,9 +12726,9 @@
         }
       ]
     },
-    "hsplit": {
+    "hstack": {
       "aten_ops": [
-        "hsplit"
+        "hstack"
       ],
       "examples": 25
     },
@@ -10000,6 +12840,48 @@
         }
       ]
     },
+    "im2col": {
+      "aten_ops": [
+        "im2col"
+      ],
+      "examples": 25
+    },
+    "imag": {
+      "aten_ops": [
+        "imag"
+      ],
+      "examples": 25
+    },
+    "index": {
+      "aten_ops": [
+        "index"
+      ],
+      "examples": 25
+    },
+    "index_put_impl_": {
+      "aten_ops": [
+        "index_put_impl_"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten._index_put_impl', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten._index_put_impl"
+        }
+      ]
+    },
     "index_reduce": {
       "aten_ops": [
         "index_reduce"
@@ -10030,17 +12912,62 @@
         }
       ]
     },
-    "isinf-xfail": {
+    "isfinite": {
       "aten_ops": [
-        "isinf"
+        "isfinite"
       ],
       "examples": 25
     },
-    "isnan-xfail": {
+    "istft": {
       "aten_ops": [
-        "isnan"
+        "istft"
       ],
-      "examples": 25
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              3,
+              4,
+              2
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.unsqueeze', overload='default')>. Failure message: No decompositions registered for the complex-valued input",
+          "blocking_op": "aten.unsqueeze"
+        }
+      ]
+    },
+    "kaiser_window": {
+      "aten_ops": [
+        "kaiser_window"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.kaiser_window', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten.kaiser_window"
+        }
+      ]
     },
     "kthvalue": {
       "aten_ops": [
@@ -10095,15 +13022,9 @@
         }
       ]
     },
-    "leaky_relu": {
+    "lerp": {
       "aten_ops": [
-        "leaky_relu"
-      ],
-      "examples": 25
-    },
-    "leaky_relu-broad": {
-      "aten_ops": [
-        "leaky_relu"
+        "lerp"
       ],
       "examples": 25
     },
@@ -10155,6 +13076,18 @@
           "blocking_op": "aten._linalg_svd"
         }
       ]
+    },
+    "linalg_cross": {
+      "aten_ops": [
+        "linalg_cross"
+      ],
+      "examples": 25
+    },
+    "linalg_diagonal": {
+      "aten_ops": [
+        "linalg_diagonal"
+      ],
+      "examples": 25
     },
     "linalg_eig": {
       "aten_ops": [
@@ -10465,6 +13398,12 @@
         }
       ]
     },
+    "linalg_norm": {
+      "aten_ops": [
+        "linalg_norm"
+      ],
+      "examples": 25
+    },
     "linalg_pinv": {
       "aten_ops": [
         "linalg_pinv"
@@ -10683,6 +13622,60 @@
         }
       ]
     },
+    "linspace": {
+      "aten_ops": [
+        "linspace"
+      ],
+      "examples": 25
+    },
+    "log": {
+      "aten_ops": [
+        "log"
+      ],
+      "examples": 25
+    },
+    "log-broad": {
+      "aten_ops": [
+        "log"
+      ],
+      "examples": 25
+    },
+    "log_sigmoid": {
+      "aten_ops": [
+        "log_sigmoid"
+      ],
+      "examples": 25
+    },
+    "logaddexp": {
+      "aten_ops": [
+        "logaddexp"
+      ],
+      "examples": 25
+    },
+    "logit": {
+      "aten_ops": [
+        "logit"
+      ],
+      "examples": 25
+    },
+    "logspace": {
+      "aten_ops": [
+        "logspace"
+      ],
+      "examples": 25
+    },
+    "logsumexp": {
+      "aten_ops": [
+        "logsumexp"
+      ],
+      "examples": 25
+    },
+    "lstm": {
+      "aten_ops": [
+        "lstm"
+      ],
+      "examples": 25
+    },
     "lu_solve": {
       "aten_ops": [
         "lu_solve"
@@ -10766,15 +13759,9 @@
         }
       ]
     },
-    "max_pool2d": {
+    "matrix_H": {
       "aten_ops": [
-        "max_pool2d"
-      ],
-      "examples": 25
-    },
-    "max_pool2d-dilation": {
-      "aten_ops": [
-        "max_pool2d"
+        "matrix_H"
       ],
       "examples": 25
     },
@@ -10802,9 +13789,9 @@
         }
       ]
     },
-    "mish": {
+    "minimum": {
       "aten_ops": [
-        "mish"
+        "minimum"
       ],
       "examples": 25
     },
@@ -10833,6 +13820,54 @@
         }
       ]
     },
+    "movedim": {
+      "aten_ops": [
+        "movedim"
+      ],
+      "examples": 25
+    },
+    "mse_loss": {
+      "aten_ops": [
+        "mse_loss"
+      ],
+      "examples": 25
+    },
+    "msort": {
+      "aten_ops": [
+        "msort"
+      ],
+      "examples": 25
+    },
+    "mvlgamma": {
+      "aten_ops": [
+        "mvlgamma"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='prims.lgamma', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "prims.lgamma"
+        }
+      ]
+    },
+    "nanmean": {
+      "aten_ops": [
+        "nanmean"
+      ],
+      "examples": 25
+    },
     "nanmedian": {
       "aten_ops": [
         "nanmedian"
@@ -10856,6 +13891,63 @@
           "blocking_op": "aten.nanmedian"
         }
       ]
+    },
+    "nansum": {
+      "aten_ops": [
+        "nansum"
+      ],
+      "examples": 25
+    },
+    "native_channel_shuffle": {
+      "aten_ops": [
+        "native_channel_shuffle"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1,
+              4,
+              3,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten.native_channel_shuffle', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten.native_channel_shuffle"
+        }
+      ]
+    },
+    "new_empty": {
+      "aten_ops": [
+        "new_empty"
+      ],
+      "examples": 25
+    },
+    "new_full": {
+      "aten_ops": [
+        "new_full"
+      ],
+      "examples": 25
+    },
+    "new_ones": {
+      "aten_ops": [
+        "new_ones"
+      ],
+      "examples": 25
+    },
+    "new_zeros": {
+      "aten_ops": [
+        "new_zeros"
+      ],
+      "examples": 25
     },
     "nextafter": {
       "aten_ops": [
@@ -10885,6 +13977,18 @@
         }
       ]
     },
+    "nll_loss2d": {
+      "aten_ops": [
+        "nll_loss2d"
+      ],
+      "examples": 25
+    },
+    "nll_loss_direct": {
+      "aten_ops": [
+        "nll_loss"
+      ],
+      "examples": 25
+    },
     "nonzero_static": {
       "aten_ops": [
         "nonzero_static"
@@ -10908,6 +14012,12 @@
           "blocking_op": "aten.nonzero_static"
         }
       ]
+    },
+    "norm": {
+      "aten_ops": [
+        "norm"
+      ],
+      "examples": 25
     },
     "nuclear_norm": {
       "aten_ops": [
@@ -10933,6 +14043,12 @@
           "blocking_op": "aten._linalg_svd"
         }
       ]
+    },
+    "one_hot": {
+      "aten_ops": [
+        "one_hot"
+      ],
+      "examples": 25
     },
     "ormqr": {
       "aten_ops": [
@@ -11013,6 +14129,12 @@
         }
       ]
     },
+    "polar": {
+      "aten_ops": [
+        "polar"
+      ],
+      "examples": 25
+    },
     "polygamma": {
       "aten_ops": [
         "polygamma"
@@ -11037,15 +14159,9 @@
         }
       ]
     },
-    "prelu": {
+    "positive": {
       "aten_ops": [
-        "prelu"
-      ],
-      "examples": 25
-    },
-    "prelu-multi": {
-      "aten_ops": [
-        "prelu"
+        "positive"
       ],
       "examples": 25
     },
@@ -11104,17 +14220,181 @@
         }
       ]
     },
-    "quantile": {
+    "quantize_per_channel": {
       "aten_ops": [
-        "quantile"
+        "quantize_per_channel"
       ],
-      "examples": 25
+      "examples": 25,
+      "failures": [
+        {
+          "export": "capture_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2,
+              2
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "TorchExportError",
+          "error_head": "quantized nyi in meta tensors"
+        }
+      ]
     },
-    "randn_like": {
+    "quantize_per_tensor": {
       "aten_ops": [
-        "randn_like"
+        "quantize_per_tensor",
+        "dequantize"
       ],
-      "examples": 25
+      "examples": 25,
+      "failures": [
+        {
+          "export": "conversion_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "torch.quint8"
+        }
+      ]
+    },
+    "quantize_per_tensor_dynamic": {
+      "aten_ops": [
+        "quantize_per_tensor_dynamic"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "capture_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "TorchExportError",
+          "error_head": "quantized nyi in meta tensors"
+        }
+      ]
+    },
+    "quantized_batch_norm": {
+      "aten_ops": [
+        "quantized_batch_norm"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "capture_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1,
+              1,
+              3,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "TorchExportError",
+          "error_head": "could not find kernel for aten.quantized_batch_norm.default at dispatch key DispatchKey.CPU"
+        }
+      ]
+    },
+    "quantized_max_pool1d": {
+      "aten_ops": [
+        "quantized_max_pool1d"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "capture_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1,
+              1,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "TorchExportError",
+          "error_head": "could not find kernel for aten.quantized_max_pool1d.default at dispatch key DispatchKey.CPU"
+        }
+      ]
+    },
+    "quantized_max_pool2d": {
+      "aten_ops": [
+        "quantized_max_pool2d"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "capture_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1,
+              1,
+              3,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "TorchExportError",
+          "error_head": "could not find kernel for aten.quantized_max_pool2d.default at dispatch key DispatchKey.CPU"
+        }
+      ]
+    },
+    "quantized_max_pool3d": {
+      "aten_ops": [
+        "quantized_max_pool3d"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "capture_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              1,
+              1,
+              3,
+              3,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "TorchExportError",
+          "error_head": "could not find kernel for aten.quantized_max_pool3d.default at dispatch key DispatchKey.CPU"
+        }
+      ]
     },
     "random": {
       "aten_ops": [
@@ -11187,9 +14467,52 @@
         }
       ]
     },
-    "resolve_neg": {
+    "real": {
       "aten_ops": [
-        "resolve_neg"
+        "real"
+      ],
+      "examples": 25
+    },
+    "replication_pad1d": {
+      "aten_ops": [
+        "replication_pad1d"
+      ],
+      "examples": 25
+    },
+    "resize_as_sparse_": {
+      "aten_ops": [
+        "resize_as_sparse_"
+      ],
+      "examples": 25,
+      "failures": [
+        {
+          "export": "no_onnx_function",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
+              2,
+              3
+            ]
+          ],
+          "dtypes": [
+            "torch.float32"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "No ONNX function found for <OpOverload(op='aten._to_sparse', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "aten._to_sparse"
+        }
+      ]
+    },
+    "rnn_relu": {
+      "aten_ops": [
+        "rnn_relu"
+      ],
+      "examples": 25
+    },
+    "rnn_tanh": {
+      "aten_ops": [
+        "rnn_tanh"
       ],
       "examples": 25
     },
@@ -11241,9 +14564,9 @@
         }
       ]
     },
-    "rsqrt": {
+    "rsub": {
       "aten_ops": [
-        "rsqrt"
+        "rsub"
       ],
       "examples": 25
     },
@@ -11325,9 +14648,9 @@
         }
       ]
     },
-    "sign": {
+    "softshrink": {
       "aten_ops": [
-        "sign"
+        "softshrink"
       ],
       "examples": 25
     },
@@ -11843,6 +15166,12 @@
         }
       ]
     },
+    "special_ndtr": {
+      "aten_ops": [
+        "special_ndtr"
+      ],
+      "examples": 25
+    },
     "special_ndtri": {
       "aten_ops": [
         "special_ndtri"
@@ -12079,33 +15408,27 @@
         }
       ]
     },
-    "sqrt": {
+    "stft": {
       "aten_ops": [
-        "sqrt"
+        "stft"
       ],
       "examples": 25
     },
-    "sqrt-broad": {
+    "take_along_dim": {
       "aten_ops": [
-        "sqrt"
+        "take_along_dim"
       ],
       "examples": 25
     },
-    "tanhshrink": {
+    "tensordot": {
       "aten_ops": [
-        "tanhshrink"
+        "tensordot"
       ],
       "examples": 25
     },
-    "threshold": {
+    "trapz": {
       "aten_ops": [
-        "threshold"
-      ],
-      "examples": 25
-    },
-    "tile": {
-      "aten_ops": [
-        "tile"
+        "trapz"
       ],
       "examples": 25
     },
@@ -12138,6 +15461,30 @@
           "blocking_op": "aten.triangular_solve"
         }
       ]
+    },
+    "tril_indices": {
+      "aten_ops": [
+        "tril_indices"
+      ],
+      "examples": 25
+    },
+    "triplet_margin_loss": {
+      "aten_ops": [
+        "triplet_margin_loss"
+      ],
+      "examples": 25
+    },
+    "triu_indices": {
+      "aten_ops": [
+        "triu_indices"
+      ],
+      "examples": 25
+    },
+    "unflatten": {
+      "aten_ops": [
+        "unflatten"
+      ],
+      "examples": 25
     },
     "uniform": {
       "aten_ops": [
@@ -12176,14 +15523,14 @@
           "shapes": [
             [
               3,
-              3
+              5
             ]
           ],
           "dtypes": [
             "torch.int64"
           ],
           "error_type": "ConversionError",
-          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8, T2=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8. Args: (SymbolicTensor(name='anonymous:5498307760', pro"
+          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=INT8 | FLOAT | INT16 | UINT8 | UINT64 | UINT32 | STRING | FLOAT16 | BOOL | UINT16 | DOUBLE | INT64 | BFLOAT16 | INT32, T2=INT8 | FLOAT | INT16 | UINT8 | UINT64 | UINT32 | STRING | FLOAT16 | BOOL | UINT16 | DOUBLE | INT64 | BFLOAT16 | INT32. Args: (SymbolicTensor(name='anonymous:5270777968', pro"
         },
         {
           "export": "conversion_failed",
@@ -12199,7 +15546,7 @@
             "torch.int64"
           ],
           "error_type": "ConversionError",
-          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8, T2=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8. Args: (SymbolicTensor(name='anonymous:5521935088', pro"
+          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=INT8 | FLOAT | INT16 | UINT8 | UINT64 | UINT32 | STRING | FLOAT16 | BOOL | UINT16 | DOUBLE | INT64 | BFLOAT16 | INT32, T2=INT8 | FLOAT | INT16 | UINT8 | UINT64 | UINT32 | STRING | FLOAT16 | BOOL | UINT16 | DOUBLE | INT64 | BFLOAT16 | INT32. Args: (SymbolicTensor(name='anonymous:5324276592', pro"
         },
         {
           "export": "conversion_failed",
@@ -12207,15 +15554,15 @@
           "numerics": "not_reached",
           "shapes": [
             [
-              5,
-              6
+              6,
+              4
             ]
           ],
           "dtypes": [
             "torch.int64"
           ],
           "error_type": "ConversionError",
-          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8, T2=FLOAT16 | INT16 | DOUBLE | INT64 | FLOAT | UINT64 | UINT16 | BOOL | STRING | INT32 | BFLOAT16 | UINT8 | UINT32 | INT8. Args: (SymbolicTensor(name='anonymous:5427881744', pro"
+          "error_head": "Required attribute 'to' is not provided. Signature: ''::Cast(input: T1, to: INT = None) -> (T2) where T1=INT8 | FLOAT | INT16 | UINT8 | UINT64 | UINT32 | STRING | FLOAT16 | BOOL | UINT16 | DOUBLE | INT64 | BFLOAT16 | INT32, T2=INT8 | FLOAT | INT16 | UINT8 | UINT64 | UINT32 | STRING | FLOAT16 | BOOL | UINT16 | DOUBLE | INT64 | BFLOAT16 | INT32. Args: (SymbolicTensor(name='anonymous:5261712656', pro"
         }
       ]
     },
@@ -12247,6 +15594,22 @@
           "numerics": "not_reached",
           "shapes": [
             [
+              4,
+              2
+            ]
+          ],
+          "dtypes": [
+            "torch.int64"
+          ],
+          "error_type": "ConversionError",
+          "error_head": "Not implemented for x=SymbolicTensor(name='args_0', type=Tensor(INT64), shape=Shape([4, 2])) with rank=2 and dim=0."
+        },
+        {
+          "export": "conversion_failed",
+          "runtime": "not_reached",
+          "numerics": "not_reached",
+          "shapes": [
+            [
               5,
               2
             ]
@@ -12256,46 +15619,100 @@
           ],
           "error_type": "ConversionError",
           "error_head": "Not implemented for x=SymbolicTensor(name='args_0', type=Tensor(INT64), shape=Shape([5, 2])) with rank=2 and dim=0."
-        },
+        }
+      ]
+    },
+    "unsafe_chunk": {
+      "aten_ops": [
+        "unsafe_chunk"
+      ],
+      "examples": 25
+    },
+    "unsafe_split": {
+      "aten_ops": [
+        "unsafe_split"
+      ],
+      "examples": 25
+    },
+    "unsafe_split_with_sizes": {
+      "aten_ops": [
+        "unsafe_split_with_sizes"
+      ],
+      "examples": 25
+    },
+    "vander": {
+      "aten_ops": [
+        "vander"
+      ],
+      "examples": 25,
+      "failures": [
         {
-          "export": "conversion_failed",
+          "export": "no_onnx_function",
           "runtime": "not_reached",
           "numerics": "not_reached",
           "shapes": [
             [
-              3,
-              2
+              3
             ]
           ],
           "dtypes": [
-            "torch.int64"
+            "torch.float32"
           ],
           "error_type": "ConversionError",
-          "error_head": "Not implemented for x=SymbolicTensor(name='args_0', type=Tensor(INT64), shape=Shape([3, 2])) with rank=2 and dim=0."
+          "error_head": "No ONNX function found for <OpOverload(op='prims.prod', overload='default')>. Failure message: No decompositions registered for the real-valued input",
+          "blocking_op": "prims.prod"
         }
       ]
     },
-    "upsample_nearest2d": {
+    "view_as": {
       "aten_ops": [
-        "upsample_nearest2d"
+        "view_as"
       ],
       "examples": 25
     },
-    "where": {
+    "view_as_complex": {
       "aten_ops": [
-        "where"
+        "view_as_complex"
       ],
       "examples": 25
+    },
+    "view_as_real": {
+      "aten_ops": [
+        "view_as_real"
+      ],
+      "examples": 25
+    },
+    "vstack": {
+      "aten_ops": [
+        "vstack"
+      ],
+      "examples": 25
+    },
+    "zero": {
+      "aten_ops": [
+        "zero"
+      ],
+      "examples": 25
+    },
+    "abs": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "abs-broad": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "acos": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
     },
-    "acosh": {
+    "adaptive_avg_pool1d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "adaptive_avg_pool2d": {
       "aten_ops": [],
@@ -12310,22 +15727,32 @@
     "add": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "add-alpha": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "add-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "addbmm": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
+    },
+    "addcdiv": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "addmm": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
     },
     "addmv": {
       "aten_ops": [],
@@ -12335,27 +15762,32 @@
     "addr": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
-    },
-    "advanced_index": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "affine_grid": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
-    "all-dim-xfail": {
+    "alias": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "alpha_dropout": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "amax-dim": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
+    },
+    "amin-dim": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
     },
     "aminmax": {
       "aten_ops": [],
@@ -12390,7 +15822,7 @@
     "argwhere": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m2"
+      "reused_from": "m5"
     },
     "as_strided": {
       "aten_ops": [],
@@ -12413,11 +15845,6 @@
       "reused_from": "m3"
     },
     "atan2-xfail": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "atanh": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -12450,7 +15877,7 @@
     "avg_pool3d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "batch_norm1d": {
       "aten_ops": [],
@@ -12465,7 +15892,7 @@
     "bernoulli": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m3"
+      "reused_from": "m6"
     },
     "binary_cross_entropy": {
       "aten_ops": [],
@@ -12475,12 +15902,12 @@
     "binary_cross_entropy_with_logits": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "bitwise_and": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "bitwise_left_shift": {
       "aten_ops": [],
@@ -12497,15 +15924,20 @@
       "examples": 0,
       "reused_from": "m2"
     },
+    "bitwise_right_shift": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
     "bitwise_xor": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "broadcast_tensors": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "broadcast_to": {
       "aten_ops": [],
@@ -12530,7 +15962,7 @@
     "cauchy": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m3"
+      "reused_from": "m6"
     },
     "ceil": {
       "aten_ops": [],
@@ -12541,6 +15973,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "chunk": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "clamp": {
       "aten_ops": [],
@@ -12572,6 +16009,11 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "constant_pad_nd": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
+    },
     "contiguous": {
       "aten_ops": [],
       "examples": 0,
@@ -12582,40 +16024,35 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "conv2d": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "conv2d-dilation-groups": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "conv3d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
-    "cos": {
+    "convolution": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
-    "cos-broad": {
+    "copy": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "cosh": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "cosine_embedding_loss": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m3"
+    },
+    "cosine_similarity": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "count_nonzero-all": {
       "aten_ops": [],
@@ -12635,32 +16072,37 @@
     "cross_entropy_loss": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "cumsum": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "cumulative_trapezoid": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
     },
-    "deg2rad": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "detach": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
-    "diag_embed": {
+    "diag_1d_to_2d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m4"
+    },
+    "diag_2d_to_1d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "diagflat": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "diagonal": {
       "aten_ops": [],
@@ -12745,22 +16187,32 @@
     "embedding_bag-max": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "embedding_bag-mean": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "embedding_bag-sum": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
+    },
+    "embedding_renorm_": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m6"
     },
     "empty": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m3"
+    },
+    "empty_strided": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "eq": {
       "aten_ops": [],
@@ -12785,12 +16237,12 @@
     "exp": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "exp-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "exp2": {
       "aten_ops": [],
@@ -12827,15 +16279,10 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "fft_fft": {
+    "feature_dropout": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
-    },
-    "fft_fftn": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m4"
     },
     "fft_ifft": {
       "aten_ops": [],
@@ -12850,7 +16297,7 @@
     "fft_irfft": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "fft_irfftn": {
       "aten_ops": [],
@@ -12862,15 +16309,20 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "fft_rfftn": {
+    "fill": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m2"
+      "reused_from": "m4"
     },
     "flatten": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
+    },
+    "flatten_dense_tensors": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m6"
     },
     "flip": {
       "aten_ops": [],
@@ -12887,15 +16339,25 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "float_power": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "floor": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
     "floor_divide": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "floor_divide-xfail": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "fmod-xfail": {
       "aten_ops": [],
@@ -12905,7 +16367,7 @@
     "frac": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "full": {
       "aten_ops": [],
@@ -12920,27 +16382,37 @@
     "gather": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
+    },
+    "ge": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "ge-broad": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "gelu": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "gelu-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "geometric": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m3"
+      "reused_from": "m6"
     },
     "glu": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "grid_sample_bicubic_reflection": {
       "aten_ops": [],
@@ -12957,10 +16429,25 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "grid_sampler_2d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m6"
+    },
     "group_norm": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
+    },
+    "gt": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "gt-broad": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "hardsigmoid": {
       "aten_ops": [],
@@ -12975,32 +16462,27 @@
     "hardtanh": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "hardtanh-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "heaviside": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
     },
+    "hsplit": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
     "huber_loss": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m3"
-    },
-    "im2col": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "index": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
     },
     "index_add-xfail": {
       "aten_ops": [],
@@ -13030,42 +16512,52 @@
     "index_select": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "inner": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "instance_norm1d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "instance_norm2d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "instance_norm2d_affine": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "instance_norm3d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "isclose-xfail": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "isin": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
+    },
+    "isinf-xfail": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "isnan-xfail": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "isneginf-xfail": {
       "aten_ops": [],
@@ -13080,7 +16572,7 @@
     "isreal": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m2"
+      "reused_from": "m5"
     },
     "kl_div": {
       "aten_ops": [],
@@ -13127,6 +16619,16 @@
       "examples": 0,
       "reused_from": "m3"
     },
+    "leaky_relu": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "leaky_relu-broad": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
     "linalg_det": {
       "aten_ops": [],
       "examples": 0,
@@ -13135,7 +16637,7 @@
     "linalg_matrix_norm_fro": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "linalg_matrix_power": {
       "aten_ops": [],
@@ -13147,16 +16649,6 @@
       "examples": 0,
       "reused_from": "m3"
     },
-    "log": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
-    "log-broad": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "log10": {
       "aten_ops": [],
       "examples": 0,
@@ -13165,7 +16657,7 @@
     "log1p": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "log2": {
       "aten_ops": [],
@@ -13181,11 +16673,6 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m3"
-    },
-    "logaddexp": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
     },
     "logaddexp2": {
       "aten_ops": [],
@@ -13206,6 +16693,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m3"
+    },
+    "logical_not": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
     },
     "logical_or": {
       "aten_ops": [],
@@ -13275,12 +16767,22 @@
     "max_pool1d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "max_pool1d_with_indices": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
+    },
+    "max_pool2d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "max_pool2d-dilation": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "max_pool2d_with_indices": {
       "aten_ops": [],
@@ -13292,6 +16794,11 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "max_pool3d_with_indices": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
+    },
     "max_unpool2d": {
       "aten_ops": [],
       "examples": 0,
@@ -13300,12 +16807,12 @@
     "max_unpool3d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m2"
+      "reused_from": "m5"
     },
     "maximum": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "mean-dim": {
       "aten_ops": [],
@@ -13330,42 +16837,37 @@
     "min-dim": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "min-elementwise": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "min-full": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
-    "minimum": {
+    "mish": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m4"
     },
-    "mse_loss": {
+    "mm": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
-    },
-    "msort": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m2"
+      "reused_from": "m5"
     },
     "mul": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "mul-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "multi_margin_loss": {
       "aten_ops": [],
@@ -13380,7 +16882,7 @@
     "multinomial": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m3"
+      "reused_from": "m5"
     },
     "mv": {
       "aten_ops": [],
@@ -13395,12 +16897,27 @@
     "nanquantile": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m2"
+      "reused_from": "m5"
     },
     "narrow": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
+    },
+    "native_dropout": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
+    },
+    "native_group_norm-xfail": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m6"
+    },
+    "native_layer_norm-xfail": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
     },
     "ne": {
       "aten_ops": [],
@@ -13427,20 +16944,15 @@
       "examples": 0,
       "reused_from": "m3"
     },
-    "new_zeros": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
-    },
     "nll_loss": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "nonzero": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "nonzero_numpy": {
       "aten_ops": [],
@@ -13465,7 +16977,7 @@
     "ones_like": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "outer": {
       "aten_ops": [],
@@ -13505,7 +17017,7 @@
     "pixel_shuffle": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "pixel_unshuffle": {
       "aten_ops": [],
@@ -13515,22 +17027,27 @@
     "poisson_nll_loss": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m2"
-    },
-    "positive": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "pow": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "pow-int-exp": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
+    },
+    "prelu": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "prelu-multi": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "prod-dim": {
       "aten_ops": [],
@@ -13542,10 +17059,15 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "quantile": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
     "rad2deg": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "rand": {
       "aten_ops": [],
@@ -13572,6 +17094,11 @@
       "examples": 0,
       "reused_from": "m3"
     },
+    "randn_like": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
     "ravel": {
       "aten_ops": [],
       "examples": 0,
@@ -13580,12 +17107,27 @@
     "reciprocal": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
+    },
+    "reflection_pad1d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
+    },
+    "reflection_pad2d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
+    },
+    "reflection_pad3d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
     },
     "relu": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "relu6": {
       "aten_ops": [],
@@ -13605,12 +17147,22 @@
     "repeat": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "repeat_interleave": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "replication_pad2d-xfail": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
+    },
+    "replication_pad3d-xfail": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
     },
     "reshape": {
       "aten_ops": [],
@@ -13626,6 +17178,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m3"
+    },
+    "resolve_neg": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "rms_norm-xfail": {
       "aten_ops": [],
@@ -13645,7 +17202,12 @@
     "round": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
+    },
+    "rsqrt": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "scalar_tensor": {
       "aten_ops": [],
@@ -13660,7 +17222,7 @@
     "scatter_add-xfail": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "scatter_reduce-amax-xfail": {
       "aten_ops": [],
@@ -13702,10 +17264,20 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "set_": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m6"
+    },
     "sigmoid": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m3"
+    },
+    "sign": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "signbit-xfail": {
       "aten_ops": [],
@@ -13740,12 +17312,12 @@
     "slice": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "slice_scatter": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "smooth_l1_loss": {
       "aten_ops": [],
@@ -13790,14 +17362,9 @@
     "special_erfcx": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m2"
+      "reused_from": "m6"
     },
     "special_log_ndtr": {
-      "aten_ops": [],
-      "examples": 0,
-      "reused_from": "m2"
-    },
-    "special_ndtr": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
@@ -13805,17 +17372,32 @@
     "special_xlog1py": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "split-int": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m3"
     },
+    "split_with_sizes": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m5"
+    },
+    "sqrt": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
+    "sqrt-broad": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
     "square": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "squeeze": {
       "aten_ops": [],
@@ -13835,7 +17417,7 @@
     "std_mean": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "sub": {
       "aten_ops": [],
@@ -13855,17 +17437,17 @@
     "sum-dim": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "sum-dim-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "sum-dtype": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "t": {
       "aten_ops": [],
@@ -13885,42 +17467,52 @@
     "tanh": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "tanh-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
+    },
+    "tanhshrink": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "tensor_split-indices": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "tensor_split-int": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
-    "tensordot": {
+    "threshold": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m4"
+    },
+    "tile": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "to_dtype": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "topk": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "topk-broad": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "trace": {
       "aten_ops": [],
@@ -13950,7 +17542,7 @@
     "trunc-unary": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "type_as": {
       "aten_ops": [],
@@ -13961,6 +17553,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m2"
+    },
+    "unflatten_dense_tensors": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m6"
     },
     "unfold": {
       "aten_ops": [],
@@ -13975,7 +17572,7 @@
     "unsqueeze": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "upsample_bicubic2d": {
       "aten_ops": [],
@@ -14002,10 +17599,15 @@
       "examples": 0,
       "reused_from": "m1"
     },
+    "upsample_nearest2d": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
+    },
     "upsample_nearest3d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "upsample_nearest_exact2d": {
       "aten_ops": [],
@@ -14015,7 +17617,7 @@
     "upsample_trilinear3d": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m6"
     },
     "var-dim": {
       "aten_ops": [],
@@ -14030,12 +17632,12 @@
     "vdot": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "vector_norm": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     },
     "view": {
       "aten_ops": [],
@@ -14046,6 +17648,11 @@
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
+    },
+    "where": {
+      "aten_ops": [],
+      "examples": 0,
+      "reused_from": "m4"
     },
     "xlogy": {
       "aten_ops": [],
@@ -14060,7 +17667,7 @@
     "zeros_like": {
       "aten_ops": [],
       "examples": 0,
-      "reused_from": "m1"
+      "reused_from": "m5"
     }
   }
 }

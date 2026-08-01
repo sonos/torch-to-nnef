@@ -67,6 +67,7 @@ _MIN_PARSED_ROWS = 100
 #: The column header unique to the TractNNEF table (the ONNX one has
 #: `export` / `runtime` / `numerics` instead).
 _TRACT_HEADER = "export&amp;run"
+_ONNX_COVERAGE_HEADER = "spec coverage"
 
 #: The row classes that table is built from. Both must occur, or the
 #: parse is reading a vocabulary the generator no longer emits.
@@ -109,6 +110,52 @@ def _tract_table_lines() -> T.List[str]:
     )
 
 
+def _onnx_table_lines() -> T.List[str]:
+    """Just the measured `ONNX` table's lines."""
+    lines = SUPPORT_PAGE.read_text().splitlines()
+    table_starts = [i for i, line in enumerate(lines) if "<table" in line]
+    assert table_starts, (
+        f"no <table> found in {SUPPORT_PAGE.name}: the generator's output "
+        "shape changed, and every page-based check here is now blind"
+    )
+    for index, start in enumerate(table_starts):
+        end = (
+            table_starts[index + 1]
+            if index + 1 < len(table_starts)
+            else len(lines)
+        )
+        block = lines[start:end]
+        if any(_ONNX_COVERAGE_HEADER in line for line in block):
+            return block
+    raise AssertionError(
+        f"no table in {SUPPORT_PAGE.name} has a "
+        f"{_ONNX_COVERAGE_HEADER!r} column, so ONNX unmeasured rows "
+        "cannot be classified. Regenerate the support page."
+    )
+
+
+def _row_classes_by_name(
+    table_lines: T.Iterable[str],
+) -> T.Dict[str, T.Set[str]]:
+    rows: T.Dict[str, T.Set[str]] = {}
+    parsed = 0
+    for line in table_lines:
+        match = _ROW_RE.search(line)
+        if match is None:
+            continue
+        parsed += 1
+        cells = _CELL_RE.findall(match.group(2))
+        if len(cells) > 1:
+            rows[_TAG_RE.sub("", cells[1])] = set(match.group(1).split())
+    assert parsed >= _MIN_PARSED_ROWS, (
+        f"parsed only {parsed} rows from {SUPPORT_PAGE.name} (expected at "
+        f"least {_MIN_PARSED_ROWS}). `_ROW_RE` no longer matches what "
+        "`generate_support_page.py` emits, so the coverage checks in this "
+        "module are blind rather than passing."
+    )
+    return rows
+
+
 def _page_unsupported_ops() -> T.Set[str]:
     """Row names the committed support page marks unsupported.
 
@@ -149,6 +196,21 @@ def _page_unsupported_ops() -> T.Set[str]:
     return names
 
 
+def _page_supported_ops() -> T.Set[str]:
+    """Row names the committed support page marks supported."""
+    rows = _row_classes_by_name(_tract_table_lines())
+    supported = {
+        name
+        for name, classes in rows.items()
+        if "supported" in classes and "unsupported" not in classes
+    }
+    assert supported, (
+        f"no supported rows parsed from {SUPPORT_PAGE.name}; the support "
+        "page checks are blind rather than passing"
+    )
+    return supported
+
+
 def test_gap_specs_exist():
     """Guard the guard: an empty tuple would make every check vacuous."""
     assert GAP_SPECS, "no spec declares `nnef_gap`; did the module move?"
@@ -185,21 +247,35 @@ def test_excluded_entries_have_no_spec():
     )
 
 
-def test_excluded_entries_are_still_unsupported():
-    """An exclusion must still describe an unsupported row.
+def test_excluded_entries_are_not_in_the_support_tables():
+    """An exclusion must be outside the comparison denominator.
 
-    The other direction of the coverage check, and the one that rots
-    quietly: implementing an excluded operator leaves behind an entry
-    saying we chose not to measure something we now translate, and
-    nothing else would ever notice.
+    `EXCLUDED` is reserved for names that cannot be attributed to a
+    proptest graph target. They belong in the appendix, not as `-` rows
+    inside either support table.
     """
     if not SUPPORT_PAGE.exists():  # pragma: no cover - page always shipped
         pytest.skip("generated support page is not in this checkout")
-    stale = set(EXCLUDED) - _page_unsupported_ops()
+    tract_rows = set(_row_classes_by_name(_tract_table_lines()))
+    onnx_rows = set(_row_classes_by_name(_onnx_table_lines()))
+    stale = sorted(set(EXCLUDED) & (tract_rows | onnx_rows))
     assert not stale, (
-        f"{sorted(stale)} are listed in `EXCLUDED` but the support page "
-        "no longer calls them unsupported. Drop the entries, and give "
-        "any that we now translate a normal spec."
+        f"{stale} are listed in `EXCLUDED` but still appear in the support "
+        "tables. Either drop the exclusion and add a spec, or filter the "
+        "row into the appendix."
+    )
+
+
+def test_excluded_entries_are_documented_in_the_appendix():
+    """Filtered rows should remain visible with the other exclusions."""
+    if not SUPPORT_PAGE.exists():  # pragma: no cover - page always shipped
+        pytest.skip("generated support page is not in this checkout")
+    appendix = SUPPORT_PAGE.read_text()
+    missing = sorted(name for name in EXCLUDED if f"`{name}`" not in appendix)
+    assert not missing, (
+        f"{missing} are listed in `EXCLUDED` but do not appear in the "
+        "support-page appendix. Readers need to know why the row left "
+        "the comparison tables."
     )
 
 
@@ -227,6 +303,44 @@ def test_page_credits_every_registered_emitter():
         "lists them as unsupported. Regenerate it:\n"
         "  python docs/contributing/generate_support_page.py \\\n"
         "      --onnx-report docs/contributing/onnx_support_measured.json"
+    )
+
+
+def test_onnx_unmeasured_rows_say_why_they_have_no_spec():
+    """A `-` row must not leave the missing-spec cause implicit."""
+    if not SUPPORT_PAGE.exists():  # pragma: no cover - page always shipped
+        pytest.skip("generated support page is not in this checkout")
+    supported_rows = _page_supported_ops()
+    onnx_rows = _row_classes_by_name(_onnx_table_lines())
+
+    unclassified = []
+    stale_supported_markers = []
+    for name, classes in onnx_rows.items():
+        unmeasured = "grade-untested" in classes
+        if not unmeasured:
+            continue
+        has_missing_marker = "missing-supported-spec" in classes
+        has_cause = bool(
+            {
+                "missing-supported-spec",
+                "untested-documented",
+                "no-spec-no-claim",
+            }
+            & classes
+        )
+        if not has_cause:
+            unclassified.append(name)
+        if name in supported_rows and not has_missing_marker:
+            stale_supported_markers.append(name)
+
+    assert not unclassified, (
+        "these ONNX rows have no measurement but the page does not say "
+        f"why: {sorted(unclassified)}"
+    )
+    assert not stale_supported_markers, (
+        "these TractNNEF-supported rows have no ONNX measurement but are "
+        "not marked as missing supported specs: "
+        f"{sorted(stale_supported_markers)}"
     )
 
 
