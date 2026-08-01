@@ -4225,17 +4225,13 @@ opset size first, then the full <code>aten::</code> listing. That is what makes 
 two tabs comparable at a glance; a bar over "the operators we measured"
 renders near-full whatever the coverage is, and sits next to a bar that
 means something else entirely.</p>
-<p>The numerator is read the same generous way, and this is deliberate: it
-counts what we measured as <code>full</code> <strong>plus</strong> what the retired listing
-claimed and no spec of ours has checked (<code>✅*</code>). Those operators are
-unverified, but the reason they are unverified is a gap in <em>our</em> test
-coverage, and scoring that against ONNX would understate a competing
-exporter for our own shortfall. Rows with neither a measurement nor a
-claim (<code>-</code>) stay out: crediting a claim is not the same as crediting
-silence, and a measured <code>partial</code> or <code>none</code> overrides any claim.</p>
-<p>The caption under the bars splits the two populations apart, so the
-strict "of what we actually tested, how much passed" ratio is still one
-line away.</p>
+<p>The numerator is the number of rows we measured as <code>full</code>. If a future
+torch listing adds a targetable row, add a spec for it before refreshing
+the page. If the row cannot be tied to an attributable proptest graph,
+record it in <code>tests/proptest/op_specs/untranslated.py</code> so the generator
+keeps it outside both denominators and explains why in the appendix.</p>
+<p>The caption under the bars keeps the strict "of what we actually tested,
+how much passed" ratio one line away.</p>
 <h2 id="reading-a-grade">Reading a grade</h2>
 <p>The <code>export</code> column grades operator coverage only:</p>
 <table>
@@ -4263,37 +4259,33 @@ line away.</p>
 <td><code>torch.export</code> could not capture the module, so the ONNX exporter never ran. <strong>Not</strong> an ONNX verdict</td>
 </tr>
 <tr>
-<td>✅* claimed</td>
-<td>no spec covers it, so we did <strong>not</strong> verify it, but the retired listing claimed it was supported</td>
-</tr>
-<tr>
-<td><code>-</code> <code>untested</code></td>
-<td>no spec covers it and nothing was ever claimed either way. <strong>Not</strong> unsupported</td>
+<td><code>-</code></td>
+<td>no spec covers it, so we did <strong>not</strong> measure it here. <strong>Not</strong> unsupported</td>
 </tr>
 </tbody>
 </table>
-<p>Only ✅ / 🟡 / ❌ are measurements. <strong>✅* is an unverified historical
-claim</strong>: the <a href="#reading-the-headline-bars">headline bars</a> count it, so an
-operator we never wrote a spec for is not scored against ONNX, while the
-measured breakdown in the caption excludes it. The state exists so the two
-kinds of "we don't know" stay distinguishable, since an operator the old
-listing called supported is a better bet (and a better candidate for a new
-spec) than one nobody ever said anything about. Both are filterable
-separately.</p>
+<p>Only ✅ / 🟡 / ❌ are measurements. <code>-</code> means unmeasured, not failed.
+A <code>-</code> row should be temporary: add a direct spec when the row is
+targetable, or move it to <code>untranslated.EXCLUDED</code> when it is not. The
+<code>documented</code> column records what the retired listing claimed, and the
+<code>spec coverage</code> column says whether this row was measured or why it has
+no direct proptest measurement. Rows that cannot be attributed to a
+proptest graph target are filtered out of both comparison tables and
+listed in the appendix instead.</p>
 <p><code>runtime</code> (does onnxruntime load and run the exported graph) and
 <code>numerics</code> (do its outputs match PyTorch) are reported as separate columns
 on purpose. A graph that exports but diverges numerically is usually a
 property of the kernel that ran, not a missing operator, so folding either
 into the support glyph would blame the exporter for a runtime issue.</p>
-<p><code>blocked</code> and <code>untested</code> exist for the same reason: both are cases where
-we have no evidence about ONNX, and reporting "no evidence" as ❌ would
-overstate what was measured.</p>
+<p><code>blocked</code> and no-spec rows exist for the same reason: both are cases
+where we have no evidence about ONNX, and reporting "no evidence" as ❌
+would overstate what was measured.</p>
 <h2 id="measuring-what-we-cannot-translate">Measuring what we cannot translate</h2>
 <p>The catalog exists to guard our own exporter, so for a long time a spec
 only existed where t2n succeeds. That gave the ONNX column a selection
 bias with a precise shape: <strong>the measured population was a subset of our
 own supported set</strong>. An operator ONNX handles and we do not could never
-be graded ✅, only inherited as a <code>✅*</code> claim from the retired listing, or
+be graded ✅, only inherited as a retired ONNX listing claim, or
 left blank. The comparison was structurally blind exactly where we are
 weakest, and the <code>Gap vs ONNX</code> filter could only ever surface operators
 that the torch 2.8 listing happened to name.</p>
@@ -4356,18 +4348,21 @@ and runtime stay measured; only the numerics axis is skipped, since
 comparing two independent draws would report the definition of the
 operator rather than anything about the exporter.</p>
 <h2 id="adding-coverage">Adding coverage</h2>
-<p>An operator shows <code>-</code> until some spec claims it. To fix that, add or
-extend a spec in <code>tests/proptest/op_specs/</code> and set its <code>aten_ops</code> to the
-operator name(s) <strong>as this page lists them</strong>: the page drops
-<code>_</code>-prefixed identifiers and merges in-place variants, so the trace name
-is not always the row name (<code>conv2d</code> traces <code>aten::_convolution</code>).</p>
+<p>An operator shows <code>missing spec</code> in the <code>spec coverage</code> column until some
+spec claims it. To fix that, add or extend a spec in
+<code>tests/proptest/op_specs/</code> and set its <code>aten_ops</code> to the operator name(s)
+<strong>as this page lists them</strong>: the page drops <code>_</code>-prefixed identifiers and
+merges in-place variants, so the trace name is not always the row name
+(<code>conv2d</code> traces <code>aten::_convolution</code>).</p>
 <p>If t2n cannot translate the operator, the spec still belongs in the
 catalog: put it in the themed module it would live in once supported and
 give it an <code>nnef_gap</code>, instead of leaving the row unmeasured. Placing it
 by family rather than by support status is deliberate, so that
 implementing the operator later means deleting one field rather than
-moving the spec between files. Rows that get no spec at all are recorded
-in <code>op_specs/untranslated.py</code> with a reason.</p>
+moving the spec between files. Rows that get no spec at all are rare:
+they are recorded in <code>op_specs/untranslated.py</code> with a reason and are
+listed in the support page appendix, outside both comparison
+denominators.</p>
 <p><code>tests/test_proptest_aten_attribution.py</code> traces every spec and checks its
 declaration, so a spec that drifts onto a different operator fails there
 rather than silently mis-attributing its grade.</p>
@@ -4393,7 +4388,7 @@ rather than silently mis-attributing its grade.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 28, 2026 20:31:13 UTC">July 28, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 1, 2026 17:52:23 UTC">August 1, 2026</span>
   </span>
 
     

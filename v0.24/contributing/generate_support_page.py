@@ -45,6 +45,9 @@ from tests.proptest.onnx_report import (  # noqa: E402
     SCHEMA_VERSION,
     merge_op_records,
 )
+from tests.proptest.op_specs.untranslated import (  # noqa: E402
+    EXCLUDED as PROPTEST_EXCLUDED,
+)
 from torch_to_nnef.op.aten import aten_ops_registry  # noqa: E402
 
 #: Floor for the `aten::` source grep. torch 2.13 yields 1159 raw names
@@ -52,11 +55,13 @@ from torch_to_nnef.op.aten import aten_ops_registry  # noqa: E402
 #: near this low, so a smaller result means the extraction broke.
 _MIN_PLAUSIBLE_ATEN_NAMES = 400
 
-#: Display-only refinement of `untested`: no spec covers the operator, but
+#: Filter-only refinement of `untested`: no spec covers the operator, but
 #: the retired TorchScript listing claimed it was supported. Kept out of
-#: `onnx_report`'s grade vocabulary because it is not a measurement:
-#: it is an unverified historical claim, and the star is what says so.
+#: `onnx_report`'s grade vocabulary because it is a historical claim, not
+#: a measurement, and no longer rendered as an export grade.
 DISPLAY_UNTESTED_DOCUMENTED = "untested-documented"
+DISPLAY_NO_SPEC_NO_CLAIM = "no-spec-no-claim"
+DISPLAY_MISSING_SUPPORTED_SPEC = "missing-supported-spec"
 
 #: Glyph per export grade. `blocked` is not an ONNX verdict: `torch.export`
 #: could not capture the module, so the exporter never saw it.
@@ -66,7 +71,6 @@ GRADE_GLYPH = {
     GRADE_NONE: "❌",
     GRADE_BLOCKED: "⚠️",
     GRADE_UNTESTED: "-",
-    DISPLAY_UNTESTED_DOCUMENTED: "✅*",
 }
 
 #: Filter radio buttons per section flavour. The binary listing keeps the
@@ -94,8 +98,9 @@ GRADED_FILTER_MODES = (
     (GRADE_PARTIAL, "Exports partially"),
     (GRADE_NONE, "Never exports"),
     (GRADE_BLOCKED, "Blocked before ONNX"),
-    (DISPLAY_UNTESTED_DOCUMENTED, "Claimed, unverified"),
-    (GRADE_UNTESTED, "Untested, no data"),
+    (DISPLAY_UNTESTED_DOCUMENTED, "Claimed only, no spec"),
+    (DISPLAY_NO_SPEC_NO_CLAIM, "No spec, no claim"),
+    (DISPLAY_MISSING_SUPPORTED_SPEC, "Missing supported spec"),
 )
 
 
@@ -153,7 +158,7 @@ class MeasuredOnnxSupport:
             record = backends.get("onnx")
             if record is None:
                 continue
-            row = self._normalize(op_name, alias_manager)
+            row = self._normalize(op_name, alias_manager, page_rows)
             if row not in page_rows:
                 # Measured but absent from the page's operator list: the
                 # `aten::*` source grep drops `_`-prefixed names, so e.g.
@@ -167,7 +172,11 @@ class MeasuredOnnxSupport:
         }
 
     @staticmethod
-    def _normalize(op_name: str, alias_manager: "AliasManager") -> str:
+    def _normalize(
+        op_name: str,
+        alias_manager: "AliasManager",
+        page_rows: Set[str],
+    ) -> str:
         """Map a measured op name onto the page's row name."""
         name = op_name
         if alias_manager.is_alias(name):
@@ -176,7 +185,7 @@ class MeasuredOnnxSupport:
                 if name in aliases:
                     name = canonical
                     break
-        if name.endswith("_"):
+        if name.endswith("_") and name[:-1] in page_rows:
             # In-place variants are merged into their base name.
             name = name[:-1]
         return name
@@ -809,6 +818,9 @@ NEVER_IN_INFERENCE_TRACE = {
     "Python / TorchScript scalar builtins (extra)": (
         _EXCLUDED_PYTHON_SCALAR_BUILTINS_EXTRA
     ),
+    "Proptest rows with no attributable graph target": frozenset(
+        PROPTEST_EXCLUDED
+    ),
     "Inplace storage / metadata mutators stripped by JIT": (
         _EXCLUDED_INPLACE_STORAGE_MUTATORS
     ),
@@ -1068,6 +1080,27 @@ def _format_aliases(aliases: List[str]) -> str:
     return ", ".join(aliases)
 
 
+def _historical_claims_note(
+    untested_documented: int, untested_documented_core: int
+) -> str:
+    def claims(count: int) -> str:
+        noun = "claim" if count == 1 else "claims"
+        return f"{count} historical ONNX {noun}"
+
+    if untested_documented == 0:
+        return ""
+    if untested_documented_core:
+        return (
+            f" {claims(untested_documented_core)} on core rows and "
+            f"{claims(untested_documented)} overall have no spec-backed "
+            "measurement and stay out of the numerator."
+        )
+    return (
+        f" {claims(untested_documented)} have no spec-backed measurement "
+        "and stay out of the numerator."
+    )
+
+
 def _write_measured_summary(
     support_target_msg: str,
     measured: MeasuredOnnxSupport,
@@ -1078,6 +1111,7 @@ def _write_measured_summary(
     qte_core: int,
     untested_documented: int,
     untested_documented_core: int,
+    missing_supported_specs: int,
     fh,
 ):
     """Headline stats for a measured section.
@@ -1089,12 +1123,10 @@ def _write_measured_summary(
     what we tested, how much passed") and silently rescales against the
     tab next to it.
 
-    Same reading of the **numerator**, which here means crediting the
-    retired listing's claims (`✅*`) alongside our own measurements. Those
-    operators are unverified, but the reason they are unverified is our
-    missing spec coverage, and scoring that as an ONNX gap would understate
-    a competing exporter for our own shortfall. The caption keeps the two
-    populations separate so the measured-only ratio stays one line away.
+    Same reading of the **numerator**, which here means measured `full`
+    rows only. The retired listing still feeds the `documented` column,
+    but not the bars: targetable rows need specs, and non-attributable
+    rows need an explicit exclusion.
     """
     counts = measured.counts()
     total_rows = len(aten_torch_from_code)
@@ -1115,17 +1147,14 @@ def _write_measured_summary(
         "Total operators exportable, over the same denominators as the "
         "`TractNNEF` tab:\n\n"
         + headline_bars(
-            f"{full_core + untested_documented_core}/{qte_core}",
-            f"{full_qte + untested_documented}/{total_rows}",
+            f"{full_core}/{qte_core}",
+            f"{full_qte}/{total_rows}",
         )
-        + " (**both bars credit unverified claims**: "
+        + " (**headline accounting**: "
         f"{full_core} core / {full_qte} overall are measured fully "
-        f"exportable here, plus {untested_documented_core} core / "
-        f"{untested_documented} overall that no spec of ours covers and "
-        "that are counted on the retired listing's word alone (✅*). "
-        "Leaving those out would report our own missing coverage as an "
-        "ONNX gap."
-        f" Of the {measured_rows} operators actually measured: "
+        "exportable here."
+        + _historical_claims_note(untested_documented, untested_documented_core)
+        + f" Of the {measured_rows} operators actually measured: "
         f"{counts.get(GRADE_FULL, 0)} full, "
         f"{counts.get(GRADE_PARTIAL, 0)} partial, "
         f"{counts.get(GRADE_NONE, 0)} none, "
@@ -1133,9 +1162,20 @@ def _write_measured_summary(
         f"{full_core}/{measured_core} of the measured core operators and "
         f"{counts.get(GRADE_FULL, 0)}/{measured_rows} of all measured ones "
         "export fully."
-        f" The {no_data} rows with neither a measurement nor a claim (`-`) "
-        "stay out of the numerator."
-        f" Measured with {env}.)",
+        + (
+            f" The {no_data} rows with neither a measurement nor a claim "
+            "(`-`) stay out of the numerator."
+            if no_data
+            else ""
+        )
+        + (
+            " Across all unmeasured rows, "
+            f"{missing_supported_specs} are TractNNEF-supported rows still "
+            "missing a direct proptest spec."
+            if missing_supported_specs
+            else ""
+        )
+        + f" Measured with {env}.)",
         file=fh,
     )
 
@@ -1144,7 +1184,13 @@ def _write_measured_summary(
 _MODE_ALIASES = {"supported": GRADE_FULL, "unsupported": GRADE_NONE}
 
 
-def counted_modes(modes, display_counts, total: int, cross_gap_qte: int):
+def counted_modes(
+    modes,
+    display_counts,
+    total: int,
+    cross_gap_qte: int,
+    extra_counts: Optional[dict] = None,
+):
     """Label each filter with its row count, and drop the empty ones.
 
     A radio that selects nothing is worse than absent: it invites a click
@@ -1155,12 +1201,15 @@ def counted_modes(modes, display_counts, total: int, cross_gap_qte: int):
     The counts double as the section's summary: they say how the rows
     split without the reader clicking through every mode.
     """
+    extra_counts = extra_counts or {}
     counted = []
     for value, label in modes:
         if value == "all":
             count = total
         elif value == CROSS_GAP_MODE:
             count = cross_gap_qte
+        elif value in extra_counts:
+            count = extra_counts[value]
         else:
             count = display_counts.get(_MODE_ALIASES.get(value, value), 0)
         if count:
@@ -1198,6 +1247,7 @@ def write_operator_support(
     legend: Optional[str] = None,
     cross_support: Optional[Set[str]] = None,
     cross_gap_label: str = "",
+    unmeasured_supported_rows: Optional[Set[str]] = None,
 ):
     """Emit one tabbed section.
 
@@ -1223,7 +1273,11 @@ def write_operator_support(
     measured_core = 0
     untested_documented = 0
     untested_documented_core = 0
+    claimed_only = 0
     cross_gap_qte = 0
+    no_spec_no_claim = 0
+    missing_supported_specs = 0
+    unmeasured_supported_rows = unmeasured_supported_rows or set()
 
     print(f'=== "{support_target_name}"', file=fh)
     print("", file=fh)
@@ -1243,15 +1297,26 @@ def write_operator_support(
         else:
             grade = measured.grade(a_from_code)
         exist_in_support = grade == GRADE_FULL
-        # Display state may refine the grade; the measured breakdown always
-        # uses `grade`, so a starred row never inflates it. The headline
-        # bars do count starred rows, from these separate tallies.
+        # The measured breakdown always uses `grade`. Historical ONNX
+        # claims are counted for the headline bars via separate tallies,
+        # but are not rendered as export grades.
         display = grade
-        if grade == GRADE_UNTESTED and documented:
-            display = DISPLAY_UNTESTED_DOCUMENTED
-            untested_documented += 1
-            if is_core:
-                untested_documented_core += 1
+
+        unmeasured_kind = ""
+        if measured is not None and grade == GRADE_UNTESTED:
+            if documented:
+                untested_documented += 1
+                if is_core:
+                    untested_documented_core += 1
+            if a_from_code in unmeasured_supported_rows:
+                unmeasured_kind = DISPLAY_MISSING_SUPPORTED_SPEC
+                missing_supported_specs += 1
+            elif documented:
+                unmeasured_kind = DISPLAY_UNTESTED_DOCUMENTED
+                claimed_only += 1
+            else:
+                unmeasured_kind = DISPLAY_NO_SPEC_NO_CLAIM
+                no_spec_no_claim += 1
 
         if is_core:
             qte_core += 1
@@ -1274,9 +1339,16 @@ def write_operator_support(
         op_name_html = _md_link(a_from_code, torch_url_doc)
         extra_cells: List[str] = []
         if measured is not None:
+            coverage = {
+                DISPLAY_UNTESTED_DOCUMENTED: "claimed only",
+                DISPLAY_NO_SPEC_NO_CLAIM: "no claim",
+                DISPLAY_MISSING_SUPPORTED_SPEC: "missing spec",
+                "": "measured",
+            }.get(unmeasured_kind, "unclassified")
             extra_cells = [
                 measured.axis(a_from_code, "runtime"),
                 measured.axis(a_from_code, "numerics"),
+                coverage,
             ]
             if include_documented:
                 extra_cells.append("✅" if documented else "-")
@@ -1290,6 +1362,7 @@ def write_operator_support(
                 is_core_official_str,
                 mapped_in_support_str,
                 display,
+                unmeasured_kind,
                 extra_cells,
                 cross_ok,
             )
@@ -1321,6 +1394,7 @@ def write_operator_support(
             qte_core,
             untested_documented,
             untested_documented_core,
+            missing_supported_specs,
             fh,
         )
     print_t("", file=fh)
@@ -1343,7 +1417,7 @@ def write_operator_support(
         documented_header = "<th>documented</th>" if include_documented else ""
         header_cells = (
             "<th>export</th><th>aten name</th><th>aliases</th>"
-            "<th>runtime</th><th>numerics</th>"
+            "<th>runtime</th><th>numerics</th><th>spec coverage</th>"
             f"{documented_header}"
             "<th>can in-place</th><th>is core</th>"
         )
@@ -1353,9 +1427,19 @@ def write_operator_support(
     # Trailing unpack rather than a fixed index: the row tuple grows, and
     # a stale offset here would silently count the wrong field.
     display_counts = Counter(
-        display for *_, display, _cells, _cross_ok in row_items
+        display for *_, display, _kind, _cells, _cross_ok in row_items
     )
-    modes = counted_modes(modes, display_counts, len(row_items), cross_gap_qte)
+    modes = counted_modes(
+        modes,
+        display_counts,
+        len(row_items),
+        cross_gap_qte,
+        {
+            DISPLAY_UNTESTED_DOCUMENTED: claimed_only,
+            DISPLAY_NO_SPEC_NO_CLAIM: no_spec_no_claim,
+            DISPLAY_MISSING_SUPPORTED_SPEC: missing_supported_specs,
+        },
+    )
     print_t(
         _filter_widget(filter_id, modes)
         + '<table class="op-table">\n'
@@ -1374,6 +1458,7 @@ def write_operator_support(
         is_core_official_str,
         mapped_in_support_str,
         display,
+        unmeasured_kind,
         extra_cells,
         cross_ok,
     ) in row_items:
@@ -1385,6 +1470,8 @@ def write_operator_support(
             klass = "supported" if exist_in_support else "unsupported"
         else:
             klass = f"grade-{display}"
+        if unmeasured_kind:
+            klass += f" {unmeasured_kind}"
         if cross_ok:
             klass += f" {CROSS_OK_CLASS}"
         middle = f"<td>{alias_str}</td>" + "".join(
@@ -1416,21 +1503,27 @@ FILTER_SCRIPT = """\
       // fall back to the two-state reading. Without this, a `partial` row
       // would show up under "Unsupported only" purely for lacking the
       // `supported` class.
-      // `[a-z-]` so the hyphenated `grade-untested-documented` state
-      // matches in full; `[a-z]+` would truncate it to `untested` and
-      // make the two untested filters indistinguishable.
       // `grade-` prefix required: the cross-section marker `cross-ok` is a
       // separate class and must not be read as a grade.
       var graded = tr.className.match(/grade-([a-z-]+)/);
       var grade = graded ? graded[1] : (sup ? 'full' : 'none');
       var crossOk = tr.classList.contains('cross-ok');
+      var claimedOnly =
+        tr.classList.contains('untested-documented');
+      var noSpecNoClaim =
+        tr.classList.contains('no-spec-no-claim');
+      var missingSupportedSpec =
+        tr.classList.contains('missing-supported-spec');
       var keep =
         mode === 'all' ||
         mode === grade ||
         (mode === 'supported' && grade === 'full') ||
         (mode === 'unsupported' && grade === 'none') ||
         // Supported by the other tab, missing here: the shortlist.
-        (mode === 'cross-gap' && crossOk && grade !== 'full');
+        (mode === 'cross-gap' && crossOk && grade !== 'full') ||
+        (mode === 'untested-documented' && claimedOnly) ||
+        (mode === 'no-spec-no-claim' && noSpecNoClaim) ||
+        (mode === 'missing-supported-spec' && missingSupportedSpec);
       tr.style.display = keep ? '' : 'none';
     });
   }
@@ -1462,7 +1555,9 @@ def _measured_onnx_section_msg(measured: MeasuredOnnxSupport) -> str:
     )
 
 
-def _measured_onnx_legend(onnx_url: str, has_documented: bool) -> str:
+def _measured_onnx_legend(
+    onnx_url: str, has_documented: bool, has_unmeasured: bool
+) -> str:
     """Column legend for the measured ONNX table, as its own box.
 
     Body lines carry 4 spaces of their own: `print_t` adds the 4 the
@@ -1477,36 +1572,38 @@ def _measured_onnx_legend(onnx_url: str, has_documented: bool) -> str:
             "`torch.export` could not capture the module, so the ONNX "
             "exporter never ran. **Not** an ONNX verdict",
         ),
-        (
-            "✅*",
-            "no spec covers it: **not** verified here, but the retired "
-            "listing claimed it was supported, and the bars above take "
-            "that claim at face value",
-        ),
-        ("`-`", "no spec covers it and nothing was ever claimed either way"),
     ]
+    if has_unmeasured:
+        rows.append(
+            ("`-`", "no spec covers it, so we did **not** measure it here")
+        )
     table = "\n".join(f"    | {glyph} | {meaning} |" for glyph, meaning in rows)
+    grade_note = "    Only ✅ / 🟡 / ❌ are measurements."
+    if has_unmeasured:
+        grade_note += " `-` is unmeasured, not unsupported."
     msg = (
         '!!! info "How to read this table"\n\n'
         "    The `export` column grades **operator coverage only**:\n\n"
         "    | | |\n"
         "    | --- | --- |\n"
         f"{table}\n\n"
-        "    Only ✅ / 🟡 / ❌ are measurements. ✅* is an unverified "
-        "historical claim: the headline bars count it, so that operators "
-        "we never wrote a spec for are not scored against ONNX, but the "
-        "measured breakdown in the caption excludes it.\n\n"
+        f"{grade_note}\n\n"
         "    `runtime` (does onnxruntime load and run the exported graph) "
         "and `numerics` (do its outputs match PyTorch) are separate "
         "columns on purpose: a graph that exports but diverges "
         "numerically is usually a property of the kernel that ran, not a "
-        "missing operator."
+        "missing operator.\n\n"
+        "    `spec coverage` says whether this row was measured here, or "
+        "why it has no direct proptest measurement. Empty categories are "
+        "not shown as filters. Names that cannot be tied to an "
+        "attributable operator measurement are listed in the appendix "
+        "outside both denominators."
     )
     if has_documented:
         msg += (
             "\n\n    The `documented` column is what the retired "
             f"TorchScript-exporter listing ([this page]({onnx_url})) said, "
-            "kept for the operators no spec covers yet."
+            "kept as historical context rather than as a measurement."
         )
     return msg
 
@@ -1563,11 +1660,11 @@ def build_markdown_header(
         "implementation detail."
         "\n\n"
         "We also exclude a long tail of identifiers that the `aten::*` "
-        "source-grep picks up but that can never surface in an inference "
-        "JIT trace ([see the full list at the bottom of this "
-        "page](#excluded-aten-names)). This trims the unsupported column "
-        "to the names where a `torch_to_nnef` emitter (or a deliberate "
-        "no-op map) would actually be meaningful."
+        "source-grep picks up but that we cannot tie to an attributable "
+        "inference operator measurement ([see the full list at the "
+        "bottom of this page](#excluded-aten-names)). This trims the "
+        "unsupported column to the names where a `torch_to_nnef` emitter "
+        "(or a deliberate no-op map) would actually be meaningful."
     )
 
 
@@ -1584,8 +1681,9 @@ def build_excluded_appendix() -> str:
         "</h2>",
         "",
         "These names are filtered out of the support tables above because "
-        "they cannot surface in an inference JIT trace. Each group has a "
-        "documented rationale; click any to expand the full member list.",
+        "the generator cannot turn them into an attributable inference "
+        "operator measurement. Each group has a documented rationale; "
+        "click any to expand the full member list.",
         "",
     ]
     for label, group in NEVER_IN_INFERENCE_TRACE.items():
@@ -1629,10 +1727,9 @@ def onnx_credited_names(
 ) -> Set[str]:
     """Rows the ONNX section counts as supported.
 
-    Same rule as its headline bars: measured `full`, or claimed by the
-    retired listing and never contradicted by a measurement of ours. A
-    measured `partial`/`none`/`blocked` is evidence and overrides the
-    claim, so those never make the set.
+    Same rule as its headline bars: measured `full` rows only when a
+    measured artifact exists. Without measurements, fall back to the
+    retired listing because it is the only available ONNX signal.
     """
     credited = set()
     for name in aten_rows:
@@ -1640,10 +1737,7 @@ def onnx_credited_names(
             if name in onnx_supported:
                 credited.add(name)
             continue
-        grade = measured.grade(name)
-        if grade == GRADE_FULL or (
-            grade == GRADE_UNTESTED and name in onnx_supported
-        ):
+        if measured.grade(name) == GRADE_FULL:
             credited.add(name)
     return credited
 
@@ -1710,7 +1804,12 @@ def build_markdown_page(
             if measured is not None:
                 onnx_section_msg = _measured_onnx_section_msg(measured)
                 onnx_legend = _measured_onnx_legend(
-                    onnx_url, bool(onnx_supported)
+                    onnx_url,
+                    bool(onnx_supported),
+                    any(
+                        measured.grade(row) == GRADE_UNTESTED
+                        for row in aten_torch_from_code
+                    ),
                 )
             else:
                 onnx_section_msg = (
@@ -1739,6 +1838,7 @@ def build_markdown_page(
                 measured=measured,
                 include_documented=bool(onnx_supported),
                 legend=onnx_legend,
+                unmeasured_supported_rows=t2n_aten,
             )
         print(FILTER_SCRIPT, file=fh)
         print(build_excluded_appendix(), file=fh)
