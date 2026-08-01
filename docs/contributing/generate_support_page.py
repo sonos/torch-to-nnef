@@ -1088,21 +1088,16 @@ def _historical_claims_note(
         return f"{count} historical ONNX {noun}"
 
     if untested_documented == 0:
-        return " No historical ONNX claims are credited."
-    if untested_documented_core == 0:
+        return ""
+    if untested_documented_core:
         return (
-            f" The overall bar also credits {claims(untested_documented)} "
-            "for unmeasured rows; the core bar credits none."
-        )
-    if untested_documented_core == untested_documented:
-        return (
-            f" Both bars also credit {claims(untested_documented)} "
-            "for unmeasured rows."
+            f" {claims(untested_documented_core)} on core rows and "
+            f"{claims(untested_documented)} overall have no spec-backed "
+            "measurement and stay out of the numerator."
         )
     return (
-        f" The core bar also credits {claims(untested_documented_core)}, and "
-        f"the overall bar credits {claims(untested_documented)}, for "
-        "unmeasured rows."
+        f" {claims(untested_documented)} have no spec-backed measurement "
+        "and stay out of the numerator."
     )
 
 
@@ -1128,10 +1123,10 @@ def _write_measured_summary(
     what we tested, how much passed") and silently rescales against the
     tab next to it.
 
-    Same reading of the **numerator**, which here means crediting the
-    retired listing's claims alongside our own measurements. Those
-    operators are not measured here, so the caption keeps the measured,
-    documented-unmeasured, and no-spec populations separate.
+    Same reading of the **numerator**, which here means measured `full`
+    rows only. The retired listing still feeds the `documented` column,
+    but not the bars: targetable rows need specs, and non-attributable
+    rows need an explicit exclusion.
     """
     counts = measured.counts()
     total_rows = len(aten_torch_from_code)
@@ -1152,16 +1147,14 @@ def _write_measured_summary(
         "Total operators exportable, over the same denominators as the "
         "`TractNNEF` tab:\n\n"
         + headline_bars(
-            f"{full_core + untested_documented_core}/{qte_core}",
-            f"{full_qte + untested_documented}/{total_rows}",
+            f"{full_core}/{qte_core}",
+            f"{full_qte}/{total_rows}",
         )
         + " (**headline accounting**: "
         f"{full_core} core / {full_qte} overall are measured fully "
         "exportable here."
         + _historical_claims_note(untested_documented, untested_documented_core)
-        + " Leaving documented claims out would report rows outside this "
-        "measurement surface as ONNX gaps."
-        f" Of the {measured_rows} operators actually measured: "
+        + f" Of the {measured_rows} operators actually measured: "
         f"{counts.get(GRADE_FULL, 0)} full, "
         f"{counts.get(GRADE_PARTIAL, 0)} partial, "
         f"{counts.get(GRADE_NONE, 0)} none, "
@@ -1169,11 +1162,20 @@ def _write_measured_summary(
         f"{full_core}/{measured_core} of the measured core operators and "
         f"{counts.get(GRADE_FULL, 0)}/{measured_rows} of all measured ones "
         "export fully."
-        f" The {no_data} rows with neither a measurement nor a claim (`-`) "
-        "stay out of the numerator. Across all unmeasured rows, "
-        f"{missing_supported_specs} are TractNNEF-supported rows still "
-        "missing a direct proptest spec."
-        f" Measured with {env}.)",
+        + (
+            f" The {no_data} rows with neither a measurement nor a claim "
+            "(`-`) stay out of the numerator."
+            if no_data
+            else ""
+        )
+        + (
+            " Across all unmeasured rows, "
+            f"{missing_supported_specs} are TractNNEF-supported rows still "
+            "missing a direct proptest spec."
+            if missing_supported_specs
+            else ""
+        )
+        + f" Measured with {env}.)",
         file=fh,
     )
 
@@ -1553,7 +1555,9 @@ def _measured_onnx_section_msg(measured: MeasuredOnnxSupport) -> str:
     )
 
 
-def _measured_onnx_legend(onnx_url: str, has_documented: bool) -> str:
+def _measured_onnx_legend(
+    onnx_url: str, has_documented: bool, has_unmeasured: bool
+) -> str:
     """Column legend for the measured ONNX table, as its own box.
 
     Body lines carry 4 spaces of their own: `print_t` adds the 4 the
@@ -1568,36 +1572,38 @@ def _measured_onnx_legend(onnx_url: str, has_documented: bool) -> str:
             "`torch.export` could not capture the module, so the ONNX "
             "exporter never ran. **Not** an ONNX verdict",
         ),
-        ("`-`", "no spec covers it, so we did **not** measure it here"),
     ]
+    if has_unmeasured:
+        rows.append(
+            ("`-`", "no spec covers it, so we did **not** measure it here")
+        )
     table = "\n".join(f"    | {glyph} | {meaning} |" for glyph, meaning in rows)
+    grade_note = "    Only ✅ / 🟡 / ❌ are measurements."
+    if has_unmeasured:
+        grade_note += " `-` is unmeasured, not unsupported."
     msg = (
         '!!! info "How to read this table"\n\n'
         "    The `export` column grades **operator coverage only**:\n\n"
         "    | | |\n"
         "    | --- | --- |\n"
         f"{table}\n\n"
-        "    Only ✅ / 🟡 / ❌ are measurements. `-` is unmeasured, not "
-        "unsupported. The headline bars may still credit a retired ONNX "
-        "listing claim for an unmeasured row, but the measured breakdown "
-        "in the caption excludes those rows.\n\n"
+        f"{grade_note}\n\n"
         "    `runtime` (does onnxruntime load and run the exported graph) "
         "and `numerics` (do its outputs match PyTorch) are separate "
         "columns on purpose: a graph that exports but diverges "
         "numerically is usually a property of the kernel that ran, not a "
         "missing operator.\n\n"
-        "    `spec coverage` says whether this row was measured here, is "
-        "a TractNNEF-supported row still missing a direct proptest spec, "
-        "only has a retired ONNX listing claim, or has no claim at all. "
-        "Names that cannot be tied to an attributable operator "
-        "measurement are listed in the appendix outside both "
-        "denominators."
+        "    `spec coverage` says whether this row was measured here, or "
+        "why it has no direct proptest measurement. Empty categories are "
+        "not shown as filters. Names that cannot be tied to an "
+        "attributable operator measurement are listed in the appendix "
+        "outside both denominators."
     )
     if has_documented:
         msg += (
             "\n\n    The `documented` column is what the retired "
             f"TorchScript-exporter listing ([this page]({onnx_url})) said, "
-            "kept for the operators no spec covers yet."
+            "kept as historical context rather than as a measurement."
         )
     return msg
 
@@ -1721,10 +1727,9 @@ def onnx_credited_names(
 ) -> Set[str]:
     """Rows the ONNX section counts as supported.
 
-    Same rule as its headline bars: measured `full`, or claimed by the
-    retired listing and never contradicted by a measurement of ours. A
-    measured `partial`/`none`/`blocked` is evidence and overrides the
-    claim, so those never make the set.
+    Same rule as its headline bars: measured `full` rows only when a
+    measured artifact exists. Without measurements, fall back to the
+    retired listing because it is the only available ONNX signal.
     """
     credited = set()
     for name in aten_rows:
@@ -1732,10 +1737,7 @@ def onnx_credited_names(
             if name in onnx_supported:
                 credited.add(name)
             continue
-        grade = measured.grade(name)
-        if grade == GRADE_FULL or (
-            grade == GRADE_UNTESTED and name in onnx_supported
-        ):
+        if measured.grade(name) == GRADE_FULL:
             credited.add(name)
     return credited
 
@@ -1802,7 +1804,12 @@ def build_markdown_page(
             if measured is not None:
                 onnx_section_msg = _measured_onnx_section_msg(measured)
                 onnx_legend = _measured_onnx_legend(
-                    onnx_url, bool(onnx_supported)
+                    onnx_url,
+                    bool(onnx_supported),
+                    any(
+                        measured.grade(row) == GRADE_UNTESTED
+                        for row in aten_torch_from_code
+                    ),
                 )
             else:
                 onnx_section_msg = (

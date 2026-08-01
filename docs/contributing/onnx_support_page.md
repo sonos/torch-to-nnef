@@ -98,19 +98,14 @@ two tabs comparable at a glance; a bar over "the operators we measured"
 renders near-full whatever the coverage is, and sits next to a bar that
 means something else entirely.
 
-The numerator is read the same generous way, and this is deliberate: it
-counts what we measured as `full` **plus** what the retired listing
-claimed and no spec of ours has checked. Those operators are
-unverified, but the reason they are unverified is a gap in *our* test
-coverage, and scoring those rows against ONNX would understate a
-competing exporter for rows outside this measurement surface. Rows with
-neither a measurement nor a claim (`-`) stay out: crediting a claim is
-not the same as crediting silence, and a measured `partial` or `none`
-overrides any claim.
+The numerator is the number of rows we measured as `full`. If a future
+torch listing adds a targetable row, add a spec for it before refreshing
+the page. If the row cannot be tied to an attributable proptest graph,
+record it in `tests/proptest/op_specs/untranslated.py` so the generator
+keeps it outside both denominators and explains why in the appendix.
 
-The caption under the bars splits the two populations apart, so the
-strict "of what we actually tested, how much passed" ratio is still one
-line away.
+The caption under the bars keeps the strict "of what we actually tested,
+how much passed" ratio one line away.
 
 ## Reading a grade
 
@@ -125,14 +120,11 @@ The `export` column grades operator coverage only:
 | `-` | no spec covers it, so we did **not** measure it here. **Not** unsupported |
 
 Only ✅ / 🟡 / ❌ are measurements. `-` means unmeasured, not failed.
-The [headline bars](#reading-the-headline-bars) may still count a retired
-ONNX listing claim for an unmeasured row, so an operator we never wrote a
-spec for is not scored against ONNX. The measured breakdown in the
-caption excludes those rows. The `documented` column shows whether the
-retired listing claimed support, and the `spec coverage` column says why
-no measurement exists: either the row is `missing spec` for a
-TractNNEF-supported row, `claimed only` for a row that only has the
-retired ONNX claim, or `no claim`. Rows that cannot be attributed to a
+A `-` row should be temporary: add a direct spec when the row is
+targetable, or move it to `untranslated.EXCLUDED` when it is not. The
+`documented` column records what the retired listing claimed, and the
+`spec coverage` column says whether this row was measured or why it has
+no direct proptest measurement. Rows that cannot be attributed to a
 proptest graph target are filtered out of both comparison tables and
 listed in the appendix instead.
 

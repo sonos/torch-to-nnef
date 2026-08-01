@@ -29,6 +29,9 @@ DISPATCH_RENAMES: T.Dict[str, T.Tuple[str, ...]] = {
     "conv1d": ("_convolution",),
     "conv2d": ("_convolution",),
     "conv3d": ("_convolution",),
+    "conv_transpose1d": ("_convolution",),
+    "conv_transpose2d": ("_convolution",),
+    "conv_transpose3d": ("_convolution",),
     "convolution": ("_convolution",),
     # `torch.unique_consecutive(x, dim=...)` dispatches to the
     # dim-specific C++ op but keeps the generic name in the trace.

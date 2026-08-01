@@ -240,9 +240,9 @@ class TestHeadlineBars:
 
     A measured-only denominator (`108/108`) renders as a full bar next to
     the binary tab's `130/139` and reads as "ONNX covers more", which is
-    the opposite of what the numbers say. And a numerator that drops the
-    claimed-but-unverified rows scores our own missing spec coverage as an
-    ONNX gap, which understates a competing exporter for our shortfall.
+    the opposite of what the numbers say. The numerator is stricter:
+    only measured `full` rows count, and historical listing claims stay
+    in the `documented` column.
     """
 
     @staticmethod
@@ -276,8 +276,8 @@ class TestHeadlineBars:
         out = self._summary(gen, full_qte=1)
         assert "[=1/3 " in out  # 3 rows listed, 1 graded full
 
-    def test_claimed_rows_are_credited_in_both_bars(self, gen):
-        """Historical claims count in bars but are not export grades."""
+    def test_claimed_rows_are_not_credited_in_bars(self, gen):
+        """Historical claims are documentation, not measured support."""
         out = self._summary(
             gen,
             full_core=1,
@@ -286,12 +286,13 @@ class TestHeadlineBars:
             full_qte=1,
             untested_documented=1,
         )
-        assert "[=2/5 " in out  # core: 1 measured + 1 claimed
-        assert "[=2/3 " in out  # aten: idem, over every listed row
-        assert "Both bars also credit 1 historical ONNX claim" in out
+        assert "[=1/5 " in out
+        assert "[=1/3 " in out
+        assert "stay out of the numerator" in out
+        assert "credit" not in out.lower()
 
-    def test_claimed_rows_only_describe_the_bar_they_affect(self, gen):
-        """The caption must not say both bars when core claims are zero."""
+    def test_claimed_rows_are_described_without_core_credit(self, gen):
+        """The caption must not imply an unmeasured row counted."""
         out = self._summary(
             gen,
             full_core=1,
@@ -300,17 +301,18 @@ class TestHeadlineBars:
             full_qte=1,
             untested_documented=1,
         )
-        assert "[=1/5 " in out  # core: no historical claim credited
-        assert "[=2/3 " in out  # aten: 1 measured + 1 claimed
-        assert "overall bar also credits 1 historical ONNX claim" in out
-        assert "core bar credits none" in out
-        assert "both bars credit" not in out.lower()
+        assert "[=1/5 " in out
+        assert "[=1/3 " in out
+        assert "1 historical ONNX claim" in out
+        assert "stay out of the numerator" in out
+        assert "credit" not in out.lower()
 
     def test_rows_with_no_claim_stay_out_of_the_numerator(self, gen):
         """Crediting claims must not slide into crediting silence."""
         out = self._summary(gen, full_qte=1, untested_documented=0)
         assert "[=1/3 " in out
         assert "[=3/3 " not in out
+        assert "historical ONNX" not in out
 
     def test_core_bar_comes_before_the_aten_bar(self, gen):
         """Same order as the binary tab, or the bars pair up wrongly."""
@@ -353,10 +355,10 @@ class TestCrossSectionGapFilter:
         view = _view(gen, {"gelu": _record()}, {"gelu"})
         assert gen.onnx_credited_names(["gelu"], view, set()) == {"gelu"}
 
-    def test_credits_claimed_but_unmeasured(self, gen):
-        """Same generous rule as the headline bars."""
+    def test_claims_do_not_credit_unmeasured_rows(self, gen):
+        """With an artifact, the shortlist is based on measurements."""
         view = _view(gen, {}, {"addmm"})
-        assert gen.onnx_credited_names(["addmm"], view, {"addmm"}) == {"addmm"}
+        assert gen.onnx_credited_names(["addmm"], view, {"addmm"}) == set()
 
     def test_measurement_overrides_the_claim(self, gen):
         """A claim we disproved must not put the op on the shortlist."""
@@ -476,19 +478,32 @@ class TestFilterModeLabels:
 
 class TestColumnLegend:
     def test_legend_is_its_own_admonition(self, gen):
-        legend = gen._measured_onnx_legend("http://x", True)  # noqa: SLF001
+        legend = gen._measured_onnx_legend(  # noqa: SLF001
+            "http://x", True, True
+        )
         assert legend.startswith('!!! info "')
 
     def test_legend_body_is_indented_for_the_tabbed_block(self, gen):
         """`print_t` adds 4; the body needs 4 more or it leaves the box."""
-        legend = gen._measured_onnx_legend("http://x", True)  # noqa: SLF001
+        legend = gen._measured_onnx_legend(  # noqa: SLF001
+            "http://x", True, True
+        )
         body = [ln for ln in legend.split("\n")[1:] if ln.strip()]
         assert body and all(ln.startswith("    ") for ln in body)
 
     def test_every_glyph_is_documented(self, gen):
-        legend = gen._measured_onnx_legend("http://x", True)  # noqa: SLF001
+        legend = gen._measured_onnx_legend(  # noqa: SLF001
+            "http://x", True, True
+        )
         for glyph in gen.GRADE_GLYPH.values():
             assert glyph in legend
+
+    def test_unmeasured_glyph_disappears_when_no_row_uses_it(self, gen):
+        legend = gen._measured_onnx_legend(  # noqa: SLF001
+            "http://x", True, False
+        )
+        assert "no spec covers it" not in legend
+        assert "`-` is unmeasured" not in legend
 
     def test_intro_no_longer_carries_the_legend(self, gen):
         view = _view(gen, {"gelu": _record()}, {"gelu"})
@@ -497,9 +512,12 @@ class TestColumnLegend:
         assert "documented" not in intro
 
     def test_legend_documents_spec_coverage(self, gen):
-        legend = gen._measured_onnx_legend("http://x", True)  # noqa: SLF001
+        legend = gen._measured_onnx_legend(  # noqa: SLF001
+            "http://x", True, True
+        )
         assert "`spec coverage`" in legend
-        assert "missing a direct proptest spec" in legend
+        assert "why it has no direct proptest measurement" in legend
+        assert "Empty categories are not shown" in legend
 
 
 class TestTorchVersionDefault:

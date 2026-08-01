@@ -36,6 +36,47 @@ EXCLUDED: T.Dict[str, str] = {
     "broadcast_shapes": (
         "returns a shape, not a tensor: same constant-folding as `allclose`"
     ),
+    "bias_addmm": (
+        "registered by t2n as an alias of `addmm`, but absent from the CI "
+        "torch operator packet, so no portable direct proptest sample can "
+        "target the row"
+    ),
+    "convolution_overrideable": (
+        "the eager ATen overload raises `NotImplementedError` on CPU, so a "
+        "portable sample cannot trace this internal convolution override row"
+    ),
+    "floordiv": (
+        "the tensor path traces as `aten::floor_divide`, which is already "
+        "measured; the scalar-only `aten::floordiv` overload folds before "
+        "the graph can contain the row"
+    ),
+    "gru_cell": (
+        "`nn.GRUCell` and the direct ATen overload both decompose to "
+        "`linear`, `sigmoid`, `tanh`, and chunk nodes before tracing, so "
+        "there is no attributable `aten::gru_cell` row"
+    ),
+    "lstm_cell": (
+        "`nn.LSTMCell` and the direct ATen overload both decompose before "
+        "tracing, so there is no attributable `aten::lstm_cell` row"
+    ),
+    "numel": (
+        "returns a Python integer, so tracing folds it to a constant and "
+        "the operator leaves no node behind"
+    ),
+    "rnn_relu_cell": (
+        "`nn.RNNCell(..., nonlinearity='relu')` and the direct ATen "
+        "overload both decompose before tracing, so there is no "
+        "attributable `aten::rnn_relu_cell` row"
+    ),
+    "rnn_tanh_cell": (
+        "`nn.RNNCell(..., nonlinearity='tanh')` and the direct ATen "
+        "overload both decompose before tracing, so there is no "
+        "attributable `aten::rnn_tanh_cell` row"
+    ),
+    "size": (
+        "returns a shape value; with the static proptest samples it folds "
+        "into reshape metadata and leaves no `aten::size` node behind"
+    ),
     "upsample": (
         "a dispatcher name; the concrete `upsample_*` variants have "
         "their own rows and are translated"
