@@ -3,6 +3,12 @@
 
 ## [Unreleased]
 
+## [0.24.7] - 2026-08-01
+
+### Added
+- All the missing proptests we might want to support so far (based on torch aten register)
+- Updated the support page accordingly (especialy the ONNX tab that is now fully 'uncovered')
+
 ## [0.24.6] - 2026-07-29
 
 ### Added
