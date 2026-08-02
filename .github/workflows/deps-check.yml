@@ -66,6 +66,7 @@ jobs:
             examples/speech_enhancement/dpdfnet/wav-cleaner-rs
             examples/tts/pocket_tts/cli
             examples/holo/holo-rs
+            examples/nuextract3/nuextract3-rs
           )
           for d in "${roots[@]}"; do
             echo "::group::$d"
@@ -111,6 +112,7 @@ jobs:
             examples/speech_enhancement/dpdfnet/wav-cleaner-rs
             examples/tts/pocket_tts/cli
             examples/holo/holo-rs
+            examples/nuextract3/nuextract3-rs
           )
           for d in "${roots[@]}"; do
             echo "::group::$d"
