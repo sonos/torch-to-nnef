@@ -57,8 +57,30 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
         """
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op.custom_extractors.gdn import (
+            CausalConvUpdateReified,
             GatedDeltaNetRecurrentReified,
         )
+
+        def make_conv_update(conv_shim):
+            def causal_conv1d_update(
+                hidden_states, conv_state, weight, bias=None, activation=None
+            ):
+                if bias is not None:
+                    raise NotImplementedError(
+                        "reified causal conv does not support a bias"
+                    )
+                if activation not in (None, "silu"):
+                    raise NotImplementedError(
+                        f"reified causal conv is silu-only, got {activation}"
+                    )
+                out, final_state = conv_shim(hidden_states, conv_state, weight)
+                # The state write stays OUTSIDE the reified boundary: a
+                # plain copy_ the aten handler resolves, keeping the
+                # cache output wired to final_state.
+                conv_state.copy_(final_state)
+                return out
+
+            return causal_conv1d_update
 
         n_reified = 0
         n_materialized = 0
@@ -69,6 +91,9 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
                 shim = GatedDeltaNetRecurrentReified()
                 module.recurrent_gated_delta_rule = shim
                 module.chunk_gated_delta_rule = shim
+                conv_shim = CausalConvUpdateReified()
+                module.t2n_conv_update_shim = conv_shim
+                module.causal_conv1d_update = make_conv_update(conv_shim)
                 n_reified += 1
                 for owner, attr in (
                     (getattr(module, "conv1d", None), "weight"),
@@ -81,8 +106,9 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
                             owner, attr
                         )
         LOGGER.info(
-            "reified the gated delta rule in %d linear-attention modules "
-            "(%d small offloaded params materialized)",
+            "reified the gated delta rule and causal conv in %d "
+            "linear-attention modules (%d small offloaded params "
+            "materialized)",
             n_reified,
             n_materialized,
         )

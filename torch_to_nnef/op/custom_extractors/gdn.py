@@ -68,6 +68,12 @@ class GatedDeltaNetRecurrentReified(nn.Module):
     ):
         # The tract op bakes the L2 norm in (Qwen3.5 always passes True);
         # the extractor rejects a traced False (see convert_to_nnef).
+        #
+        # ORDERING CONTRACT: the traced module-boundary input order is the
+        # FIRST-USE order of each tensor below, and q/k/v (and g/beta)
+        # share shapes so the extractor cannot re-identify them. Keep the
+        # first use of query, key, value, g, beta, initial_state in exactly
+        # this (signature) order.
         initial_dtype = query.dtype
         if use_qk_l2norm_in_kernel:
             q = _l2norm(query)
@@ -107,6 +113,152 @@ class GatedDeltaNetRecurrentReified(nn.Module):
         core = torch.stack(outs, dim=2)
         core = core.transpose(1, 2).contiguous().to(initial_dtype)
         return core, (state if output_final_state else None)
+
+
+class CausalConvUpdateReified(nn.Module):
+    """Drop-in core for HF's `torch_causal_conv1d_update`.
+
+    Depthwise causal conv1d + SiLU with a k-sample carry state. Eager
+    forward matches HF exactly but avoids `F.conv1d` (whose fake-tensor
+    meta kernel breaks under the offload tracing strategy): the conv is
+    an unfold + mul + sum. At export the call is reified as one
+    `tract_qwen35_causal_conv1d_update` op.
+
+    Layout: hidden_states `[b, C, S]`, conv_state `[b, C, k]`,
+    weight `[C, k]` -> (out `[b, C, S]`, final_state `[b, C, k]`).
+    The caller keeps responsibility for writing final_state back into
+    the HF cache (a plain `copy_`, handled by the aten copy handler).
+    """
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        conv_state: torch.Tensor,
+        weight: torch.Tensor,
+    ):
+        k = conv_state.shape[-1]
+        s_len = hidden_states.shape[-1]
+        # copy=True: a same-dtype `.to` ALIASES its input; the caller then
+        # mutates the cache buffer this state comes from (copy_), and the
+        # tracer would expose the alias as an extra module-boundary output.
+        full = torch.cat(
+            [
+                conv_state.to(dtype=hidden_states.dtype, copy=True),
+                hidden_states,
+            ],
+            dim=-1,
+        ).to(weight.dtype)
+        final_state = full[:, :, -k:]
+        # windows[..., t, :] = full[..., t : t + k]; output keeps the last
+        # S positions (windows ending at each new sample).
+        windows = full.unfold(-1, k, 1)
+        out = (windows * weight.unsqueeze(0).unsqueeze(2)).sum(-1)
+        out = torch.nn.functional.silu(out[:, :, -s_len:])
+        return out.to(hidden_states.dtype), final_state
+
+
+class CausalConvUpdateExtractor(ModuleInfoExtractor):
+    """Emit `tract_qwen35_causal_conv1d_update` for the reified conv."""
+
+    MODULE_CLASS = CausalConvUpdateReified
+
+    def convert_to_nnef(
+        self,
+        g,
+        node,
+        name_to_tensor,
+        null_ref,
+        torch_graph,
+        inference_target,
+        **kw,
+    ):
+        if not isinstance(inference_target, TractNNEF):
+            raise T2NErrorStrictNNEFSpec(
+                "causal conv export requires tract inference target"
+            )
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef import torch_graph as tg
+
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import helper
+
+        tensor_inputs = [
+            inp for inp in node.inputs if isinstance(inp, tg.TensorVariable)
+        ]
+        if len(tensor_inputs) != 3:
+            raise T2NErrorNotImplemented(
+                "reified causal conv expects (hidden_states, conv_state, "
+                f"weight) tensor inputs, got {len(tensor_inputs)}"
+            )
+        # The traced module-boundary input order is the FIRST-USE order
+        # inside the shim, not the signature order: identify the inputs
+        # semantically. weight is the only rank-2 tensor [C, k]; the state
+        # is the rank-3 tensor whose time axis equals the kernel width.
+        weights = [t for t in tensor_inputs if len(t.shape) == 2]
+        rank3 = [t for t in tensor_inputs if len(t.shape) == 3]
+        if len(weights) != 1 or len(rank3) != 2:
+            raise T2NErrorNotImplemented(
+                "cannot identify causal conv inputs by rank: "
+                f"{[list(t.shape) for t in tensor_inputs]}"
+            )
+        weight = weights[0]
+        kernel_width = list(weight.shape)[-1]
+        states = [t for t in rank3 if list(t.shape)[-1] == kernel_width]
+        if len(states) != 1:
+            raise T2NErrorNotImplemented(
+                "cannot disambiguate causal conv state from hidden states "
+                f"(kernel width {kernel_width}): "
+                f"{[list(t.shape) for t in rank3]}"
+            )
+        conv_state = states[0]
+        hidden = next(t for t in rank3 if t is not conv_state)
+        input_shape = list(hidden.shape)
+        state_shape = list(conv_state.shape)
+        if input_shape == state_shape:
+            raise T2NErrorNotImplemented(
+                "cannot disambiguate causal conv outputs: input and state "
+                f"shapes coincide ({input_shape})"
+            )
+        outs = list(node.outputs)
+        if len(outs) != 2:
+            raise T2NErrorNotImplemented(
+                f"reified causal conv expects 2 outputs, got {len(outs)}"
+            )
+        # node.outputs order follows the tracer's module-boundary escape
+        # order: identify (out, final_state) by shape.
+        if list(outs[0].shape) == state_shape and list(
+            outs[1].shape
+        ) == input_shape:
+            outs = [outs[1], outs[0]]
+        elif not (
+            list(outs[0].shape) == input_shape
+            and list(outs[1].shape) == state_shape
+        ):
+            raise T2NErrorNotImplemented(
+                "reified causal conv outputs match neither (out, state) nor "
+                f"(state, out): {[list(o.shape) for o in outs]}"
+            )
+        # NNEF op argument order is (input, weight, initial_state).
+        nnef_inputs = tuple(
+            helper.get_or_add_tensor_variable_in_nnef(g, inp, name_to_tensor)
+            for inp in (hidden, weight, conv_state)
+        )
+        nnef_outputs = tuple(
+            helper.add_tensor_variable_node_as_nnef_tensor(
+                g, out, name_to_tensor, prevent_variable=True
+            )
+            for out in outs
+        )
+        helper.cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type="tract_qwen35_causal_conv1d_update",
+            inputs=nnef_inputs,
+            outputs=nnef_outputs,
+            attribs={},
+            force_consistent_inputs_shapes=False,
+        )
+        return ["tract_transformers"]
 
 
 class GatedDeltaNetRecurrentExtractor(ModuleInfoExtractor):
