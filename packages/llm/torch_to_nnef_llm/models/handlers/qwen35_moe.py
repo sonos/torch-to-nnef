@@ -16,6 +16,36 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
 
     ARCH_NAMES = ("qwen3_5_moe", "qwen3_5_moe_text")
 
+    @staticmethod
+    def _materialize_offloaded(module, attr) -> int:
+        """Replace a disk-offloaded param with its real tensor.
+
+        The GDN path uses these small params in trace-time arithmetic
+        (`F.conv1d` on the conv weight, `A_log.exp()`, `dt_bias` add)
+        that the offload meta-tracing strategy does not support; they
+        are a few KB per layer, so materializing them is free.
+        """
+        # pylint: disable-next=import-outside-toplevel
+        import torch
+
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.tensor.offload import OffloadedTensor
+
+        tensor = getattr(module, attr, None)
+        if tensor is None:
+            return 0
+        inner = (
+            tensor.data if isinstance(tensor, torch.nn.Parameter) else tensor
+        )
+        if not isinstance(inner, OffloadedTensor):
+            return 0
+        real = inner.reload()
+        if real.dtype != inner.dtype:
+            real = real.to(inner.dtype)
+        param = torch.nn.Parameter(real, requires_grad=False)
+        setattr(module, attr, param)
+        return 1
+
     def prepare_model_for_export(self, model) -> None:
         """Reify the gated delta rule as one tract op.
 
@@ -31,6 +61,7 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
         )
 
         n_reified = 0
+        n_materialized = 0
         for module in model.modules():
             if hasattr(module, "recurrent_gated_delta_rule") and hasattr(
                 module, "chunk_gated_delta_rule"
@@ -39,9 +70,21 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
                 module.recurrent_gated_delta_rule = shim
                 module.chunk_gated_delta_rule = shim
                 n_reified += 1
+                for owner, attr in (
+                    (getattr(module, "conv1d", None), "weight"),
+                    (getattr(module, "conv1d", None), "bias"),
+                    (module, "A_log"),
+                    (module, "dt_bias"),
+                ):
+                    if owner is not None:
+                        n_materialized += self._materialize_offloaded(
+                            owner, attr
+                        )
         LOGGER.info(
-            "reified the gated delta rule in %d linear-attention modules",
+            "reified the gated delta rule in %d linear-attention modules "
+            "(%d small offloaded params materialized)",
             n_reified,
+            n_materialized,
         )
 
     @staticmethod
