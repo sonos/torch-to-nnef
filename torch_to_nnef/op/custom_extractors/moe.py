@@ -685,6 +685,7 @@ def _maybe_quantize_expert_weight(
             q_data,
             name=q_data.nnef_name,
         )
+        offloaded.nnef_name = q_data.nnef_name
         del q_data
         gc.collect()
         return offloaded
