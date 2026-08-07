@@ -23,6 +23,7 @@ added on top of the routed output, not baked into the op.
 """
 
 import logging
+import os
 import typing as T
 
 import torch
@@ -669,6 +670,24 @@ def _maybe_quantize_expert_weight(
         **expert_q40_quantizer_kwargs,
     )
     q_data.nnef_name = f"{node.outputs[0].name}_{name}"
+    if os.environ.get("T2N_OFFLOAD_QUANTIZED_EXPERTS") == "1":
+        # Spill each freshly quantized expert tensor to disk so a large
+        # MoE conversion does not accumulate every QTensor in RAM: the
+        # NNEF writer re-materializes them one at a time at archive
+        # write. ~40 x 0.45GB held -> ~1 at a time.
+        # pylint: disable-next=import-outside-toplevel
+        import gc
+
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.tensor.offload import OffloadedTensor
+
+        offloaded = OffloadedTensor.from_original_tensor(
+            q_data,
+            name=q_data.nnef_name,
+        )
+        del q_data
+        gc.collect()
+        return offloaded
     return q_data
 
 
