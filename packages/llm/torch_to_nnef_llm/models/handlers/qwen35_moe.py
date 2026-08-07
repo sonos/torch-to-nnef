@@ -46,6 +46,75 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
         setattr(module, attr, param)
         return 1
 
+    @staticmethod
+    def _patch_linear_cache_for_export() -> None:
+        """Make HF linear-attention cache updates assignment-based.
+
+        `LinearAttentionLayer.update_conv_state` / `update_recurrent_state`
+        `copy_` into lazily created buffers (to keep cudagraph static
+        addresses). Under the opaque fake-tensor tracing strategy the
+        model's activation stream is fake while those buffers are real,
+        and an IN-PLACE op cannot absorb a fake source (jit tracer
+        internal asserts); plain rebinds trace cleanly and are
+        semantically identical for export.
+        """
+        # pylint: disable-next=import-outside-toplevel
+        import torch
+        # pylint: disable-next=import-outside-toplevel
+        from transformers import cache_utils
+
+        layer_cls = cache_utils.LinearAttentionLayer
+        if getattr(layer_cls, "_t2n_assignment_cache_patch", False):
+            return
+
+        def update_conv_state(
+            self, conv_states, state_idx=0, conv_kernel_size=None, **kwargs
+        ):
+            if not self.is_conv_states_initialized[state_idx]:
+                kernel = (
+                    conv_states.shape[-1]
+                    if conv_kernel_size is None
+                    else conv_kernel_size
+                )
+                self.conv_kernel_size[state_idx] = kernel
+                self.is_conv_states_initialized[state_idx] = True
+            kernel = self.conv_kernel_size[state_idx]
+            if not self.has_previous_state[state_idx]:
+                full = conv_states
+                self.has_previous_state[state_idx] = True
+                if not self.record_past and full.shape[-1] < kernel:
+                    full = torch.nn.functional.pad(
+                        full, (kernel - full.shape[-1], 0), value=0
+                    )
+            else:
+                full = torch.cat(
+                    [self.conv_states[state_idx], conv_states], dim=-1
+                )
+            stored = (
+                full[..., -kernel:] if not self.record_past else full
+            )
+            # Backref so the reified conv update can REBIND the cache slot
+            # instead of mutating the stored tensor in place (which would
+            # both corrupt the fed example input through the view above
+            # and reintroduce the in-place real/fake mixing).
+            stored._t2n_cache_slot = (self, state_idx)
+            self.conv_states[state_idx] = stored
+            return full
+
+        def update_recurrent_state(
+            self, recurrent_states, state_idx=0, **kwargs
+        ):
+            self.is_recurrent_states_initialized[state_idx] = True
+            self.recurrent_states[state_idx] = recurrent_states
+            return recurrent_states
+
+        layer_cls.update_conv_state = update_conv_state
+        layer_cls.update_recurrent_state = update_recurrent_state
+        layer_cls._t2n_assignment_cache_patch = True
+        LOGGER.info(
+            "patched LinearAttentionLayer cache updates to assignment form"
+        )
+
     def prepare_model_for_export(self, model) -> None:
         """Reify the gated delta rule as one tract op.
 
@@ -61,6 +130,8 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
             GatedDeltaNetRecurrentReified,
         )
 
+        self._patch_linear_cache_for_export()
+
         def make_conv_update(conv_shim):
             def causal_conv1d_update(
                 hidden_states, conv_state, weight, bias=None, activation=None
@@ -74,10 +145,18 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
                         f"reified causal conv is silu-only, got {activation}"
                     )
                 out, final_state = conv_shim(hidden_states, conv_state, weight)
-                # The state write stays OUTSIDE the reified boundary: a
-                # plain copy_ the aten handler resolves, keeping the
-                # cache output wired to final_state.
-                conv_state.copy_(final_state)
+                # The state write stays OUTSIDE the reified boundary.
+                # Preferred: REBIND the cache slot (no in-place op, no
+                # real/fake mixing under the opaque tracing strategy).
+                # Fallback for an unpatched cache: plain copy_ (the aten
+                # copy handler resolves it).
+                slot = getattr(conv_state, "_t2n_cache_slot", None)
+                if slot is not None:
+                    layer, state_idx = slot
+                    final_state._t2n_cache_slot = slot
+                    layer.conv_states[state_idx] = final_state
+                else:
+                    conv_state.copy_(final_state)
                 return out
 
             return causal_conv1d_update
