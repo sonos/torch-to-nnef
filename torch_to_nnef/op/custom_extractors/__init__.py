@@ -18,6 +18,9 @@ from torch_to_nnef.op.custom_extractors.base import (
 )
 
 # load default custom registries
+from torch_to_nnef.op.custom_extractors.gdn import (  # noqa: F401
+    GatedDeltaNetRecurrentReified,
+)
 from torch_to_nnef.op.custom_extractors.moe import MoEFFN  # noqa: F401
 from torch_to_nnef.op.custom_extractors.rnn import (
     GRUExtractor,
@@ -34,4 +37,5 @@ __all__ = [
     "LSTMCellExtractor",
     "GRUExtractor",
     "MoEFFN",
+    "GatedDeltaNetRecurrentReified",
 ]

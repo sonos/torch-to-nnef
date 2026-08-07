@@ -1,3 +1,4 @@
+import logging
 import typing as T
 
 import torch
@@ -6,12 +7,42 @@ from .base import IOSpec, StateContext
 from .default import DefaultArchitectureHandler
 from .registry import register_handler
 
+LOGGER = logging.getLogger(__name__)
+
 
 @register_handler
 class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
     """Handler for Qwen3.5 MoE text models with hybrid attention caches."""
 
     ARCH_NAMES = ("qwen3_5_moe", "qwen3_5_moe_text")
+
+    def prepare_model_for_export(self, model) -> None:
+        """Reify the gated delta rule as one tract op.
+
+        HF computes the linear-attention core with a Python loop over the
+        sequence axis; traced, it unrolls at the traced length and the
+        export is frozen to it. Swapping the module-bound rule functions
+        with `GatedDeltaNetRecurrentReified` keeps the exported graph
+        S-generic (see torch_to_nnef.op.custom_extractors.gdn).
+        """
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op.custom_extractors.gdn import (
+            GatedDeltaNetRecurrentReified,
+        )
+
+        n_reified = 0
+        for module in model.modules():
+            if hasattr(module, "recurrent_gated_delta_rule") and hasattr(
+                module, "chunk_gated_delta_rule"
+            ):
+                shim = GatedDeltaNetRecurrentReified()
+                module.recurrent_gated_delta_rule = shim
+                module.chunk_gated_delta_rule = shim
+                n_reified += 1
+        LOGGER.info(
+            "reified the gated delta rule in %d linear-attention modules",
+            n_reified,
+        )
 
     @staticmethod
     def _layer_types(config_helper) -> T.Sequence[str]:
