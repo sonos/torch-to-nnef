@@ -1129,6 +1129,34 @@ def t2n_load_checkpoint_and_dispatch(
     unexpected_keys = set()
     model_keys = set(model.state_dict().keys())
     assert checkpoint_files is not None
+
+    # Multimodal checkpoints loaded into a sub-model class store that
+    # sub-model's weights under an extra path segment (e.g. a
+    # `Qwen3_5MoeForConditionalGeneration` checkpoint keeps the text
+    # weights under `model.language_model.*` while the text-only
+    # `Qwen3_5MoeForCausalLM` expects `model.*`). `from_pretrained`
+    # resolves this internally; this manual dispatch must do the same:
+    # a checkpoint key absent from the model is retried with exactly one
+    # dotted segment dropped.
+    _rename_cache: T.Dict[str, str] = {}
+
+    def remap_checkpoint_key(key: str) -> str:
+        if key in model_keys:
+            return key
+        if key in _rename_cache:
+            return _rename_cache[key]
+        parts = key.split(".")
+        renamed = key
+        for i in range(len(parts)):
+            cand = ".".join(parts[:i] + parts[i + 1 :])
+            if cand in model_keys:
+                renamed = cand
+                break
+        _rename_cache[key] = renamed
+        if renamed != key:
+            LOGGER.debug("checkpoint key %s loaded as %s", key, renamed)
+        return renamed
+
     mod_updater = ModTensorUpdater(
         model,
         add_parameter_if_unset=True,
@@ -1185,6 +1213,8 @@ def t2n_load_checkpoint_and_dispatch(
                     LOGGER.error("unsupported SCB param")
                     continue
 
+                param_name = remap_checkpoint_key(param_name)
+
                 if converter_collector.collect(param_name, param):
                     continue
 
@@ -1198,6 +1228,13 @@ def t2n_load_checkpoint_and_dispatch(
         del loaded_checkpoint
         gc.collect()
     converter_collector.finish()
+    ignore_patterns = getattr(model, "_keys_to_ignore_on_load_unexpected", None)
+    if ignore_patterns:
+        unexpected_keys = {
+            key
+            for key in unexpected_keys
+            if not any(re.search(pattern, key) for pattern in ignore_patterns)
+        }
     if not strict and len(unexpected_keys) > 0:
         LOGGER.warning(
             "Some weights of the model checkpoint at %s were not used when"
