@@ -51,3 +51,29 @@ def test_copy_inplace_with_dtype_cast(inference_target):
         test_input=inp,
         inference_target=inference_target,
     )
+
+
+class IndexedWriteIntoZerosBuffer(torch.nn.Module):
+    """Indexed write through a view chain, read back via the parent.
+
+    This is HF's gated-delta-rule output pattern
+    (`core_attn_out[:, :, i] = ...` then reading `core_attn_out`): the
+    write goes through slice/select views, so the tracer does NOT
+    SSA-rename the parent read; `functionalize_view_inplace_copy` must
+    rewrite it into select_scatter/slice_scatter.
+    """
+
+    def forward(self, x):
+        buf = torch.zeros(1, 4, 1, 16)
+        buf[:, :, 0] = x.squeeze(2) * 2.0
+        return buf.transpose(1, 2) + 1.0
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_indexed_write_into_zeros_buffer(inference_target):
+    inp = torch.ones(1, 4, 1, 16)
+    check_model_io_test(
+        model=IndexedWriteIntoZerosBuffer(),
+        test_input=inp,
+        inference_target=inference_target,
+    )

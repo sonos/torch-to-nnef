@@ -1378,7 +1378,13 @@ def select_scatter(node, op_helper, inference_target, **kwargs):
     `out = input.clone(); out.select(dim, index).copy_(src)` -- the
     functional select-write. Decomposes to `slice` + `unsqueeze` +
     `concat`: replace the (size-1) slab at position `index` along `dim`
-    with `src` (which has rank `input.rank - 1`). Static-shape only.
+    with `src` (which has rank `input.rank - 1`).
+
+    Under dynamic axes the right slab uses `dyn_slice_begin` so an axis
+    whose TRACED size ended at `index + 1` still contributes its
+    (possibly symbolic) tail: the traced static size is not trusted as
+    the runtime size. The slab is empty when the runtime size really is
+    `index + 1`, which concat handles.
     """
     input_node, src_node, dim_node, index_node = node.inputs
     dim = pick_axis(input_node, dim_node.data)
@@ -1392,6 +1398,7 @@ def select_scatter(node, op_helper, inference_target, **kwargs):
     if index < 0:
         index += dim_size
 
+    fragments = []
     inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     src_unsq = op_helper.add_single_output_op_from_nnef_tensors(
         node,
@@ -1400,6 +1407,10 @@ def select_scatter(node, op_helper, inference_target, **kwargs):
         attrs={"axes": [dim]},
         output_tensor_name_suffix="_ss_src_unsq",
     )
+
+    dyn_axes = isinstance(
+        inference_target, TractNNEF
+    ) and inference_target.has_dynamic_axes
 
     parts = []
     if index > 0:
@@ -1413,7 +1424,20 @@ def select_scatter(node, op_helper, inference_target, **kwargs):
             )
         )
     parts.append(src_unsq)
-    if index + 1 < dim_size:
+    if dyn_axes:
+        # Always emit the tail: empty when the runtime size is
+        # index + 1, the symbolic remainder otherwise.
+        parts.append(
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "dyn_slice_begin",
+                inputs=inp_ref,
+                attrs={"axis": dim, "begin": index + 1, "stride": 1},
+                output_tensor_name_suffix="_ss_right",
+            )
+        )
+        fragments += ["dyn_slice_begin", "within_bound_index"]
+    elif index + 1 < dim_size:
         parts.append(
             op_helper.add_single_output_op_from_nnef_tensors(
                 node,
@@ -1429,13 +1453,13 @@ def select_scatter(node, op_helper, inference_target, **kwargs):
         )
 
     if len(parts) == 1:
-        # Whole-axis replacement (dim_size == 1): src already covers the
-        # full output. Emit a no-op reshape so the output gets named.
+        # Static whole-axis replacement: `copy` names the output
+        # without pinning a static shape (input_node may be a lazily
+        # tiled buffer whose IR shape is the pre-tile base).
         op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            "reshape",
+            "copy",
             inputs=parts[0],
-            attrs={"shape": list(input_node.shape)},
         )
     else:
         op_helper.add_single_output_op_from_nnef_tensors(
@@ -1446,7 +1470,7 @@ def select_scatter(node, op_helper, inference_target, **kwargs):
             attrs={"axis": dim},
             force_consistent_inputs_shapes=False,
         )
-    return []
+    return fragments
 
 
 @OP_REGISTRY.register()
@@ -1476,8 +1500,12 @@ def slice_scatter(node, op_helper, inference_target, **kwargs):
             f"slice_scatter on dynamic dim {dim} not yet supported"
         )
 
+    int64_max = np.iinfo(np.int64).max
     start = start_node.data if start_node.data is not None else 0
-    end = end_node.data if end_node.data is not None else dim_size
+    # None / INT64_MAX end means "to the end of the axis", which is also
+    # symbolically true under dynamic axes (no right slab needed).
+    open_end = end_node.data is None or end_node.data == int64_max
+    end = dim_size if open_end else end_node.data
     if start < 0:
         start += dim_size
     if end < 0:
@@ -1485,6 +1513,11 @@ def slice_scatter(node, op_helper, inference_target, **kwargs):
     start = max(start, 0)
     end = min(end, dim_size)
 
+    dyn_axes = isinstance(
+        inference_target, TractNNEF
+    ) and inference_target.has_dynamic_axes
+
+    fragments = []
     inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     src_ref = op_helper.get_or_add_tensor_variable_in_nnef(src_node)
 
@@ -1500,7 +1533,20 @@ def slice_scatter(node, op_helper, inference_target, **kwargs):
             )
         )
     parts.append(src_ref)
-    if end < dim_size:
+    if not open_end and dyn_axes:
+        # A literal end with dynamic axes: the traced static size is not
+        # trusted as the runtime size, emit the (possibly empty) tail.
+        parts.append(
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "dyn_slice_begin",
+                inputs=inp_ref,
+                attrs={"axis": dim, "begin": end, "stride": 1},
+                output_tensor_name_suffix="_sls_right",
+            )
+        )
+        fragments += ["dyn_slice_begin", "within_bound_index"]
+    elif not open_end and end < dim_size:
         parts.append(
             op_helper.add_single_output_op_from_nnef_tensors(
                 node,
@@ -1512,13 +1558,14 @@ def slice_scatter(node, op_helper, inference_target, **kwargs):
         )
 
     if len(parts) == 1:
-        # Full-axis replacement (start == 0 and end == dim_size). Emit a
-        # no-op reshape so the output node still gets registered.
+        # Full-axis replacement (start == 0 and open end): src IS the
+        # output. `copy` names it without pinning a static shape
+        # (input_node may be a lazily tiled buffer whose IR shape is the
+        # pre-tile base, and src may carry symbolic dims).
         op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            "reshape",
+            "copy",
             inputs=parts[0],
-            attrs={"shape": list(input_node.shape)},
         )
     else:
         op_helper.add_single_output_op_from_nnef_tensors(
@@ -1529,7 +1576,7 @@ def slice_scatter(node, op_helper, inference_target, **kwargs):
             attrs={"axis": dim},
             force_consistent_inputs_shapes=False,
         )
-    return []
+    return fragments
 
 
 @OP_REGISTRY.register()
