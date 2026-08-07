@@ -728,7 +728,19 @@ class OffloadedTensor(OpaqueTensor):
             tensor = tensor.to_offload_state()
         return torch.save(tensor, cls._offload_path(offload_dir, name, dtype))
 
+    _t2n_reload_total_bytes = [0]
+
     def reload(self):
+        if os.environ.get("T2N_LOG_RELOADS") == "1":
+            nbytes = self.numel() * self.dtype.itemsize
+            OffloadedTensor._t2n_reload_total_bytes[0] += nbytes
+            if nbytes > 50 * 1024 * 1024:
+                LOGGER.warning(
+                    "reload %.2fGB (cumulative %.2fGB) for %s",
+                    nbytes / (1 << 30),
+                    OffloadedTensor._t2n_reload_total_bytes[0] / (1 << 30),
+                    getattr(self, "_name", "?"),
+                )
         if issubclass(self.offloaded_tensor_type, OpaqueTensor):
             load_kwargs = {}
             if torch_version() >= "1.13.0":
