@@ -55,6 +55,44 @@ def test_shim_matches_hf_recurrent_rule(s_len, with_state):
     torch.testing.assert_close(state, ref_state, atol=1e-5, rtol=1e-4)
 
 
+@pytest.mark.parametrize("s_len", [1, 16])
+def test_shim_gqa_matches_hf_repeated_rule(s_len):
+    """The handler feeds the shim UN-repeated q/k (hk heads); HF repeats
+    q/k to the value-head count before calling the rule. The shim's
+    internal repeat must reproduce HF's result exactly."""
+    groups = 2
+    inputs = _rand_inputs(1, s_len, 4, 32, with_state=True)
+    # keep every 'groups'-th q/k head: repeat_interleave of the kept heads
+    # reconstructs the reference tensors exactly
+    q_small = inputs["query"][:, :, ::groups].contiguous()
+    k_small = inputs["key"][:, :, ::groups].contiguous()
+    q_ref = q_small.repeat_interleave(groups, dim=2)
+    k_ref = k_small.repeat_interleave(groups, dim=2)
+    shim = GatedDeltaNetRecurrentReified()
+    core, state = shim(
+        q_small,
+        k_small,
+        inputs["value"],
+        g=inputs["g"],
+        beta=inputs["beta"],
+        initial_state=inputs["initial_state"],
+        output_final_state=True,
+        use_qk_l2norm_in_kernel=True,
+    )
+    ref_core, ref_state = qwen35.torch_recurrent_gated_delta_rule(
+        q_ref,
+        k_ref,
+        inputs["value"],
+        inputs["g"],
+        inputs["beta"],
+        initial_state=inputs["initial_state"],
+        output_final_state=True,
+        use_qk_l2norm_in_kernel=True,
+    )
+    torch.testing.assert_close(core, ref_core, atol=1e-5, rtol=1e-4)
+    torch.testing.assert_close(state, ref_state, atol=1e-5, rtol=1e-4)
+
+
 def test_shim_matches_hf_chunked_rule():
     """The chunked variant computes the same recurrence with different
     blocking; substituting the shim for it must agree numerically."""

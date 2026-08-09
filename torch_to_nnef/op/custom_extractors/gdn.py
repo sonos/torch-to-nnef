@@ -14,14 +14,19 @@ handler's `prepare_model_for_export`); the extractor below then emits
 the op instead of tracing the shim's internals.
 
 Op contract (must match tract `transformers/src/ops/gdn_recurrent.rs`):
-    query/key/value  [b, S, h, w]  (heads already repeated to the
-                                    value-head count, key width == value
-                                    width)
-    log_decay/beta   [b, S, h]
-    initial_state    [b, h, w, w]
-    -> output [b, S, h, w] (query dtype), final_state [b, h, w, w]
+    query/key        [b, S, hk, w]  (key width == value width)
+    value            [b, S, hv, w]  with hv = G * hk (GQA groups resolved
+                                    from the shapes; value head h reads
+                                    query/key head h // G)
+    log_decay/beta   [b, S, hv]
+    initial_state    [b, hv, w, w]
+    -> output [b, S, hv, w] (query dtype), final_state [b, hv, w, w]
 The op L2-normalizes q/k (eps 1e-6) and scales q by 1/sqrt(w) itself,
-i.e. HF `use_qk_l2norm_in_kernel=True` semantics.
+i.e. HF `use_qk_l2norm_in_kernel=True` semantics. HF repeat-interleaves
+q/k to hv heads BEFORE calling the rule; the Qwen3.5 handler neutralizes
+that repeat so the boundary receives hk-head q/k and the exported graph
+never materializes the broadcast (the shim repeats internally, so its
+eager math stays HF-exact).
 """
 
 import logging
@@ -87,6 +92,16 @@ class GatedDeltaNetRecurrentReified(nn.Module):
         ]
         g_t = g.transpose(1, 2).contiguous().to(torch.float32)
         beta_t = beta.transpose(1, 2).contiguous().to(torch.float32)
+
+        # GQA: the handler feeds hk-head q/k (HF's repeat_interleave is
+        # neutralized before the boundary); repeat here so the eager math
+        # below stays HF-exact. L2 norm is per head over the last axis, so
+        # norm-then-repeat == repeat-then-norm (HF order). The tract op does
+        # this group indexing internally.
+        groups = v.shape[1] // q.shape[1]
+        if groups > 1:
+            q = q.repeat_interleave(groups, dim=1)
+            k = k.repeat_interleave(groups, dim=1)
 
         batch, heads, s_len, k_width = k.shape
         v_width = v.shape[-1]
@@ -323,28 +338,49 @@ class GatedDeltaNetRecurrentExtractor(ModuleInfoExtractor):
             )
         # node.outputs order follows the tracer's module-boundary escape
         # order, not the (core, final_state) python return order: identify
-        # them by shape (core matches query, final_state matches
-        # initial_state).
+        # them by shape (core matches VALUE, which carries the hv head
+        # count; query/key may carry fewer heads under GQA; final_state
+        # matches initial_state).
         query_shape = list(tensor_inputs[0].shape)
+        key_shape = list(tensor_inputs[1].shape)
+        core_shape = list(tensor_inputs[2].shape)
         state_shape = list(tensor_inputs[5].shape)
-        outs = list(node.outputs)
-        if query_shape == state_shape:
+        if query_shape != key_shape:
             raise T2NErrorNotImplemented(
-                "cannot disambiguate GDN outputs: query and state shapes "
-                f"coincide ({query_shape})"
+                "reified GDN expects query and key to share a shape, got "
+                f"{query_shape} vs {key_shape}"
+            )
+        if (
+            len(query_shape) == 4
+            and len(core_shape) == 4
+            and (
+                core_shape[2] % query_shape[2] != 0
+                or core_shape[3] != query_shape[3]
+            )
+        ):
+            raise T2NErrorNotImplemented(
+                "reified GDN expects value heads to be a multiple of "
+                "query/key heads with equal width, got value "
+                f"{core_shape} vs query {query_shape}"
+            )
+        outs = list(node.outputs)
+        if core_shape == state_shape:
+            raise T2NErrorNotImplemented(
+                "cannot disambiguate GDN outputs: value and state shapes "
+                f"coincide ({core_shape})"
             )
         if list(outs[0].shape) == state_shape and list(
             outs[1].shape
-        ) == query_shape:
+        ) == core_shape:
             outs = [outs[1], outs[0]]
         elif not (
-            list(outs[0].shape) == query_shape
+            list(outs[0].shape) == core_shape
             and list(outs[1].shape) == state_shape
         ):
             raise T2NErrorNotImplemented(
                 "reified GDN outputs match neither (core, state) nor "
                 f"(state, core): {[list(o.shape) for o in outs]} vs "
-                f"query {query_shape} / state {state_shape}"
+                f"value {core_shape} / state {state_shape}"
             )
         nnef_outputs = tuple(
             helper.add_tensor_variable_node_as_nnef_tensor(

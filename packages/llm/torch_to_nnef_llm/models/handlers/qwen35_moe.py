@@ -163,6 +163,7 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
 
         n_reified = 0
         n_materialized = 0
+        n_gqa = 0
         for module in model.modules():
             if hasattr(module, "recurrent_gated_delta_rule") and hasattr(
                 module, "chunk_gated_delta_rule"
@@ -170,6 +171,19 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
                 shim = GatedDeltaNetRecurrentReified()
                 module.recurrent_gated_delta_rule = shim
                 module.chunk_gated_delta_rule = shim
+                # Neutralize HF's pre-rule q/k repeat_interleave (GQA):
+                # `forward` only repeats when num_v_heads // num_k_heads > 1
+                # and num_k_heads has no other post-__init__ reader, so
+                # overriding it makes the repeat an identity. The shim then
+                # receives hk-head q/k at the traced boundary (the exported
+                # graph never materializes the broadcast; the tract op does
+                # the group indexing) and repeats internally so its eager
+                # math stays HF-exact.
+                if getattr(module, "num_k_heads", None) is not None and (
+                    module.num_v_heads != module.num_k_heads
+                ):
+                    module.num_k_heads = module.num_v_heads
+                    n_gqa += 1
                 conv_shim = CausalConvUpdateReified()
                 module.t2n_conv_update_shim = conv_shim
                 module.causal_conv1d_update = make_conv_update(conv_shim)
@@ -187,9 +201,10 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
         LOGGER.info(
             "reified the gated delta rule and causal conv in %d "
             "linear-attention modules (%d small offloaded params "
-            "materialized)",
+            "materialized, %d GQA q/k repeats neutralized)",
             n_reified,
             n_materialized,
+            n_gqa,
         )
 
     @staticmethod
