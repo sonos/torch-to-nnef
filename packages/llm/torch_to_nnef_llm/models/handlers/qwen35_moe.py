@@ -1,13 +1,11 @@
-import logging
 import typing as T
 
 import torch
 
 from .base import IOSpec, StateContext
 from .default import DefaultArchitectureHandler
+from .gdn_reify import reify_gated_delta_net
 from .registry import register_handler
-
-LOGGER = logging.getLogger(__name__)
 
 
 @register_handler
@@ -16,105 +14,6 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
 
     ARCH_NAMES = ("qwen3_5_moe", "qwen3_5_moe_text")
 
-    @staticmethod
-    def _materialize_offloaded(module, attr) -> int:
-        """Replace a disk-offloaded param with its real tensor.
-
-        The GDN path uses these small params in trace-time arithmetic
-        (`F.conv1d` on the conv weight, `A_log.exp()`, `dt_bias` add)
-        that the offload meta-tracing strategy does not support; they
-        are a few KB per layer, so materializing them is free.
-        """
-        # pylint: disable-next=import-outside-toplevel
-        import torch
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.tensor.offload import OffloadedTensor
-
-        tensor = getattr(module, attr, None)
-        if tensor is None:
-            return 0
-        inner = (
-            tensor.data if isinstance(tensor, torch.nn.Parameter) else tensor
-        )
-        if not isinstance(inner, OffloadedTensor):
-            return 0
-        real = inner.reload()
-        if real.dtype != inner.dtype:
-            real = real.to(inner.dtype)
-        param = torch.nn.Parameter(real, requires_grad=False)
-        setattr(module, attr, param)
-        return 1
-
-    @staticmethod
-    def _patch_linear_cache_for_export() -> None:
-        """Make HF linear-attention cache updates assignment-based.
-
-        `LinearAttentionLayer.update_conv_state` / `update_recurrent_state`
-        `copy_` into lazily created buffers (to keep cudagraph static
-        addresses). Under the opaque fake-tensor tracing strategy the
-        model's activation stream is fake while those buffers are real,
-        and an IN-PLACE op cannot absorb a fake source (jit tracer
-        internal asserts); plain rebinds trace cleanly and are
-        semantically identical for export.
-        """
-        # pylint: disable-next=import-outside-toplevel
-        import torch
-        # pylint: disable-next=import-outside-toplevel
-        from transformers import cache_utils
-
-        layer_cls = cache_utils.LinearAttentionLayer
-        if getattr(layer_cls, "_t2n_assignment_cache_patch", False):
-            return
-
-        def update_conv_state(
-            self, conv_states, state_idx=0, conv_kernel_size=None, **kwargs
-        ):
-            if not self.is_conv_states_initialized[state_idx]:
-                kernel = (
-                    conv_states.shape[-1]
-                    if conv_kernel_size is None
-                    else conv_kernel_size
-                )
-                self.conv_kernel_size[state_idx] = kernel
-                self.is_conv_states_initialized[state_idx] = True
-            kernel = self.conv_kernel_size[state_idx]
-            if not self.has_previous_state[state_idx]:
-                full = conv_states
-                self.has_previous_state[state_idx] = True
-                if not self.record_past and full.shape[-1] < kernel:
-                    full = torch.nn.functional.pad(
-                        full, (kernel - full.shape[-1], 0), value=0
-                    )
-            else:
-                full = torch.cat(
-                    [self.conv_states[state_idx], conv_states], dim=-1
-                )
-            stored = (
-                full[..., -kernel:] if not self.record_past else full
-            )
-            # Backref so the reified conv update can REBIND the cache slot
-            # instead of mutating the stored tensor in place (which would
-            # both corrupt the fed example input through the view above
-            # and reintroduce the in-place real/fake mixing).
-            stored._t2n_cache_slot = (self, state_idx)
-            self.conv_states[state_idx] = stored
-            return full
-
-        def update_recurrent_state(
-            self, recurrent_states, state_idx=0, **kwargs
-        ):
-            self.is_recurrent_states_initialized[state_idx] = True
-            self.recurrent_states[state_idx] = recurrent_states
-            return recurrent_states
-
-        layer_cls.update_conv_state = update_conv_state
-        layer_cls.update_recurrent_state = update_recurrent_state
-        layer_cls._t2n_assignment_cache_patch = True
-        LOGGER.info(
-            "patched LinearAttentionLayer cache updates to assignment form"
-        )
-
     def prepare_model_for_export(self, model) -> None:
         """Reify the gated delta rule as one tract op.
 
@@ -122,90 +21,13 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
         sequence axis; traced, it unrolls at the traced length and the
         export is frozen to it. Swapping the module-bound rule functions
         with `GatedDeltaNetRecurrentReified` keeps the exported graph
-        S-generic (see torch_to_nnef.op.custom_extractors.gdn).
+        S-generic (see torch_to_nnef.op.custom_extractors.gdn and
+        gdn_reify.reify_gated_delta_net). The GQA neutralization is safe
+        here: Qwen3_5MoeGatedDeltaNet's projections are separate
+        (in_proj_qkv / in_proj_z / in_proj_b / in_proj_a) and
+        `num_k_heads` has no post-__init__ reader besides the repeat gate.
         """
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.custom_extractors.gdn import (
-            CausalConvUpdateReified,
-            GatedDeltaNetRecurrentReified,
-        )
-
-        self._patch_linear_cache_for_export()
-
-        def make_conv_update(conv_shim):
-            def causal_conv1d_update(
-                hidden_states, conv_state, weight, bias=None, activation=None
-            ):
-                if bias is not None:
-                    raise NotImplementedError(
-                        "reified causal conv does not support a bias"
-                    )
-                if activation not in (None, "silu"):
-                    raise NotImplementedError(
-                        f"reified causal conv is silu-only, got {activation}"
-                    )
-                out, final_state = conv_shim(hidden_states, conv_state, weight)
-                # The state write stays OUTSIDE the reified boundary.
-                # Preferred: REBIND the cache slot (no in-place op, no
-                # real/fake mixing under the opaque tracing strategy).
-                # Fallback for an unpatched cache: plain copy_ (the aten
-                # copy handler resolves it).
-                slot = getattr(conv_state, "_t2n_cache_slot", None)
-                if slot is not None:
-                    layer, state_idx = slot
-                    final_state._t2n_cache_slot = slot
-                    layer.conv_states[state_idx] = final_state
-                else:
-                    conv_state.copy_(final_state)
-                return out
-
-            return causal_conv1d_update
-
-        n_reified = 0
-        n_materialized = 0
-        n_gqa = 0
-        for module in model.modules():
-            if hasattr(module, "recurrent_gated_delta_rule") and hasattr(
-                module, "chunk_gated_delta_rule"
-            ):
-                shim = GatedDeltaNetRecurrentReified()
-                module.recurrent_gated_delta_rule = shim
-                module.chunk_gated_delta_rule = shim
-                # Neutralize HF's pre-rule q/k repeat_interleave (GQA):
-                # `forward` only repeats when num_v_heads // num_k_heads > 1
-                # and num_k_heads has no other post-__init__ reader, so
-                # overriding it makes the repeat an identity. The shim then
-                # receives hk-head q/k at the traced boundary (the exported
-                # graph never materializes the broadcast; the tract op does
-                # the group indexing) and repeats internally so its eager
-                # math stays HF-exact.
-                if getattr(module, "num_k_heads", None) is not None and (
-                    module.num_v_heads != module.num_k_heads
-                ):
-                    module.num_k_heads = module.num_v_heads
-                    n_gqa += 1
-                conv_shim = CausalConvUpdateReified()
-                module.t2n_conv_update_shim = conv_shim
-                module.causal_conv1d_update = make_conv_update(conv_shim)
-                n_reified += 1
-                for owner, attr in (
-                    (getattr(module, "conv1d", None), "weight"),
-                    (getattr(module, "conv1d", None), "bias"),
-                    (module, "A_log"),
-                    (module, "dt_bias"),
-                ):
-                    if owner is not None:
-                        n_materialized += self._materialize_offloaded(
-                            owner, attr
-                        )
-        LOGGER.info(
-            "reified the gated delta rule and causal conv in %d "
-            "linear-attention modules (%d small offloaded params "
-            "materialized, %d GQA q/k repeats neutralized)",
-            n_reified,
-            n_materialized,
-            n_gqa,
-        )
+        reify_gated_delta_net(model, neutralize_gqa_repeat=True)
 
     @staticmethod
     def _layer_types(config_helper) -> T.Sequence[str]:

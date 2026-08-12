@@ -4,7 +4,7 @@ Supports (transformers):
 - MoEFFN (reference wrapper)
 - MixtralSparseMoeBlock / MistralSparseMoeBlock
 - GptOssMLP (router + expert biases, interleaved gate/up, clamped SwiGLU)
-- Qwen2/Qwen3/Qwen3.5 MoE (Qwen2 & 3.5 shared expert decomposed outside)
+- Qwen2/Qwen3/Qwen3.5/Qwen3-Next MoE (shared expert decomposed outside)
 - OlmoeSparseMoeBlock
 
 All variants are normalized to the same tract_moe_ffn signature:
@@ -448,10 +448,14 @@ _ADAPTER_BY_CLASSNAME: T.Dict[str, T.Type[_MoEWeightAdapter]] = {
     # GPT-OSS (transformers >=4.55 renamed the block to GptOssMLP)
     "GptOssMLP": _GptOssAdapter,
     "GptOssSparseMoeBlock": _GptOssAdapter,
-    # Qwen 2 / 3 / 3.5 MoE
+    # Qwen 2 / 3 / 3.5 / 3-Next MoE (Qwen3NextSparseMoeBlock is structurally
+    # identical to Qwen3_5MoeSparseMoeBlock: TopKRouter `gate`, fused
+    # experts.gate_up_proj [E,2H,D] / experts.down_proj [E,D,H], sigmoid-gated
+    # shared expert).
     "Qwen2MoeSparseMoeBlock": _QwenMoEAdapter,
     "Qwen3MoeSparseMoeBlock": _QwenMoEAdapter,
     "Qwen3_5MoeSparseMoeBlock": _QwenMoEAdapter,
+    "Qwen3NextSparseMoeBlock": _QwenMoEAdapter,
     # OLMoE shares the Qwen layout (fused [E, 2H, D] experts, softmax top-k
     # router with norm_topk_prob, no shared expert).
     "OlmoeSparseMoeBlock": _QwenMoEAdapter,
@@ -470,6 +474,57 @@ def _get_adapter(module: nn.Module) -> _MoEWeightAdapter:
             f"Supported: {sorted(_ADAPTER_BY_CLASSNAME.keys())}"
         )
     return adapter_cls()
+
+
+_EXPERT_LAYOUTS = {"canonical", "linear", "tract_moe_ffn"}
+
+
+def mark_moe_experts_for_q40(
+    model: nn.Module,
+    *,
+    quantize_q40: bool = True,
+    layout: T.Optional[str] = None,
+    module_class_names: T.Optional[T.Collection[str]] = None,
+) -> int:
+    """Mark every MoE block of ``model`` for export-time expert handling.
+
+    Sets the module markers the ``tract_moe_ffn`` extractor consumes:
+    ``_t2n_quantize_moe_experts_q40`` (quantize expert w1/w2/w3 to tract
+    q4_0 min-max AT EXTRACTION, so a large MoE never materializes dense
+    float experts) and ``_t2n_moe_expert_layout``.
+
+    By default any module whose class the MoE extractor itself dispatches
+    on (i.e. with a registered weight adapter) is marked; pass
+    ``module_class_names`` to restrict marking to explicit class names.
+
+    Returns the number of modules marked; raises if nothing matched
+    (silently exporting dense f16 experts is never what the caller wants).
+    """
+    if layout is not None and layout not in _EXPERT_LAYOUTS:
+        raise T2NErrorNotImplemented(
+            f"unsupported MoE expert layout {layout!r} "
+            f"(expected one of {sorted(_EXPERT_LAYOUTS)})"
+        )
+    wanted = set(module_class_names) if module_class_names is not None else None
+    marked = 0
+    for module in model.modules():
+        cls_name = type(module).__name__
+        if wanted is not None:
+            if cls_name not in wanted:
+                continue
+        elif cls_name not in _ADAPTER_BY_CLASSNAME:
+            continue
+        if quantize_q40:
+            module._t2n_quantize_moe_experts_q40 = True
+        if layout is not None:
+            module._t2n_moe_expert_layout = layout
+        marked += 1
+    if marked == 0:
+        raise T2NErrorNotImplemented(
+            "no MoE module found: wrong transformers class? (looked for "
+            f"{sorted(wanted) if wanted is not None else 'any registered MoE class'})"
+        )
+    return marked
 
 
 # ---------------------------------------------------------------------------
@@ -1092,6 +1147,10 @@ def _register_all_transformers_moe():
         (
             "transformers.models.qwen3_5_moe.modeling_qwen3_5_moe",
             "Qwen3_5MoeSparseMoeBlock",
+        ),
+        (
+            "transformers.models.qwen3_next.modeling_qwen3_next",
+            "Qwen3NextSparseMoeBlock",
         ),
         (
             "transformers.models.olmoe.modeling_olmoe",

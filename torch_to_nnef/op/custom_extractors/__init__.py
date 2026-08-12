@@ -22,7 +22,10 @@ from torch_to_nnef.op.custom_extractors.gdn import (  # noqa: F401
     CausalConvUpdateReified,
     GatedDeltaNetRecurrentReified,
 )
-from torch_to_nnef.op.custom_extractors.moe import MoEFFN  # noqa: F401
+from torch_to_nnef.op.custom_extractors.moe import (  # noqa: F401
+    MoEFFN,
+    mark_moe_experts_for_q40,
+)
 from torch_to_nnef.op.custom_extractors.rnn import (
     GRUExtractor,
     LSTMCellExtractor,
@@ -38,6 +41,7 @@ __all__ = [
     "LSTMCellExtractor",
     "GRUExtractor",
     "MoEFFN",
+    "mark_moe_experts_for_q40",
     "GatedDeltaNetRecurrentReified",
     "CausalConvUpdateReified",
 ]
