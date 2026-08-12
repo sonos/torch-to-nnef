@@ -1,4 +1,4 @@
-"""Gated delta net recurrence export to tract_qwen35_gdn_recurrent.
+"""Gated delta net recurrence export to tract_transformers_gdn_recurrent.
 
 HF's Qwen3.5 linear attention computes its core with a Python loop over
 the sequence axis (`torch_recurrent_gated_delta_rule` /
@@ -56,7 +56,7 @@ class GatedDeltaNetRecurrentReified(nn.Module):
     semantics exactly (the chunked variant computes the same recurrence
     with different blocking, so substituting it is numerically
     equivalent up to fp reordering). At export the whole call is
-    reified as one `tract_qwen35_gdn_recurrent` op.
+    reified as one `tract_transformers_gdn_recurrent` op.
     """
 
     def forward(
@@ -137,7 +137,7 @@ class CausalConvUpdateReified(nn.Module):
     forward matches HF exactly but avoids `F.conv1d` (whose fake-tensor
     meta kernel breaks under the offload tracing strategy): the conv is
     an unfold + mul + sum. At export the call is reified as one
-    `tract_qwen35_causal_conv1d_update` op.
+    `tract_transformers_causal_conv1d_update` op.
 
     Layout: hidden_states `[b, C, S]`, conv_state `[b, C, k]`,
     weight `[C, k]` -> (out `[b, C, S]`, final_state `[b, C, k]`).
@@ -173,7 +173,7 @@ class CausalConvUpdateReified(nn.Module):
 
 
 class CausalConvUpdateExtractor(ModuleInfoExtractor):
-    """Emit `tract_qwen35_causal_conv1d_update` for the reified conv."""
+    """Emit `tract_transformers_causal_conv1d_update` for the reified conv."""
 
     MODULE_CLASS = CausalConvUpdateReified
 
@@ -267,7 +267,7 @@ class CausalConvUpdateExtractor(ModuleInfoExtractor):
         helper.cast_and_add_nnef_operation(
             name_to_tensor=name_to_tensor,
             graph=g,
-            type="tract_qwen35_causal_conv1d_update",
+            type="tract_transformers_causal_conv1d_update",
             inputs=nnef_inputs,
             outputs=nnef_outputs,
             attribs={},
@@ -277,7 +277,7 @@ class CausalConvUpdateExtractor(ModuleInfoExtractor):
 
 
 class GatedDeltaNetRecurrentExtractor(ModuleInfoExtractor):
-    """Emit `tract_qwen35_gdn_recurrent` for the reified GDN shim."""
+    """Emit `tract_transformers_gdn_recurrent` for the reified GDN shim."""
 
     MODULE_CLASS = GatedDeltaNetRecurrentReified
 
@@ -294,7 +294,7 @@ class GatedDeltaNetRecurrentExtractor(ModuleInfoExtractor):
         if not isinstance(inference_target, TractNNEF):
             raise T2NErrorStrictNNEFSpec(
                 "GDN export requires tract inference target "
-                "(tract_qwen35_gdn_recurrent is a tract extension)"
+                "(tract_transformers_gdn_recurrent is a tract extension)"
             )
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef import torch_graph as tg
@@ -391,7 +391,7 @@ class GatedDeltaNetRecurrentExtractor(ModuleInfoExtractor):
         helper.cast_and_add_nnef_operation(
             name_to_tensor=name_to_tensor,
             graph=g,
-            type="tract_qwen35_gdn_recurrent",
+            type="tract_transformers_gdn_recurrent",
             inputs=nnef_inputs,
             outputs=nnef_outputs,
             attribs={},
