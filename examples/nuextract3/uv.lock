@@ -96,34 +96,34 @@ wheels = [
 
 [package.optional-dependencies]
 cudart = [
-    { name = "nvidia-cuda-runtime" },
+    { name = "nvidia-cuda-runtime", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 cufft = [
-    { name = "nvidia-cufft" },
+    { name = "nvidia-cufft", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 cufile = [
-    { name = "nvidia-cufile" },
+    { name = "nvidia-cufile", marker = "sys_platform == 'linux'" },
 ]
 cupti = [
-    { name = "nvidia-cuda-cupti" },
+    { name = "nvidia-cuda-cupti", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 curand = [
-    { name = "nvidia-curand" },
+    { name = "nvidia-curand", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 cusolver = [
-    { name = "nvidia-cusolver" },
+    { name = "nvidia-cusolver", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 cusparse = [
-    { name = "nvidia-cusparse" },
+    { name = "nvidia-cusparse", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 nvjitlink = [
-    { name = "nvidia-nvjitlink" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 nvrtc = [
-    { name = "nvidia-cuda-nvrtc" },
+    { name = "nvidia-cuda-nvrtc", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 nvtx = [
-    { name = "nvidia-nvtx" },
+    { name = "nvidia-nvtx", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 
 [[package]]
@@ -1217,7 +1217,7 @@ wheels = [
 
 [[package]]
 name = "torch-to-nnef"
-version = "0.24.3"
+version = "0.24.7"
 source = { editable = "../../" }
 dependencies = [
     { name = "mako" },
@@ -1269,7 +1269,7 @@ dev = [
     { name = "rich", specifier = ">=13.7.1,<16" },
     { name = "toml", specifier = ">=0.10.2,<0.11" },
     { name = "tox", specifier = ">=4.23.2,<5" },
-    { name = "twine", specifier = ">=3.3.0,<7" },
+    { name = "twine", specifier = ">=3.3.0,<8" },
     { name = "virtualenv", specifier = ">=20.36.1,<22" },
 ]
 test = [
@@ -1285,7 +1285,7 @@ test = [
 
 [[package]]
 name = "torch-to-nnef-llm"
-version = "0.24.3"
+version = "0.24.7"
 source = { editable = "../../packages/llm" }
 dependencies = [
     { name = "huggingface-hub" },
