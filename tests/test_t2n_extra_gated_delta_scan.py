@@ -34,6 +34,7 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.tract import (
     NATIVE_GDN_RECURRENT_MIN_VERSION,
 )
+from torch_to_nnef.op.gated_delta import gated_delta_reference
 from torch_to_nnef.utils import SemanticVersion
 
 
@@ -61,18 +62,7 @@ if not _op_already_defined():
     )
     def _gated_delta_scan(q, k, v, g, beta, s0):
         """Pure-torch reference: the gated-delta recurrence over T (axis 2)."""
-        state = s0
-        ys = []
-        for t in range(q.shape[2]):
-            q_t, k_t, v_t = q[:, :, t], k[:, :, t], v[:, :, t]
-            g_t = g[:, :, t].exp()[..., None, None]
-            beta_t = beta[:, :, t][..., None]
-            state = state * g_t
-            kv = (state * k_t.unsqueeze(-1)).sum(-2)
-            delta = (v_t - kv) * beta_t
-            state = state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
-            ys.append((state * q_t.unsqueeze(-1)).sum(-2))
-        return torch.stack(ys, dim=2), state
+        return gated_delta_reference(q, k, v, g, beta, s0)
 
     @_gated_delta_scan.register_fake
     def _meta(q, k, v, g, beta, s0):

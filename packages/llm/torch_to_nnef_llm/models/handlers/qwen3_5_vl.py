@@ -22,6 +22,10 @@ import torch
 import torch.nn.functional as F
 
 from torch_to_nnef.exceptions import T2NErrorConsistency
+from torch_to_nnef.op.gated_delta import (
+    gated_delta_reference,
+    l2norm,
+)
 
 from .base import (
     ArchitectureHandler,
@@ -59,16 +63,7 @@ if not _gated_delta_scan_defined():
     )
     def _gated_delta_scan_op(q, k, v, g, beta, s0):
         """Pure-torch reference: the gated-delta recurrence over T (axis 2)."""
-        state = s0
-        outs = []
-        for step in range(q.shape[2]):
-            q_t, k_t, v_t = q[:, :, step], k[:, :, step], v[:, :, step]
-            state = state * g[:, :, step].exp()[..., None, None]
-            kv = (state * k_t.unsqueeze(-1)).sum(-2)
-            delta = (v_t - kv) * beta[:, :, step][..., None]
-            state = state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
-            outs.append((state * q_t.unsqueeze(-1)).sum(-2))
-        return torch.stack(outs, dim=2), state
+        return gated_delta_reference(q, k, v, g, beta, s0)
 
     @_gated_delta_scan_op.register_fake
     def _gated_delta_scan_meta(q, k, v, g, beta, s0):
@@ -77,10 +72,6 @@ if not _gated_delta_scan_defined():
             q.new_empty((batch, heads, seq, v.shape[-1])),
             s0.new_empty(s0.shape),
         )
-
-
-def _l2norm(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    return x * torch.rsqrt((x * x).sum(-1, keepdim=True) + eps)
 
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
@@ -397,8 +388,8 @@ class _HybridGDNForward:
             query = query.repeat_interleave(rep, dim=2)
             key = key.repeat_interleave(rep, dim=2)
         scale = 1.0 / (gdn.head_k_dim**0.5)
-        q_p = (_l2norm(query) * scale).transpose(1, 2)
-        k_p = _l2norm(key).transpose(1, 2)
+        q_p = (l2norm(query) * scale).transpose(1, 2)
+        k_p = l2norm(key).transpose(1, 2)
         v_p = value.transpose(1, 2)
         g_p = g.transpose(1, 2)
         beta_p = beta.transpose(1, 2)
