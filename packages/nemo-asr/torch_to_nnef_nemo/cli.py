@@ -106,7 +106,9 @@ def setup_inference_target_from_cli_args(cfg: NemoTractConfig) -> TractNNEF:
     if cfg.tract.tract_check_io_tolerance == "skip":
         inference_target.check_io = False
     else:
-        inference_target.check_io_tolerance = cfg.tract.tract_check_io_tolerance
+        inference_target.check_io_tolerance = TractCheckTolerance(
+            cfg.tract.tract_check_io_tolerance
+        )
 
     if cfg.sdpa.tract_reify_sdpa:
         inference_target.reify_sdpa_operator = True
@@ -355,13 +357,16 @@ def _dump_shape_config_template(
     model_label: str,
 ) -> None:
     """Generate and write a structured shape-config template to file."""
-    cfg.inspect.dump_shape_config.parent.mkdir(parents=True, exist_ok=True)
-    with cfg.inspect.dump_shape_config.open("w", encoding="utf8") as fh:
+    dump_path = cfg.inspect.dump_shape_config
+    # Guarded by the caller (`_run_inspection_flow`).
+    assert dump_path is not None
+    dump_path.parent.mkdir(parents=True, exist_ok=True)
+    with dump_path.open("w", encoding="utf8") as fh:
         now = datetime.datetime.now().isoformat(timespec="seconds")
         cmd = " ".join(shlex.quote(a) for a in sys.argv)
         _write_config_header(fh, model_label, now, cmd)
         _write_config_example_block(fh)
-        save_config(cfg.inspect.dump_shape_config, registry, stream=fh)
+        save_config(dump_path, registry, stream=fh)
 
 
 def _normalize_inspect_stages(cfg: NemoTractConfig):
@@ -415,7 +420,7 @@ def run_export(cfg: NemoTractConfig) -> None:
     export_dir = _init_logging_and_export_dir(cfg)
 
     asr_model = (
-        load_asr_model_from_path(cfg.model.model_path)
+        load_asr_model_from_path(Path(cfg.model.model_path))
         if cfg.model.model_path is not None
         else load_asr_model_from_nemo_slug(cfg.model.model_slug)
     )

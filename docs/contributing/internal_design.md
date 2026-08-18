@@ -28,7 +28,7 @@ Each of those steps have specific aims and goals.
 
 ## 1. Auto wrapper
 
-The auto wrapper is available at [`torch_to_nnef.model_wrapper`](../../reference/torch_to_nnef/model_wrapper). In essence,
+The auto wrapper is available at [`torch_to_nnef.model_wrapper`](../../reference/torch_to_nnef/model_wrapper). In short,
 this step tries hard to make sense of the input and output provided by the
 user as input parameters by 'flattening' and extracting from complex data-structures a proper
 list of tensor to be passed. Some example can be seen in [our multi inputs/outputs tutorial](../../tutos/3_multi_inputs_outputs/).

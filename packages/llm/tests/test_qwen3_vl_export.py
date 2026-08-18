@@ -207,7 +207,7 @@ def test_dummy_deepstack_chain_parity():
 def test_dummy_dynamic_resolution_multi_size():
     """Export the vision tower ONCE, run tract at several grid resolutions.
 
-    Proves the two grid axes are genuinely dynamic (not baked) end to end,
+    Proves the two grid axes are truly dynamic (not baked) end to end,
     including the DeepStack streams.
     """
     exporter = build_dummy_exporter(

@@ -107,8 +107,8 @@ impl VadClassifier {
 }
 
 // JS-facing API (wasm32 only). Kept minimal; the old pulse-delay / decoder
-// pool accessors disappeared with the decoder stage and are no longer needed
-// — the JS already handles their absence via optional-chaining fallbacks.
+// pool accessors disappeared with the decoder stage and are no longer needed:
+// the JS already handles their absence via optional-chaining fallbacks.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl VadClassifier {

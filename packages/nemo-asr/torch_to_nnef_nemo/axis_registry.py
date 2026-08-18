@@ -157,10 +157,10 @@ def _parse_renamed_symbols(
     if raw_val is None:
         return {}
     mapping: dict[str, list[str]] = {}
+    items_iter: list[tuple[T.Any, T.Any]] = []
     if isinstance(raw_val, dict):
-        items_iter = raw_val.items()
+        items_iter = list(raw_val.items())
     elif isinstance(raw_val, (list, tuple)):
-        items_iter = []
         for elem in raw_val:
             if isinstance(elem, dict) and len(elem) == 1:
                 items_iter += list(elem.items())

@@ -34,6 +34,17 @@ class T2NErrorNotImplemented(NotImplementedError, T2NError):
     pass
 
 
+class T2NErrorMissingOpEmitter(T2NErrorNotImplemented):
+    """No emitter is registered for this operator.
+
+    Narrower than its parent, which an emitter also raises when it exists
+    but refuses a particular configuration (an unsupported dtype, rank or
+    attribute combination). Only this one means "torch_to_nnef has no
+    translation for the operator at all", which is the state the support
+    page reports as unsupported.
+    """
+
+
 class T2NErrorMisuse(ValueError, T2NError):
     pass
 

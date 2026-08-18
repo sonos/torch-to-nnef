@@ -35,11 +35,11 @@ from torch_to_nnef.utils import (
     torch_version,
 )
 from torch_to_nnef_llm._optional_types import (
+    AutoTokenizerType,
     InjectedHuggingFaceHubModule,
     InjectedPeftModule,
     InjectedTransformersModule,
     InjectedTransformersUtilsModule,
-    TransformersModule,
 )
 from torch_to_nnef_llm.config import (
     DtypeStr,
@@ -220,7 +220,7 @@ class LLMExporter:
     def __init__(
         self,
         hf_model_causal: nn.Module,
-        tokenizer: TransformersModule.AutoTokenizer,
+        tokenizer: AutoTokenizerType,
         local_dir: T.Optional[Path] = None,
         force_module_dtype: T.Optional[DtypeStr] = None,
         force_inputs_dtype: T.Optional[DtypeStr] = None,
@@ -577,7 +577,7 @@ class LLMExporter:
 
     def build_io_npz(
         self,
-        io_npz_path: Path,
+        io_npz_path: T.Optional[Path],
         *args,
         inputs_npz_path: T.Optional[Path] = None,
         outputs_npz_path: T.Optional[Path] = None,
@@ -600,7 +600,7 @@ class LLMExporter:
 
     def dump_all_io_npz_kind(
         self, io_npz_dirpath: Path, size: int = 6
-    ) -> T.List[Path]:
+    ) -> T.List[T.Tuple[Path, Path]]:
         """Realistic dump of IO's."""
         half = size // 2
         prompt_in_npz = io_npz_dirpath / "prompt_inputs.npz"

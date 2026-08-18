@@ -20,6 +20,7 @@ Results land in a graded per-operator artifact consumed by
 `full` grades are carried over; see `tests/proptest/onnx_report.py`.
 """
 
+import dataclasses
 import tempfile
 from pathlib import Path
 
@@ -40,16 +41,25 @@ def test_onnx_support(spec: OpSpec, onnx_sweep) -> None:
         "be attributed to an operator; see OpSpec.aten_ops"
     )
     if onnx_sweep.reuse and onnx_sweep.reuse.reuse_for(
-        spec.name, spec.aten_ops
+        spec.name, spec.aten_ops, check_numerics=not spec.nondeterministic
     ):
         pytest.skip(
             "carried over from a prior run: every declared op graded "
             "`full` under this exact environment fingerprint"
         )
 
-    # `xfail_reason` marks a tract/t2n divergence. It says nothing about
-    # ONNX, and skipping here would leave a hole in the support data, so
-    # these specs are measured like any other.
+    # `xfail_reason` marks a tract/t2n divergence and `nnef_gap` marks a
+    # translation we do not ship. Neither says anything about ONNX, and
+    # skipping either would leave a hole in the support data, so these
+    # specs are measured like any other. `nnef_gap` specs exist for this
+    # sweep specifically: without them the measured population would be
+    # exactly the set of operators t2n already handles.
+    config = onnx_sweep.config
+    if spec.nondeterministic:
+        # Two runs of an RNG op disagree by definition, so a numerics
+        # verdict here would report the definition rather than the
+        # exporter. Export and runtime stay measured.
+        config = dataclasses.replace(config, check_numerics=False)
 
     @given(sample=spec.sample_st)
     def _inner(sample: OpSample) -> None:
@@ -58,7 +68,7 @@ def test_onnx_support(spec: OpSpec, onnx_sweep) -> None:
                 model=sample.module,
                 inputs=sample.inputs,
                 workdir=Path(tmpdir),
-                config=onnx_sweep.config,
+                config=config,
             )
         onnx_sweep.record(spec.name, spec.aten_ops, outcome)
 

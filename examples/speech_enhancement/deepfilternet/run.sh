@@ -17,4 +17,3 @@ python export_stft_variant.py
 # NOT run here -- torch's legacy TorchScript ONNX exporter SIGFPEs on the DFN3 GRU
 # on Linux. It is a reference baseline, not a torch-to-nnef export; run manually.
 echo "[speech_enhancement/deepfilternet] Done. See generated .nnef.tgz artifacts."
-

@@ -26,8 +26,22 @@ from ..shapes import (
     ternary_broadcast_shapes_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
+    _unary_sample_st,
+)
+from ._gap_common import (
+    REASON_DATA_DEPENDENT,
+    REASON_LAYOUT,
+    as_strided_st,
+    gap_spec,
+    index_pair_st,
+    mask_st,
+    nonzero_st,
+    rows_st,
+    segment_st,
+    small_int_st,
 )
 
 
@@ -1488,6 +1502,42 @@ def _split_int_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _split_with_sizes_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.split(x, split_sizes, dim)` with explicit chunk sizes."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape_list = list(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        dim_size = shape_list[dim]
+        cut = draw(st.integers(min_value=1, max_value=dim_size - 1))
+        split_sizes = [cut, dim_size - cut]
+        x = draw(
+            tensor_st(
+                tuple(shape_list),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        def op(t):
+            return torch.ops.aten.split_with_sizes.default(t, split_sizes, dim)
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
+
+    return _draw()
+
+
 def _unfold_sample_st() -> st.SearchStrategy[OpSample]:
     """`Tensor.unfold(dim, size, step)`: sliding-window view."""
 
@@ -2010,6 +2060,12 @@ def _concat_split_specs() -> T.List[OpSpec]:
             tolerance=EXACT,
         ),
         OpSpec(
+            name="split_with_sizes",
+            aten_ops=("split_with_sizes",),
+            sample_st=_split_with_sizes_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
             name="unfold",
             aten_ops=("unfold",),
             sample_st=_unfold_sample_st(),
@@ -2179,6 +2235,88 @@ def _pad_sample_st(
     return _draw()
 
 
+def _constant_pad_nd_sample_st() -> st.SearchStrategy[OpSample]:
+    """Direct `aten::constant_pad_nd` on one or two trailing axes."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        n_axes = draw(st.integers(min_value=1, max_value=min(rank, 2)))
+        pad = []
+        for _ in range(n_axes):
+            pad.extend(
+                [
+                    draw(st.integers(min_value=0, max_value=2)),
+                    draw(st.integers(min_value=0, max_value=2)),
+                ]
+            )
+        x = draw(tensor_st(shape, torch.float32, domain=Interval(-10.0, 10.0)))
+
+        def op(t):
+            return torch.ops.aten.constant_pad_nd.default(t, pad, 0.0)
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
+
+    return _draw()
+
+
+def _direct_spatial_pad_sample_st(
+    op: T.Callable[..., torch.Tensor],
+    spatial_rank: int,
+    *,
+    reflect: bool,
+) -> st.SearchStrategy[OpSample]:
+    """Direct reflection/replication pad on canonical N,C,spatial input."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        min_dim = 3 if reflect else 2
+        spatial = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=min_dim, max_value=6),
+                    min_size=spatial_rank,
+                    max_size=spatial_rank,
+                )
+            )
+        )
+        pad = []
+        for dim_size in reversed(spatial):
+            max_pad = dim_size - 1 if reflect else dim_size
+            pad.extend(
+                [
+                    draw(st.integers(min_value=0, max_value=min(max_pad, 2))),
+                    draw(st.integers(min_value=0, max_value=min(max_pad, 2))),
+                ]
+            )
+        x = draw(
+            tensor_st(
+                (n, c, *spatial),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        def wrapped(t):
+            return op(t, pad)
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
+
+    return _draw()
+
+
 def _pad_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
@@ -2188,9 +2326,39 @@ def _pad_specs() -> T.List[OpSpec]:
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
+            name="constant_pad_nd",
+            aten_ops=("constant_pad_nd",),
+            sample_st=_constant_pad_nd_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
             name="pad-reflect",
             aten_ops=("pad",),
             sample_st=_pad_sample_st("reflect"),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="reflection_pad1d",
+            aten_ops=("reflection_pad1d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.reflection_pad1d.default, 1, reflect=True
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="reflection_pad2d",
+            aten_ops=("reflection_pad2d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.reflection_pad2d.default, 2, reflect=True
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="reflection_pad3d",
+            aten_ops=("reflection_pad3d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.reflection_pad3d.default, 3, reflect=True
+            ),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
@@ -2203,6 +2371,28 @@ def _pad_specs() -> T.List[OpSpec]:
                 '"replicate" ("unsupported padding mode replicate"). '
                 "t2n's replication_padnd emitter passes through the "
                 "mode attribute; the gap is downstream in tract."
+            ),
+        ),
+        OpSpec(
+            name="replication_pad2d-xfail",
+            aten_ops=("replication_pad2d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.replication_pad2d.default, 2, reflect=False
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 does not implement NNEF pad mode replicate"
+            ),
+        ),
+        OpSpec(
+            name="replication_pad3d-xfail",
+            aten_ops=("replication_pad3d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.replication_pad3d.default, 3, reflect=False
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 does not implement NNEF pad mode replicate"
             ),
         ),
     ]
@@ -3261,6 +3451,23 @@ def _count_nonzero_sample_st(*, all_dims: bool) -> st.SearchStrategy[OpSample]:
 def _alias_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
+            name="alias",
+            aten_ops=("alias",),
+            sample_st=_unary_sample_st(torch.ops.aten.alias.default, None),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="copy",
+            aten_ops=("copy",),
+            sample_st=_unary_sample_st(
+                lambda t: torch.ops.aten.copy.default(t, t.clone(), False),
+                None,
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
             name="dstack",
             aten_ops=("dstack",),
             sample_st=_axis_stack_sample_st(torch.dstack, min_rank=3),
@@ -3360,6 +3567,88 @@ def _index_put_sample_st(accumulate: bool) -> st.SearchStrategy[OpSample]:
             )
         )(accumulate)
         return OpSample(inputs=(x, idx, src), module=TernaryPrimitive(op_fn))
+
+    return _draw()
+
+
+class _IndexPutImpl(torch.nn.Module):
+    """Call the private dispatcher spelling behind `index_put_impl_`."""
+
+    def forward(self, x):
+        indices = (torch.tensor([0, 1], dtype=torch.long),)
+        values = torch.tensor([9.0, 8.0], dtype=x.dtype)
+        return torch.ops.aten._index_put_impl_.default(
+            x.clone(), indices, values, False, False
+        )
+
+
+class _SetStorage(torch.nn.Module):
+    """Rebind a clone's storage to another tensor."""
+
+    def forward(self, x, y):
+        return torch.ops.aten.set_.source_Tensor(x.clone(), y)
+
+
+class _CopySparseToSparse(torch.nn.Module):
+    """Copy between sparse tensors, then return a dense view."""
+
+    def forward(self, x):
+        src = x.to_sparse()
+        dst = torch.empty((2, 3), dtype=x.dtype).to_sparse()
+        return torch.ops.aten.copy_sparse_to_sparse_.default(
+            dst, src, False
+        ).to_dense()
+
+
+class _ResizeAsSparse(torch.nn.Module):
+    """Resize a sparse tensor to another sparse tensor's shape."""
+
+    def forward(self, x):
+        src = x.to_sparse()
+        dst = torch.empty((1, 1), dtype=x.dtype).to_sparse()
+        return torch.ops.aten.resize_as_sparse_.default(dst, src).to_dense()
+
+
+def _index_put_impl_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(
+            tensor_st(
+                (3,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_IndexPutImpl())
+
+    return _draw()
+
+
+def _set_storage_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(tensor_st((2, 3), torch.float32, finite=True))
+        y = draw(tensor_st((2, 3), torch.float32, finite=True))
+        return OpSample(inputs=(x, y), module=_SetStorage())
+
+    return _draw()
+
+
+def _sparse_copy_sample_st(
+    module: torch.nn.Module,
+) -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(
+            tensor_st(
+                (2, 3),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=module)
 
     return _draw()
 
@@ -3492,6 +3781,181 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
 
 # 3D conv/pool + numerical helpers + classifiers
 
+
+def _data_dependent_extent_specs() -> T.Tuple[OpSpec, ...]:
+    """Ops whose output extent depends on the values, not the shapes.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- data-dependent extent --
+        gap_spec("nonzero", nonzero_st(as_tuple=False), REASON_DATA_DEPENDENT),
+        gap_spec(
+            "nonzero_numpy",
+            nonzero_st(as_tuple=True),
+            f"`nonzero(as_tuple=True)`: {REASON_DATA_DEPENDENT}, once per axis",
+        ),
+        gap_spec(
+            "argwhere",
+            small_int_st(torch.argwhere, "argwhere", lo=0, hi=2),
+            f"the same as `nonzero`: {REASON_DATA_DEPENDENT}",
+        ),
+        gap_spec(
+            "masked_select",
+            mask_st(torch.masked_select, "masked_select"),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_dim",
+            rows_st(lambda t: torch.unique(t, dim=0), "unique_dim"),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_consecutive",
+            small_int_st(torch.unique_consecutive, "unique_consecutive", hi=2),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_dim_consecutive",
+            rows_st(
+                lambda t: torch.unique_consecutive(t, dim=0),
+                "unique_dim_consecutive",
+            ),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "combinations",
+            small_int_st(
+                lambda t: torch.combinations(t, r=2), "combinations", max_rank=1
+            ),
+            "output length is a binomial coefficient of the input length: "
+            "static, but no emitter builds the index pairs",
+        ),
+        gap_spec(
+            "nonzero_static",
+            small_int_st(
+                lambda t: torch.nonzero_static(t, size=3),
+                "nonzero_static",
+                hi=2,
+            ),
+            "the padded form of `nonzero`, so the extent *is* static here; "
+            "it fails before the emitter lookup instead",
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+    )
+
+
+def _strided_view_specs() -> T.Tuple[OpSpec, ...]:
+    """Views described by strides rather than by shape.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- layout --
+        gap_spec("as_strided", as_strided_st(), REASON_LAYOUT),
+    )
+
+
+def _scatter_specs() -> T.Tuple[OpSpec, ...]:
+    """Writes at runtime-computed positions.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- scatter / gather variants --
+        gap_spec(
+            "masked_scatter",
+            mask_st(
+                lambda t, m, s: t.masked_scatter(m, s),
+                "masked_scatter",
+                with_source=True,
+            ),
+            "consumes the source in mask order, so the read index is itself "
+            "a cumulative sum of the mask",
+        ),
+        gap_spec(
+            "put",
+            index_pair_st(
+                # Flattened so the source has two elements whatever the
+                # drawn column count is.
+                lambda t, s: t.clone().put_(
+                    torch.tensor([0, 2]), s.reshape(-1)[:2]
+                ),
+                "put",
+            ),
+            "indexes the flattened tensor, so a lowering has to reshape "
+            "around it; no emitter does",
+        ),
+        gap_spec(
+            "index_reduce",
+            index_pair_st(
+                lambda t, s: t.clone().index_reduce_(
+                    0, torch.tensor([0, 1]), s, "amax"
+                ),
+                "index_reduce",
+            ),
+            "no emitter, and the export crashes with a bare TypeError "
+            "instead of naming the operator",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+        gap_spec(
+            "segment_reduce",
+            segment_st(),
+            "segment lengths are a second, ragged shape the graph would "
+            "have to carry",
+        ),
+        gap_spec(
+            "pad_sequence",
+            index_pair_st(
+                lambda a, b: torch.nn.utils.rnn.pad_sequence([a, b]),
+                "pad_sequence",
+            ),
+            "pads to the longest input, so the output extent depends on a "
+            "list of shapes rather than on one",
+        ),
+    )
+
+
+def _storage_sparse_gap_specs() -> T.Tuple[OpSpec, ...]:
+    """Storage rebinding and sparse rows that are traceable but unsupported."""
+    sparse_reason = (
+        "the row is traceable, but t2n has no sparse tensor support and "
+        "fails while handling the required sparse scaffolding"
+    )
+    return (
+        gap_spec(
+            "index_put_impl_",
+            _index_put_impl_sample_st(),
+            "private dispatcher implementation for `index_put_`, with "
+            "no t2n emitter under the row's normalized page name",
+        ),
+        gap_spec(
+            "set_",
+            _set_storage_sample_st(),
+            "rebinds a tensor to another tensor's storage, which no t2n "
+            "emitter represents",
+        ),
+        gap_spec(
+            "copy_sparse_to_sparse_",
+            _sparse_copy_sample_st(_CopySparseToSparse()),
+            sparse_reason,
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+        gap_spec(
+            "resize_as_sparse_",
+            _sparse_copy_sample_st(_ResizeAsSparse()),
+            sparse_reason,
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+    )
+
+
 SPECS = (
     *_shape_specs(),
     *_concat_split_specs(),
@@ -3503,4 +3967,8 @@ SPECS = (
     *_alias_specs(),
     *_bucketize_searchsorted_specs(),
     *_recent_shape_specs(),
+    *_data_dependent_extent_specs(),
+    *_strided_view_specs(),
+    *_scatter_specs(),
+    *_storage_sparse_gap_specs(),
 )

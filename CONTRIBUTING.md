@@ -83,11 +83,11 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
    ```
 
    Branch prefixes:
-   * `feat/` — new features (new operators, handlers, …)
-   * `fix/` — bugfixes and hotfixes
-   * `chore/` — version bumps, CI/CD, packaging
-   * `docs/` — documentation only changes
-   * `test/` — test additions or fixes
+   * `feat/`: new features (new operators, handlers, …)
+   * `fix/`: bugfixes and hotfixes
+   * `chore/`: version bumps, CI/CD, packaging
+   * `docs/`: documentation only changes
+   * `test/`: test additions or fixes
 
 7. Make your changes locally.
 
@@ -138,10 +138,11 @@ The subject line should be ≤72 characters. Reference related issues where rele
 Formatting and linting are handled automatically by pre-commit (installed in step 5 above).
 On every commit, the following run automatically:
 
-* **ruff format** — auto-formats code (line length: 80)
-* **ruff check --fix** — lints and auto-fixes where possible
-* **mypy** — type-checks library code (excluding tests)
-* **pyupgrade** — modernises syntax to Python 3.7+
+* **ruff format**: auto-formats code (line length: 80)
+* **ruff check --fix**: lints and auto-fixes where possible
+* **mypy**: type-checks library code (excluding tests)
+* **pyupgrade**: modernises syntax to Python 3.7+
+* **prose check**: rejects banned characters and wording (see [Prose](#prose))
 * Standard file hygiene: trailing whitespace, CRLF, missing newlines, YAML/JSON/TOML validity
 
 Naming conventions follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
@@ -149,8 +150,81 @@ Naming conventions follow the [Google Python Style Guide](https://google.github.
 ### Docstrings
 
 Docstrings are written in [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings).
-They are **encouraged but not required on every item** — the linter will not fail on missing docstrings.
+They are **encouraged but not required on every item**: the linter will not fail on missing docstrings.
 Do add them for any public function or class that isn't self-explanatory, especially if you are adding new functionality.
+
+### AI-assisted contributions
+
+Using an AI coding assistant is allowed, and needs no disclaimer. Plenty of
+good patches start that way. A patch is judged on its merits, never on how it
+was produced.
+
+What we do ask is that you own what you send. Read every line as if you had
+typed it, and check that it says something true about *this* codebase rather
+than something plausible about codebases in general. If a comment explains a
+constraint, verify the constraint still holds.
+
+The one thing we consistently send back is the register these tools default to.
+It usually shows up as:
+
+* padding that restates the code (`# increment the counter` above `i += 1`)
+* comments describing *what* a line does, where the useful comment says *why*
+  it does it, or why the obvious alternative was rejected
+* marketing adjectives in technical prose (`powerful`, `elegant`, `blazing`)
+* hedging that commits to nothing, and closing paragraphs that summarise the
+  section directly above them
+* filler transitions and symmetrical flourishes that add length, not meaning
+* typographic lookalikes: em dashes, curly quotes, non-breaking hyphens
+
+Only the last of those is machine-checkable, and the [Prose](#prose) check below
+enforces it. The rest is a review conversation: expect a reviewer to ask you to
+cut it. Shorter is nearly always better, and one comment recording a decision is
+worth ten that describe syntax.
+
+And that conversation is the part we most want a human in. Reviews are done by
+people, in their own time, and they go much better when someone on the other
+side has the whole change in their head. So when a reviewer asks why something
+is shaped the way it is, answer in your own words: what you tried, what broke,
+what you decided against. A reply that paraphrases the diff back, or that
+reopens a point the thread already settled, spends review attention that is in
+short supply. Staying available to talk a change through counts for more than
+sending a large one.
+
+That check is a floor, not a proxy for having read your own text. Passing it
+means you avoided the characters and words we reject, not that the writing is
+any good.
+
+### Prose
+
+`.github/scripts/check_prose.py` scans every tracked text file, on each commit
+and on each pull request. It rejects two things.
+
+**Characters.** Typographic lookalikes: em dash (U+2014), en dash (U+2013),
+non-breaking hyphen (U+2011), curly quotes and apostrophes (U+2018, U+2019,
+U+201C, U+201D), non-breaking space (U+00A0), zero-width space (U+200B) and
+byte-order mark (U+FEFF). Write ASCII `-`, `'`, `"` and a plain space instead.
+Where one of these was separating clauses, rephrase with `:` or `,`, or split
+the sentence.
+
+This half is a correctness rule rather than a preference: U+2011 renders exactly
+like `-` but breaks `grep`, in-repo search and anchor links, and 25 of them had
+reached words such as `provider-agnostic` before the check existed. **It has no
+escape hatch: no pragma and no per-file exemption.**
+
+Emoji, box-drawing, arrows and mathematical symbols are all fine. Only the
+lookalikes above are rejected.
+
+**Wording.** A short list of words and phrases that read as machine-generated
+rather than written. `BUZZWORDS` and `HEDGING` in the script are the single
+source of truth, so run the check instead of memorising them.
+
+Vendored bundles, wasm-pack output and ASR data tables are out of scope, since
+we do not author them (see `NOT_OURS`).
+
+```bash
+make prose                                       # every tracked file
+python3 .github/scripts/check_prose.py FILE ...  # only these paths
+```
 
 ---
 

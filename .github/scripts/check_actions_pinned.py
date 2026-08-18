@@ -19,7 +19,8 @@ USES = re.compile(r"""uses:\s*['"]?([^'"\s#]+)""")
 
 
 def main() -> int:
-    errors: list[str] = []
+    # (workflow, line, action ref, why it failed)
+    errors: list[tuple[pathlib.Path, int, str, str]] = []
     files = sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml"))
     for path in files:
         for lineno, line in enumerate(

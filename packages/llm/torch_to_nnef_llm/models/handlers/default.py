@@ -15,7 +15,7 @@ from .registry import register_handler
 class DefaultArchitectureHandler(ArchitectureHandler):
     """Fallback handler for standard causal decoder models."""
 
-    ARCH_NAMES = ("default",)
+    ARCH_NAMES: T.Tuple[str, ...] = ("default",)
 
     def build_input_spec(
         self,

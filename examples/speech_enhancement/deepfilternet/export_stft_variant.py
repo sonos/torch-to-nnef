@@ -29,7 +29,6 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Tuple
 
 _HERE = Path(__file__).resolve().parent
 _TORCH_DF_PATH = _HERE / "_torchDF_clone" / "torchDF"
@@ -76,7 +75,7 @@ def _native_irfft_frame_synthesis(
     self: ExportableStreamingMinimalTorchDF,
     x: Tensor,
     synthesis_mem: Tensor,
-) -> Tuple[Tensor, Tensor]:
+) -> tuple[Tensor, Tensor]:
     """Drop-in replacement for `frame_synthesis` using `torch.fft.irfft`.
 
     Original grazder body (see `torch_df_streaming_minimal.py`):

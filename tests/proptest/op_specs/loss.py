@@ -19,6 +19,12 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from ...wrapper import BinaryPrimitive
 from ..inputs import Interval, tensor_st
 from ._common import OpSample, OpSpec
+from ._gap_common import (
+    class_loss_st,
+    ctc_st,
+    gap_spec,
+    poisson_nll_st,
+)
 
 _REDUCTIONS = ("none", "mean", "sum")
 
@@ -513,4 +519,53 @@ def _loss_specs() -> T.List[OpSpec]:
     ]
 
 
-SPECS = tuple(_loss_specs())
+def _margin_loss_specs() -> T.Tuple[OpSpec, ...]:
+    """Margin losses over class scores.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- losses --
+        gap_spec(
+            "multi_margin_loss",
+            class_loss_st(F.multi_margin_loss, "multi_margin_loss", 1),
+            "expressible as a gather of the target score plus a clamped "
+            "difference and a mean, but no emitter composes it",
+        ),
+        gap_spec(
+            "multilabel_margin_loss",
+            class_loss_st(
+                F.multilabel_margin_loss, "multilabel_margin_loss", 2
+            ),
+            "same composition as `multi_margin_loss`, over a target list "
+            "terminated by -1",
+        ),
+    )
+
+
+def _likelihood_loss_specs() -> T.Tuple[OpSpec, ...]:
+    """Count and sequence likelihoods.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        gap_spec(
+            "poisson_nll_loss",
+            poisson_nll_st(),
+            "expressible as `exp(x) - t*x` plus an optional Stirling term, "
+            "but no emitter composes it",
+        ),
+        gap_spec(
+            "ctc_loss",
+            ctc_st(),
+            "a dynamic-programming recurrence over time, so a lowering "
+            "means a scan rather than a fused op",
+        ),
+    )
+
+
+SPECS = tuple(_loss_specs()) + _margin_loss_specs() + _likelihood_loss_specs()

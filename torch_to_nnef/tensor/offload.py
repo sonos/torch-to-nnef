@@ -143,13 +143,15 @@ class _WeightConversionCollector:
                 "conversion"
             )
         self.checkpoint_key_rank = {}
-        self.converted_expected_counts = None
+        self.converted_expected_counts: T.Optional[T.Dict[str, "Counter"]] = (
+            None
+        )
         if all_checkpoint_keys is not None:
             self.checkpoint_key_rank = {
                 key: rank for rank, key in enumerate(all_checkpoint_keys)
             }
             self.converted_expected_counts = {}
-            converted_source_keys = {}
+            converted_source_keys: T.Dict[str, T.List[T.Tuple[str, T.Any]]] = {}
             for key in all_checkpoint_keys:
                 match = self.rename_source_key(key)
                 if (
@@ -1126,7 +1128,7 @@ def t2n_load_checkpoint_and_dispatch(
         checkpoint_key_to_file = index
         checkpoint_files = sorted(list(set(index.values())))
         checkpoint_files = [checkpoint_folder / f for f in checkpoint_files]
-    unexpected_keys = set()
+    unexpected_keys: T.Set[str] = set()
     model_keys = set(model.state_dict().keys())
     assert checkpoint_files is not None
     mod_updater = ModTensorUpdater(
@@ -1305,13 +1307,15 @@ def ctx_maybe_load_from_disk_as_offloaded(
         yield  # nothing to do
         return
 
-    offload_dir = Path(offload_dir)
+    # A distinct name: reusing the parameter keeps its declared
+    # Union[str, Path, None] type inside the closures below.
+    offload_path = Path(offload_dir)
 
     # pylint: disable-next=import-outside-toplevel
     import safetensors.torch
 
     def custom_safe_load_file(
-        *args,
+        filename: T.Union[str, os.PathLike],
         device: TDEVICE = "cpu",
         **kwargs,
     ) -> T.Dict[str, torch.Tensor]:
@@ -1324,10 +1328,11 @@ def ctx_maybe_load_from_disk_as_offloaded(
             )
 
         return safe_load_file(
-            *args,
+            filename,
             device=device,
-            offload_dir=offload_dir,
-            apply_offload=offload_dir is not None,
+            offload_dir=offload_path,
+            # Unconditionally true: the None case returned early above.
+            apply_offload=True,
             **kwargs,
         )
 
@@ -1338,7 +1343,7 @@ def ctx_maybe_load_from_disk_as_offloaded(
         # This would avoid to load all tensor in memory during
         # the unpickling process.
         loaded = torch.original_load(fp, *args, **kwargs)
-        if fp.resolve().is_relative_to(Path(offload_dir).resolve()):
+        if fp.resolve().is_relative_to(offload_path.resolve()):
             return loaded  # this tensor is already offloaded on disk.
         if isinstance(loaded, torch.Tensor):
             tensor_hash = hash(loaded)
@@ -1348,13 +1353,13 @@ def ctx_maybe_load_from_disk_as_offloaded(
                 else f"unknown_{tensor_hash}"
             )
             return maybe_load_offload_tensor(
-                loaded, f"disk_{loaded.device}", name, offload_dir
+                loaded, f"disk_{loaded.device}", name, offload_path
             )
         if isinstance(loaded, dict):
             tensors = {}
             for k, v in loaded.items():
                 tensors[k] = maybe_load_offload_tensor(
-                    v, f"disk_{v.device}", k, offload_dir
+                    v, f"disk_{v.device}", k, offload_path
                 )
             return tensors
         LOGGER.warning(

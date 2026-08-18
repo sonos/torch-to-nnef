@@ -67,7 +67,7 @@ class BulkSelfAttention(nn.Module):
         self.out_proj = attn.out_proj
         self.num_heads = attn.num_heads
         self.head_dim = attn.dim_per_head
-        # Per-layer attention ``context`` — decoder_transformer layers ship
+        # Per-layer attention ``context``: decoder_transformer layers ship
         # with sliding-window attention; we keep whatever value the loaded
         # checkpoint configured.
         self.context = attn.context

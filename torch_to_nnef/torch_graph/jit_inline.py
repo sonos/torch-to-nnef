@@ -42,8 +42,8 @@ def _is_resolvable_qualname(qualname: str) -> bool:
 
 
 def _resolve_call_target(
-    node: "torch._C.Node", root_model: nn.Module
-) -> T.Tuple[nn.Module, "torch._C.Graph"]:
+    node: torch._C.Node, root_model: nn.Module
+) -> T.Tuple[nn.Module, torch._C.Graph]:
     """Resolve a CallMethod node to its target submodule and method graph.
 
     Walks the GetAttr chain from the CallMethod's first input back to the
@@ -76,8 +76,8 @@ def _resolve_call_target(
 
 
 def _find_inlineable_callmethod(
-    graph: "torch._C.Graph",
-) -> T.Optional["torch._C.Node"]:
+    graph: torch._C.Graph,
+) -> T.Optional[torch._C.Node]:
     for node in walk_nodes(graph):
         if node.kind() != CALL_KIND:
             continue
@@ -94,8 +94,8 @@ def _find_inlineable_callmethod(
 
 
 def _inline_one_callmethod(
-    graph: "torch._C.Graph",
-    node: "torch._C.Node",
+    graph: torch._C.Graph,
+    node: torch._C.Node,
     root_model: nn.Module,
 ) -> None:
     _, sub_graph = _resolve_call_target(node, root_model)
@@ -115,7 +115,7 @@ def _inline_one_callmethod(
 
 
 def inline_unresolvable_submodules(
-    graph: "torch._C.Graph",
+    graph: torch._C.Graph,
     model: nn.Module,
     max_passes: int = 1024,
 ) -> int:

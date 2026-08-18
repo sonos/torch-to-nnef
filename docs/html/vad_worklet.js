@@ -27,4 +27,3 @@ class VadProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('vad-processor', VadProcessor);
-

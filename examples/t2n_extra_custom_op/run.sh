@@ -9,4 +9,3 @@ source .venv/bin/activate
 echo "[t2n_extra_custom_op] Exporting custom-op example (my_relu)..."
 python export.py
 echo "[t2n_extra_custom_op] Done. See my_relu.nnef.tgz."
-

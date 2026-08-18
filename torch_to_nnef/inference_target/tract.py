@@ -447,7 +447,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                 )
             LOGGER.warning(
                 "dynamic_axes references input '%s' which was pruned "
-                "during tracing (not in graph inputs: %s) — skipping",
+                "during tracing (not in graph inputs: %s), skipping",
                 node_name,
                 nnef_graph.inputs,
             )

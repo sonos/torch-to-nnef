@@ -11,7 +11,7 @@ import typing as T
 import torch  # noqa: F401  -- kept for type-hint forward refs
 
 
-def walk_nodes(graph_or_block) -> T.Iterator["torch._C.Node"]:
+def walk_nodes(graph_or_block) -> T.Iterator[torch._C.Node]:
     """Yield nodes recursively, descending into prim::If / prim::Loop blocks."""
     for node in graph_or_block.nodes():
         yield node

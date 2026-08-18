@@ -25,7 +25,7 @@ clap = { version = "4", features = ["derive"] }
 hound = "3.5"
 rand = "0.10"
 rand_distr = "0.6"
-sentencepiece = "0.13"
+sentencepiece = "0.14"
 tract-core = "0.23.0-dev.5"
 tract-extra = "0.23.0-dev.5"
 tract-nnef = "0.23.0-dev.5"

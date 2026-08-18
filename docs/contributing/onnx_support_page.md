@@ -15,7 +15,7 @@ exists and could not be refreshed.
 
 The `dynamo` exporter that replaced it does not ship an equivalent table.
 But the [proptest catalog](./internal_design.md) already builds real
-modules covering 300+ `aten::` operators, so the support level can simply
+modules covering 440+ `aten::` operators, so the support level can simply
 be measured: export each one and record what happens.
 
 Measuring also surfaces something a doc table cannot express. Support is
@@ -55,7 +55,7 @@ measured on the next run and appears on the next regeneration.
 
 ### Cost and reuse
 
-A full sweep is ~370 specs x 25 examples, each one an export plus an
+A full sweep is ~510 specs x 25 examples, each one an export plus an
 onnxruntime run. To keep repeat regenerations cheap, a grade of `full` can
 be **carried over** from the previous artifact, but only when:
 
@@ -90,6 +90,23 @@ T2N_HYP_PROFILE=nightly tox -e proptest_onnx   # 200 examples, several hours
 A `nightly` result supersedes a `ci` one for reuse purposes (more examples
 is strictly more evidence); the reverse is refused.
 
+## Reading the headline bars
+
+Both bars use the **same denominators as the `TractNNEF` tab**: the core
+opset size first, then the full `aten::` listing. That is what makes the
+two tabs comparable at a glance; a bar over "the operators we measured"
+renders near-full whatever the coverage is, and sits next to a bar that
+means something else entirely.
+
+The numerator is the number of rows we measured as `full`. If a future
+torch listing adds a targetable row, add a spec for it before refreshing
+the page. If the row cannot be tied to an attributable proptest graph,
+record it in `tests/proptest/op_specs/untranslated.py` so the generator
+keeps it outside both denominators and explains why in the appendix.
+
+The caption under the bars keeps the strict "of what we actually tested,
+how much passed" ratio one line away.
+
 ## Reading a grade
 
 The `export` column grades operator coverage only:
@@ -100,14 +117,16 @@ The `export` column grades operator coverage only:
 | 🟡 `partial` | some examples exported, others raised. The artifact keeps the failing shapes/dtypes |
 | ❌ `none` | no example exported, and the exporter refused at least one |
 | ⚠️ `blocked` | `torch.export` could not capture the module, so the ONNX exporter never ran. **Not** an ONNX verdict |
-| ✅\* claimed | no spec covers it, so we did **not** verify it, but the retired listing claimed it was supported |
-| `-` `untested` | no spec covers it and nothing was ever claimed either way. **Not** unsupported |
+| `-` | no spec covers it, so we did **not** measure it here. **Not** unsupported |
 
-Only ✅ / 🟡 / ❌ are measurements. **✅\* is an unverified historical claim**
-and is excluded from every count on the page: it exists so the two kinds of
-"we don't know" stay distinguishable, since an operator the old listing
-called supported is a better bet (and a better candidate for a new spec)
-than one nobody ever said anything about. Both are filterable separately.
+Only ✅ / 🟡 / ❌ are measurements. `-` means unmeasured, not failed.
+A `-` row should be temporary: add a direct spec when the row is
+targetable, or move it to `untranslated.EXCLUDED` when it is not. The
+`documented` column records what the retired listing claimed, and the
+`spec coverage` column says whether this row was measured or why it has
+no direct proptest measurement. Rows that cannot be attributed to a
+proptest graph target are filtered out of both comparison tables and
+listed in the appendix instead.
 
 `runtime` (does onnxruntime load and run the exported graph) and
 `numerics` (do its outputs match PyTorch) are reported as separate columns
@@ -115,17 +134,83 @@ on purpose. A graph that exports but diverges numerically is usually a
 property of the kernel that ran, not a missing operator, so folding either
 into the support glyph would blame the exporter for a runtime issue.
 
-`blocked` and `untested` exist for the same reason: both are cases where
-we have no evidence about ONNX, and reporting "no evidence" as ❌ would
-overstate what was measured.
+`blocked` and no-spec rows exist for the same reason: both are cases
+where we have no evidence about ONNX, and reporting "no evidence" as ❌
+would overstate what was measured.
+
+## Measuring what we cannot translate
+
+The catalog exists to guard our own exporter, so for a long time a spec
+only existed where t2n succeeds. That gave the ONNX column a selection
+bias with a precise shape: **the measured population was a subset of our
+own supported set**. An operator ONNX handles and we do not could never
+be graded ✅, only inherited as a retired ONNX listing claim, or
+left blank. The comparison was structurally blind exactly where we are
+weakest, and the `Gap vs ONNX` filter could only ever surface operators
+that the torch 2.8 listing happened to name.
+
+Specs for operators with **no translation at all** close that, purely so
+the sweep can measure them. They live in the same themed module as
+everything else in their family (`linalg.py`, `shape.py`, `reductions.py`
+and so on) and are marked with `OpSpec.nnef_gap`:
+
+```python
+# in tests/proptest/op_specs/shape.py, beside the shape ops we do ship
+gap_spec(
+    "masked_select",
+    mask_st(torch.masked_select, "masked_select"),
+    REASON_DATA_DEPENDENT,
+)
+```
+
+The marker is **asserted, not trusted**. A spec that merely skipped the
+tract driver would keep reporting its operator as unsupported long after
+someone implemented it, and the page with it. So:
+
+- the tract driver (`proptest` env) attempts the real export and checks
+  it fails at the declared `stage`. Both "it works now" and "it fails
+  somewhere else" are test failures, with the fix spelled out in the
+  message. This is cheap: a missing emitter raises during translation,
+  before tract is invoked.
+- `tests/test_proptest_nnef_gap.py` runs in the **default** suite and
+  cross-checks every `no-emitter` gap against the live emitter registry,
+  so registering the operator fails a test in the fast job too.
+- the ONNX sweep ignores the marker entirely and measures the spec like
+  any other. That is the whole point of it existing.
+
+`stage` records where the failure lands, and it is the first thing
+someone planning to close the gap needs to know:
+
+| Stage | Meaning |
+| --- | --- |
+| `no-emitter` | nothing is registered for the operator at all |
+| `export-error` | an emitter refuses, or the pipeline raises earlier (the RNG factories are constant-folded before the lookup) |
+| `tract-error` | NNEF is written and tract then declines to load or run it. Needs an emitter to exist, so the gap must also set `emitter_registered=True`, which inverts the registry check from "must be absent" to "must be present" |
+| `raw-error` | the export crashed with something that is not a `T2NError`, so the user gets a bare `TypeError` instead of a message naming the operator. Always a bug on our side, whether or not we ever translate the operator |
+
+Specs whose op draws from an RNG also set `nondeterministic=True`. Export
+and runtime stay measured; only the numerics axis is skipped, since
+comparing two independent draws would report the definition of the
+operator rather than anything about the exporter.
 
 ## Adding coverage
 
-An operator shows `-` until some spec claims it. To fix that, add or
-extend a spec in `tests/proptest/op_specs/` and set its `aten_ops` to the
-operator name(s) **as this page lists them**: the page drops
-`_`-prefixed identifiers and merges in-place variants, so the trace name
-is not always the row name (`conv2d` traces `aten::_convolution`).
+An operator shows `missing spec` in the `spec coverage` column until some
+spec claims it. To fix that, add or extend a spec in
+`tests/proptest/op_specs/` and set its `aten_ops` to the operator name(s)
+**as this page lists them**: the page drops `_`-prefixed identifiers and
+merges in-place variants, so the trace name is not always the row name
+(`conv2d` traces `aten::_convolution`).
+
+If t2n cannot translate the operator, the spec still belongs in the
+catalog: put it in the themed module it would live in once supported and
+give it an `nnef_gap`, instead of leaving the row unmeasured. Placing it
+by family rather than by support status is deliberate, so that
+implementing the operator later means deleting one field rather than
+moving the spec between files. Rows that get no spec at all are rare:
+they are recorded in `op_specs/untranslated.py` with a reason and are
+listed in the support page appendix, outside both comparison
+denominators.
 
 `tests/test_proptest_aten_attribution.py` traces every spec and checks its
 declaration, so a spec that drifts onto a different operator fails there

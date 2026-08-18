@@ -181,7 +181,7 @@ Notes:
 - `collapse_dims` (inputs) requires the symbol to be dynamic on that input at the selected stage.
 - `collapse_dims` (outputs) takes axis indices (integers), not symbols. Only axes of size 1 are squeezed.
 - `bind_scalar_to_dim_size` binds a dynamic size as an `int64` scalar.
-- `outputs_keep` filters exported outputs; order follows the subnet’s original `output_names`. The template always includes it so you can easily trim.
+- `outputs_keep` filters exported outputs; order follows the subnet's original `output_names`. The template always includes it so you can easily trim.
 - When batch collapse is detected on inputs, the NeMo registry auto-populates `outputs.collapse_dims: [0]` for all outputs of that subnet. Explicit config takes precedence.
 
 Boundary semantics
@@ -193,7 +193,7 @@ Boundary semantics
 
 ### Quick commands
 
-See also: the [provider‑agnostic remodeler tutorial](./11_remodeler.md) for programmatic usage and richer inspection:
+See also: the [provider-agnostic remodeler tutorial](./11_remodeler.md) for programmatic usage and richer inspection:
 
 Inspect with config applied (human-rich):
 
