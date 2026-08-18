@@ -33,8 +33,23 @@ class InPlaceCopyWithDtypeCast(torch.nn.Module):
         return buf.float() * 2.0
 
 
+def _skip_if_scatter_declutter_bug(inference_target):
+    """Skip when tract cannot declutter the scatter these graphs emit.
+
+    The `*_scatter` write lowers to a sliced assignment whose declutter trips
+    tract's own PushSliceUp pass before 0.23 (`Error at stage "declutter" ->
+    running pass PushSliceUp -> Condition failed: boundaries[0] ==
+    0.to_dim()`). The 0.23 line handles it, so only the legacy target is
+    skipped rather than dropping the coverage entirely. Same shape as the
+    tract-0.22.1 skip in `packages/llm/tests/test_llm_cli.py`.
+    """
+    if inference_target.version < "0.23.0":
+        pytest.skip("tract PushSliceUp declutter bug (fixed in the 0.23 line)")
+
+
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_copy_inplace_into_zeros_buffer(inference_target):
+    _skip_if_scatter_declutter_bug(inference_target)
     inp = torch.arange(6.0).reshape(1, 6)
     check_model_io_test(
         model=InPlaceCopyIntoZerosBuffer(),
@@ -71,6 +86,7 @@ class IndexedWriteIntoZerosBuffer(torch.nn.Module):
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_indexed_write_into_zeros_buffer(inference_target):
+    _skip_if_scatter_declutter_bug(inference_target)
     inp = torch.ones(1, 4, 1, 16)
     check_model_io_test(
         model=IndexedWriteIntoZerosBuffer(),
