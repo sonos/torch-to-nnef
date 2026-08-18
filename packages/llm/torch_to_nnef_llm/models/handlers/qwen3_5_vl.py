@@ -21,7 +21,16 @@ import typing as T
 import torch
 import torch.nn.functional as F
 
-from torch_to_nnef.exceptions import T2NErrorConsistency
+from torch_to_nnef.exceptions import (
+    T2NErrorConsistency,
+    T2NErrorInvalidArgument,
+    T2NErrorNotImplemented,
+)
+from torch_to_nnef.op.gated_delta import (
+    gated_delta_fake,
+    gated_delta_reference,
+    l2norm,
+)
 
 from .base import (
     ArchitectureHandler,
@@ -59,28 +68,11 @@ if not _gated_delta_scan_defined():
     )
     def _gated_delta_scan_op(q, k, v, g, beta, s0):
         """Pure-torch reference: the gated-delta recurrence over T (axis 2)."""
-        state = s0
-        outs = []
-        for step in range(q.shape[2]):
-            q_t, k_t, v_t = q[:, :, step], k[:, :, step], v[:, :, step]
-            state = state * g[:, :, step].exp()[..., None, None]
-            kv = (state * k_t.unsqueeze(-1)).sum(-2)
-            delta = (v_t - kv) * beta[:, :, step][..., None]
-            state = state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
-            outs.append((state * q_t.unsqueeze(-1)).sum(-2))
-        return torch.stack(outs, dim=2), state
+        return gated_delta_reference(q, k, v, g, beta, s0)
 
     @_gated_delta_scan_op.register_fake
     def _gated_delta_scan_meta(q, k, v, g, beta, s0):
-        batch, heads, seq, _ = q.shape
-        return (
-            q.new_empty((batch, heads, seq, v.shape[-1])),
-            s0.new_empty(s0.shape),
-        )
-
-
-def _l2norm(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    return x * torch.rsqrt((x * x).sum(-1, keepdim=True) + eps)
+        return gated_delta_fake(q, k, v, g, beta, s0)
 
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
@@ -368,6 +360,13 @@ class _HybridGDNForward:
     def gdn(gdn, hidden, conv_state_in, rec_state_in):
         batch, seq, _ = hidden.shape
         conv_k = gdn.conv_kernel_size
+        if conv_k < 2:
+            # `padded[:, :, -(conv_k - 1):]` would become `[:, :, 0:]`, i.e.
+            # the whole width-T tensor, so the emitted conv state would stop
+            # matching the zero-width state input the graph declares.
+            raise T2NErrorNotImplemented(
+                f"gated-delta conv_kernel_size must be >= 2, got {conv_k}"
+            )
         qkv = gdn.in_proj_qkv(hidden).transpose(1, 2)  # [B, conv_dim, T]
         z = gdn.in_proj_z(hidden).reshape(batch, seq, -1, gdn.head_v_dim)
         b = gdn.in_proj_b(hidden)
@@ -397,8 +396,8 @@ class _HybridGDNForward:
             query = query.repeat_interleave(rep, dim=2)
             key = key.repeat_interleave(rep, dim=2)
         scale = 1.0 / (gdn.head_k_dim**0.5)
-        q_p = (_l2norm(query) * scale).transpose(1, 2)
-        k_p = _l2norm(key).transpose(1, 2)
+        q_p = (l2norm(query) * scale).transpose(1, 2)
+        k_p = l2norm(key).transpose(1, 2)
         v_p = value.transpose(1, 2)
         g_p = g.transpose(1, 2)
         beta_p = beta.transpose(1, 2)
@@ -590,6 +589,14 @@ class Qwen35ArchitectureHandler(ArchitectureHandler):
         effective_seq = max(n_input_tokens, num_image_tokens + 2)
 
         test_input = tokenizer(sample_text, return_tensors="pt")
+        if test_input.input_ids.shape[1] < effective_seq:
+            # the image-token writes below index up to effective_seq, so a
+            # short sample_text would index past the tokenized length
+            raise T2NErrorInvalidArgument(
+                f"sample_text tokenizes to {test_input.input_ids.shape[1]} "
+                f"tokens, need at least {effective_seq} "
+                f"(vision_start + {num_image_tokens} image tokens + text)"
+            )
         input_ids = test_input.input_ids[:, :effective_seq].clone()
         vocab_size = text_conf.vocab_size
         conf = config_helper.conf

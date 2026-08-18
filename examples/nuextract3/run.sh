@@ -15,7 +15,7 @@ DTYPE=${DTYPE:-f32}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-16}
 if [ -z "$REPO" ]; then
   echo "[nuextract3] exporting tiny dummy model (set REPO=... for a real checkpoint)"
-  python export.py --dummy --dtype "$DTYPE" --verify 12 --out ./exp
+  python export.py --dummy --dtype "$DTYPE" --verify "$MAX_NEW_TOKENS" --out ./exp
 else
   echo "[nuextract3] exporting $REPO ($DTYPE)"
   hf_pull "$REPO"

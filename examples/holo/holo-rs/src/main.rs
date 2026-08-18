@@ -267,9 +267,14 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // ---- greedy decode ----
     let empty_img = f32_tensor(&[0, manifest.hidden_size], vec![])?;
-    let mut generated: Vec<i64> = vec![next];
+    // the prefill argmax IS the first new token, so the loop owes one less
+    let mut generated: Vec<i64> = if args.max_new_tokens == 0 {
+        Vec::new()
+    } else {
+        vec![next]
+    };
     let mut past = seq;
-    for step in 0..args.max_new_tokens {
+    for step in 0..args.max_new_tokens.saturating_sub(1) {
         if manifest.eos_token_id == Some(next) {
             break;
         }
