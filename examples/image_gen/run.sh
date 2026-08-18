@@ -18,4 +18,3 @@ python sd15/vae_decoder.py
 python flux_schnell/transformer.py --mini
 python sana/transformer.py --mini
 echo "[image_gen] Done."
-

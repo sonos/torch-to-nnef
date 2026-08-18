@@ -4,4 +4,8 @@ This package wires `hypothesis` to the export pipeline so we can sweep input
 shapes, dtypes, and op kwargs while still comparing PyTorch reference outputs
 against tract with NaN/Inf-aware semantics. See the design at
 `docs/contributing/internal_design.md` (proptest section) for rationale.
+
+The same catalog doubles as the measurement source for the support page's
+ONNX column (`onnx_backend.py` / `onnx_report.py`); see
+`docs/contributing/onnx_support_page.md`.
 """

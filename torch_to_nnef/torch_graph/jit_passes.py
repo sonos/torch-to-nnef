@@ -117,10 +117,10 @@ def _tensor_sizes(value) -> T.Optional[T.List[int]]:
 
 
 def _insert_int_constant_before(
-    graph: "torch._C.Graph",
+    graph: torch._C.Graph,
     value: int,
-    before_node: "torch._C.Node",
-) -> "torch._C.Value":
+    before_node: torch._C.Node,
+) -> torch._C.Value:
     """Insert a `prim::Constant` int just before `before_node`.
 
     Uses `Graph.create` + `Node.insertBefore` rather than the higher-level
@@ -135,10 +135,10 @@ def _insert_int_constant_before(
 
 
 def _insert_int_list_constant(
-    graph: "torch._C.Graph",
+    graph: torch._C.Graph,
     values: T.Sequence[int],
-    before_node: "torch._C.Node",
-) -> "torch._C.Value":
+    before_node: torch._C.Node,
+) -> torch._C.Value:
     """Materialize a `prim::ListConstruct` of int constants.
 
     Inserts the elements and the list construct just before `before_node`.
@@ -191,7 +191,7 @@ _CONTROL_FLOW_SINKS = {
 }
 
 
-def _reach_only_control_flow(source_value: "torch._C.Value") -> bool:
+def _reach_only_control_flow(source_value: torch._C.Value) -> bool:
     """Decide whether folding `source_value` to a constant is shape-safe.
 
     Walks every forward-reachable use. Returns True iff every reach path
@@ -245,7 +245,7 @@ def _reach_only_control_flow(source_value: "torch._C.Value") -> bool:
 
 
 def replace_size_calls_with_constants(
-    graph: "torch._C.Graph",
+    graph: torch._C.Graph,
     example_inputs: T.Sequence[T.Any],
 ) -> int:
     """Fold size queries whose values flow only into control flow.
@@ -298,8 +298,8 @@ def replace_size_calls_with_constants(
 
 
 def _materialize_size_fold(
-    graph: "torch._C.Graph", node: "torch._C.Node"
-) -> T.Optional["torch._C.Value"]:
+    graph: torch._C.Graph, node: torch._C.Node
+) -> T.Optional[torch._C.Value]:
     """Build the constant that replaces `node`, or None if not foldable."""
     inputs = list(node.inputs())
     sizes = _tensor_sizes(inputs[0]) if inputs else None
@@ -427,7 +427,7 @@ def _emit_python_constant(graph, value, before_node):
     return n.output()
 
 
-def fold_constant_scalar_arithmetic(graph: "torch._C.Graph") -> int:
+def fold_constant_scalar_arithmetic(graph: torch._C.Graph) -> int:
     """Fold scalar arithmetic on `prim::Constant` operands.
 
     Walks `aten::eq/ne/lt/le/gt/ge`, `aten::__not__`,
@@ -481,14 +481,15 @@ def fold_constant_scalar_arithmetic(graph: "torch._C.Graph") -> int:
                 continue
             if haystack_node.kind() != LISTCONSTRUCT_KIND:
                 continue
-            elems = []
+            elems: T.List[T.Any] = []
+            all_const = True
             for el in haystack_node.inputs():
                 v = _const_value(el)
                 if v is _NOT_CONST:
-                    elems = None
+                    all_const = False
                     break
                 elems.append(v)
-            if elems is None:
+            if not all_const:
                 continue
             new_val = _emit_python_constant(graph, needle in elems, node)
         if new_val is None:
@@ -499,7 +500,7 @@ def fold_constant_scalar_arithmetic(graph: "torch._C.Graph") -> int:
     return folded
 
 
-def strip_prim_data(graph: "torch._C.Graph") -> int:
+def strip_prim_data(graph: torch._C.Graph) -> int:
     """Replace `prim::data(t)` nodes with their input.
 
     `prim::data` is the IR form of Tensor `.data` access (detaches from
@@ -520,7 +521,7 @@ def strip_prim_data(graph: "torch._C.Graph") -> int:
 
 
 def fold_tuple_index_through_tuple_construct(
-    graph: "torch._C.Graph",
+    graph: torch._C.Graph,
 ) -> int:
     """Fold `prim::TupleIndex(tuple_const, k)` into the k-th tuple input.
 
@@ -564,7 +565,7 @@ def fold_tuple_index_through_tuple_construct(
 
 
 def fold_tuple_unpack_through_tuple_construct(
-    graph: "torch._C.Graph",
+    graph: torch._C.Graph,
 ) -> int:
     """Fold `prim::TupleUnpack(prim::TupleConstruct(...))` into the inputs.
 
@@ -600,7 +601,7 @@ def fold_tuple_unpack_through_tuple_construct(
     return folded
 
 
-def fold_constant_ifs(graph: "torch._C.Graph") -> int:
+def fold_constant_ifs(graph: torch._C.Graph) -> int:
     """Fold `prim::If` nodes whose condition is a `prim::Constant[bool]`.
 
     Replaces the If with the chosen block's nodes. Returns the count
@@ -639,7 +640,7 @@ def fold_constant_ifs(graph: "torch._C.Graph") -> int:
     return folded
 
 
-def strip_assertion_ifs(graph: "torch._C.Graph") -> int:
+def strip_assertion_ifs(graph: torch._C.Graph) -> int:
     """Drop `prim::If` nodes whose one branch is purely a `RaiseException`.
 
     Replace uses of the If's outputs with the non-raising block's outputs,
@@ -680,8 +681,8 @@ def strip_assertion_ifs(graph: "torch._C.Graph") -> int:
 
 
 def _eval_value_by_example(
-    graph: "torch._C.Graph",
-    value: "torch._C.Value",
+    graph: torch._C.Graph,
+    value: torch._C.Value,
     example_inputs: T.Sequence[T.Any],
 ) -> T.Any:
     """Run the graph with the given example inputs, returning `value`.
@@ -705,7 +706,7 @@ def _eval_value_by_example(
 
 
 def fold_data_dependent_ifs(
-    graph: "torch._C.Graph",
+    graph: torch._C.Graph,
     example_inputs: T.Sequence[T.Any],
 ) -> int:
     """Fold `prim::If` nodes whose condition is data-dependent on the input.

@@ -71,5 +71,5 @@ chain and rationale per pass.
 
 ## Remodeler
 
-For boundary‑only transforms (collapse, bind, alias, outputs_keep), see the
-dedicated tutorial: [Provider‑agnostic remodeler](./tutos/11_remodeler.md).
+For boundary-only transforms (collapse, bind, alias, outputs_keep), see the
+dedicated tutorial: [Provider-agnostic remodeler](./tutos/11_remodeler.md).

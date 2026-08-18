@@ -42,7 +42,7 @@ def build_structured_inputs(flat_args, input_infos):
         flat_args: Flat sequence of tensor values (non-tensor constants are
             automatically re-inserted from *input_infos*).
         input_infos: Flattened element descriptors produced by
-            :func:`flatten_dict_tuple_or_list` — each entry is
+            :func:`flatten_dict_tuple_or_list`: each entry is
             ``(types, indexes, original_value)``.
 
     Returns:
@@ -142,7 +142,8 @@ class WrapStructIO(nn.Module):
 
 def build_new_names_and_elements(
     original_names: T.Optional[T.List[str]],
-    elms: T.Iterable,
+    # Collection, not Iterable: the body calls len() on it.
+    elms: T.Collection,
     default_element_name_tmpl: str,
 ):
     """Build names of elements based on containers parents.
@@ -197,8 +198,10 @@ def build_new_names_and_elements(
             str_idxes = "_" + str_idxes
         if not isinstance(elm, torch.Tensor):
             ix_str = ""
-            for i in idxes:
-                val = "'" + i + "'" if isinstance(i, str) else i
+            # Not `i`: that name is already bound to an int by the range()
+            # loop above, and these indexes are int-or-str.
+            for idx in idxes:
+                val = f"'{idx}'" if isinstance(idx, str) else idx
                 ix_str += f"[{val}]"
             LOGGER.warning(
                 "Can only keep trace dynamic for torch.Tensor inputs/outputs  "
@@ -214,7 +217,7 @@ def build_new_names_and_elements(
         new_elms.append(elm)
         new_flat_elms.append((_, idxes, elm))
 
-    # Guard against duplicate flat names — they would produce a broken
+    # Guard against duplicate flat names: they would produce a broken
     # graph (ambiguous IO in NNEF, broken outputs_keep filtering, etc.).
     seen: dict[str, int] = {}
     for n in new_names:

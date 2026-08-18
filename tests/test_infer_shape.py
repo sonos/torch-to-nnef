@@ -7,7 +7,10 @@ import torch
 
 from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
-from torch_to_nnef.torch_graph.ir_op import TorchOp
+from torch_to_nnef.torch_graph.ir_op import (
+    TorchOp,
+    _infer_trace_result_matmul,
+)
 
 
 class TestSuiteIrOpBuilder:
@@ -208,3 +211,27 @@ def test_check_ir_op_infer_trace_result(ir_op: TorchOp):
     assert a.dtype == b.dtype, (
         f"Infered dtype {a.dtype} does not match exact dtype {b.dtype}"
     )
+
+
+@pytest.mark.parametrize(
+    "shape_a,shape_b,expected",
+    [
+        ((2, 3, 4), (2, 4, 5), (2, 3, 5)),
+        ((3, 4), (4,), (3,)),
+        ((4,), (4, 5), (5,)),
+    ],
+    ids=["batched", "mat_vec", "vec_mat"],
+)
+def test_infer_matmul_shape_ignores_operand_dtypes(shape_a, shape_b, expected):
+    """A mixed-dtype matmul still yields a shape.
+
+    Placeholder dtypes need not agree: an f16 module with one sub-path
+    forced to f32 (`force_f32_attention` and friends) reaches shape
+    inference with an f16 x f32 pair, and torch's meta `bmm` rejects a
+    mixed-dtype pair even though the result shape does not depend on dtype.
+    """
+    out = _infer_trace_result_matmul(
+        torch.empty(shape_a, dtype=torch.float16),
+        torch.empty(shape_b, dtype=torch.float32),
+    )
+    assert tuple(out) == expected

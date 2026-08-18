@@ -181,7 +181,7 @@ def test_dummy_chain_parity():
 def test_dynamic_resolution_vision_multi_size():
     """Export ONCE, run tract at several square resolutions.
 
-    Proves the grid axis is genuinely dynamic (not baked) end to end.
+    Proves the grid axis is truly dynamic (not baked) end to end.
     """
     exporter = build_dummy_exporter(
         _dummy_config(), Gemma4ForConditionalGeneration, "f32"

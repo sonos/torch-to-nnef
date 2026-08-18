@@ -1,6 +1,6 @@
 [project]
 name = "torch_to_nnef_nemo_asr"
-version = "0.24.3"
+version = "0.24.7"
 description = "NeMo ASR export to NNEF via torch-to-nnef."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"

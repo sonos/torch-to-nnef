@@ -16,7 +16,7 @@ Build (Wasm)
 Prereqs
 
 - Rust toolchain (stable) and `wasm-pack`
-- Binaryen’s `wasm-opt` for size-optimized builds (recommended)
+- Binaryen's `wasm-opt` for size-optimized builds (recommended)
   - macOS (brew): `brew install binaryen`
   - Linux: use your package manager or https://github.com/WebAssembly/binaryen
   - Ensure `~/.cargo/bin` is on your `PATH` (for `wasm-pack`)

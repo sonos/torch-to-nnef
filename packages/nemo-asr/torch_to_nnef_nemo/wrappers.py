@@ -676,12 +676,10 @@ def use_pytorch_sdpa(
         if isinstance(module, mha):
             if not hasattr(module, "use_pytorch_sdpa"):
                 raise T2NErrorInvalidArgument(
-                    (
-                        "The provided model's MultiHeadAttention module does "
-                        "not have the 'use_pytorch_sdpa' attribute. Cannot "
-                        "apply PyTorch SDPA. Please ensure a compatible NeMo "
-                        f"version (yours: '{nemo.__version__}', required: "
-                        "'2.1.0' or later) with PyTorch SDPA support."
-                    )
+                    "The provided model's MultiHeadAttention module does "
+                    "not have the 'use_pytorch_sdpa' attribute. Cannot "
+                    "apply PyTorch SDPA. Please ensure a compatible NeMo "
+                    f"version (yours: '{nemo.__version__}', required: "
+                    "'2.1.0' or later) with PyTorch SDPA support."
                 )
             module.use_pytorch_sdpa = True

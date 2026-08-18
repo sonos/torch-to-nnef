@@ -18,8 +18,14 @@ from ..shapes import (
     shape_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
+)
+from ._gap_common import (
+    REASON_LAYOUT,
+    gap_spec,
+    shape_only_st,
 )
 
 
@@ -82,6 +88,41 @@ class _NewZerosFromInput(torch.nn.Module):
 
     def forward(self, x):
         return x.new_zeros(x.shape)
+
+
+class _QuantizePerChannel(torch.nn.Module):
+    """Quantize per channel, then dequantize for ordinary tensor outputs."""
+
+    def __init__(self, channels: int):
+        super().__init__()
+        self.register_buffer(
+            "scales", torch.linspace(0.05, 0.15, channels, dtype=torch.double)
+        )
+        self.register_buffer(
+            "zero_points", torch.zeros(channels, dtype=torch.long)
+        )
+
+    def forward(self, x):
+        return torch.quantize_per_channel(
+            x, self.scales, self.zero_points, 1, torch.qint8
+        ).dequantize()
+
+
+class _QuantizePerTensorDynamic(torch.nn.Module):
+    """Dynamic tensor quantization, dequantized before returning."""
+
+    def forward(self, x):
+        return torch.quantize_per_tensor_dynamic(
+            x, torch.qint8, reduce_range=False
+        ).dequantize()
+
+
+class _EmptyQuantized(torch.nn.Module):
+    """`empty_quantized` seeded from a quantized view of the input."""
+
+    def forward(self, x):
+        q = torch.quantize_per_tensor(x, 0.05, 10, torch.quint8)
+        return torch.empty_quantized(q.shape, q).dequantize()
 
 
 def _zeros_from_shape_sample_st() -> st.SearchStrategy[OpSample]:
@@ -195,6 +236,56 @@ def _new_zeros_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _quantize_per_channel_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        channels = draw(st.integers(min_value=2, max_value=4))
+        x = draw(
+            tensor_st(
+                (2, channels),
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_QuantizePerChannel(channels))
+
+    return _draw()
+
+
+def _quantize_per_tensor_dynamic_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(
+            tensor_st(
+                (2, 3),
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_QuantizePerTensorDynamic())
+
+    return _draw()
+
+
+def _empty_quantized_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=3, min_dim=2, max_dim=4))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_EmptyQuantized())
+
+    return _draw()
+
+
 def _index_advanced_sample_st() -> st.SearchStrategy[OpSample]:
     """`x[long_tensor]`: advanced indexing along axis 0.
 
@@ -273,41 +364,49 @@ def _constructors_index_sdpa_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="zeros",
+            aten_ops=("zeros",),
             sample_st=_zeros_from_shape_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="ones",
+            aten_ops=("ones",),
             sample_st=_ones_from_shape_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="full",
+            aten_ops=("full",),
             sample_st=_full_from_shape_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="arange",
+            aten_ops=("arange",),
             sample_st=_arange_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="scalar_tensor",
+            aten_ops=("scalar_tensor",),
             sample_st=_scalar_tensor_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="new_zeros",
+            aten_ops=("new_zeros",),
             sample_st=_new_zeros_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="index",
+            aten_ops=("index",),
             sample_st=_index_advanced_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="sdpa",
+            aten_ops=("scaled_dot_product_attention",),
             sample_st=_sdpa_sample_st(),
             tolerance=VERY,
         ),
@@ -465,26 +564,31 @@ def _fft_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="fft_fft",
+            aten_ops=("fft_fft",),
             sample_st=_fft_sample_st(torch.fft.fft),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="fft_ifft",
+            aten_ops=("fft_ifft",),
             sample_st=_fft_sample_st(torch.fft.ifft),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="fft_rfft",
+            aten_ops=("fft_rfft",),
             sample_st=_fft_sample_st(torch.fft.rfft),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="fft_fftn",
+            aten_ops=("fft_fftn",),
             sample_st=_fftn_sample_st(torch.fft.fftn),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
             name="fft_ifftn",
+            aten_ops=("fft_ifftn",),
             sample_st=_fftn_sample_st(torch.fft.ifftn),
             tolerance=TractCheckTolerance.SUPER,
         ),
@@ -494,6 +598,7 @@ def _fft_specs() -> T.List[OpSpec]:
             # such a spectrum; the comparator then sees real-on-both-
             # sides without needing the view_as_real wrapper.
             name="fft_irfft",
+            aten_ops=("fft_irfft",),
             sample_st=_irfft_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
         ),
@@ -631,31 +736,37 @@ def _glue_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="clone",
+            aten_ops=("clone",),
             sample_st=_identity_unary_sample_st(torch.clone),
             tolerance=EXACT,
         ),
         OpSpec(
             name="contiguous",
+            aten_ops=("contiguous",),
             sample_st=_identity_unary_sample_st(lambda t: t.contiguous()),
             tolerance=EXACT,
         ),
         OpSpec(
             name="detach",
+            aten_ops=("detach",),
             sample_st=_identity_unary_sample_st(lambda t: t.detach()),
             tolerance=EXACT,
         ),
         OpSpec(
             name="to_dtype",
+            aten_ops=("to",),
             sample_st=_to_dtype_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="type_as",
+            aten_ops=("type_as",),
             sample_st=_type_as_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="fill",
+            aten_ops=("fill",),
             sample_st=_fill_sample_st(),
             tolerance=EXACT,
         ),
@@ -743,6 +854,7 @@ def _complex_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="complex",
+            aten_ops=("complex",),
             sample_st=_complex_constructor_sample_st(),
             tolerance=CLOSE,
         ),
@@ -751,6 +863,7 @@ def _complex_specs() -> T.List[OpSpec]:
             # `conjugate` NNEF fragment. (`resolve_conj-complex` is not
             # needed: `resolve_conj` is a no-op on a non-lazy tensor.)
             name="conj-complex",
+            aten_ops=("conj",),
             sample_st=_complex_unary_sample_st(torch.conj),
             tolerance=CLOSE,
         ),
@@ -758,6 +871,7 @@ def _complex_specs() -> T.List[OpSpec]:
             # Mirror of `conj-complex`; `conj_physical` shares the
             # `_emit_conjugate` code path but is a separate aten op.
             name="conj_physical-complex",
+            aten_ops=("conj_physical",),
             sample_st=_complex_unary_sample_st(torch.conj_physical),
             tolerance=CLOSE,
         ),
@@ -771,6 +885,7 @@ def _complex_specs() -> T.List[OpSpec]:
             # than the documented z/|z|. Spec stays xfail until the
             # `sgn_complex` fragment guards against the underflow.
             name="sgn-complex-xfail",
+            aten_ops=("sgn",),
             sample_st=_complex_unary_sample_st(
                 torch.sgn, domain=Interval(-3.0, 3.0)
             ),
@@ -785,9 +900,92 @@ def _complex_specs() -> T.List[OpSpec]:
     ]
 
 
+def _uninitialized_specs() -> T.Tuple[OpSpec, ...]:
+    """Allocations with no defined contents, plus the deprecated range.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        gap_spec(
+            "empty",
+            shape_only_st(
+                lambda t: torch.empty(t.shape, dtype=t.dtype), "empty"
+            ),
+            "allocates without initializing, so there is nothing for a "
+            "declarative graph to describe",
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "empty_strided",
+            shape_only_st(
+                lambda t: torch.empty_strided((2, 2), (2, 1)) + t.sum() * 0,
+                "empty_strided",
+            ),
+            f"{REASON_LAYOUT}; uninitialized as well",
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "new_empty_strided",
+            shape_only_st(
+                lambda t: t.new_empty_strided((2, 2), (2, 1)),
+                "new_empty_strided",
+            ),
+            f"{REASON_LAYOUT}; uninitialized as well",
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "empty_permuted",
+            shape_only_st(
+                lambda t: torch.empty_permuted((2, 2), (1, 0)) + t.sum() * 0,
+                "empty_permuted",
+            ),
+            f"{REASON_LAYOUT}; uninitialized as well",
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "range",
+            shape_only_st(lambda t: torch.range(0, 4) + t.sum() * 0, "range"),
+            "the inclusive-end variant of `arange`, which we do translate; "
+            "no emitter maps the deprecated spelling onto it",
+        ),
+    )
+
+
+def _quantized_factory_gap_specs() -> T.Tuple[OpSpec, ...]:
+    """Traceable quantized constructors that t2n does not lower."""
+    return (
+        gap_spec(
+            "empty_quantized",
+            _empty_quantized_sample_st(),
+            "allocates an uninitialized quantized tensor; no emitter maps "
+            "the quantized allocation path",
+            stage=NnefGapStage.EXPORT_ERROR,
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "quantize_per_channel",
+            _quantize_per_channel_sample_st(),
+            "creates a quantized tensor with per-channel scales; t2n has "
+            "no lowering for this quantized conversion row",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+        gap_spec(
+            "quantize_per_tensor_dynamic",
+            _quantize_per_tensor_dynamic_sample_st(),
+            "chooses quantization parameters from runtime values, which "
+            "t2n does not lower as an ATen op",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+    )
+
+
 SPECS = (
     *_constructors_index_sdpa_specs(),
     *_fft_specs(),
     *_glue_specs(),
     *_complex_specs(),
+    *_uninitialized_specs(),
+    *_quantized_factory_gap_specs(),
 )

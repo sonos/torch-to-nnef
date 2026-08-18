@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import torch
 
 from torch_to_nnef.exceptions import T2NErrorConsistency
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 
 def resolve_submodule(root: T.Any, dotted_path: str) -> T.Any:
@@ -332,7 +333,7 @@ class EncoderHandler(ABC):
     #: tract check_io tolerance for this encoder graph. Vision/audio towers
     #: accumulate more f32 attention drift than the LLM decoder, so they
     #: usually need a looser preset than the decoder default ("approximate").
-    CHECK_IO_TOLERANCE: str = "very"
+    CHECK_IO_TOLERANCE: TractCheckTolerance = TractCheckTolerance.VERY
     #: Whether the tower's attention is SDPA-based. The fp16 export routes SDPA
     #: towers through the f32-accumulation rewrite; a tower with custom (non
     #: SDPA) attention (e.g. the USM audio conformer) sets this False so the

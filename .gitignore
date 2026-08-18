@@ -126,6 +126,9 @@ graph.nnef
 *.json
 !packages/nemo-asr/torch_to_nnef_nemo/slug_fingerprints.json
 !docs/contributing/torch_*_doc_urls.json
+# Measured ONNX support grades. Committed so the support page can be
+# regenerated offline and so a grade change shows up as a review diff.
+!docs/contributing/onnx_support_measured.json
 *.out
 
 # scratch / local model dumps / bug-repro bundles

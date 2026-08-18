@@ -28,7 +28,7 @@ Both are first-class and can co-exist in the same model.
 New: t2n_extra custom ops
 ---------------------------------
 
-Use PyTorch’s `torch.library.custom_op` to declare an opaque
+Use PyTorch's `torch.library.custom_op` to declare an opaque
 operation under the `t2n_extra::<name>` namespace, call it in your
 model, and register a small NNEF emit function with
 `torch_to_nnef.op.extras.register("<name>")`.
@@ -84,7 +84,7 @@ export_model_to_nnef(
 ```
 
 Notes
-- Namespace: use `t2n_extra::<name>` only — the exporter routes those to
+- Namespace: use `t2n_extra::<name>` only. The exporter routes those to
   your handler via `torch_to_nnef.op.extras`.
 - Helper: the `op_helper` offers small utilities to convert inputs and
   emit ops; see `torch_to_nnef.op.helper.OpHelper`.
@@ -160,4 +160,4 @@ Which one should I use?
 
 Both routes produce a single opaque node in the IR and then emit your
 custom NNEF subgraph; pick the one that matches your authoring style
-and where you want the “hook” to live (op call vs. module call).
+and where you want the "hook" to live (op call vs. module call).

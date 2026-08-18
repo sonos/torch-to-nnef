@@ -26,8 +26,22 @@ from ..shapes import (
     ternary_broadcast_shapes_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
+    _unary_sample_st,
+)
+from ._gap_common import (
+    REASON_DATA_DEPENDENT,
+    REASON_LAYOUT,
+    as_strided_st,
+    gap_spec,
+    index_pair_st,
+    mask_st,
+    nonzero_st,
+    rows_st,
+    segment_st,
+    small_int_st,
 )
 
 
@@ -801,92 +815,109 @@ def _shape_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="reshape",
+            aten_ops=("reshape",),
             sample_st=_reshape_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="transpose",
+            aten_ops=("transpose",),
             sample_st=_transpose_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="permute",
+            aten_ops=("permute",),
             sample_st=_permute_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="numpy_T",
+            aten_ops=("numpy_T",),
             sample_st=_numpy_T_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="unsqueeze",
+            aten_ops=("unsqueeze",),
             sample_st=_unsqueeze_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="squeeze",
+            aten_ops=("squeeze",),
             sample_st=_squeeze_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="view",
+            aten_ops=("view",),
             sample_st=_view_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="flatten",
+            aten_ops=("flatten",),
             sample_st=_flatten_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="narrow",
+            aten_ops=("narrow",),
             sample_st=_narrow_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="expand",
+            aten_ops=("expand",),
             sample_st=_expand_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="repeat",
+            aten_ops=("repeat",),
             sample_st=_repeat_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="t",
+            aten_ops=("t",),
             sample_st=_t_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="square",
+            aten_ops=("square",),
             sample_st=_square_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="dot",
+            aten_ops=("dot",),
             sample_st=_dot_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="mv",
+            aten_ops=("mv",),
             sample_st=_mv_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="eye",
+            aten_ops=("eye",),
             sample_st=_eye_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="expand_as",
+            aten_ops=("expand_as",),
             sample_st=_expand_as_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=False,
@@ -899,6 +930,7 @@ def _shape_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="reshape_as",
+            aten_ops=("reshape_as",),
             sample_st=_reshape_as_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=False,
@@ -915,6 +947,7 @@ def _shape_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="broadcast_to",
+            aten_ops=("broadcast_to",),
             sample_st=_broadcast_to_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=False,
@@ -929,42 +962,49 @@ def _shape_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="atleast_1d",
+            aten_ops=("atleast_1d",),
             sample_st=_atleast_sample_st(1),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="atleast_2d",
+            aten_ops=("atleast_2d",),
             sample_st=_atleast_sample_st(2),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="atleast_3d",
+            aten_ops=("atleast_3d",),
             sample_st=_atleast_sample_st(3),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="tile",
+            aten_ops=("tile",),
             sample_st=_tile_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="floor_divide",
+            aten_ops=("floor_divide",),
             sample_st=_floor_divide_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="nan_to_num",
+            aten_ops=("nan_to_num",),
             sample_st=_nan_to_num_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="cosine_similarity",
+            aten_ops=("cosine_similarity",),
             sample_st=_cosine_similarity_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
             dynamic_axes_compatible=True,
@@ -1234,31 +1274,37 @@ def _selector_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="select",
+            aten_ops=("select",),
             sample_st=_select_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="index_select",
+            aten_ops=("index_select",),
             sample_st=_index_select_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="gather",
+            aten_ops=("gather",),
             sample_st=_gather_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="advanced_index",
+            aten_ops=("index",),
             sample_st=_advanced_index_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="masked_fill",
+            aten_ops=("masked_fill",),
             sample_st=_masked_fill_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="topk",
+            aten_ops=("topk",),
             sample_st=_topk_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -1452,6 +1498,42 @@ def _split_int_sample_st() -> st.SearchStrategy[OpSample]:
                 "split", kwargs={"split_size": split_size, "dim": dim}
             ),
         )
+
+    return _draw()
+
+
+def _split_with_sizes_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.split(x, split_sizes, dim)` with explicit chunk sizes."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape_list = list(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        dim_size = shape_list[dim]
+        cut = draw(st.integers(min_value=1, max_value=dim_size - 1))
+        split_sizes = [cut, dim_size - cut]
+        x = draw(
+            tensor_st(
+                tuple(shape_list),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        def op(t):
+            return torch.ops.aten.split_with_sizes.default(t, split_sizes, dim)
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
 
     return _draw()
 
@@ -1955,98 +2037,123 @@ def _concat_split_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="cat",
+            aten_ops=("cat",),
             sample_st=_cat_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="stack",
+            aten_ops=("stack",),
             sample_st=_stack_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="chunk",
+            aten_ops=("chunk",),
             sample_st=_chunk_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="split-int",
+            aten_ops=("split",),
             sample_st=_split_int_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
+            name="split_with_sizes",
+            aten_ops=("split_with_sizes",),
+            sample_st=_split_with_sizes_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
             name="unfold",
+            aten_ops=("unfold",),
             sample_st=_unfold_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="im2col",
+            aten_ops=("im2col",),
             sample_st=_im2col_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="col2im",
+            aten_ops=("col2im",),
             sample_st=_col2im_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="unbind",
+            aten_ops=("unbind",),
             sample_st=_unbind_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="roll",
+            aten_ops=("roll",),
             sample_st=_roll_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="outer",
+            aten_ops=("outer",),
             sample_st=_outer_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
         ),
         OpSpec(
             name="tril",
+            aten_ops=("tril",),
             sample_st=_triangular_sample_st(torch.tril),
             tolerance=EXACT,
         ),
         OpSpec(
             name="triu",
+            aten_ops=("triu",),
             sample_st=_triangular_sample_st(torch.triu),
             tolerance=EXACT,
         ),
         OpSpec(
             name="flip",
+            aten_ops=("flip",),
             sample_st=_flip_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="mT",
+            aten_ops=("mT",),
             sample_st=_matrix_transpose_sample_st(lambda x: x.mT),
             tolerance=EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="mH",
+            aten_ops=("mH",),
             sample_st=_matrix_transpose_sample_st(lambda x: x.mH),
             tolerance=EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="fliplr",
+            aten_ops=("fliplr",),
             sample_st=_fliplr_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="flipud",
+            aten_ops=("flipud",),
             sample_st=_flipud_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="rot90",
+            aten_ops=("rot90",),
             sample_st=_rot90_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="diagonal",
+            aten_ops=("diagonal",),
             sample_st=_diagonal_sample_st(),
             tolerance=EXACT,
         ),
@@ -2128,20 +2235,135 @@ def _pad_sample_st(
     return _draw()
 
 
+def _constant_pad_nd_sample_st() -> st.SearchStrategy[OpSample]:
+    """Direct `aten::constant_pad_nd` on one or two trailing axes."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        n_axes = draw(st.integers(min_value=1, max_value=min(rank, 2)))
+        pad = []
+        for _ in range(n_axes):
+            pad.extend(
+                [
+                    draw(st.integers(min_value=0, max_value=2)),
+                    draw(st.integers(min_value=0, max_value=2)),
+                ]
+            )
+        x = draw(tensor_st(shape, torch.float32, domain=Interval(-10.0, 10.0)))
+
+        def op(t):
+            return torch.ops.aten.constant_pad_nd.default(t, pad, 0.0)
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
+
+    return _draw()
+
+
+def _direct_spatial_pad_sample_st(
+    op: T.Callable[..., torch.Tensor],
+    spatial_rank: int,
+    *,
+    reflect: bool,
+) -> st.SearchStrategy[OpSample]:
+    """Direct reflection/replication pad on canonical N,C,spatial input."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        min_dim = 3 if reflect else 2
+        spatial = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=min_dim, max_value=6),
+                    min_size=spatial_rank,
+                    max_size=spatial_rank,
+                )
+            )
+        )
+        pad = []
+        for dim_size in reversed(spatial):
+            max_pad = dim_size - 1 if reflect else dim_size
+            pad.extend(
+                [
+                    draw(st.integers(min_value=0, max_value=min(max_pad, 2))),
+                    draw(st.integers(min_value=0, max_value=min(max_pad, 2))),
+                ]
+            )
+        x = draw(
+            tensor_st(
+                (n, c, *spatial),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        def wrapped(t):
+            return op(t, pad)
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
+
+    return _draw()
+
+
 def _pad_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="pad-constant",
+            aten_ops=("pad",),
             sample_st=_pad_sample_st("constant", max_pad_per_side=3),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
+            name="constant_pad_nd",
+            aten_ops=("constant_pad_nd",),
+            sample_st=_constant_pad_nd_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
             name="pad-reflect",
+            aten_ops=("pad",),
             sample_st=_pad_sample_st("reflect"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
+            name="reflection_pad1d",
+            aten_ops=("reflection_pad1d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.reflection_pad1d.default, 1, reflect=True
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="reflection_pad2d",
+            aten_ops=("reflection_pad2d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.reflection_pad2d.default, 2, reflect=True
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="reflection_pad3d",
+            aten_ops=("reflection_pad3d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.reflection_pad3d.default, 3, reflect=True
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
             name="pad-replicate-xfail",
+            aten_ops=("pad",),
             sample_st=_pad_sample_st("replicate"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2149,6 +2371,28 @@ def _pad_specs() -> T.List[OpSpec]:
                 '"replicate" ("unsupported padding mode replicate"). '
                 "t2n's replication_padnd emitter passes through the "
                 "mode attribute; the gap is downstream in tract."
+            ),
+        ),
+        OpSpec(
+            name="replication_pad2d-xfail",
+            aten_ops=("replication_pad2d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.replication_pad2d.default, 2, reflect=False
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 does not implement NNEF pad mode replicate"
+            ),
+        ),
+        OpSpec(
+            name="replication_pad3d-xfail",
+            aten_ops=("replication_pad3d",),
+            sample_st=_direct_spatial_pad_sample_st(
+                torch.ops.aten.replication_pad3d.default, 3, reflect=False
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 does not implement NNEF pad mode replicate"
             ),
         ),
     ]
@@ -2500,16 +2744,19 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="sort",
+            aten_ops=("sort",),
             sample_st=_sort_sample_st("sort"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="argsort",
+            aten_ops=("argsort",),
             sample_st=_sort_sample_st("argsort"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="scatter",
+            aten_ops=("scatter",),
             sample_st=_scatter_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -2520,6 +2767,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         # Flip these to non-xfail once tract 0.23 ships stable.
         OpSpec(
             name="scatter_add-xfail",
+            aten_ops=("scatter_add",),
             sample_st=_scatter_add_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2529,6 +2777,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="scatter_reduce-sum-xfail",
+            aten_ops=("scatter_reduce",),
             sample_st=_scatter_reduce_sample_st("sum"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2538,6 +2787,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="scatter_reduce-prod-xfail",
+            aten_ops=("scatter_reduce",),
             sample_st=_scatter_reduce_sample_st("prod"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2547,6 +2797,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="scatter_reduce-amax-xfail",
+            aten_ops=("scatter_reduce",),
             sample_st=_scatter_reduce_sample_st("amax"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2556,6 +2807,7 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="scatter_reduce-amin-xfail",
+            aten_ops=("scatter_reduce",),
             sample_st=_scatter_reduce_sample_st("amin"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2565,16 +2817,19 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="select_scatter",
+            aten_ops=("select_scatter",),
             sample_st=_select_scatter_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="slice_scatter",
+            aten_ops=("slice_scatter",),
             sample_st=_slice_scatter_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="slice",
+            aten_ops=("slice",),
             sample_st=_slice_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -2765,6 +3020,7 @@ def _index_pixel_specs() -> T.List[OpSpec]:
         # 0.23.0-dev.4. Flip these once tract 0.23 ships stable.
         OpSpec(
             name="index_fill-xfail",
+            aten_ops=("index_fill",),
             sample_st=_index_fill_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2774,6 +3030,7 @@ def _index_pixel_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="index_copy-xfail",
+            aten_ops=("index_copy",),
             sample_st=_index_copy_sample_st("none"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -2783,6 +3040,7 @@ def _index_pixel_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="index_add-xfail",
+            aten_ops=("index_add",),
             sample_st=_index_copy_sample_st("add"),
             tolerance=TractCheckTolerance.APPROXIMATE,
             xfail_reason=(
@@ -2795,17 +3053,20 @@ def _index_pixel_specs() -> T.List[OpSpec]:
         # to tract / NNEF), so dyn-axes works without special-casing.
         OpSpec(
             name="take",
+            aten_ops=("take",),
             sample_st=_take_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="pixel_shuffle",
+            aten_ops=("pixel_shuffle",),
             sample_st=_pixel_shuffle_sample_st(downscale=False),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="pixel_unshuffle",
+            aten_ops=("pixel_unshuffle",),
             sample_st=_pixel_shuffle_sample_st(downscale=True),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -2890,11 +3151,13 @@ def _recent_shape_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="channel_shuffle",
+            aten_ops=("channel_shuffle",),
             sample_st=_channel_shuffle_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="column_stack",
+            aten_ops=("column_stack",),
             sample_st=_column_stack_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -3015,6 +3278,7 @@ def _shape_utility_specs() -> T.List[OpSpec]:
         # dyn-axes works out of the box.
         OpSpec(
             name="broadcast_tensors",
+            aten_ops=("broadcast_tensors",),
             sample_st=_broadcast_tensors_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -3024,12 +3288,14 @@ def _shape_utility_specs() -> T.List[OpSpec]:
         # identifier, so dyn-axes works.
         OpSpec(
             name="meshgrid_ij",
+            aten_ops=("meshgrid",),
             sample_st=_meshgrid_sample_st("ij"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="meshgrid_xy",
+            aten_ops=("meshgrid",),
             sample_st=_meshgrid_sample_st("xy"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -3039,6 +3305,7 @@ def _shape_utility_specs() -> T.List[OpSpec]:
         # across different dyn-axis sizes is a known follow-up.
         OpSpec(
             name="tensor_split-int",
+            aten_ops=("tensor_split",),
             sample_st=_tensor_split_sample_st("int"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_skip_reason=(
@@ -3047,6 +3314,7 @@ def _shape_utility_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="tensor_split-indices",
+            aten_ops=("tensor_split",),
             sample_st=_tensor_split_sample_st("list"),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_skip_reason=(
@@ -3183,34 +3451,57 @@ def _count_nonzero_sample_st(*, all_dims: bool) -> st.SearchStrategy[OpSample]:
 def _alias_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
+            name="alias",
+            aten_ops=("alias",),
+            sample_st=_unary_sample_st(torch.ops.aten.alias.default, None),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="copy",
+            aten_ops=("copy",),
+            sample_st=_unary_sample_st(
+                lambda t: torch.ops.aten.copy.default(t, t.clone(), False),
+                None,
+            ),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
             name="dstack",
+            aten_ops=("dstack",),
             sample_st=_axis_stack_sample_st(torch.dstack, min_rank=3),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="vsplit",
+            aten_ops=("vsplit",),
             sample_st=_axis_split_sample_st(torch.vsplit, dim=0, min_rank=2),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="hsplit",
+            aten_ops=("hsplit",),
             sample_st=_axis_split_sample_st(torch.hsplit, dim=1, min_rank=2),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="dsplit",
+            aten_ops=("dsplit",),
             sample_st=_axis_split_sample_st(torch.dsplit, dim=2, min_rank=3),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="count_nonzero-dim",
+            aten_ops=("count_nonzero",),
             sample_st=_count_nonzero_sample_st(all_dims=False),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="count_nonzero-all",
+            aten_ops=("count_nonzero",),
             sample_st=_count_nonzero_sample_st(all_dims=True),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -3276,6 +3567,88 @@ def _index_put_sample_st(accumulate: bool) -> st.SearchStrategy[OpSample]:
             )
         )(accumulate)
         return OpSample(inputs=(x, idx, src), module=TernaryPrimitive(op_fn))
+
+    return _draw()
+
+
+class _IndexPutImpl(torch.nn.Module):
+    """Call the private dispatcher spelling behind `index_put_impl_`."""
+
+    def forward(self, x):
+        indices = (torch.tensor([0, 1], dtype=torch.long),)
+        values = torch.tensor([9.0, 8.0], dtype=x.dtype)
+        return torch.ops.aten._index_put_impl_.default(
+            x.clone(), indices, values, False, False
+        )
+
+
+class _SetStorage(torch.nn.Module):
+    """Rebind a clone's storage to another tensor."""
+
+    def forward(self, x, y):
+        return torch.ops.aten.set_.source_Tensor(x.clone(), y)
+
+
+class _CopySparseToSparse(torch.nn.Module):
+    """Copy between sparse tensors, then return a dense view."""
+
+    def forward(self, x):
+        src = x.to_sparse()
+        dst = torch.empty((2, 3), dtype=x.dtype).to_sparse()
+        return torch.ops.aten.copy_sparse_to_sparse_.default(
+            dst, src, False
+        ).to_dense()
+
+
+class _ResizeAsSparse(torch.nn.Module):
+    """Resize a sparse tensor to another sparse tensor's shape."""
+
+    def forward(self, x):
+        src = x.to_sparse()
+        dst = torch.empty((1, 1), dtype=x.dtype).to_sparse()
+        return torch.ops.aten.resize_as_sparse_.default(dst, src).to_dense()
+
+
+def _index_put_impl_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(
+            tensor_st(
+                (3,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_IndexPutImpl())
+
+    return _draw()
+
+
+def _set_storage_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(tensor_st((2, 3), torch.float32, finite=True))
+        y = draw(tensor_st((2, 3), torch.float32, finite=True))
+        return OpSample(inputs=(x, y), module=_SetStorage())
+
+    return _draw()
+
+
+def _sparse_copy_sample_st(
+    module: torch.nn.Module,
+) -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(
+            tensor_st(
+                (2, 3),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=module)
 
     return _draw()
 
@@ -3369,12 +3742,14 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="bucketize",
+            aten_ops=("bucketize",),
             sample_st=_bucketize_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="searchsorted",
+            aten_ops=("searchsorted",),
             sample_st=_searchsorted_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
@@ -3384,6 +3759,7 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
         # path is overwrite), so it works on stable.
         OpSpec(
             name="index_put",
+            aten_ops=("index_put_",),
             sample_st=_index_put_sample_st(accumulate=False),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -3392,6 +3768,7 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
         # scatter family.
         OpSpec(
             name="index_put-accum-xfail",
+            aten_ops=("index_put_",),
             sample_st=_index_put_sample_st(accumulate=True),
             tolerance=TractCheckTolerance.APPROXIMATE,
             xfail_reason=(
@@ -3404,6 +3781,181 @@ def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
 
 # 3D conv/pool + numerical helpers + classifiers
 
+
+def _data_dependent_extent_specs() -> T.Tuple[OpSpec, ...]:
+    """Ops whose output extent depends on the values, not the shapes.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- data-dependent extent --
+        gap_spec("nonzero", nonzero_st(as_tuple=False), REASON_DATA_DEPENDENT),
+        gap_spec(
+            "nonzero_numpy",
+            nonzero_st(as_tuple=True),
+            f"`nonzero(as_tuple=True)`: {REASON_DATA_DEPENDENT}, once per axis",
+        ),
+        gap_spec(
+            "argwhere",
+            small_int_st(torch.argwhere, "argwhere", lo=0, hi=2),
+            f"the same as `nonzero`: {REASON_DATA_DEPENDENT}",
+        ),
+        gap_spec(
+            "masked_select",
+            mask_st(torch.masked_select, "masked_select"),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_dim",
+            rows_st(lambda t: torch.unique(t, dim=0), "unique_dim"),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_consecutive",
+            small_int_st(torch.unique_consecutive, "unique_consecutive", hi=2),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "unique_dim_consecutive",
+            rows_st(
+                lambda t: torch.unique_consecutive(t, dim=0),
+                "unique_dim_consecutive",
+            ),
+            REASON_DATA_DEPENDENT,
+        ),
+        gap_spec(
+            "combinations",
+            small_int_st(
+                lambda t: torch.combinations(t, r=2), "combinations", max_rank=1
+            ),
+            "output length is a binomial coefficient of the input length: "
+            "static, but no emitter builds the index pairs",
+        ),
+        gap_spec(
+            "nonzero_static",
+            small_int_st(
+                lambda t: torch.nonzero_static(t, size=3),
+                "nonzero_static",
+                hi=2,
+            ),
+            "the padded form of `nonzero`, so the extent *is* static here; "
+            "it fails before the emitter lookup instead",
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+    )
+
+
+def _strided_view_specs() -> T.Tuple[OpSpec, ...]:
+    """Views described by strides rather than by shape.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- layout --
+        gap_spec("as_strided", as_strided_st(), REASON_LAYOUT),
+    )
+
+
+def _scatter_specs() -> T.Tuple[OpSpec, ...]:
+    """Writes at runtime-computed positions.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- scatter / gather variants --
+        gap_spec(
+            "masked_scatter",
+            mask_st(
+                lambda t, m, s: t.masked_scatter(m, s),
+                "masked_scatter",
+                with_source=True,
+            ),
+            "consumes the source in mask order, so the read index is itself "
+            "a cumulative sum of the mask",
+        ),
+        gap_spec(
+            "put",
+            index_pair_st(
+                # Flattened so the source has two elements whatever the
+                # drawn column count is.
+                lambda t, s: t.clone().put_(
+                    torch.tensor([0, 2]), s.reshape(-1)[:2]
+                ),
+                "put",
+            ),
+            "indexes the flattened tensor, so a lowering has to reshape "
+            "around it; no emitter does",
+        ),
+        gap_spec(
+            "index_reduce",
+            index_pair_st(
+                lambda t, s: t.clone().index_reduce_(
+                    0, torch.tensor([0, 1]), s, "amax"
+                ),
+                "index_reduce",
+            ),
+            "no emitter, and the export crashes with a bare TypeError "
+            "instead of naming the operator",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+        gap_spec(
+            "segment_reduce",
+            segment_st(),
+            "segment lengths are a second, ragged shape the graph would "
+            "have to carry",
+        ),
+        gap_spec(
+            "pad_sequence",
+            index_pair_st(
+                lambda a, b: torch.nn.utils.rnn.pad_sequence([a, b]),
+                "pad_sequence",
+            ),
+            "pads to the longest input, so the output extent depends on a "
+            "list of shapes rather than on one",
+        ),
+    )
+
+
+def _storage_sparse_gap_specs() -> T.Tuple[OpSpec, ...]:
+    """Storage rebinding and sparse rows that are traceable but unsupported."""
+    sparse_reason = (
+        "the row is traceable, but t2n has no sparse tensor support and "
+        "fails while handling the required sparse scaffolding"
+    )
+    return (
+        gap_spec(
+            "index_put_impl_",
+            _index_put_impl_sample_st(),
+            "private dispatcher implementation for `index_put_`, with "
+            "no t2n emitter under the row's normalized page name",
+        ),
+        gap_spec(
+            "set_",
+            _set_storage_sample_st(),
+            "rebinds a tensor to another tensor's storage, which no t2n "
+            "emitter represents",
+        ),
+        gap_spec(
+            "copy_sparse_to_sparse_",
+            _sparse_copy_sample_st(_CopySparseToSparse()),
+            sparse_reason,
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+        gap_spec(
+            "resize_as_sparse_",
+            _sparse_copy_sample_st(_ResizeAsSparse()),
+            sparse_reason,
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+    )
+
+
 SPECS = (
     *_shape_specs(),
     *_concat_split_specs(),
@@ -3415,4 +3967,8 @@ SPECS = (
     *_alias_specs(),
     *_bucketize_searchsorted_specs(),
     *_recent_shape_specs(),
+    *_data_dependent_extent_specs(),
+    *_strided_view_specs(),
+    *_scatter_specs(),
+    *_storage_sparse_gap_specs(),
 )

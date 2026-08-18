@@ -15,7 +15,11 @@ from torch_to_nnef.dtypes import (
     numpy_dtype_to_tract_str,
     str_to_torch_dtype,
 )
-from torch_to_nnef.exceptions import T2NErrorConsistency, T2NErrorNotImplemented
+from torch_to_nnef.exceptions import (
+    T2NErrorConsistency,
+    T2NErrorMissingOpEmitter,
+    T2NErrorNotImplemented,
+)
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.tensor import OpaqueTensorRef, QTensor
 from torch_to_nnef.tensor.offload import OffloadedTensor
@@ -142,7 +146,10 @@ class OpRegistry:
         try:
             return self._registry[name]
         except KeyError as exp:
-            raise T2NErrorNotImplemented(
+            # Narrower than `T2NErrorNotImplemented`, which an emitter
+            # also raises when it exists but refuses a configuration.
+            # This one means the operator has no translation at all.
+            raise T2NErrorMissingOpEmitter(
                 f"'{name}' operator as not yet "
                 "been translated to NNEF or registred"
             ) from exp

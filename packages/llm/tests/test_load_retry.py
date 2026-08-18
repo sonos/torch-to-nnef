@@ -66,7 +66,7 @@ def test_resolve_snapshot_cache_miss_falls_back_to_network():
 
 
 def test_resolve_snapshot_propagates_non_cache_miss_error():
-    """A genuine error (not a cache miss) must not be swallowed."""
+    """A real error (not a cache miss) must not be swallowed."""
 
     class _BoomHub:
         def snapshot_download(self, slug, local_files_only=False):

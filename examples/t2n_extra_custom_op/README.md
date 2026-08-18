@@ -23,4 +23,3 @@ Notes
   e.g. `return ["my_company_relu"]`.
 - Instead of passing `load_extra_op_modules`, you can also set the env var:
   `TORCH_TO_NNEF_EXTRA_MODULES=t2n_custom.handlers python export.py`.
-

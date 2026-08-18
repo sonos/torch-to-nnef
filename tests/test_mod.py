@@ -78,13 +78,11 @@ def test_complex_and_fft_export(id, test_input, model, inference_target):
         pytest.skip("Skipping for torch < 1.11")
     custom_extensions = None
     if isinstance(model, FilterbankFeatures):
-        symb = set(
-            [
-                v
-                for o in inference_target.dynamic_axes.values()
-                for v in o.values()
-            ]
-        )
+        symb = {
+            v
+            for o in inference_target.dynamic_axes.values()
+            for v in o.values()
+        }
         if "B" in symb and "S" in symb:
             custom_extensions = [
                 "tract_assert S > 1",

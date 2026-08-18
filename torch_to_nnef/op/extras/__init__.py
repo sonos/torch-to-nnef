@@ -35,13 +35,11 @@ def t2n_extra_to_nnef_tensor_and_ops(
         handler = _T2N_EXTRA_REGISTRY.get(op_name)
     except T2NErrorNotImplemented as err:
         raise T2NErrorNotImplemented(
-            (
-                f"no t2n_extra handler registered for '{node.kind}'. "
-                "Register via `@torch_to_nnef.op.extras.register('<name>')` "
-                "and import the module before export (use "
-                "load_extra_op_modules, TORCH_TO_NNEF_EXTRA_MODULES, or an "
-                "entry point under 'torch_to_nnef.extras')."
-            )
+            f"no t2n_extra handler registered for '{node.kind}'. "
+            "Register via `@torch_to_nnef.op.extras.register('<name>')` "
+            "and import the module before export (use "
+            "load_extra_op_modules, TORCH_TO_NNEF_EXTRA_MODULES, or an "
+            "entry point under 'torch_to_nnef.extras')."
         ) from err
     return handler(
         g=g,
