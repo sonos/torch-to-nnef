@@ -277,7 +277,7 @@ class Gemma4AudioEncoder(torch.nn.Module):
     by ``create_bidirectional_mask``, which does not trace. For a fixed full
     chunk that mask is constant, so it is precomputed once and injected as a
     ``blocked_mask`` buffer; the tower forward is reimplemented inline to use it
-    directly. The attention ``masked_fill`` then operates on a genuine bool
+    directly. The attention ``masked_fill`` then operates on a real bool
     condition (tract's ``select`` requires bool). Everything else in the tower
     (subsample conv2d, ``unfold``-based chunked 5D local attention,
     ``_rel_shift``, causal conv1d) exports as-is.
@@ -301,7 +301,7 @@ class Gemma4AudioEncoder(torch.nn.Module):
         )
         position_embeddings = tower.rel_pos_enc(hidden)
         # the module-dtype cast stores the bool mask as f32; re-assert bool so
-        # the attention's masked_fill lowers to a tract `select` with a genuine
+        # the attention's masked_fill lowers to a tract `select` with a real
         # bool condition (tract rejects a non-bool condition).
         blocked_mask = self.blocked_mask.to(torch.bool)
         for layer in tower.layers[: tower.config.num_hidden_layers]:

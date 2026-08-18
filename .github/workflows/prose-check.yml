@@ -1,0 +1,39 @@
+name: prose check
+
+# Blocks banned typography and LLM-tell wording from entering the repo.
+#
+# The character half is a correctness gate, not only a style one: a
+# non-breaking hyphen (U+2011) is indistinguishable from '-' on screen but
+# breaks grep, in-repo search and anchor links, and 25 of them had reached
+# words like `provider-agnostic` before this check existed. Curly apostrophes
+# had leaked into code comments and published doc pages the same way. Those
+# characters have no legitimate use here, so the checker has no escape hatch:
+# no pragma, no per-file exemption. The word half is house style.
+#
+# Scans every tracked text file rather than the PR diff, so the guarantee holds
+# after a rebase or a merge and cannot be eroded by a base-ref quirk. Vendored
+# bundles, wasm-pack output and ASR data tables are out of scope (see NOT_OURS
+# in the script), which is different from being exempted.
+on:
+  # No path filter, so this can be a required status check without freezing
+  # PRs that happen not to touch prose. The scan is stdlib-only and takes ~1s.
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prose:
+    name: banned characters + wording
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No setup-python and no uv: the checker is stdlib-only, so the runner's
+      # system python3 is enough. Same approach as the action-pinning check in
+      # deps-check.yml.
+      - name: Check prose (all tracked files)
+        run: python3 .github/scripts/check_prose.py

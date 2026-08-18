@@ -37,6 +37,12 @@ else:
     peft = Any
 
 
+# transformers ships no stubs, so these resolve to Any either way. Naming
+# them keeps annotations descriptive without writing `Alias.Attr`, which
+# is invalid as a type because the alias names a module.
+AutoTokenizerType: TypeAlias = Any
+DynamicCacheType: TypeAlias = Any
+
 TransformersModule: TypeAlias = transformers
 TransformersUtilsModule: TypeAlias = transformers_utils
 TransformersCacheUtils: TypeAlias = transformers_cache_utils

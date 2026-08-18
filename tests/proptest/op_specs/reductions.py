@@ -16,8 +16,18 @@ from ..joint import (
     reduction_dim_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
+)
+from ._gap_common import (
+    REASON_DATA_BINS,
+    REASON_SORT,
+    gap_spec,
+    matrix_rows_st,
+    small_int_st,
+    unary_st,
+    vector_st,
 )
 
 
@@ -294,11 +304,13 @@ def _reduction_specs() -> T.List[OpSpec]:
             # `sum-dim-broad` / `sum-dtype`; APPROXIMATE's 1e-6 atol is too
             # tight.
             name="sum-dim",
+            aten_ops=("sum",),
             sample_st=_reduction_sample_st("sum"),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="sum-dim-broad",
+            aten_ops=("sum",),
             sample_st=_sum_full_or_multi_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
@@ -306,27 +318,44 @@ def _reduction_specs() -> T.List[OpSpec]:
             # See `sum-dim`: post-cancellation absolute error exceeds
             # APPROXIMATE for the mean as well.
             name="mean-dim",
+            aten_ops=("mean",),
             sample_st=_reduction_sample_st("mean"),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="max-dim",
+            aten_ops=("max",),
             sample_st=_reduction_sample_st("max"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="min-dim",
+            aten_ops=("min",),
             sample_st=_reduction_sample_st("min"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="max-full",
+            aten_ops=("max",),
             sample_st=_minmax_full_reduction_sample_st("max"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="min-full",
+            aten_ops=("min",),
             sample_st=_minmax_full_reduction_sample_st("min"),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="amax-dim",
+            aten_ops=("amax",),
+            sample_st=_reduction_sample_st("amax"),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="amin-dim",
+            aten_ops=("amin",),
+            sample_st=_reduction_sample_st("amin"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         # Argmax / argmin return int64 indices: the comparator's exact
@@ -334,11 +363,13 @@ def _reduction_specs() -> T.List[OpSpec]:
         # needed.
         OpSpec(
             name="argmax-dim",
+            aten_ops=("argmax",),
             sample_st=_reduction_sample_st("argmax"),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="argmin-dim",
+            aten_ops=("argmin",),
             sample_st=_reduction_sample_st("argmin"),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -351,6 +382,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         # bumps past 0.22.1.
         OpSpec(
             name="any-dim-xfail",
+            aten_ops=("any",),
             sample_st=_bool_reduction_sample_st("any"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -361,6 +393,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="all-dim-xfail",
+            aten_ops=("all",),
             sample_st=_bool_reduction_sample_st("all"),
             tolerance=TractCheckTolerance.EXACT,
             xfail_reason=(
@@ -373,6 +406,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         # for long axes and small values, so CLOSE rather than APPROXIMATE.
         OpSpec(
             name="prod-dim",
+            aten_ops=("prod",),
             sample_st=_prod_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
@@ -385,6 +419,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         # the intermediate-shape builder to track dyn-axis symbols.
         OpSpec(
             name="var-dim",
+            aten_ops=("var",),
             sample_st=_var_std_sample_st("var"),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_skip_reason=(
@@ -394,6 +429,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="std-dim",
+            aten_ops=("std",),
             sample_st=_var_std_sample_st("std"),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_skip_reason=(
@@ -467,16 +503,19 @@ def _reduction_dtype_kwarg_specs() -> T.List[OpSpec]:
             # 1e-6 atol. Match `sum-dim-broad`'s rationale (accumulated
             # float error needs CLOSE).
             name="sum-dtype",
+            aten_ops=("sum",),
             sample_st=_reduction_dtype_kwarg_sample_st("sum"),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="mean-dtype",
+            aten_ops=("mean",),
             sample_st=_reduction_dtype_kwarg_sample_st("mean"),
             tolerance=APPROX,
         ),
         OpSpec(
             name="prod-dtype",
+            aten_ops=("prod",),
             sample_st=_reduction_dtype_kwarg_sample_st("prod"),
             tolerance=CLOSE,
         ),
@@ -520,6 +559,7 @@ def _aminmax_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="aminmax",
+            aten_ops=("aminmax",),
             sample_st=_aminmax_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             # Routes through `reducer_helper` like amax/amin -- the
@@ -587,6 +627,7 @@ def _var_std_mean_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="var_mean",
+            aten_ops=("var_mean",),
             sample_st=_var_std_mean_sample_st("var_mean"),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_skip_reason=(
@@ -596,6 +637,7 @@ def _var_std_mean_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="std_mean",
+            aten_ops=("std_mean",),
             sample_st=_var_std_mean_sample_st("std_mean"),
             tolerance=TractCheckTolerance.CLOSE,
             dynamic_axes_skip_reason=(
@@ -608,9 +650,132 @@ def _var_std_mean_specs() -> T.List[OpSpec]:
 
 # Registry assembly
 
+
+def _order_statistic_specs() -> T.Tuple[OpSpec, ...]:
+    """Rank-based reductions: a sort plus a gather, uncomposed.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- order statistics --
+        gap_spec("median", unary_st(torch.median, "median"), REASON_SORT),
+        gap_spec(
+            "nanmedian", unary_st(torch.nanmedian, "nanmedian"), REASON_SORT
+        ),
+        gap_spec(
+            "msort", unary_st(torch.msort, "msort", min_rank=2), REASON_SORT
+        ),
+        gap_spec(
+            "kthvalue",
+            unary_st(
+                lambda x: torch.kthvalue(x, 1, dim=-1)[0],
+                "kthvalue",
+                min_rank=2,
+            ),
+            REASON_SORT,
+        ),
+        gap_spec(
+            "quantile",
+            unary_st(lambda x: torch.quantile(x, 0.5), "quantile"),
+            REASON_SORT,
+        ),
+        gap_spec(
+            "nanquantile",
+            unary_st(lambda x: torch.nanquantile(x, 0.5), "nanquantile"),
+            REASON_SORT,
+        ),
+        gap_spec(
+            "mode",
+            small_int_st(
+                lambda x: torch.mode(x, dim=-1)[0], "mode", min_rank=2
+            ),
+            "needs a count-and-compare over equal values, which has no "
+            "NNEF idiom",
+        ),
+    )
+
+
+def _histogram_specs() -> T.Tuple[OpSpec, ...]:
+    """Counting reductions whose output extent follows the data.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- histograms and counting --
+        gap_spec(
+            "bincount",
+            vector_st(
+                torch.bincount,
+                "bincount",
+                dtype=torch.int64,
+                domain=Interval(0, 6),
+            ),
+            "output length is `max(input) + 1`, so it is data-dependent",
+        ),
+        gap_spec(
+            "histc",
+            vector_st(lambda x: torch.histc(x, bins=4), "histc"),
+            REASON_DATA_BINS,
+        ),
+        gap_spec(
+            "histogram",
+            vector_st(lambda x: torch.histogram(x, bins=4)[0], "histogram"),
+            REASON_DATA_BINS,
+        ),
+        gap_spec(
+            "histogramdd",
+            # `bins` must have one entry per innermost axis, so the column
+            # count is fixed rather than drawn.
+            matrix_rows_st(
+                lambda x: torch.histogramdd(x, bins=[3, 3])[0],
+                "histogramdd",
+                min_cols=2,
+                max_cols=2,
+            ),
+            f"{REASON_DATA_BINS}; also fails before the emitter lookup",
+            stage=NnefGapStage.EXPORT_ERROR,
+        ),
+    )
+
+
+def _correlation_specs() -> T.Tuple[OpSpec, ...]:
+    """Second-order statistics over an axis.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- statistics --
+        gap_spec(
+            "corrcoef",
+            matrix_rows_st(torch.corrcoef, "corrcoef"),
+            "expressible as a centred matmul plus a normalisation, but no "
+            "emitter composes it",
+        ),
+        gap_spec(
+            "cumulative_trapezoid",
+            unary_st(
+                lambda x: torch.cumulative_trapezoid(x, dim=-1),
+                "cumulative_trapezoid",
+                min_rank=2,
+            ),
+            "expressible as a cumulative sum of averaged neighbours, but no "
+            "emitter composes it",
+        ),
+    )
+
+
 SPECS = (
     *_reduction_specs(),
     *_reduction_dtype_kwarg_specs(),
     *_aminmax_specs(),
     *_var_std_mean_specs(),
+    *_order_statistic_specs(),
+    *_histogram_specs(),
+    *_correlation_specs(),
 )

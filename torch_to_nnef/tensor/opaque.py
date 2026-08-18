@@ -104,7 +104,7 @@ def trace_tensor_device_for_func(func) -> T.Optional[str]:
     Only shape-propagating uses that flow into a symbolic op
     (linear/matmul/select chains) are supported.
 
-    The "meta" names below must correspond to genuine view/shape ops whose
+    The "meta" names below must correspond to real view/shape ops whose
     aten kind lives in ``ir_op.DERIVED_MODULE_ATTR_OPS`` (that is where the
     meta result is recognized as aliasing its constant input); keep the two
     lists in sync when adding a new view op.
@@ -224,7 +224,7 @@ OFFLOAD_STATE_KEY = "__t2n_offload_state__"
 # Maps ``OFFLOAD_STATE_TAG`` -> concrete class, filled at class-definition time
 # by ``SupportsOffloadState.__init_subclass__``. Lets ``OffloadedTensor``
 # rebuild a serialized state without importing any concrete tensor class.
-_OFFLOAD_STATE_REGISTRY: T.Dict[str, type] = {}
+_OFFLOAD_STATE_REGISTRY: T.Dict[str, T.Type["SupportsOffloadState"]] = {}
 
 
 class SupportsOffloadState:
@@ -292,7 +292,9 @@ class SupportsOffloadState:
         raise T2NErrorNotImplemented()
 
 
-def resolve_offload_state(state) -> T.Optional[type]:
+def resolve_offload_state(
+    state,
+) -> T.Optional[T.Type["SupportsOffloadState"]]:
     """Return the class able to rebuild ``state``, or ``None``.
 
     ``None`` means ``state`` is not a compact offload-state payload (e.g. a

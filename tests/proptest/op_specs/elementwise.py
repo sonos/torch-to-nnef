@@ -19,7 +19,16 @@ from ..shapes import (
     shape_st,
     ternary_broadcast_shapes_st,
 )
-from ._common import OpSample, OpSpec, _unary_sample_st
+from ._common import NnefGapStage, OpSample, OpSpec, _unary_sample_st
+from ._gap_common import (
+    REASON_SERIES,
+    REASON_SORT,
+    binary_st,
+    gap_spec,
+    int_binary_st,
+    isin_st,
+    unary_st,
+)
 
 # Domain bounds chosen to keep outputs in a numerically meaningful range and
 # avoid trivial saturation while still exercising edge cases.
@@ -211,6 +220,7 @@ def _unary_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name=name,
+            aten_ops=(name,),
             sample_st=_unary_sample_st(op, domain=domain),
             tolerance=tol,
         )
@@ -273,6 +283,7 @@ def _unary_broad_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name=f"{name}-broad",
+            aten_ops=(name,),
             sample_st=_unary_multi_dtype_sample_st(
                 op,
                 dtypes=(torch.float32, torch.float16),
@@ -483,6 +494,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="add",
+            aten_ops=("add",),
             sample_st=_binary_broadcast_sample_st(
                 torch.add, domain=_BINARY_ARITH_DOMAIN
             ),
@@ -490,16 +502,19 @@ def _binary_arith_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="add-broad",
+            aten_ops=("add",),
             sample_st=_add_or_sub_multi_dtype_sample_st(torch.add),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="add-alpha",
+            aten_ops=("add",),
             sample_st=_add_or_sub_alpha_sample_st(torch.add),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="sub",
+            aten_ops=("sub",),
             sample_st=_binary_broadcast_sample_st(
                 torch.sub, domain=_BINARY_ARITH_DOMAIN
             ),
@@ -507,16 +522,19 @@ def _binary_arith_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="sub-broad",
+            aten_ops=("sub",),
             sample_st=_add_or_sub_multi_dtype_sample_st(torch.sub),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="sub-alpha",
+            aten_ops=("sub",),
             sample_st=_add_or_sub_alpha_sample_st(torch.sub),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="mul",
+            aten_ops=("mul",),
             sample_st=_binary_broadcast_sample_st(
                 torch.mul, domain=_BINARY_ARITH_DOMAIN
             ),
@@ -524,16 +542,19 @@ def _binary_arith_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="div",
+            aten_ops=("div",),
             sample_st=_div_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
         OpSpec(
             name="div-explicit-none",
+            aten_ops=("div",),
             sample_st=_div_explicit_none_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
         OpSpec(
             name="div-rounding-xfail",
+            aten_ops=("div",),
             sample_st=_div_rounding_sample_st(),
             tolerance=TractCheckTolerance.VERY,
             xfail_reason=(
@@ -545,16 +566,19 @@ def _binary_arith_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="pow",
+            aten_ops=("pow",),
             sample_st=_binary_pow_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
         OpSpec(
             name="pow-int-exp",
+            aten_ops=("pow",),
             sample_st=_binary_pow_int_exp_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
         OpSpec(
             name="mul-broad",
+            aten_ops=("mul",),
             sample_st=_binary_multi_dtype_sample_st(
                 torch.mul,
                 domain_f32=_BINARY_ARITH_DOMAIN,
@@ -564,6 +588,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="minimum",
+            aten_ops=("minimum",),
             sample_st=_binary_broadcast_sample_st(
                 torch.minimum, domain=_BINARY_ARITH_DOMAIN
             ),
@@ -571,6 +596,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="maximum",
+            aten_ops=("maximum",),
             sample_st=_binary_broadcast_sample_st(
                 torch.maximum, domain=_BINARY_ARITH_DOMAIN
             ),
@@ -580,6 +606,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             # Element-wise `torch.min(a, b)` (binary form).
             # Distinct from the dim-reduction in `min-dim`.
             name="min-elementwise",
+            aten_ops=("min",),
             sample_st=_binary_broadcast_sample_st(
                 torch.min, domain=_BINARY_ARITH_DOMAIN
             ),
@@ -587,6 +614,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="max-elementwise",
+            aten_ops=("max",),
             sample_st=_binary_broadcast_sample_st(
                 torch.max, domain=_BINARY_ARITH_DOMAIN
             ),
@@ -594,6 +622,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="floor_divide-xfail",
+            aten_ops=("floor_divide",),
             sample_st=_binary_broadcast_sample_st(
                 torch.floor_divide,
                 domain=_BINARY_DIV_NUM_DOMAIN,
@@ -615,6 +644,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             # That makes `floor(div(x, x)) = 0` instead of 1, and
             # `remainder(x, x) = x` instead of 0.
             name="remainder-xfail",
+            aten_ops=("remainder",),
             sample_st=_div_like_sample_st(torch.remainder),
             tolerance=TractCheckTolerance.VERY,
             xfail_reason=(
@@ -629,6 +659,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             # `torch_to_nnef/op/fragment/fmod.nnef`). Same upstream
             # tract div bug as remainder.
             name="fmod-xfail",
+            aten_ops=("fmod",),
             sample_st=_div_like_sample_st(torch.fmod),
             tolerance=TractCheckTolerance.VERY,
             xfail_reason=(
@@ -653,6 +684,7 @@ def _binary_compare_specs() -> T.List[OpSpec]:
         specs.append(
             OpSpec(
                 name=name,
+                aten_ops=(name,),
                 sample_st=_binary_broadcast_sample_st(
                     op, domain=_BINARY_ARITH_DOMAIN
                 ),
@@ -664,6 +696,7 @@ def _binary_compare_specs() -> T.List[OpSpec]:
         specs.append(
             OpSpec(
                 name=f"{name}-broad",
+                aten_ops=(name,),
                 sample_st=_binary_multi_dtype_sample_st(
                     op,
                     dtypes=(torch.float32, torch.float16),
@@ -677,6 +710,12 @@ def _binary_compare_specs() -> T.List[OpSpec]:
 
 
 def _binary_logical_specs() -> T.List[OpSpec]:
+    @st.composite
+    def _logical_not_sample_st(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=4))
+        x = draw(tensor_st(shape, torch.bool))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.logical_not))
+
     cases: T.List[T.Tuple[str, T.Callable]] = [
         ("logical_and", torch.logical_and),
         ("logical_or", torch.logical_or),
@@ -685,10 +724,18 @@ def _binary_logical_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name=name,
+            aten_ops=(name,),
             sample_st=_binary_broadcast_sample_st(op, dtype=torch.bool),
             tolerance=TractCheckTolerance.EXACT,
         )
         for name, op in cases
+    ] + [
+        OpSpec(
+            name="logical_not",
+            aten_ops=("logical_not",),
+            sample_st=_logical_not_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        )
     ]
 
 
@@ -768,11 +815,13 @@ def _clamp_where_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="clamp",
+            aten_ops=("clamp",),
             sample_st=_clamp_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
             name="where",
+            aten_ops=("where",),
             sample_st=_where_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
@@ -911,48 +960,57 @@ def _bitwise_builder_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="bitwise_and",
+            aten_ops=("bitwise_and",),
             sample_st=_bitwise_binary_sample_st(torch.bitwise_and),
             tolerance=EXACT,
         ),
         OpSpec(
             name="bitwise_or",
+            aten_ops=("bitwise_or",),
             sample_st=_bitwise_binary_sample_st(torch.bitwise_or),
             tolerance=EXACT,
         ),
         OpSpec(
             name="bitwise_xor",
+            aten_ops=("bitwise_xor",),
             sample_st=_bitwise_binary_sample_st(torch.bitwise_xor),
             tolerance=EXACT,
         ),
         OpSpec(
             name="bitwise_not",
+            aten_ops=("bitwise_not",),
             sample_st=_bitwise_not_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="bitwise_left_shift",
+            aten_ops=("bitwise_left_shift",),
             sample_st=_bitwise_shift_sample_st(torch.bitwise_left_shift),
             tolerance=EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="bitwise_right_shift",
+            aten_ops=("bitwise_right_shift",),
             sample_st=_bitwise_shift_sample_st(torch.bitwise_right_shift),
             tolerance=EXACT,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="zeros_like",
+            aten_ops=("zeros_like",),
             sample_st=_zeros_like_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="ones_like",
+            aten_ops=("ones_like",),
             sample_st=_ones_like_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="full_like",
+            aten_ops=("full_like",),
             sample_st=_full_like_sample_st(),
             tolerance=EXACT,
         ),
@@ -1131,16 +1189,19 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         # --- Unary real -> real ---
         OpSpec(
             name="exp2",
+            aten_ops=("exp2",),
             sample_st=_unary_sample_st(torch.exp2, domain=_UNARY_EXP2_DOMAIN),
             tolerance=VERY,
         ),
         OpSpec(
             name="sinc",
+            aten_ops=("sinc",),
             sample_st=_unary_sample_st(torch.sinc, domain=_UNARY_SINC_DOMAIN),
             tolerance=VERY,
         ),
         OpSpec(
             name="frac",
+            aten_ops=("frac",),
             sample_st=_unary_sample_st(torch.frac, domain=_UNARY_FRAC_DOMAIN),
             # frac decomposes as `x - trunc(x)` which inherits tract's
             # div / trunc precision quirks near integer boundaries.
@@ -1148,6 +1209,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="tanhshrink",
+            aten_ops=("tanhshrink",),
             sample_st=_unary_sample_st(
                 torch.nn.functional.tanhshrink, domain=_UNARY_TANH_DOMAIN
             ),
@@ -1155,6 +1217,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="erfc",
+            aten_ops=("erfc",),
             sample_st=_unary_sample_st(torch.erfc, domain=Interval(-5.0, 5.0)),
             # erfc lowers via 1 - erf; both sides accumulate ULP error.
             tolerance=VERY,
@@ -1170,6 +1233,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
             # generator filters them out or the fragment learns the
             # IEEE-754 sign bit.
             name="signbit-xfail",
+            aten_ops=("signbit",),
             sample_st=_unary_sample_st(
                 torch.signbit, domain=_UNARY_FINITE_DOMAIN
             ),
@@ -1183,6 +1247,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         # --- Binary real -> real ---
         OpSpec(
             name="logaddexp",
+            aten_ops=("logaddexp",),
             sample_st=_binary_broadcast_sample_st(
                 torch.logaddexp, domain=_LOGADDEXP_DOMAIN
             ),
@@ -1190,6 +1255,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="logaddexp2",
+            aten_ops=("logaddexp2",),
             sample_st=_binary_broadcast_sample_st(
                 torch.logaddexp2, domain=_LOGADDEXP_DOMAIN
             ),
@@ -1197,6 +1263,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="copysign",
+            aten_ops=("copysign",),
             sample_st=_binary_broadcast_sample_st(
                 torch.copysign, domain=_BINARY_FINITE_DOMAIN
             ),
@@ -1205,6 +1272,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="hypot",
+            aten_ops=("hypot",),
             sample_st=_binary_broadcast_sample_st(
                 torch.hypot, domain=_BINARY_FINITE_DOMAIN
             ),
@@ -1212,6 +1280,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="xlogy",
+            aten_ops=("xlogy",),
             sample_st=_xlogy_sample_st(),
             tolerance=VERY,
         ),
@@ -1219,21 +1288,25 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
             # fmax / fmin propagate non-NaN over NaN; the tract `fmax` /
             # `fmin` fragments implement this via `where(isnan(b), a, ...)`.
             name="fmax",
+            aten_ops=("fmax",),
             sample_st=_binary_nan_friendly_sample_st(torch.fmax),
             tolerance=APPROX,
         ),
         OpSpec(
             name="fmin",
+            aten_ops=("fmin",),
             sample_st=_binary_nan_friendly_sample_st(torch.fmin),
             tolerance=APPROX,
         ),
         OpSpec(
             name="ldexp",
+            aten_ops=("ldexp",),
             sample_st=_ldexp_sample_st(),
             tolerance=VERY,
         ),
         OpSpec(
             name="heaviside",
+            aten_ops=("heaviside",),
             sample_st=_binary_broadcast_sample_st(
                 torch.heaviside, domain=_BINARY_FINITE_DOMAIN
             ),
@@ -1245,6 +1318,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
             # returns False; we don't pass equal_nan so the default path
             # is exercised.
             name="isclose-xfail",
+            aten_ops=("isclose",),
             sample_st=_binary_nan_friendly_sample_st(torch.isclose),
             tolerance=EXACT,
             xfail_reason=(
@@ -1261,6 +1335,7 @@ def _recent_elementwise_specs() -> T.List[OpSpec]:
         # --- Ternary ---
         OpSpec(
             name="addcdiv",
+            aten_ops=("addcdiv",),
             sample_st=_addcdiv_sample_st(),
             tolerance=VERY,
         ),
@@ -1286,6 +1361,7 @@ def _special_function_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="i0",
+            aten_ops=("i0",),
             sample_st=_unary_sample_st(
                 torch.special.i0, domain=_UNARY_I0_DOMAIN
             ),
@@ -1293,6 +1369,7 @@ def _special_function_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="special_i0e",
+            aten_ops=("special_i0e",),
             sample_st=_unary_sample_st(
                 torch.special.i0e, domain=_UNARY_I0_DOMAIN
             ),
@@ -1300,6 +1377,7 @@ def _special_function_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="lgamma",
+            aten_ops=("lgamma",),
             sample_st=_unary_sample_st(
                 torch.lgamma, domain=_UNARY_LGAMMA_DOMAIN
             ),
@@ -1312,6 +1390,7 @@ def _special_function_specs() -> T.List[OpSpec]:
         # fragment.
         OpSpec(
             name="frexp",
+            aten_ops=("frexp",),
             sample_st=_unary_sample_st(
                 torch.frexp, domain=Interval(-1e30, 1e30)
             ),
@@ -1321,6 +1400,7 @@ def _special_function_specs() -> T.List[OpSpec]:
         # `i0` / `i0e` (A&S 9.8.3 / 9.8.4).
         OpSpec(
             name="special_i1",
+            aten_ops=("special_i1",),
             sample_st=_unary_sample_st(
                 torch.special.i1, domain=_UNARY_I0_DOMAIN
             ),
@@ -1328,6 +1408,7 @@ def _special_function_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="special_i1e",
+            aten_ops=("special_i1e",),
             sample_st=_unary_sample_st(
                 torch.special.i1e, domain=_UNARY_I0_DOMAIN
             ),
@@ -1337,6 +1418,7 @@ def _special_function_specs() -> T.List[OpSpec]:
         # `x > 0`. Sample above 0.1 to keep the leading `1/x` finite.
         OpSpec(
             name="digamma",
+            aten_ops=("digamma",),
             sample_st=_unary_sample_st(
                 torch.digamma, domain=Interval(0.1, 50.0)
             ),
@@ -1347,6 +1429,7 @@ def _special_function_specs() -> T.List[OpSpec]:
         # eps-clamped fragment doesn't try to match exactly).
         OpSpec(
             name="special_entr",
+            aten_ops=("special_entr",),
             sample_st=_unary_sample_st(
                 torch.special.entr, domain=Interval(0.0, 100.0)
             ),
@@ -1509,36 +1592,42 @@ def _tier_a2_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="ravel",
+            aten_ops=("ravel",),
             sample_st=_ravel_sample_st(),
             tolerance=APPROX,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="float_power",
+            aten_ops=("float_power",),
             sample_st=_float_power_sample_st(),
             tolerance=VERY,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="diff_n1",
+            aten_ops=("diff",),
             sample_st=_diff_sample_st(1),
             tolerance=VERY,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="diff_n2",
+            aten_ops=("diff",),
             sample_st=_diff_sample_st(2),
             tolerance=VERY,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="trapezoid",
+            aten_ops=("trapezoid",),
             sample_st=_trapezoid_sample_st(),
             tolerance=VERY,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="special_xlog1py",
+            aten_ops=("special_xlog1py",),
             sample_st=_xlog1py_sample_st(),
             tolerance=VERY,
             dynamic_axes_compatible=True,
@@ -1547,6 +1636,98 @@ def _tier_a2_specs() -> T.List[OpSpec]:
 
 
 # Specialty ops (embedding, repeat_interleave, upsample, sdpa, ...)
+
+
+def _number_theory_specs() -> T.Tuple[OpSpec, ...]:
+    """Integer pair ops. Both iterate, so a lowering means unrolling.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- elementwise: integer --
+        gap_spec(
+            "gcd",
+            int_binary_st(torch.gcd, "gcd"),
+            "iterative (Euclid), so a lowering means unrolling to a "
+            "fixed bound",
+        ),
+        gap_spec(
+            "lcm",
+            int_binary_st(torch.lcm, "lcm"),
+            "same iteration as `gcd`, which it is defined in terms of",
+        ),
+    )
+
+
+def _series_function_specs() -> T.Tuple[OpSpec, ...]:
+    """Series evaluations with no NNEF primitive behind them.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- elementwise: float --
+        gap_spec(
+            "erfinv",
+            unary_st(torch.erfinv, "erfinv", domain=Interval(-0.99, 0.99)),
+            REASON_SERIES,
+        ),
+        gap_spec(
+            "igamma",
+            binary_st(torch.igamma, "igamma", domain=Interval(0.1, 10.0)),
+            REASON_SERIES,
+        ),
+        gap_spec(
+            "igammac",
+            binary_st(torch.igammac, "igammac", domain=Interval(0.1, 10.0)),
+            REASON_SERIES,
+        ),
+        gap_spec(
+            "polygamma",
+            unary_st(
+                lambda x: torch.polygamma(1, x),
+                "polygamma",
+                domain=Interval(0.1, 10.0),
+            ),
+            REASON_SERIES,
+        ),
+    )
+
+
+def _predicate_and_cast_specs() -> T.Tuple[OpSpec, ...]:
+    """Predicates and dtype casts that never got an emitter.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        gap_spec(
+            "nextafter",
+            binary_st(torch.nextafter, "nextafter"),
+            "steps one representable float, which is a bit-level operation "
+            "NNEF cannot express",
+        ),
+        gap_spec(
+            "isreal",
+            unary_st(torch.isreal, "isreal"),
+            "trivially true for the real dtypes tract runs, but no emitter "
+            "folds it to a constant",
+        ),
+        gap_spec("isin", isin_st(), REASON_SORT),
+        # -- dtype / range --
+        gap_spec(
+            "chalf",
+            unary_st(lambda t: t.chalf().float(), "chalf"),
+            "complex32 has no NNEF dtype, and the export crashes with a "
+            "bare KeyError instead of naming it",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+    )
+
 
 SPECS = (
     *_unary_specs(),
@@ -1559,4 +1740,7 @@ SPECS = (
     *_recent_elementwise_specs(),
     *_special_function_specs(),
     *_tier_a2_specs(),
+    *_number_theory_specs(),
+    *_series_function_specs(),
+    *_predicate_and_cast_specs(),
 )

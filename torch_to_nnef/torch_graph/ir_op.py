@@ -419,9 +419,15 @@ def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
     of running the full op and the risk of diverging from PyTorch's
     documented shape rules (rank-1 vector forms, batched broadcasting,
     future rule changes).
+
+    Both placeholders take ONE dtype instead of each operand's own: the
+    result shape does not depend on dtype, while torch's meta `bmm` rejects
+    a mixed-dtype pair, and placeholder dtypes need not agree here (an f16
+    module with a sub-path forced to f32 reaches this with f16 x f32). Same
+    reasoning as `_infer_shape_sdpa` above.
     """
-    meta_a = torch.empty(tuple(a.shape), device="meta", dtype=a.dtype)
-    meta_b = torch.empty(tuple(b.shape), device="meta", dtype=b.dtype)
+    meta_a = torch.empty(tuple(a.shape), device="meta", dtype=torch.float32)
+    meta_b = torch.empty(tuple(b.shape), device="meta", dtype=torch.float32)
     return meta_a.matmul(meta_b).shape
 
 
@@ -579,7 +585,7 @@ def _tensors_share_storage(left: torch.Tensor, right: torch.Tensor) -> bool:
 
 @dataclass(frozen=True)
 class InferRule:
-    fn: T.Optional[T.Callable[T.Any, torch.Size]]
+    fn: T.Optional[T.Callable[..., torch.Size]]
     arity: int
     require_dtype: bool = True
     identity: bool = False
@@ -886,7 +892,10 @@ class TorchOp:
         # output via `set_data`, so it must be the REAL value: bake it with
         # `call_op` instead, otherwise the garbage placeholder becomes the
         # folded constant (silently wrong, e.g. Qwen3-VL `pos_embed(idx)`).
-        if self.has_constant_inputs:
+        # `rule.fn is None` is folded in here rather than tested separately:
+        # both cases fall back to the real op, and only identity rules omit
+        # `fn`, so that arm is unreachable today.
+        if self.has_constant_inputs or rule.fn is None:
             return self.call_op()
 
         return _build_empty_tensor_from_infer_trace(

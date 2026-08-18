@@ -30,7 +30,7 @@ OP_REGISTRY = AtenOpRegistry()
 def _const_tensor(node, allow_traced=True):
     """Return a node's concrete tensor value if statically known, else None.
 
-    Uses the folded ``.data`` (a genuine compile-time constant) when present.
+    Uses the folded ``.data`` (a real compile-time constant) when present.
     Falls back to the value captured during tracing (``_traced_data``,
     populated for whole-number tensors) only when ``allow_traced`` is set.
 
@@ -1089,7 +1089,7 @@ def argsort(node, op_helper, inference_target, **kwargs):
     # Constant input (e.g. argsort of Qwen's folded window_index to build the
     # reverse permutation): fold to a constant instead of a runtime
     # tract_core_topk whose `k` would otherwise be a symbolic TDim. Under
-    # dynamic_axes only genuine constants (`.data`) fold: a trace-time
+    # dynamic_axes only real constants (`.data`) fold: a trace-time
     # `_traced_data` value (e.g. argsort of an `arange(x.shape[dyn])`) would
     # over-bake the permutation to the trace length and mis-sort other sizes.
     input_val = _const_tensor(

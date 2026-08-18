@@ -98,10 +98,10 @@ class TorchModuleTracer:
     ):
         """Create a tracer for *module*.
 
-        The tracer stores the original module, an optional pre‑traced
-        ``torch.jit.TracedModule`` (which allows re‑use of a previously
+        The tracer stores the original module, an optional pre-traced
+        ``torch.jit.TracedModule`` (which allows re-use of a previously
         computed trace), the name of the forward method to trace, and the
-        arguments used for tracing.  The arguments are post‑processed by
+        arguments used for tracing.  The arguments are post-processed by
         :func:`maybe_quantize_args_tensor` to ensure compatibility with
         quantized modules.
         """
@@ -164,7 +164,7 @@ class TorchModuleTracer:
 
         The actual ``torch.Graph`` is retrieved from the traced module.
         When a different forward method is requested (``fn_name`` differs
-        from "forward"), the corresponding sub‑graph is returned instead.
+        from "forward"), the corresponding sub-graph is returned instead.
         """
         trace = self.traced_module
         if self.fn_name and self.fn_name != "forward":

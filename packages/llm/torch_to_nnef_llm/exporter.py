@@ -35,11 +35,11 @@ from torch_to_nnef.utils import (
     torch_version,
 )
 from torch_to_nnef_llm._optional_types import (
+    AutoTokenizerType,
     InjectedHuggingFaceHubModule,
     InjectedPeftModule,
     InjectedTransformersModule,
     InjectedTransformersUtilsModule,
-    TransformersModule,
 )
 from torch_to_nnef_llm.config import (
     DtypeStr,
@@ -228,7 +228,7 @@ class LLMExporter:
     def __init__(
         self,
         hf_model_causal: nn.Module,
-        tokenizer: TransformersModule.AutoTokenizer,
+        tokenizer: AutoTokenizerType,
         local_dir: T.Optional[Path] = None,
         force_module_dtype: T.Optional[DtypeStr] = None,
         force_inputs_dtype: T.Optional[DtypeStr] = None,
@@ -614,7 +614,7 @@ class LLMExporter:
 
     def build_io_npz(
         self,
-        io_npz_path: Path,
+        io_npz_path: T.Optional[Path],
         *args,
         inputs_npz_path: T.Optional[Path] = None,
         outputs_npz_path: T.Optional[Path] = None,
@@ -637,7 +637,7 @@ class LLMExporter:
 
     def dump_all_io_npz_kind(
         self, io_npz_dirpath: Path, size: int = 6
-    ) -> T.List[Path]:
+    ) -> T.List[T.Tuple[Path, Path]]:
         """Realistic dump of IO's."""
         half = size // 2
         prompt_in_npz = io_npz_dirpath / "prompt_inputs.npz"
@@ -655,11 +655,12 @@ class LLMExporter:
             if k.startswith("out_cache_key_"):
                 layer_idx = int(k.replace("out_cache_key_", ""))
                 out_kv[layer_idx] = [v, res[f"out_cache_value_{layer_idx}"]]
-        real_kv_cache = [
-            _
-            for idx in range(max(list(out_kv.keys())) + 1)
-            for _ in out_kv[idx]
-        ]
+        # Iterate the KV layers actually present (sorted), not range(max + 1):
+        # a hybrid decoder (e.g. qwen3_5's gated-delta-net layers carry a
+        # conv/recurrent state instead of KV) only emits ``out_cache_key_*`` for
+        # its full-attention layers, so the layer indices are sparse. For a
+        # uniform KV cache every layer is present and this is unchanged.
+        real_kv_cache = [_ for idx in sorted(out_kv) for _ in out_kv[idx]]
         prompt_with_past_in_npz = io_npz_dirpath / "prompt_with_past_inputs.npz"
         prompt_with_past_out_npz = (
             io_npz_dirpath / "prompt_with_past_outputs.npz"

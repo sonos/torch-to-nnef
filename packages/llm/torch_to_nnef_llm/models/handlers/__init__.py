@@ -27,6 +27,10 @@ from .qwen2_5_vl import (
     Qwen25VLArchitectureHandler,
     Qwen25VLVisionEncoderHandler,
 )
+from .qwen3_5_vl import (
+    Qwen35ArchitectureHandler,
+    Qwen35VisionEncoderHandler,
+)
 from .qwen3_vl import (
     Qwen3VLArchitectureHandler,
     Qwen3VLVisionEncoderHandler,
@@ -64,8 +68,10 @@ __all__ = [
     "PhiArchitectureHandler",
     "Qwen25VLArchitectureHandler",
     "Qwen25VLVisionEncoderHandler",
+    "Qwen35ArchitectureHandler",
     "Qwen35MoeArchitectureHandler",
     "Qwen3NextArchitectureHandler",
+    "Qwen35VisionEncoderHandler",
     "Qwen3VLArchitectureHandler",
     "Qwen3VLVisionEncoderHandler",
     "StateContext",

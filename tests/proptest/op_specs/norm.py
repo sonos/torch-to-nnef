@@ -11,6 +11,7 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from ...wrapper import (
     BinaryPrimitive,
     TensorFnPrimitive,
+    TernaryPrimitive,
 )
 from ..inputs import Interval, tensor_st
 from ..joint import (
@@ -20,6 +21,7 @@ from ._common import (
     OpSample,
     OpSpec,
 )
+from ._gap_common import gap_spec
 
 
 def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
@@ -98,6 +100,58 @@ def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _mm_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.mm(A, B)` over two rank-2 matrices."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        m = draw(st.integers(min_value=1, max_value=6))
+        k = draw(st.integers(min_value=1, max_value=6))
+        n = draw(st.integers(min_value=1, max_value=6))
+        dom = Interval(-3.0, 3.0)
+        a = draw(tensor_st((m, k), torch.float32, domain=dom))
+        b = draw(tensor_st((k, n), torch.float32, domain=dom))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(torch.mm))
+
+    return _draw()
+
+
+def _bmm_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.bmm(A, B)` over two rank-3 batches of matrices."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        batch = draw(st.integers(min_value=1, max_value=3))
+        m = draw(st.integers(min_value=1, max_value=5))
+        k = draw(st.integers(min_value=1, max_value=5))
+        n = draw(st.integers(min_value=1, max_value=5))
+        dom = Interval(-3.0, 3.0)
+        a = draw(tensor_st((batch, m, k), torch.float32, domain=dom))
+        b = draw(tensor_st((batch, k, n), torch.float32, domain=dom))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(torch.bmm))
+
+    return _draw()
+
+
+def _addmm_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.addmm(self, A, B)` with compatible rank-2 matrices."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        m = draw(st.integers(min_value=1, max_value=5))
+        k = draw(st.integers(min_value=1, max_value=5))
+        n = draw(st.integers(min_value=1, max_value=5))
+        dom = Interval(-3.0, 3.0)
+        self_t = draw(tensor_st((m, n), torch.float32, domain=dom))
+        a = draw(tensor_st((m, k), torch.float32, domain=dom))
+        b = draw(tensor_st((k, n), torch.float32, domain=dom))
+        return OpSample(
+            inputs=(self_t, a, b), module=TernaryPrimitive(torch.addmm)
+        )
+
+    return _draw()
+
+
 def _linear_sample_st() -> st.SearchStrategy[OpSample]:
     """`nn.Linear(in_f, out_f)`: input shape ends with `in_f`.
 
@@ -158,6 +212,53 @@ def _layer_norm_sample_st() -> st.SearchStrategy[OpSample]:
         )
         layer = nn.LayerNorm(normalized_shape).eval()
         return OpSample(inputs=(x,), module=layer)
+
+    return _draw()
+
+
+def _native_layer_norm_sample_st() -> st.SearchStrategy[OpSample]:
+    """Direct `aten::native_layer_norm`, returning only normalized output."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n_norm_axes = draw(st.integers(min_value=1, max_value=3))
+        normalized_shape = [
+            draw(st.integers(min_value=2, max_value=5))
+            for _ in range(n_norm_axes)
+        ]
+        leading = [
+            draw(st.integers(min_value=1, max_value=3))
+            for _ in range(draw(st.integers(min_value=0, max_value=2)))
+        ]
+        x = draw(
+            tensor_st(
+                tuple(leading + normalized_shape),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        weight = draw(
+            tensor_st(
+                tuple(normalized_shape),
+                torch.float32,
+                domain=Interval(0.5, 1.5),
+            )
+        )
+        bias = draw(
+            tensor_st(
+                tuple(normalized_shape),
+                torch.float32,
+                domain=Interval(-0.5, 0.5),
+            )
+        )
+
+        def op(t, w, b):
+            return torch.ops.aten.native_layer_norm.default(
+                t, normalized_shape, w, b, 1e-5
+            )[0]
+
+        return OpSample(inputs=(x, weight, bias), module=TernaryPrimitive(op))
 
     return _draw()
 
@@ -230,6 +331,39 @@ def _batch_norm1d_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+class _QuantizedBatchNorm(torch.nn.Module):
+    """Quantize, run quantized batch norm, then dequantize."""
+
+    def forward(self, x):
+        q = torch.quantize_per_tensor(x, 0.05, 10, torch.quint8)
+        weight = torch.ones(q.size(1), dtype=torch.float32)
+        bias = torch.zeros(q.size(1), dtype=torch.float32)
+        mean = torch.zeros(q.size(1), dtype=torch.float32)
+        var = torch.ones(q.size(1), dtype=torch.float32)
+        return torch.quantized_batch_norm(
+            q, weight, bias, mean, var, 1e-5, 0.05, 10
+        ).dequantize()
+
+
+def _quantized_batch_norm_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        channels = draw(st.integers(min_value=1, max_value=4))
+        height = draw(st.integers(min_value=3, max_value=6))
+        width = draw(st.integers(min_value=3, max_value=6))
+        x = draw(
+            tensor_st(
+                (1, channels, height, width),
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_QuantizedBatchNorm())
+
+    return _draw()
+
+
 def _group_norm_sample_st() -> st.SearchStrategy[OpSample]:
     """`nn.GroupNorm(num_groups, num_channels)`: groups must divide C.
 
@@ -255,6 +389,43 @@ def _group_norm_sample_st() -> st.SearchStrategy[OpSample]:
         x = torch.tensor(perm, dtype=torch.float32).reshape(shape) / scale
         layer = nn.GroupNorm(num_groups, num_channels).eval()
         return OpSample(inputs=(x,), module=layer)
+
+    return _draw()
+
+
+def _native_group_norm_sample_st() -> st.SearchStrategy[OpSample]:
+    """Direct `aten::native_group_norm`, returning only normalized output."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        num_groups = draw(st.integers(min_value=1, max_value=4))
+        c_mult = draw(st.integers(min_value=1, max_value=3))
+        num_channels = num_groups * c_mult
+        n = draw(st.integers(min_value=1, max_value=3))
+        h = draw(st.integers(min_value=2, max_value=4))
+        w = draw(st.integers(min_value=2, max_value=4))
+        shape = (n, num_channels, h, w)
+        total = n * num_channels * h * w
+        perm = draw(st.permutations(list(range(1, total + 1))))
+        x = torch.tensor(perm, dtype=torch.float32).reshape(shape) / float(
+            total
+        )
+        weight = draw(
+            tensor_st((num_channels,), torch.float32, domain=Interval(0.5, 1.5))
+        )
+        bias = draw(
+            tensor_st(
+                (num_channels,), torch.float32, domain=Interval(-0.5, 0.5)
+            )
+        )
+        hxw = h * w
+
+        def op(t, wt, bs):
+            return torch.ops.aten.native_group_norm.default(
+                t, wt, bs, n, num_channels, hxw, num_groups, 1e-5
+            )[0]
+
+        return OpSample(inputs=(x, weight, bias), module=TernaryPrimitive(op))
 
     return _draw()
 
@@ -318,6 +489,44 @@ def _conv2d_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _convolution_sample_st() -> st.SearchStrategy[OpSample]:
+    """Direct `aten::convolution`, constrained to ordinary 2-D conv."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        in_c = draw(st.integers(min_value=1, max_value=3))
+        out_c = draw(st.integers(min_value=1, max_value=3))
+        kernel = draw(st.integers(min_value=1, max_value=3))
+        stride = draw(st.integers(min_value=1, max_value=2))
+        padding = draw(st.integers(min_value=0, max_value=kernel // 2))
+        n = draw(st.integers(min_value=1, max_value=2))
+        h = draw(st.integers(min_value=kernel + 2, max_value=8))
+        w = draw(st.integers(min_value=kernel + 2, max_value=8))
+        dom = Interval(-2.0, 2.0)
+        x = draw(tensor_st((n, in_c, h, w), torch.float32, domain=dom))
+        weight = draw(
+            tensor_st((out_c, in_c, kernel, kernel), torch.float32, domain=dom)
+        )
+        bias = draw(tensor_st((out_c,), torch.float32, domain=dom))
+
+        def op(t, wt, bs):
+            return torch.ops.aten.convolution.default(
+                t,
+                wt,
+                bs,
+                [stride, stride],
+                [padding, padding],
+                [1, 1],
+                False,
+                [0, 0],
+                1,
+            )
+
+        return OpSample(inputs=(x, weight, bias), module=TernaryPrimitive(op))
+
+    return _draw()
+
+
 def _norm_conv_matmul_specs() -> T.List[OpSpec]:
     # Multi-op chains: tract's f32 ops accumulate ULP-level error per
     # multiply-accumulate. CLOSE (1e-5) is too tight for a typical
@@ -327,11 +536,31 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="matmul",
+            aten_ops=("matmul",),
             sample_st=_matmul_sample_st(),
             tolerance=VERY,
         ),
         OpSpec(
+            name="mm",
+            aten_ops=("mm",),
+            sample_st=_mm_sample_st(),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="bmm",
+            aten_ops=("bmm",),
+            sample_st=_bmm_sample_st(),
+            tolerance=VERY,
+        ),
+        OpSpec(
+            name="addmm",
+            aten_ops=("addmm",),
+            sample_st=_addmm_sample_st(),
+            tolerance=VERY,
+        ),
+        OpSpec(
             name="linear",
+            aten_ops=("linear",),
             sample_st=_linear_sample_st(),
             tolerance=VERY,
         ),
@@ -341,11 +570,23 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             # absolute (above VERY but well below SUPER). Same root cause
             # class as group_norm (multi-step f32 reduction precision).
             name="layer_norm",
+            aten_ops=("layer_norm",),
             sample_st=_layer_norm_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
+            name="native_layer_norm-xfail",
+            aten_ops=("native_layer_norm",),
+            sample_st=_native_layer_norm_sample_st(),
+            tolerance=TractCheckTolerance.SUPER,
+            xfail_reason=(
+                "direct aten::native_layer_norm reaches the registered "
+                "emitter but its node signature is not handled yet"
+            ),
+        ),
+        OpSpec(
             name="batch_norm1d",
+            aten_ops=("batch_norm",),
             sample_st=_batch_norm1d_sample_st(),
             tolerance=VERY,
         ),
@@ -356,24 +597,28 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
         # shape declarations, so dyn-axes works straight through.
         OpSpec(
             name="instance_norm1d",
+            aten_ops=("instance_norm",),
             sample_st=_instance_norm_sample_st(ndim=1, affine=False),
             tolerance=TractCheckTolerance.SUPER,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="instance_norm2d",
+            aten_ops=("instance_norm",),
             sample_st=_instance_norm_sample_st(ndim=2, affine=False),
             tolerance=TractCheckTolerance.SUPER,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="instance_norm2d_affine",
+            aten_ops=("instance_norm",),
             sample_st=_instance_norm_sample_st(ndim=2, affine=True),
             tolerance=TractCheckTolerance.SUPER,
             dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="instance_norm3d",
+            aten_ops=("instance_norm",),
             sample_st=_instance_norm_sample_st(ndim=3, affine=False),
             tolerance=TractCheckTolerance.SUPER,
             dynamic_axes_compatible=True,
@@ -390,17 +635,36 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             # left-aligned NNEF broadcast pattern after restoration of
             # the original input rank.
             name="group_norm",
+            aten_ops=("group_norm",),
             sample_st=_group_norm_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
         ),
         OpSpec(
+            name="native_group_norm-xfail",
+            aten_ops=("native_group_norm",),
+            sample_st=_native_group_norm_sample_st(),
+            tolerance=TractCheckTolerance.SUPER,
+            xfail_reason=(
+                "direct aten::native_group_norm reaches the registered "
+                "emitter but its node signature is not handled yet"
+            ),
+        ),
+        OpSpec(
             name="conv1d",
+            aten_ops=("conv1d",),
             sample_st=_conv1d_sample_st(),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="conv2d",
+            aten_ops=("conv2d",),
             sample_st=_conv2d_sample_st(),
+            tolerance=CLOSE,
+        ),
+        OpSpec(
+            name="convolution",
+            aten_ops=("convolution",),
+            sample_st=_convolution_sample_st(),
             tolerance=CLOSE,
         ),
     ]
@@ -478,6 +742,7 @@ def _norm_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="vector_norm",
+            aten_ops=("linalg_vector_norm",),
             sample_st=_vector_norm_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
@@ -492,6 +757,7 @@ def _norm_specs() -> T.List[OpSpec]:
             # `prefer_native_tract_rms_norm` to False makes proptest
             # match PyTorch exactly. The fix lives in tract's native op.
             name="rms_norm-xfail",
+            aten_ops=("rms_norm",),
             sample_st=_rms_norm_sample_st(),
             tolerance=TractCheckTolerance.ULTRA,
             xfail_reason=(
@@ -745,39 +1011,58 @@ def _norm_topk_cat_kwarg_specs() -> T.List[OpSpec]:
             # very small `eps`). ULTRA matches the practical noise
             # floor for layer_norm under hypothesis.
             name="layer_norm-broad",
+            aten_ops=("layer_norm",),
             sample_st=_layer_norm_kwargs_sample_st(),
             tolerance=TractCheckTolerance.ULTRA,
         ),
         OpSpec(
             name="batch_norm1d-broad",
+            aten_ops=("batch_norm",),
             sample_st=_batch_norm1d_kwargs_sample_st(),
             tolerance=TractCheckTolerance.VERY,
         ),
         OpSpec(
             name="topk-broad",
+            aten_ops=("topk",),
             sample_st=_topk_kwargs_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="sort-broad",
+            aten_ops=("sort",),
             sample_st=_sort_kwargs_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="cat-n-tensors",
+            aten_ops=("cat",),
             sample_st=_cat_n_tensors_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
             name="embedding-padding-idx",
+            aten_ops=("embedding",),
             sample_st=_embedding_padding_idx_sample_st(),
             tolerance=EXACT,
         ),
     ]
 
 
+def _quantized_norm_gap_specs() -> T.Tuple[OpSpec, ...]:
+    """Traceable quantized normalization rows that t2n does not lower."""
+    return (
+        gap_spec(
+            "quantized_batch_norm",
+            _quantized_batch_norm_sample_st(),
+            "the quantized batch-norm row is traceable, but t2n has no "
+            "emitter for quantized normalization",
+        ),
+    )
+
+
 SPECS = (
     *_norm_conv_matmul_specs(),
     *_norm_specs(),
     *_norm_topk_cat_kwarg_specs(),
+    *_quantized_norm_gap_specs(),
 )

@@ -47,7 +47,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Weight adapters — normalize diverse layouts into unified tensors
+# Weight adapters: normalize diverse layouts into unified tensors
 # ---------------------------------------------------------------------------
 
 
@@ -159,7 +159,7 @@ class _MoEFFNAdapter(_MoEWeightAdapter):
         return m.w2.detach()
 
     def expert_w3(self, m: nn.Module) -> torch.Tensor:
-        # MoEFFN has no w3 — duplicate w1 shape as zeros
+        # MoEFFN has no w3, so duplicate w1 shape as zeros
         # so the SwiGLU gate branch becomes a no-op multiply by 0+silu
         # In practice MoEFFN uses simple activation, not SwiGLU.
         raise T2NErrorNotImplemented(
@@ -316,7 +316,7 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
     """Adapter for transformers Qwen2MoE / Qwen3.5 MoE.
 
     Experts are fused tensors: gate_up_proj [E, 2*H, D], down_proj [E, D, H].
-    Shared expert is NOT handled here — it is decomposed outside the op.
+    Shared expert is NOT handled here: it is decomposed outside the op.
     """
 
     def gate_weight(self, m: nn.Module) -> torch.Tensor:

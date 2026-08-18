@@ -15,9 +15,9 @@ from torch_to_nnef.utils import (
     require_extra_decorator,
 )
 from torch_to_nnef_llm._optional_types import (
+    DynamicCacheType,
     InjectedTransformersCacheUtilsModule,
     InjectedTransformersModule,
-    TransformersCacheUtils,
 )
 
 if T.TYPE_CHECKING:
@@ -61,7 +61,7 @@ def build_past_kv_dyn_cache(
     args: T.Iterable[torch.Tensor],
     *,
     cu: InjectedTransformersCacheUtilsModule = INJECTED,
-) -> TransformersCacheUtils.DynamicCache:
+) -> DynamicCacheType:
     legacy = tuple(build_past_kv_list(args))
     if hasattr(cu.DynamicCache, "from_legacy_cache"):
         return cu.DynamicCache.from_legacy_cache(legacy)
@@ -69,7 +69,7 @@ def build_past_kv_dyn_cache(
 
 
 def dyn_cache_to_legacy(
-    cache: TransformersCacheUtils.DynamicCache,
+    cache: DynamicCacheType,
 ) -> T.List[T.Tuple[torch.Tensor, torch.Tensor]]:
     if hasattr(cache, "to_legacy_cache"):
         return cache.to_legacy_cache()
@@ -386,8 +386,8 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         logits_to_keep = None
         if self.dynamic_logits_to_keep:
             # last input is the runtime row count; the rest are kv caches
-            *args, logits_to_keep = args
-            args = tuple(args)
+            *rest, logits_to_keep = args
+            args = tuple(rest)
         inputs = (input_ids, *args)
         state_context = self.handler.build_forward_inputs(
             inputs=inputs,
@@ -417,7 +417,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             logits = outputs[0]
             seq = logits.shape[1]
             idx = torch.arange(seq - logits_to_keep, seq, device=logits.device)
-            outputs = (logits.index_select(1, idx), *outputs[1:])
+            return (logits.index_select(1, idx), *outputs[1:])
         return outputs
 
 

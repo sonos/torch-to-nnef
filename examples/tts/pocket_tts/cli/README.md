@@ -27,7 +27,7 @@ The CLI prefers `mimi_decode.nnef.tgz` (full Mimi chain) when present in
 
 ## Run
 
-The simplest path is the parent directory's `run.sh` — it exports the
+The simplest path is the parent directory's `run.sh`: it exports the
 graphs, builds the binary, and synthesises a fixed-text WAV.
 
 ```bash
@@ -110,5 +110,5 @@ so pass raw token IDs:
 ./target/release/pocket-tts-tract --tokens 1,2,3,4 --max-frames 8 --out out.wav
 ```
 
-The mini decoder is traced at 8 latent frames — match `--max-frames` to
+The mini decoder is traced at 8 latent frames, so match `--max-frames` to
 that.

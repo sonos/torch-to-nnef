@@ -677,7 +677,7 @@ def _translate_state_variable_load_and_prep(
         dtype=node.inputs[0].dtype,
     )
 
-    input_batch_size_tensor = None
+    input_batch_size_tensor: T.Optional[NTensor] = None
     if static_batch_size is None:
         # Dynamic-axes path: derive the batch size from the input at
         # runtime via `tract_core_shape_of -> slice -> squeeze`. Cache
@@ -753,6 +753,9 @@ def _translate_state_variable_load_and_prep(
     if static_batch_size is not None:
         repeats: T.List[T.Any] = [1, int(static_batch_size), 1]
     else:
+        # static_batch_size is None here, which is exactly the branch
+        # above that binds the dynamic batch-size tensor.
+        assert input_batch_size_tensor is not None
         repeats = [1, nnef.Identifier(input_batch_size_tensor.name), 1]
     NOperation(
         g,
@@ -997,7 +1000,7 @@ def emit_rnn_via_fragment(
             else:
                 last_forward_h = outputs[0]
 
-            last_hc_at_each_layers.append(outputs[1:])
+            last_hc_at_each_layers.append(tuple(outputs[1:]))
         if module.bidirectional:
             last_forward_h = _apply_rnn_bidirectional_pack_at_layer(
                 g,
@@ -1015,6 +1018,8 @@ def emit_rnn_via_fragment(
         )
 
     h_out_name = node.outputs[0].export_name
+    # Bound by the per-layer loop above, which always runs at least once.
+    assert last_forward_h is not None
     last_forward_h.name = h_out_name
     name_to_tensor[h_out_name] = last_forward_h
 
@@ -1228,6 +1233,10 @@ class _RNNAdapterBase:
 
     proj_size = 0
     nonlinearity = "tanh"
+    #: Bound by `_populate` through `_set_named`, one per
+    #: layer/direction. Declared here because the subclasses read it to
+    #: derive `hidden_size`.
+    weight_ih_l0: NamedTensor
 
     def __init__(
         self,

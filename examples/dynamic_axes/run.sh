@@ -22,4 +22,3 @@ python export_albert_fixed.py
 python export_with_batchable.py
 python cnn_deepspeech_stream.py
 echo "[dynamic_axes] Done. See generated .nnef.tgz artifacts in this folder."
-

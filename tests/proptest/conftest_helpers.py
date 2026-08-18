@@ -30,7 +30,14 @@ def _truthy(value: str) -> bool:
     return value.lower() in ("1", "true", "yes", "on")
 
 
-def _select_profile() -> str:
+def selected_profile() -> str:
+    """Name of the profile this process runs under.
+
+    Public because the ONNX support sweep records it in its artifact:
+    a grade is only comparable to another measured with at least as many
+    examples. Reading it back from `hypothesis.settings` would mean
+    depending on a private attribute.
+    """
     explicit = os.environ.get("T2N_HYP_PROFILE") or os.environ.get(
         "HYPOTHESIS_PROFILE"
     )
@@ -64,4 +71,4 @@ def register_profiles() -> None:
         deadline=None,
         suppress_health_check=_COMMON_SUPPRESSIONS,
     )
-    settings.load_profile(_select_profile())
+    settings.load_profile(selected_profile())

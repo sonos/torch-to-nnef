@@ -20,9 +20,15 @@ from ..shapes import (
     shape_st,
 )
 from ._common import (
+    NnefGapStage,
     OpSample,
     OpSpec,
     _unary_sample_st,
+)
+from ._gap_common import (
+    gap_spec,
+    image_st,
+    unpool,
 )
 
 
@@ -152,17 +158,93 @@ def _adaptive_pool2d_sample_st(
     return _draw()
 
 
+def _adaptive_pool1d_sample_st(
+    op: T.Callable[..., torch.Tensor],
+) -> st.SearchStrategy[OpSample]:
+    """adaptive_pool1d with input length divisible by output length."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=4))
+        out_l = draw(st.integers(min_value=1, max_value=5))
+        l_mult = draw(st.integers(min_value=1, max_value=3))
+        length = out_l * l_mult
+        x = draw(
+            tensor_st(
+                (n, c, length),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        wrapped = partial(op, output_size=out_l)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
+
+    return _draw()
+
+
+class _QuantizedMaxPool(torch.nn.Module):
+    """Quantize, run quantized max-pool, then dequantize."""
+
+    def __init__(self, rank: int):
+        super().__init__()
+        self.rank = rank
+
+    def forward(self, x):
+        q = torch.quantize_per_tensor(x, 0.05, 10, torch.quint8)
+        if self.rank == 1:
+            return torch.quantized_max_pool1d(
+                q, [2], [1], [0], [1], False
+            ).dequantize()
+        if self.rank == 2:
+            return torch.quantized_max_pool2d(
+                q, [2, 2], [1, 1], [0, 0], [1, 1], False
+            ).dequantize()
+        return torch.quantized_max_pool3d(
+            q, [2, 2, 2], [1, 1, 1], [0, 0, 0], [1, 1, 1], False
+        ).dequantize()
+
+
+def _quantized_max_pool_sample_st(rank: int) -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        channels = draw(st.integers(min_value=1, max_value=4))
+        spatial = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=3, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        x = draw(
+            tensor_st(
+                (1, channels, *spatial),
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_QuantizedMaxPool(rank))
+
+    return _draw()
+
+
 def _pool_specs() -> T.List[OpSpec]:
     EXACT = TractCheckTolerance.EXACT
     APPROX = TractCheckTolerance.APPROXIMATE
     return [
         OpSpec(
             name="max_pool1d",
+            aten_ops=("max_pool1d",),
             sample_st=_pool1d_sample_st(F.max_pool1d),
             tolerance=EXACT,
         ),
         OpSpec(
             name="max_pool1d_with_indices",
+            aten_ops=("max_pool1d_with_indices",),
             sample_st=_pool1d_sample_st(
                 F.max_pool1d, op_kwargs={"return_indices": True}
             ),
@@ -171,6 +253,7 @@ def _pool_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="max_pool2d",
+            aten_ops=("max_pool2d",),
             sample_st=_pool2d_sample_st(F.max_pool2d),
             tolerance=EXACT,
         ),
@@ -183,22 +266,32 @@ def _pool_specs() -> T.List[OpSpec]:
             # don't). t2n bug: emitter should either implement
             # count_include_pad=True faithfully or reject it.
             name="avg_pool1d",
+            aten_ops=("avg_pool1d",),
             sample_st=_pool1d_sample_st(F.avg_pool1d, allow_padding=False),
             tolerance=APPROX,
         ),
         OpSpec(
             # Same padding limitation as avg_pool1d.
             name="avg_pool2d",
+            aten_ops=("avg_pool2d",),
             sample_st=_pool2d_sample_st(F.avg_pool2d, allow_padding=False),
             tolerance=APPROX,
         ),
         OpSpec(
+            name="adaptive_avg_pool1d",
+            aten_ops=("adaptive_avg_pool1d",),
+            sample_st=_adaptive_pool1d_sample_st(F.adaptive_avg_pool1d),
+            tolerance=APPROX,
+        ),
+        OpSpec(
             name="adaptive_avg_pool2d",
+            aten_ops=("adaptive_avg_pool2d",),
             sample_st=_adaptive_pool2d_sample_st(F.adaptive_avg_pool2d),
             tolerance=APPROX,
         ),
         OpSpec(
             name="adaptive_max_pool2d",
+            aten_ops=("adaptive_max_pool2d",),
             sample_st=_adaptive_pool2d_sample_st(F.adaptive_max_pool2d),
             tolerance=EXACT,
         ),
@@ -242,6 +335,7 @@ def _conv3d_sample_st() -> st.SearchStrategy[OpSample]:
 def _pool3d_sample_st(
     op: T.Callable[..., torch.Tensor],
     allow_padding: bool = True,
+    op_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
 ) -> st.SearchStrategy[OpSample]:
     """3D pool over (N, C, D, H, W) input."""
 
@@ -268,7 +362,11 @@ def _pool3d_sample_st(
             )
         )
         wrapped = partial(
-            op, kernel_size=kernel, stride=stride, padding=padding
+            op,
+            kernel_size=kernel,
+            stride=stride,
+            padding=padding,
+            **(op_kwargs or {}),
         )
         return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
@@ -425,22 +523,34 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="conv3d",
+            aten_ops=("conv3d",),
             sample_st=_conv3d_sample_st(),
             tolerance=CLOSE,
         ),
         OpSpec(
             name="max_pool3d",
+            aten_ops=("max_pool3d",),
             sample_st=_pool3d_sample_st(F.max_pool3d),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="max_pool3d_with_indices",
+            aten_ops=("max_pool3d_with_indices",),
+            sample_st=_pool3d_sample_st(
+                F.max_pool3d, op_kwargs={"return_indices": True}
+            ),
             tolerance=EXACT,
         ),
         OpSpec(
             # Same count_include_pad caveat as avg_pool1d/2d: padding=0.
             name="avg_pool3d",
+            aten_ops=("avg_pool3d",),
             sample_st=_pool3d_sample_st(F.avg_pool3d, allow_padding=False),
             tolerance=APPROX,
         ),
         OpSpec(
             name="expm1",
+            aten_ops=("expm1",),
             sample_st=_unary_sample_st(
                 torch.expm1, domain=Interval(-10.0, 10.0)
             ),
@@ -448,6 +558,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="log1p",
+            aten_ops=("log1p",),
             sample_st=_unary_sample_st(
                 torch.log1p, domain=Interval(-0.999, 1e3)
             ),
@@ -455,11 +566,13 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="log10",
+            aten_ops=("log10",),
             sample_st=_unary_sample_st(torch.log10, domain=Interval(1e-3, 1e4)),
             tolerance=VERY,
         ),
         OpSpec(
             name="trunc-unary",
+            aten_ops=("trunc",),
             sample_st=_unary_sample_st(
                 torch.trunc, domain=Interval(-100.0, 100.0)
             ),
@@ -467,11 +580,13 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="cumsum",
+            aten_ops=("cumsum",),
             sample_st=_cumsum_sample_st(),
             tolerance=APPROX,
         ),
         OpSpec(
             name="cumprod",
+            aten_ops=("cumprod",),
             sample_st=_cumprod_sample_st(),
             tolerance=APPROX,
         ),
@@ -480,6 +595,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             # (a two-state scan); the running-max stabiliser means
             # CLOSE rather than APPROXIMATE is what we need.
             name="logcumsumexp",
+            aten_ops=("logcumsumexp",),
             sample_st=_logcumsumexp_sample_st(),
             tolerance=CLOSE,
         ),
@@ -493,6 +609,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             # `(-10, 10)` interval, so the spec stays xfail until the
             # sample generator filters them out.
             name="atan2-xfail",
+            aten_ops=("atan2",),
             sample_st=_atan2_sample_st(),
             tolerance=VERY,
             xfail_reason=(
@@ -503,6 +620,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="isnan-xfail",
+            aten_ops=("isnan",),
             sample_st=_classifier_sample_st(torch.isnan),
             tolerance=EXACT,
             xfail_reason=(
@@ -512,6 +630,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="isinf-xfail",
+            aten_ops=("isinf",),
             sample_st=_classifier_sample_st(torch.isinf),
             tolerance=EXACT,
             xfail_reason=(
@@ -520,6 +639,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="isposinf-xfail",
+            aten_ops=("isposinf",),
             sample_st=_classifier_sample_st(torch.isposinf),
             tolerance=EXACT,
             xfail_reason=(
@@ -529,6 +649,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="isneginf-xfail",
+            aten_ops=("isneginf",),
             sample_st=_classifier_sample_st(torch.isneginf),
             tolerance=EXACT,
             xfail_reason=(
@@ -633,19 +754,108 @@ def _conv2d_kwarg_sweep_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="conv2d-dilation-groups",
+            aten_ops=("conv2d",),
             sample_st=_conv2d_dilation_groups_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
         OpSpec(
             name="max_pool2d-dilation",
+            aten_ops=("max_pool2d",),
             sample_st=_max_pool2d_dilation_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
     ]
 
 
+def _unpool_specs() -> T.Tuple[OpSpec, ...]:
+    """Pooling inverses: a scatter into a larger buffer.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- pooling --
+        gap_spec(
+            "max_unpool2d",
+            image_st(unpool(2), "max_unpool2d", rank=2),
+            "the inverse of a pooling: a scatter into a larger buffer at "
+            "runtime-known indices, which no emitter builds",
+        ),
+        gap_spec(
+            "max_unpool3d",
+            image_st(unpool(3), "max_unpool3d", rank=3),
+            "the 3-D form of the same scatter as `max_unpool2d`",
+        ),
+    )
+
+
+def _fractional_pool_specs() -> T.Tuple[OpSpec, ...]:
+    """Pooling with randomly chosen regions.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        gap_spec(
+            "fractional_max_pool2d",
+            image_st(
+                lambda x: F.fractional_max_pool2d(x, 2, output_size=(2, 2)),
+                "fractional_max_pool2d",
+                rank=2,
+                side=5,
+            ),
+            "picks its pooling regions at random, so it carries the RNG "
+            "problem into a layer; it also fails before the emitter lookup",
+            stage=NnefGapStage.EXPORT_ERROR,
+            nondeterministic=True,
+        ),
+        gap_spec(
+            "fractional_max_pool3d",
+            image_st(
+                lambda x: F.fractional_max_pool3d(x, 2, output_size=(2, 2, 2)),
+                "fractional_max_pool3d",
+                rank=3,
+                side=5,
+            ),
+            "the 3-D form of `fractional_max_pool2d`, same RNG problem",
+            stage=NnefGapStage.EXPORT_ERROR,
+            nondeterministic=True,
+        ),
+    )
+
+
+def _quantized_pool_gap_specs() -> T.Tuple[OpSpec, ...]:
+    """Traceable quantized max-pool rows that t2n does not lower."""
+    reason = (
+        "the quantized pooling row is traceable, but t2n has no emitter "
+        "for quantized ATen pooling"
+    )
+    return (
+        gap_spec(
+            "quantized_max_pool1d",
+            _quantized_max_pool_sample_st(rank=1),
+            reason,
+        ),
+        gap_spec(
+            "quantized_max_pool2d",
+            _quantized_max_pool_sample_st(rank=2),
+            reason,
+        ),
+        gap_spec(
+            "quantized_max_pool3d",
+            _quantized_max_pool_sample_st(rank=3),
+            reason,
+        ),
+    )
+
+
 SPECS = (
     *_pool_specs(),
     *_conv3d_pool3d_helpers_specs(),
     *_conv2d_kwarg_sweep_specs(),
+    *_unpool_specs(),
+    *_fractional_pool_specs(),
+    *_quantized_pool_gap_specs(),
 )
