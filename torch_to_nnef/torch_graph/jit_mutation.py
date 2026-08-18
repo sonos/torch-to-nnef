@@ -61,9 +61,8 @@ def _const_int(value) -> T.Optional[int]:
 
 def _chain_is_scatterable(views) -> bool:
     for view in views:
-        if view.kind() == "aten::slice":
-            if _const_int(view.inputsAt(4)) != 1:
-                return False
+        if view.kind() == "aten::slice" and _const_int(view.inputsAt(4)) != 1:
+            return False
     return True
 
 

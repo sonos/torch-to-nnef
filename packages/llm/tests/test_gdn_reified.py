@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 
 import pytest
@@ -71,9 +72,11 @@ def test_shim_matches_hf_recurrent_rule(gdn_ref, s_len, with_state):
 
 @pytest.mark.parametrize("s_len", [1, 16])
 def test_shim_gqa_matches_hf_repeated_rule(gdn_ref, s_len):
-    """The handler feeds the shim UN-repeated q/k (hk heads); HF repeats
-    q/k to the value-head count before calling the rule. The shim's
-    internal repeat must reproduce HF's result exactly."""
+    """The shim's internal GQA repeat must reproduce HF's result exactly.
+
+    The handler feeds the shim UN-repeated q/k (hk heads), while HF repeats
+    q/k to the value-head count before calling the rule.
+    """
     groups = 2
     inputs = _rand_inputs(1, s_len, 4, 32, with_state=True)
     # keep every 'groups'-th q/k head: repeat_interleave of the kept heads
@@ -108,8 +111,10 @@ def test_shim_gqa_matches_hf_repeated_rule(gdn_ref, s_len):
 
 
 def test_shim_matches_hf_chunked_rule(gdn_ref):
-    """The chunked variant computes the same recurrence with different
-    blocking; substituting the shim for it must agree numerically."""
+    """Substituting the shim for the chunked variant must agree numerically.
+
+    The chunked variant computes the same recurrence with different blocking.
+    """
     inputs = _rand_inputs(1, 16, 4, 32, with_state=True)
     shim = GatedDeltaNetRecurrentReified()
     core, state = shim(
@@ -137,18 +142,18 @@ def test_shim_matches_hf_chunked_rule(gdn_ref):
 
 
 def test_reference_rule_sources_stay_in_sync():
-    """The registered families must keep sharing ONE reference torch
-    implementation: if HF diverges the sources, the per-family tests above
-    could both pass while the shared shim silently mismatches a third
-    caller, so fail loudly here to force a review."""
+    """The registered families must keep sharing ONE reference implementation.
+
+    If HF diverges the sources, the per-family tests above could both pass
+    while the shared shim silently mismatches a third caller, so fail loudly
+    here to force a review.
+    """
     import inspect
 
     mods = []
     for path in GDN_REFERENCE_MODULES:
-        try:
+        with contextlib.suppress(ImportError):
             mods.append(importlib.import_module(path))
-        except ImportError:
-            pass
     if len(mods) < 2:
         pytest.skip("fewer than two GDN families in installed transformers")
     ref = mods[0]

@@ -1408,9 +1408,10 @@ def select_scatter(node, op_helper, inference_target, **kwargs):
         output_tensor_name_suffix="_ss_src_unsq",
     )
 
-    dyn_axes = isinstance(
-        inference_target, TractNNEF
-    ) and inference_target.has_dynamic_axes
+    dyn_axes = (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.has_dynamic_axes
+    )
 
     parts = []
     if index > 0:
@@ -1513,9 +1514,10 @@ def slice_scatter(node, op_helper, inference_target, **kwargs):
     start = max(start, 0)
     end = min(end, dim_size)
 
-    dyn_axes = isinstance(
-        inference_target, TractNNEF
-    ) and inference_target.has_dynamic_axes
+    dyn_axes = (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.has_dynamic_axes
+    )
 
     fragments = []
     inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)

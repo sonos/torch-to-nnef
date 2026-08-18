@@ -522,7 +522,7 @@ def mark_moe_experts_for_q40(
     if marked == 0:
         raise T2NErrorNotImplemented(
             "no MoE module found: wrong transformers class? (looked for "
-            f"{sorted(wanted) if wanted is not None else 'any registered MoE class'})"
+            f"{sorted(wanted) if wanted is not None else 'any registered'})"
         )
     return marked
 

@@ -30,9 +30,7 @@ class TinyCausal(nn.Module):
 
     def __init__(self, tie_word_embeddings=False):
         super().__init__()
-        self.config = SimpleNamespace(
-            tie_word_embeddings=tie_word_embeddings
-        )
+        self.config = SimpleNamespace(tie_word_embeddings=tie_word_embeddings)
         self.embed_tokens = nn.Embedding(64, 32)
         self.self_attn = _TinyAttn()
         self.lm_head = nn.Linear(32, 64, bias=False)

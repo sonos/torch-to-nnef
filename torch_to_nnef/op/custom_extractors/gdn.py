@@ -241,9 +241,10 @@ class CausalConvUpdateExtractor(ModuleInfoExtractor):
             )
         # node.outputs order follows the tracer's module-boundary escape
         # order: identify (out, final_state) by shape.
-        if list(outs[0].shape) == state_shape and list(
-            outs[1].shape
-        ) == input_shape:
+        if (
+            list(outs[0].shape) == state_shape
+            and list(outs[1].shape) == input_shape
+        ):
             outs = [outs[1], outs[0]]
         elif not (
             list(outs[0].shape) == input_shape
@@ -369,9 +370,10 @@ class GatedDeltaNetRecurrentExtractor(ModuleInfoExtractor):
                 "cannot disambiguate GDN outputs: value and state shapes "
                 f"coincide ({core_shape})"
             )
-        if list(outs[0].shape) == state_shape and list(
-            outs[1].shape
-        ) == core_shape:
+        if (
+            list(outs[0].shape) == state_shape
+            and list(outs[1].shape) == core_shape
+        ):
             outs = [outs[1], outs[0]]
         elif not (
             list(outs[0].shape) == core_shape

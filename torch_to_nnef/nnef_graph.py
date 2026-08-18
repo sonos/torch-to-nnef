@@ -200,9 +200,9 @@ class TorchToNGraphExtractor:
             import resource as _resource
 
             def _rss_gb():
-                return _resource.getrusage(
-                    _resource.RUSAGE_SELF
-                ).ru_maxrss / (1 << 30)
+                return _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss / (
+                    1 << 30
+                )
 
             _last_rss = [_rss_gb()]
 

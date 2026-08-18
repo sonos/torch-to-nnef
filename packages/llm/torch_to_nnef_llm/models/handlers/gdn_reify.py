@@ -98,9 +98,7 @@ def patch_linear_cache_for_export() -> None:
                     full, (kernel - full.shape[-1], 0), value=0
                 )
         else:
-            full = torch.cat(
-                [self.conv_states[state_idx], conv_states], dim=-1
-            )
+            full = torch.cat([self.conv_states[state_idx], conv_states], dim=-1)
         stored = full[..., -kernel:] if not self.record_past else full
         # Backref so the reified conv update can REBIND the cache slot
         # instead of mutating the stored tensor in place (which would
@@ -118,9 +116,7 @@ def patch_linear_cache_for_export() -> None:
     layer_cls.update_conv_state = update_conv_state
     layer_cls.update_recurrent_state = update_recurrent_state
     layer_cls._t2n_assignment_cache_patch = True
-    LOGGER.info(
-        "patched LinearAttentionLayer cache updates to assignment form"
-    )
+    LOGGER.info("patched LinearAttentionLayer cache updates to assignment form")
 
 
 def _make_conv_update(conv_shim):

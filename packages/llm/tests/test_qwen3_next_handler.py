@@ -1,14 +1,14 @@
 import pytest
 import torch
 
+from torch_to_nnef.op.custom_extractors.gdn import (
+    GatedDeltaNetRecurrentReified,
+)
 from torch_to_nnef_llm.models.handlers import (
     Qwen3NextArchitectureHandler,
     Qwen35MoeArchitectureHandler,
 )
 from torch_to_nnef_llm.models.handlers.registry import get_handler
-from torch_to_nnef.op.custom_extractors.gdn import (
-    GatedDeltaNetRecurrentReified,
-)
 
 qwen3_next = pytest.importorskip(
     "transformers.models.qwen3_next.modeling_qwen3_next"
@@ -52,7 +52,8 @@ def _prefill_then_decode_logits(model):
 
     The decode step (seq_len == 1 with previous state) exercises BOTH
     reified paths: the recurrent gated delta rule and the causal conv
-    update."""
+    update.
+    """
     from transformers.cache_utils import DynamicCache
 
     prompt = torch.tensor([[1, 4, 5, 6]], dtype=torch.long)
@@ -75,8 +76,10 @@ def test_qwen3_next_handler_is_registered():
 
 
 def test_prepare_swaps_rules_but_keeps_num_k_heads():
-    """Qwen3-Next reads num_k_heads in fix_query_key_value_ordering at
-    every forward, so the GQA neutralization MUST stay off for it."""
+    """The GQA neutralization MUST stay off for Qwen3-Next.
+
+    It reads num_k_heads in fix_query_key_value_ordering at every forward.
+    """
     model = _tiny_model(linear_num_key_heads=2, linear_num_value_heads=4)
     Qwen3NextArchitectureHandler().prepare_model_for_export(model)
 
@@ -98,22 +101,24 @@ def test_prepare_swaps_rules_but_keeps_num_k_heads():
 
 
 def test_reified_qwen3_next_decode_matches_hf_eager():
-    """Prefill + cached decode logits must match the unpatched HF model
-    (the GQA path 2 key heads vs 4 value heads included)."""
+    """Prefill and cached decode logits must match the unpatched HF model.
+
+    The GQA path, 2 key heads against 4 value heads, is included.
+    """
     model = _tiny_model(linear_num_key_heads=2, linear_num_value_heads=4)
     ref_logits = _prefill_then_decode_logits(model)
 
     Qwen3NextArchitectureHandler().prepare_model_for_export(model)
     reified_logits = _prefill_then_decode_logits(model)
 
-    torch.testing.assert_close(
-        reified_logits, ref_logits, atol=1e-4, rtol=1e-4
-    )
+    torch.testing.assert_close(reified_logits, ref_logits, atol=1e-4, rtol=1e-4)
 
 
 def test_qwen3_next_moe_block_has_registered_extractor():
-    """The MoE blocks of the tiny model must dispatch through the
-    tract_moe_ffn extractor machinery (adapter + registered extractor)."""
+    """The tiny model's MoE blocks must dispatch through tract_moe_ffn.
+
+    That means the adapter plus the registered extractor machinery.
+    """
     from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
     from torch_to_nnef.op.custom_extractors.moe import _get_adapter
 

@@ -31,11 +31,11 @@ from .qwen3_5_vl import (
     Qwen35ArchitectureHandler,
     Qwen35VisionEncoderHandler,
 )
+from .qwen3_next import Qwen3NextArchitectureHandler
 from .qwen3_vl import (
     Qwen3VLArchitectureHandler,
     Qwen3VLVisionEncoderHandler,
 )
-from .qwen3_next import Qwen3NextArchitectureHandler
 from .qwen35_moe import Qwen35MoeArchitectureHandler
 from .registry import (
     get_encoder_handlers,
