@@ -3,6 +3,9 @@
 Qwen3.5's gated-delta-net (GDN) linear-attention recurrence, exported as a
 `tract_core_scan` via the `gated_delta_scan` fragment. Returns `(y, s_final)`;
 the q*scale / l2norm / GQA-repeat prep stays outside the op as plain ops.
+
+The second half covers the other lowering: from tract 0.23.5 a single-step
+graph becomes tract's fused `tract_transformers_gdn_recurrent` instead.
 """
 
 from __future__ import annotations
@@ -212,10 +215,13 @@ def test_native_gdn_recurrent_auto_activation():
     assert (
         SemanticVersion.from_str("0.23.5") >= NATIVE_GDN_RECURRENT_MIN_VERSION
     )
-    auto = TractNNEF(TractNNEF.latest_version(), check_io=False)
-    assert auto.native_gated_delta_op == (
-        auto.version >= NATIVE_GDN_RECURRENT_MIN_VERSION
-    )
+    # Tripwire, not a tautology: no supported release carries the operator
+    # yet, so auto-activation is off. Whoever adds 0.23.5 to
+    # OFFICIAL_SUPPORTED_VERSIONS flips this on and updates these two lines.
+    assert TractNNEF.latest_version() < NATIVE_GDN_RECURRENT_MIN_VERSION
+    assert not TractNNEF(
+        TractNNEF.latest_version(), check_io=False
+    ).native_gated_delta_op
     assert not TractNNEF(
         TractNNEF.latest_version(), check_io=False, native_gated_delta_op=False
     ).native_gated_delta_op

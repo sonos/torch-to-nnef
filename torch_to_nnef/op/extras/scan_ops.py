@@ -339,11 +339,12 @@ def gated_delta_scan(
     From tract 0.23.5 a single-step graph instead emits tract's fused
     `tract_transformers_gdn_recurrent` (CPU/CUDA/Metal kernels) when it fits
     the operator's constraints, see `_native_gdn_reject_reason`. That operator
-    additionally folds the q/k l2-norm and a `1 / sqrt(128)` output scale, so
-    it assumes the Qwen3.5 convention this op is written for: q passed as
-    `l2norm(q) / sqrt(head_k_dim)` and k as `l2norm(k)`. Re-normalizing an
-    already-normalized q/k is a no-op, and the internal `1 / sqrt(128)` then
-    restores the scale that normalizing q stripped, so both lowerings agree
+    additionally folds the q/k l2-norm and a `1 / sqrt(head_dim)` output
+    scale, so it assumes the Qwen3.5 convention this op is written for: q
+    passed as `l2norm(q) / sqrt(head_k_dim)` and k as `l2norm(k)`.
+    Re-normalizing an already-normalized q/k is a no-op, and the internal
+    scale (tract reads `head_dim` off the same axis, so it always matches
+    ours) then restores the one normalizing q stripped, so both lowerings agree
     (to ~6e-5 relative, from the operator's `1e-6` norm epsilon; under f16
     resolution, and covered by `check_io`). Feeding raw, un-normalized q/k
     would NOT be equivalent.
