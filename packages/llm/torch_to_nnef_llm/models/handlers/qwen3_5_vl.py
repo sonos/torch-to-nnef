@@ -21,8 +21,13 @@ import typing as T
 import torch
 import torch.nn.functional as F
 
-from torch_to_nnef.exceptions import T2NErrorConsistency
+from torch_to_nnef.exceptions import (
+    T2NErrorConsistency,
+    T2NErrorInvalidArgument,
+    T2NErrorNotImplemented,
+)
 from torch_to_nnef.op.gated_delta import (
+    gated_delta_fake,
     gated_delta_reference,
     l2norm,
 )
@@ -67,11 +72,7 @@ if not _gated_delta_scan_defined():
 
     @_gated_delta_scan_op.register_fake
     def _gated_delta_scan_meta(q, k, v, g, beta, s0):
-        batch, heads, seq, _ = q.shape
-        return (
-            q.new_empty((batch, heads, seq, v.shape[-1])),
-            s0.new_empty(s0.shape),
-        )
+        return gated_delta_fake(q, k, v, g, beta, s0)
 
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
@@ -359,6 +360,13 @@ class _HybridGDNForward:
     def gdn(gdn, hidden, conv_state_in, rec_state_in):
         batch, seq, _ = hidden.shape
         conv_k = gdn.conv_kernel_size
+        if conv_k < 2:
+            # `padded[:, :, -(conv_k - 1):]` would become `[:, :, 0:]`, i.e.
+            # the whole width-T tensor, so the emitted conv state would stop
+            # matching the zero-width state input the graph declares.
+            raise T2NErrorNotImplemented(
+                f"gated-delta conv_kernel_size must be >= 2, got {conv_k}"
+            )
         qkv = gdn.in_proj_qkv(hidden).transpose(1, 2)  # [B, conv_dim, T]
         z = gdn.in_proj_z(hidden).reshape(batch, seq, -1, gdn.head_v_dim)
         b = gdn.in_proj_b(hidden)
@@ -581,6 +589,14 @@ class Qwen35ArchitectureHandler(ArchitectureHandler):
         effective_seq = max(n_input_tokens, num_image_tokens + 2)
 
         test_input = tokenizer(sample_text, return_tensors="pt")
+        if test_input.input_ids.shape[1] < effective_seq:
+            # the image-token writes below index up to effective_seq, so a
+            # short sample_text would index past the tokenized length
+            raise T2NErrorInvalidArgument(
+                f"sample_text tokenizes to {test_input.input_ids.shape[1]} "
+                f"tokens, need at least {effective_seq} "
+                f"(vision_start + {num_image_tokens} image tokens + text)"
+            )
         input_ids = test_input.input_ids[:, :effective_seq].clone()
         vocab_size = text_conf.vocab_size
         conf = config_helper.conf
