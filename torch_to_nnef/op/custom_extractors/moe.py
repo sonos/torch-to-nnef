@@ -806,9 +806,6 @@ def _maybe_quantize_expert_weight(
         # pylint: disable-next=import-outside-toplevel
         import gc
 
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.tensor.offload import OffloadedTensor
-
         offloaded = OffloadedTensor.from_original_tensor(
             q_data,
             name=q_data.nnef_name,

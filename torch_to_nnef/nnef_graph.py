@@ -1,6 +1,7 @@
 """Core parsing and NNEF transformation module."""
 
 import logging
+import os
 import typing as T
 
 import numpy as np
@@ -193,10 +194,11 @@ class TorchToNGraphExtractor:
                 return False
             return True
 
-        import os as _os
-
-        _mem_log = _os.environ.get("T2N_LOG_CONVERT_MEMORY") == "1"
+        _mem_log = os.environ.get("T2N_LOG_CONVERT_MEMORY") == "1"
         if _mem_log:
+            # `resource` is Unix-only and this whole block is debug-gated, so
+            # keep the import off the module's import path.
+            # pylint: disable-next=import-outside-toplevel
             import resource as _resource
 
             def _rss_gb():
