@@ -86,28 +86,12 @@ def gated_delta_reference(
     return torch.stack(outs, dim=2), state
 
 
-def native_gdn_reject_reason(
-    inference_target, operands: T.Sequence["NTensor"], head_major: bool
+def _reject_layout(
+    operands: T.Sequence["NTensor"], head_major: bool
 ) -> T.Optional[str]:
-    """Why these operands can NOT become tract's fused operator.
-
-    `tract_transformers_gdn_recurrent` is a fused SINGLE decode step (it also
-    folds the q/k l2-norm and the `1 / sqrt(head_dim)` output scale), with
-    hard constraints checked by tract at load time. Returns `None` when the
-    traced tensors satisfy all of them, else a short reason for logging
-    before falling back.
-
-    `operands` is (query, key, value, log_decay, beta, state); `head_major`
-    says whether the per-step tensors carry `(B, H, S, ...)` rather than
-    tract's own `(B, S, H, ...)`.
-    """
+    """Why these operand SHAPES do not fit the fused operator."""
     query, key, value, log_decay, beta, state = operands
-    if not isinstance(inference_target, TractNNEF):
-        return "not a tract inference target"
-    if not inference_target.native_gated_delta_op:
-        return "disabled on this inference target"
-    seq_axis = 2 if head_major else 1
-    seq = query.shape[seq_axis]
+    seq = query.shape[2 if head_major else 1]
     if seq != 1:
         return f"time axis is {seq} (fused op decodes one step)"
     # NNEF tensor shapes are lists or tuples depending on the producer, so
@@ -135,6 +119,31 @@ def native_gdn_reject_reason(
             f"head dims {head_dims} are not all {NATIVE_GDN_HEAD_DIM} "
             "(fused op is specialized)"
         )
+    return None
+
+
+def native_gdn_reject_reason(
+    inference_target, operands: T.Sequence["NTensor"], head_major: bool
+) -> T.Optional[str]:
+    """Why these operands can NOT become tract's fused operator.
+
+    `tract_transformers_gdn_recurrent` is a fused SINGLE decode step (it also
+    folds the q/k l2-norm and the `1 / sqrt(head_dim)` output scale), with
+    hard constraints checked by tract at load time. Returns `None` when the
+    traced tensors satisfy all of them, else a short reason for logging
+    before falling back.
+
+    `operands` is (query, key, value, log_decay, beta, state); `head_major`
+    says whether the per-step tensors carry `(B, H, S, ...)` rather than
+    tract's own `(B, S, H, ...)`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        return "not a tract inference target"
+    if not inference_target.native_gated_delta_op:
+        return "disabled on this inference target"
+    layout = _reject_layout(operands, head_major)
+    if layout is not None:
+        return layout
     bad = {
         name: tensor.dtype
         for name, tensor in zip(OPERAND_NAMES, operands, strict=True)
