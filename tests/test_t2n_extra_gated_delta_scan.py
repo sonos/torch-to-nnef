@@ -215,3 +215,24 @@ def test_native_gdn_recurrent_auto_activation():
     assert not TractNNEF(
         TractNNEF.latest_version(), check_io=False, native_gated_delta_op=False
     ).native_gated_delta_op
+
+
+def test_native_gdn_recurrent_refused_under_dynamic_axes(tmp_path):
+    """A declared-dynamic graph keeps the scan even at a traced T of 1.
+
+    The fused operator decodes exactly one step, and a handler cannot tell a
+    symbolic time axis from a static one (dynamic_axes reach the graph inputs
+    only at the end of export), so a T=1 trace with `S` declared must NOT be
+    specialized to it.
+    """
+    target = TractNNEF(
+        TractNNEF.latest_version(),
+        check_io=False,
+        native_gated_delta_op=True,
+        dynamic_axes={"q": {2: "S"}, "k": {2: "S"}, "v": {2: "S"}},
+    )
+    graph = _export_graph_nnef(_decode_inputs(), target, tmp_path)
+    assert "tract_transformers_gdn_recurrent" not in graph
+    assert "gated_delta_scan" in graph
+    # the sequence axis really is symbolic in the emitted graph
+    assert "shape = [1, 2, S, 128]" in graph

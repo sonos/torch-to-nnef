@@ -25,7 +25,6 @@ from torch_to_nnef.op.gated_delta import (
     emit_native_gdn_recurrent,
     native_gdn_reject_reason,
 )
-from torch_to_nnef.utils import warn_once
 
 LOGGER = logging.getLogger(__name__)
 
@@ -245,14 +244,6 @@ def gated_delta_scan(
         inference_target, operands, head_major=True
     )
     if reject is None:
-        if inference_target.dynamic_axes:
-            # once per export, not once per gated-delta layer
-            warn_once(
-                LOGGER,
-                "emitting tract's fused gated-delta operator, which decodes "
-                "exactly ONE step: keep the time axis static at 1 in this "
-                f"graph (dynamic_axes={inference_target.dynamic_axes})",
-            )
         b, h, t = q.shape[:3]
         y_final = NTensor(
             g,

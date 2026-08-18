@@ -141,6 +141,17 @@ def native_gdn_reject_reason(
         return "not a tract inference target"
     if not inference_target.native_gated_delta_op:
         return "disabled on this inference target"
+    if inference_target.dynamic_axes:
+        # A handler sees the traced extent, never whether that axis is
+        # symbolic: dynamic_axes are stamped onto the graph INPUTS at the very
+        # end of export, so an internal time axis traced at 1 looks static
+        # here even when it is declared `S`. Emitting the single-step operator
+        # into such a graph would be silently wrong for S > 1, so refuse and
+        # keep the portable scan, which serves any S. This restriction goes
+        # away with tract's any-S operator, together with the check below.
+        return (
+            f"dynamic_axes declared ({sorted(inference_target.dynamic_axes)})"
+        )
     layout = _reject_layout(operands, head_major)
     if layout is not None:
         return layout
