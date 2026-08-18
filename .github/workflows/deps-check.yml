@@ -65,6 +65,7 @@ jobs:
             examples/mamba/external_state/mamba-rs
             examples/speech_enhancement/dpdfnet/wav-cleaner-rs
             examples/tts/pocket_tts/cli
+            examples/holo/holo-rs
           )
           for d in "${roots[@]}"; do
             echo "::group::$d"
@@ -109,6 +110,7 @@ jobs:
             examples/mamba/external_state/mamba-rs
             examples/speech_enhancement/dpdfnet/wav-cleaner-rs
             examples/tts/pocket_tts/cli
+            examples/holo/holo-rs
           )
           for d in "${roots[@]}"; do
             echo "::group::$d"

@@ -1,0 +1,8 @@
+exp/
+exp_*/
+*.nnef.tgz
+*.dat
+holo.json
+__pycache__/
+
+holo-rs/target/
