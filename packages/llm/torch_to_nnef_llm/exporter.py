@@ -618,11 +618,12 @@ class LLMExporter:
             if k.startswith("out_cache_key_"):
                 layer_idx = int(k.replace("out_cache_key_", ""))
                 out_kv[layer_idx] = [v, res[f"out_cache_value_{layer_idx}"]]
-        real_kv_cache = [
-            _
-            for idx in range(max(list(out_kv.keys())) + 1)
-            for _ in out_kv[idx]
-        ]
+        # Iterate the KV layers actually present (sorted), not range(max + 1):
+        # a hybrid decoder (e.g. qwen3_5's gated-delta-net layers carry a
+        # conv/recurrent state instead of KV) only emits ``out_cache_key_*`` for
+        # its full-attention layers, so the layer indices are sparse. For a
+        # uniform KV cache every layer is present and this is unchanged.
+        real_kv_cache = [_ for idx in sorted(out_kv) for _ in out_kv[idx]]
         prompt_with_past_in_npz = io_npz_dirpath / "prompt_with_past_inputs.npz"
         prompt_with_past_out_npz = (
             io_npz_dirpath / "prompt_with_past_outputs.npz"

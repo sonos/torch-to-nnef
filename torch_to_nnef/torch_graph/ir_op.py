@@ -419,9 +419,15 @@ def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
     of running the full op and the risk of diverging from PyTorch's
     documented shape rules (rank-1 vector forms, batched broadcasting,
     future rule changes).
+
+    Both placeholders take ONE dtype instead of each operand's own: the
+    result shape does not depend on dtype, while torch's meta `bmm` rejects
+    a mixed-dtype pair, and placeholder dtypes need not agree here (an f16
+    module with a sub-path forced to f32 reaches this with f16 x f32). Same
+    reasoning as `_infer_shape_sdpa` above.
     """
-    meta_a = torch.empty(tuple(a.shape), device="meta", dtype=a.dtype)
-    meta_b = torch.empty(tuple(b.shape), device="meta", dtype=b.dtype)
+    meta_a = torch.empty(tuple(a.shape), device="meta", dtype=torch.float32)
+    meta_b = torch.empty(tuple(b.shape), device="meta", dtype=torch.float32)
     return meta_a.matmul(meta_b).shape
 
 
