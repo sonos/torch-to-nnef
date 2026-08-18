@@ -122,6 +122,33 @@ def _reject_layout(
     return None
 
 
+def gated_delta_fake(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    g: torch.Tensor,
+    beta: torch.Tensor,
+    s0: torch.Tensor,
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    """Meta kernel for `t2n_extra::gated_delta_scan`.
+
+    `y` takes the PROMOTED dtype, not q's: the recurrence accumulates against
+    the state, which stays f32 even for an f16 model, so the eager op returns
+    f32 there. A fake that claimed f16 would disagree with the real op under
+    `torch.export` / `opcheck` / `torch.compile`.
+    """
+    del k, g, beta
+    batch, heads, seq, _ = q.shape
+    return (
+        torch.empty(
+            (batch, heads, seq, v.shape[-1]),
+            dtype=torch.promote_types(q.dtype, s0.dtype),
+            device=q.device,
+        ),
+        s0.new_empty(s0.shape),
+    )
+
+
 def native_gdn_reject_reason(
     inference_target, operands: T.Sequence["NTensor"], head_major: bool
 ) -> T.Optional[str]:

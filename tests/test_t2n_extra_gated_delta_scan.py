@@ -34,7 +34,10 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.tract import (
     NATIVE_GDN_RECURRENT_MIN_VERSION,
 )
-from torch_to_nnef.op.gated_delta import gated_delta_reference
+from torch_to_nnef.op.gated_delta import (
+    gated_delta_fake,
+    gated_delta_reference,
+)
 from torch_to_nnef.utils import SemanticVersion
 
 
@@ -66,8 +69,7 @@ if not _op_already_defined():
 
     @_gated_delta_scan.register_fake
     def _meta(q, k, v, g, beta, s0):
-        b, h, t, _ = q.shape
-        return q.new_empty((b, h, t, v.shape[-1])), s0.new_empty(s0.shape)
+        return gated_delta_fake(q, k, v, g, beta, s0)
 
 
 class _ScanMod(torch.nn.Module):
