@@ -261,9 +261,19 @@ class ReuseIndex:
         self.reused_specs: T.Dict[str, str] = {}
         self.reused_ops: T.Set[str] = set()
 
-    def _reusable_measurement(self, op_name: str) -> T.Optional[str]:
+    def _reusable_measurement(
+        self, op_name: str, check_numerics: bool = True
+    ) -> T.Optional[str]:
+        """The prior measurement `op_name` may be carried over, if any.
+
+        Every "is this record reusable" rule lives here (grade,
+        fingerprint, example count, rotation, and the numerics footing),
+        so the record's shape is read in exactly one place.
+        """
         record = self._ops.get(op_name, {}).get("onnx")
         if not record or record.get("export") != GRADE_FULL:
+            return None
+        if not self._numerics_state_matches(record, check_numerics):
             return None
         measurement_id = record.get("measurement")
         measurement = self._measurements.get(measurement_id)
@@ -283,11 +293,58 @@ class ReuseIndex:
             return None
         return measurement_id
 
-    def reuse_for(self, spec_name: str, aten_ops: T.Sequence[str]) -> bool:
-        """Record and report whether `spec_name` can be skipped."""
+    def _numerics_state_matches(self, record, check_numerics: bool) -> bool:
+        """Was the stored record measured on the same numerics footing?
+
+        Both directions matter. Dropping `nondeterministic` from a spec
+        must re-measure, or the run meant to start comparing values
+        skips it and carries the unmeasured record forward. Adding it
+        must re-measure too, or a stale `numerics: match` is republished
+        for an operator we have just declared unmeasurable.
+        """
+        return self._record_skipped_numerics(record) is not check_numerics
+
+    @staticmethod
+    def _record_skipped_numerics(record) -> bool:
+        """Did the stored measurement deliberately not compare values?
+
+        Read from the counters rather than a stored flag, because a
+        reused record is copied forward from an older artifact and would
+        not carry one. The signature is exact: `measure_example` returns
+        `runtime=ok` with numerics unreached only when `check_numerics`
+        was off, so a record that ran under onnxruntime yet never reached
+        the numerics axis was measured with that axis disabled.
+
+        The distinction matters because "we chose not to compare" and "we
+        never got that far" look identical in `numerics_reached` alone,
+        and treating the second as the first refuses reuse for every op
+        whose runtime fails.
+        """
+        return bool(record.get("runtime_ok")) and not record.get(
+            "numerics_reached"
+        )
+
+    def reuse_for(
+        self,
+        spec_name: str,
+        aten_ops: T.Sequence[str],
+        check_numerics: bool = True,
+    ) -> bool:
+        """Record and report whether `spec_name` can be skipped.
+
+        `check_numerics` is the spec's own setting, which can differ from
+        the sweep's: a nondeterministic op is measured with numerics off,
+        and the environment fingerprint (computed once, per sweep) cannot
+        express that. Without the check below, dropping
+        `nondeterministic=True` from a spec would silently carry forward
+        a record whose numerics axis was never measured, so the very run
+        meant to start measuring it would skip it instead.
+        """
         if not self.enabled or not aten_ops:
             return False
-        measurement_ids = [self._reusable_measurement(op) for op in aten_ops]
+        measurement_ids = [
+            self._reusable_measurement(op, check_numerics) for op in aten_ops
+        ]
         if any(mid is None for mid in measurement_ids):
             return False
         self.reused_specs[spec_name] = measurement_ids[0]  # type: ignore[assignment]

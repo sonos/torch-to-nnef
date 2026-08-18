@@ -38,7 +38,7 @@ def _collapse_axes_for_input(
 
     if full_axes_spec is None:
         max_idx = max(orig_axes) if orig_axes else -1
-        full_axes = [None] * (max_idx + 1)
+        full_axes: T.List[T.Optional[str]] = [None] * (max_idx + 1)
         for i, s in orig_axes.items():
             full_axes[i] = s
         full_axes_spec = [s if s is not None else "?" for s in full_axes]
@@ -74,11 +74,11 @@ def collapse_dynamic_axes_mapping(
 
     collapsed: T.Dict[str, T.Dict[int, str]] = {}
     for name in input_names:
-        axes = nemo_dynamic_axes.get(name)
-        if not axes:
+        sub_axes = nemo_dynamic_axes.get(name)
+        if not sub_axes:
             continue
         collapsed[name] = _collapse_axes_for_input(
-            axes,
+            sub_axes,
             full_axes_spec=(full_axes_by_name or {}).get(name),
         )
     return collapsed

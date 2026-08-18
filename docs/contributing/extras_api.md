@@ -65,7 +65,7 @@ Handler signature
   - `inference_target`: `TractNNEF` or `KhronosNNEF` (target-specific behavior).
   - `op_helper`: helper for common tasks (see below).
   - `**kwargs`: reserved for future expansion.
-- Return: `List[str | Fragment]` — names/instances of custom fragments to ship
+- Return: `List[str | Fragment]` of names/instances of custom fragments to ship
   with the archive (empty if your handler emits only built-ins).
 
 OpHelper cheatsheet

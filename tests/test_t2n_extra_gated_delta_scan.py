@@ -3,6 +3,9 @@
 Qwen3.5's gated-delta-net (GDN) linear-attention recurrence, exported as a
 `tract_core_scan` via the `gated_delta_scan` fragment. Returns `(y, s_final)`;
 the q*scale / l2norm / GQA-repeat prep stays outside the op as plain ops.
+
+The second half covers the other lowering: from tract 0.23.5 a single-step
+graph becomes tract's fused `tract_transformers_gdn_recurrent` instead.
 """
 
 from __future__ import annotations
@@ -26,7 +29,12 @@ from tests.utils import (
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
+from torch_to_nnef import export_model_to_nnef
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.tract import (
+    NATIVE_GDN_RECURRENT_MIN_VERSION,
+)
+from torch_to_nnef.utils import SemanticVersion
 
 
 def _op_already_defined() -> bool:
@@ -123,3 +131,97 @@ def test_gated_delta_scan_export(_id, test_input, model, inference_target):
         inference_target=inference_target,
         callback_post_export=_assert_fragment,
     )
+
+
+# --- tract's fused decode operator (`tract_transformers_gdn_recurrent`) ------
+# Auto-enabled from tract 0.23.5; until that release exists the emission is
+# exercised by forcing the flag, with check_io off (no binary knows the op).
+
+
+def _decode_inputs(T_=1, head=128, dtype=torch.float16):
+    torch.manual_seed(0)
+    b, h = 1, 2
+    return (
+        torch.randn(b, h, T_, head, dtype=dtype),
+        torch.randn(b, h, T_, head, dtype=dtype),
+        torch.randn(b, h, T_, head, dtype=dtype),
+        (torch.randn(b, h, T_) * 0.1),  # log_decay always f32
+        torch.rand(b, h, T_, dtype=dtype),
+        torch.zeros(b, h, head, head),  # recurrent state always f32
+    )
+
+
+def _export_graph_nnef(inputs, inference_target, tmp_path) -> str:
+    export_model_to_nnef(
+        model=_ScanMod().eval(),
+        args=inputs,
+        file_path_export=tmp_path / "gdn.nnef.tgz",
+        inference_target=inference_target,
+        compression_level=0,
+        input_names=["q", "k", "v", "g", "beta", "s0"],
+        output_names=["y", "s_final"],
+    )
+    with tarfile.open(tmp_path / "gdn.nnef.tgz") as tf:
+        return tf.extractfile("graph.nnef").read().decode("utf8")
+
+
+def test_native_gdn_recurrent_emitted(tmp_path):
+    graph = _export_graph_nnef(
+        _decode_inputs(),
+        TractNNEF(
+            TractNNEF.latest_version(),
+            check_io=False,
+            native_gated_delta_op=True,
+        ),
+        tmp_path,
+    )
+    assert "tract_transformers_gdn_recurrent(" in graph
+    assert "extension tract_registry tract_transformers;" in graph
+    # the portable lowering (and its time-first transposes) is gone
+    assert "tract_core_scan" not in graph
+    assert "gated_delta_step" not in graph
+    # operands are handed over in tract's layout (sequence axis at 1)
+    assert graph.count("gdn_seq_second") >= 6
+    assert "axes = [0, 2, 1, 3]" in graph
+
+
+@pytest.mark.parametrize(
+    "native,kwargs",
+    [
+        (True, {"T_": 2}),  # fused op decodes exactly one step
+        (True, {"head": 64}),  # fused op is specialized to head dim 128
+        (True, {"dtype": torch.float32}),  # needs f16 q/k/v/beta
+        (False, {}),  # decode-shaped, but the target opts out
+    ],
+    ids=["multi_step", "head_dim", "dtype", "disabled"],
+)
+def test_native_gdn_recurrent_falls_back(native, kwargs, tmp_path):
+    graph = _export_graph_nnef(
+        _decode_inputs(**kwargs),
+        TractNNEF(
+            TractNNEF.latest_version(),
+            check_io=False,
+            native_gated_delta_op=native,
+        ),
+        tmp_path,
+    )
+    assert "tract_transformers_gdn_recurrent" not in graph
+    assert "gated_delta_scan" in graph
+
+
+def test_native_gdn_recurrent_auto_activation():
+    # the operator landed after the v0.23.4 tag: 0.23.5 is the first release
+    assert SemanticVersion.from_str("0.23.4") < NATIVE_GDN_RECURRENT_MIN_VERSION
+    assert (
+        SemanticVersion.from_str("0.23.5") >= NATIVE_GDN_RECURRENT_MIN_VERSION
+    )
+    # Tripwire, not a tautology: no supported release carries the operator
+    # yet, so auto-activation is off. Whoever adds 0.23.5 to
+    # OFFICIAL_SUPPORTED_VERSIONS flips this on and updates these two lines.
+    assert TractNNEF.latest_version() < NATIVE_GDN_RECURRENT_MIN_VERSION
+    assert not TractNNEF(
+        TractNNEF.latest_version(), check_io=False
+    ).native_gated_delta_op
+    assert not TractNNEF(
+        TractNNEF.latest_version(), check_io=False, native_gated_delta_op=False
+    ).native_gated_delta_op

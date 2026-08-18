@@ -1,6 +1,6 @@
 [project]
 name = "torch_to_nnef"
-version = "0.24.3"
+version = "0.24.7"
 description = "Any PyTorch Model to NNEF file format."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
@@ -82,7 +82,7 @@ dev = [
     "rich>=13.7.1,<16",
     "toml>=0.10.2,<0.11",
     "tox>=4.23.2,<5",
-    "twine>=3.3.0,<7",
+    "twine>=3.3.0,<8",
     "virtualenv>=20.36.1,<22",
 ]
 
@@ -205,8 +205,16 @@ disable = [
 max-attributes = 15
 
 [tool.mypy]
-python_version = "3.9"
+# Matches the supported range in `classifiers` and the CI matrix (3.10 to
+# 3.14). It was 3.9, which made mypy reject the `zip(..., strict=True)` and
+# `X | Y` syntax already used throughout the codebase.
+python_version = "3.10"
 ignore_missing_imports = true
+# Same surface the pre-commit hook excludes, so `make lint` and the hook
+# agree on what is checked. examples/ holds standalone scripts whose
+# same-named siblings in hyphenated directories cannot yield distinct
+# module paths, which made mypy abort instead of checking anything.
+exclude = "(^examples/|tests/)"
 
 
 [[tool.mypy.overrides]]

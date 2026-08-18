@@ -26,7 +26,7 @@ if [ -f "rust-toolchain" ] || [ -f "rust-toolchain.toml" ]; then
     echo "Installing toolchain from rust-toolchain file..."
     rustup install
 else
-    echo "No rust-toolchain file found — installing stable"
+    echo "No rust-toolchain file found, installing stable"
     rustup toolchain install stable
     rustup default stable
 fi

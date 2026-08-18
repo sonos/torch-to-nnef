@@ -30,4 +30,3 @@ document.addEventListener("DOMContentLoaded", updateColorscheme);
 
 updateImageColorsheme();
 window.addEventListener('resize', updateImageColorsheme);
-

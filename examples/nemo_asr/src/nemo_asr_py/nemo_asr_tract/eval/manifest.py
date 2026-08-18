@@ -27,7 +27,7 @@ from nemo_asr_tract.utils import clean_name
 def read_manifest(manifest_path: str):
     """Reads a manifest file (jsonl format) returns a list of dict samples."""
     data = []
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         for line in f:
             if len(line) > 0:
                 datum = json.loads(line)
@@ -208,12 +208,12 @@ def display_results_rich(results: dict, console, table_cls):
     table.add_column("RTFx", justify="right")
 
     for k, v in results.items():
-        model, dataset = [x.strip() for x in k.split("|", 1)]
+        model, dataset = (x.strip() for x in k.split("|", 1))
         table.add_row(
             trim_model_id(model),
             trim_dataset_id(dataset),
             f"{v['wer']:.2f}",
-            f"{v['rtfx']:.2f}" if v["rtfx"] is not None else "—",
+            f"{v['rtfx']:.2f}" if v["rtfx"] is not None else "-",
         )
 
     console.print(table)
@@ -238,7 +238,7 @@ def display_composite_rich(
             rtfx = composite_audio_length[k] / composite_inference_time[k]
             rtfx_str = f"{rtfx:.2f}"
         else:
-            rtfx_str = "—"
+            rtfx_str = "-"
 
         table.add_row(trim_model_id(k), f"{wer:.2f}", rtfx_str)
 

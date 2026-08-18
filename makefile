@@ -1,6 +1,6 @@
 sources = torch_to_nnef packages/llm/torch_to_nnef_llm packages/nemo-asr/torch_to_nnef_nemo
 
-.PHONY: test format lint unittest coverage pre-commit clean
+.PHONY: test format lint prose unittest coverage pre-commit clean
 test: format lint unittest
 
 format:
@@ -9,7 +9,16 @@ format:
 
 lint:
 	ruff check $(sources) tests
-	mypy $(sources) tests
+# Before mypy, which currently exits non-zero (so a trailing line here would be
+# unreachable), and after ruff, so a stray em dash cannot hide code findings.
+	python3 .github/scripts/check_prose.py
+# Not `tests`: CONTRIBUTING documents mypy as type-checking library code
+# "excluding tests", and [tool.mypy] excludes it, so passing it here made
+# mypy fail with "no .py files in directory".
+	mypy $(sources)
+
+prose:
+	python3 .github/scripts/check_prose.py
 
 unittest:
 	pytest

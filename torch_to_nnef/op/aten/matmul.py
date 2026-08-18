@@ -190,7 +190,7 @@ def _convolution_mode(
         # ref: https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
         # """
         # NOTES: pads the input so the output has the shape as the input.
-        # However, this mode doesn’t support any stride values other than 1.
+        # However, this mode doesn't support any stride values other than 1.
         # """
         # also:
         # """

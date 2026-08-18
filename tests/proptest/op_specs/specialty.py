@@ -24,6 +24,11 @@ from ._common import (
     OpSample,
     OpSpec,
 )
+from ._gap_common import (
+    REASON_FFT_AXES,
+    gap_spec,
+    spectral_st,
+)
 
 
 def _embedding_sample_st() -> st.SearchStrategy[OpSample]:
@@ -46,6 +51,65 @@ def _embedding_sample_st() -> st.SearchStrategy[OpSample]:
         )
         layer = nn.Embedding(num_emb, emb_dim).eval()
         return OpSample(inputs=(idx,), module=layer)
+
+    return _draw()
+
+
+class _FlattenDenseTensors(torch.nn.Module):
+    """Flatten a small list of dense tensors."""
+
+    def forward(self, x, y):
+        return torch._utils._flatten_dense_tensors([x, y])
+
+
+class _UnflattenDenseTensors(torch.nn.Module):
+    """Unflatten a dense buffer against two dense tensor shapes."""
+
+    def forward(self, x):
+        flat = torch._utils._flatten_dense_tensors([x, x + 1])
+        return torch._utils._unflatten_dense_tensors(flat, [x, x + 1])[0]
+
+
+class _EmbeddingRenorm(torch.nn.Module):
+    """Call the training-time `embedding_renorm_` ATen row directly."""
+
+    def forward(self, x):
+        weight = x.clone()
+        indices = torch.tensor([0, 2], dtype=torch.long)
+        return torch.embedding_renorm_(weight, indices, 2.0, 2.0)
+
+
+def _flatten_dense_tensors_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(tensor_st((2,), torch.float32, finite=True))
+        y = draw(tensor_st((3,), torch.float32, finite=True))
+        return OpSample(inputs=(x, y), module=_FlattenDenseTensors())
+
+    return _draw()
+
+
+def _unflatten_dense_tensors_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(tensor_st((2,), torch.float32, finite=True))
+        return OpSample(inputs=(x,), module=_UnflattenDenseTensors())
+
+    return _draw()
+
+
+def _embedding_renorm_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        x = draw(
+            tensor_st(
+                (4, 3),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=_EmbeddingRenorm())
 
     return _draw()
 
@@ -239,6 +303,42 @@ def _grid_sample_sample_st(
     return _draw()
 
 
+def _grid_sampler_2d_sample_st() -> st.SearchStrategy[OpSample]:
+    """Direct `aten::grid_sampler_2d` with nearest/zeros sampling."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        h = draw(st.integers(min_value=2, max_value=4))
+        w = draw(st.integers(min_value=2, max_value=4))
+        out_h = draw(st.integers(min_value=2, max_value=4))
+        out_w = draw(st.integers(min_value=2, max_value=4))
+        x = draw(
+            tensor_st(
+                (n, c, h, w),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        grid = draw(
+            tensor_st(
+                (n, out_h, out_w, 2),
+                torch.float32,
+                finite=True,
+                domain=Interval(-1.0, 1.0),
+            )
+        )
+
+        def op(t, g):
+            return torch.ops.aten.grid_sampler_2d.default(t, g, 0, 0, True)
+
+        return OpSample(inputs=(x, grid), module=BinaryPrimitive(op))
+
+    return _draw()
+
+
 # Drafted against tract PR sonos/tract#2363 (tract_core_resize /
 # tract_core_grid_sample). xfail until that lands in a released tract that the
 # proptest harness downloads; then bump RESIZE_MIN_TRACT_VERSION and drop these.
@@ -327,6 +427,12 @@ def _specialty_specs() -> T.List[OpSpec]:
             sample_st=_grid_sample_sample_st("bilinear", "zeros", False),
             tolerance=APPROX,
             xfail_reason=_RESIZE_XFAIL,
+        ),
+        OpSpec(
+            name="grid_sampler_2d",
+            aten_ops=("grid_sampler_2d",),
+            sample_st=_grid_sampler_2d_sample_st(),
+            tolerance=APPROX,
         ),
         OpSpec(
             name="grid_sample_nearest_border",
@@ -605,6 +711,29 @@ def _dropout_eval_sample_st(layer_cls) -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _native_dropout_sample_st() -> st.SearchStrategy[OpSample]:
+    """Direct `aten::native_dropout` in inference mode."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=4, min_dim=2))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        def op(t):
+            return torch.ops.aten.native_dropout.default(t, 0.0, False)[0]
+
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
+
+    return _draw()
+
+
 def _resolve_identity_sample_st(op_name: str) -> st.SearchStrategy[OpSample]:
     """`torch.resolve_conj` / `resolve_neg` / `conj_physical` on real input."""
     fn = getattr(torch, op_name)
@@ -637,6 +766,13 @@ def _max_pool_dropout_specs() -> T.List[OpSpec]:
             name="dropout",
             aten_ops=("dropout",),
             sample_st=_dropout_eval_sample_st(nn.Dropout),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="native_dropout",
+            aten_ops=("native_dropout",),
+            sample_st=_native_dropout_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
@@ -1533,6 +1669,62 @@ def _recent_distance_matmul_specs() -> T.List[OpSpec]:
 # Constructors (input-less in PyTorch, wrapped with a shape-coupled input)
 # + advanced index + SDPA
 
+
+def _nd_fft_specs() -> T.Tuple[OpSpec, ...]:
+    """The n-dimensional and half-complex members of the FFT family.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- spectral --
+        gap_spec(
+            "fft_rfftn",
+            spectral_st(lambda x: torch.fft.rfftn(x).real, "fft_rfftn"),
+            REASON_FFT_AXES,
+        ),
+        gap_spec(
+            "fft_irfftn",
+            spectral_st(
+                lambda x: torch.fft.irfftn(x.to(torch.complex64)), "fft_irfftn"
+            ),
+            REASON_FFT_AXES,
+        ),
+        gap_spec(
+            "fft_ihfft2",
+            spectral_st(lambda x: torch.fft.ihfft2(x).real, "fft_ihfft2"),
+            REASON_FFT_AXES,
+        ),
+        gap_spec(
+            "fft_ihfftn",
+            spectral_st(lambda x: torch.fft.ihfftn(x).real, "fft_ihfftn"),
+            REASON_FFT_AXES,
+        ),
+    )
+
+
+def _targetable_helper_gap_specs() -> T.Tuple[OpSpec, ...]:
+    """Traceable helper rows that should still be measured by ONNX."""
+    return (
+        gap_spec(
+            "flatten_dense_tensors",
+            _flatten_dense_tensors_sample_st(),
+            "distributed buffer packing helper with no t2n emitter",
+        ),
+        gap_spec(
+            "unflatten_dense_tensors",
+            _unflatten_dense_tensors_sample_st(),
+            "distributed buffer unpacking helper with no t2n emitter",
+        ),
+        gap_spec(
+            "embedding_renorm_",
+            _embedding_renorm_sample_st(),
+            "training-time embedding table mutation with no t2n emitter",
+        ),
+    )
+
+
 SPECS = (
     *_specialty_specs(),
     *_prelu_glu_einsum_specs(),
@@ -1541,4 +1733,6 @@ SPECS = (
     *_no_tract_change_specs(),
     *_recent_distance_matmul_specs(),
     *_tier_a2_linalg_specs(),
+    *_nd_fft_specs(),
+    *_targetable_helper_gap_specs(),
 )

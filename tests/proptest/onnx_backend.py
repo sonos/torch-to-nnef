@@ -53,7 +53,7 @@ EXPORT_OK = "ok"
 #: `torch.export` could not capture the module: not an ONNX verdict.
 EXPORT_CAPTURE_FAILED = "capture_failed"
 #: The exporter has no ONNX function for an op in the graph. This is the
-#: one outcome that genuinely means "ONNX does not support this".
+#: one outcome that actually means "ONNX does not support this".
 EXPORT_NO_ONNX_FUNCTION = "no_onnx_function"
 #: Lowering reached ONNX but broke for another reason.
 EXPORT_CONVERSION_FAILED = "conversion_failed"
@@ -236,7 +236,7 @@ def measure_example(
     config = config or OnnxRunConfig()
     model = model.eval()
     inputs = tuple(inputs)
-    outcome_meta = {
+    outcome_meta: T.Dict[str, T.Any] = {
         "shapes": tuple(tuple(t.shape) for t in inputs),
         "dtypes": tuple(str(t.dtype) for t in inputs),
     }
@@ -281,7 +281,7 @@ def _quiet_session_options(ort):
     `contextlib.redirect_stdout` cannot intercept it: over 371 specs x N
     examples its per-graph notices ("Removing initializer ...", constant
     folding notes) bury the actual pytest output. Severity 3 is
-    error-and-above, and a genuine load failure still surfaces as the
+    error-and-above, and a real load failure still surfaces as the
     raised exception we classify, not as a log line.
     """
     # Also covers anything logged before per-session options apply.

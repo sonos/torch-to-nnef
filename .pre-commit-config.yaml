@@ -21,7 +21,22 @@ repos:
     rev: v0.982
     hooks:
       - id: mypy
-        exclude: tests/
+        # Stubs for the third-party imports mypy would otherwise report as
+        # missing (yaml in remodeler, requests in the doc generator).
+        additional_dependencies: ['types-PyYAML', 'types-requests']
+        # examples/ holds standalone demo scripts, not a package. Sibling
+        # scripts sharing a basename (image_gen/*/transformer.py, */bench.py,
+        # vad/*/export.py) resolve to one module name, so mypy aborted with
+        # "Duplicate module named ..." and type-checked NOTHING on --all-files.
+        # --explicit-package-bases does not rescue it either: directories such
+        # as vad/silero-jit and vad/FSMN-wasm contain a hyphen, so no valid
+        # module path can be derived from them and the clash returns.
+        # Trade-off taken: exclude examples/ so the library surface is
+        # actually checked. examples/ stays covered by ruff (which does lint it)
+        # and by examples-run.yml, which executes the examples, so a stale call
+        # into a changed library signature still fails there.
+        # `tests/` stays unanchored so packages/*/tests/ is covered too.
+        exclude: '(^examples/|tests/)'
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.0.0
     hooks:
@@ -40,3 +55,10 @@ repos:
         entry: uv run ruff format
         language: system
         types: [file, python]
+      # Last in the block so the autofixers above run first. Note the
+      # repo-level fail_fast: a failure here stops any later hook.
+      - id: prose-check
+        name: Prose check (banned chars/wording)
+        entry: python3 .github/scripts/check_prose.py
+        language: system
+        types: [text]

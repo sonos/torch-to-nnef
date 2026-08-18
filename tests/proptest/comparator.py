@@ -19,7 +19,10 @@ spec catalog.
 
 `compare_arrays` / `resolve_tol` are the tolerance policy, kept public
 here because `onnx_backend.py` measures a different exporter but must
-judge numeric agreement by the same rules.
+judge numeric agreement by the same rules. `run_tract` is public for the
+same reason: `nnef_gap.py` has to invoke tract exactly as this module
+does, since "tract refuses the graph" is one of the failure stages a
+declared gap can name.
 """
 
 import subprocess
@@ -121,18 +124,21 @@ def compare_arrays(
         ) from exc
 
 
-def _make_no_check_target(target: TractNNEF) -> TractNNEF:
+def make_no_check_target(target: TractNNEF) -> TractNNEF:
     """Return a copy of `target` with `check_io=False`.
 
-    We disable the built-in `post_export` assert so the proptest comparator
-    owns the comparison.
+    We disable the built-in `post_export` assert so the caller owns the
+    comparison. Public because `nnef_gap.py` needs it for a different
+    reason: with `check_io` on, a numeric divergence surfaces as a
+    `T2NError` from *inside* the export, which that module would then
+    misread as an export failure.
     """
     twin = deepcopy(target)
     twin.check_io = False
     return twin
 
 
-def _run_tract(cmd: T.List[str]) -> None:
+def run_tract(cmd: T.List[str]) -> None:
     """Run tract and surface stderr if it fails."""
     proc = subprocess.run(cmd, capture_output=True, check=False)
     if proc.returncode != 0:
@@ -204,7 +210,7 @@ def assert_outputs_close_nan_aware(
             "proptest comparator is tract-only; got "
             f"{type(inference_target).__name__}"
         )
-    target = _make_no_check_target(inference_target)
+    target = make_no_check_target(inference_target)
     model = model.eval()
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
@@ -230,7 +236,7 @@ def assert_outputs_close_nan_aware(
             inference_target=target,
             allow_same_io_names=True,
         )
-        _run_tract(
+        run_tract(
             target.tract_cli.run_save_outputs_cmd_str(
                 exported, inputs_npz, outputs_act_npz
             )

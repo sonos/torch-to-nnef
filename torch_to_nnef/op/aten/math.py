@@ -163,7 +163,7 @@ def floor_divide(node, op_helper, inference_target, torch_graph, **kwargs):
     """
     input_node, divisor_node = node.inputs
     if input_node.data is not None and divisor_node.data is not None:
-        # both operands concrete -> fold (a genuinely-dynamic operand has
+        # both operands concrete -> fold (a truly dynamic operand has
         # data=None here, so this never bakes a symbolic dim, even under
         # dynamic_axes). Preserve int-ness: shape arithmetic (e.g.
         # head_dim // 2 feeding a slice bound) must stay integer, else a float

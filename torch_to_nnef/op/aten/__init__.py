@@ -102,5 +102,9 @@ def aten_to_nnef_tensor_and_ops(
             ),
         )
     except KeyError as exp:
+        # Not the missing-emitter path: `aten_ops_registry.get` already
+        # turns an unknown name into `T2NErrorMissingOpEmitter`. A
+        # KeyError surfacing here came from inside an emitter that does
+        # exist.
         torch_graph.printall()
         raise T2NErrorNotImplemented(f"unregistered {aten_op_id}") from exp

@@ -41,12 +41,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 def harden_jit_for_export(
-    model: "torch.jit.ScriptModule",
-    args: T.Union[T.Sequence[T.Any], "torch.Tensor"],
+    model: torch.jit.ScriptModule,
+    args: T.Union[T.Sequence[T.Any], torch.Tensor],
     *,
     freeze: bool = True,
     diagnostics: T.Optional[T.Dict[str, T.Any]] = None,
-) -> "torch.jit.ScriptModule":
+) -> torch.jit.ScriptModule:
     """Specialize a JIT ScriptModule's graph for the given example inputs.
 
     Returns the (possibly frozen) module with the chain applied in

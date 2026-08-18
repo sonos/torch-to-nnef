@@ -10,11 +10,11 @@ so ``aten::size`` on a provably-static axis can still fold.
 Design (why it is sound):
 
 - The returned set OVER-approximates the truly-dynamic axes. An axis is reported
-  static (absent) only when provably so, so a genuinely symbolic dimension is
+  static (absent) only when provably so, so a truly symbolic dimension is
   never baked to a constant.
 - The DEFAULT for any op without an explicit rule is "all axes dynamic". In
   particular the elementwise/broadcasting rule (which assumes right-aligned axis
-  identity) is applied ONLY to a whitelist of genuine elementwise ops; an
+  identity) is applied ONLY to a whitelist of real elementwise ops; an
   axis-reordering op (transpose, permute, ...) that is not explicitly handled
   therefore falls back to all-dynamic rather than being mis-mapped.
 - Rules are STRUCTURAL: dynamic-ness is decided from op structure (reshape
@@ -154,7 +154,7 @@ _SPLIT_KINDS = {
 }
 
 #: elementwise / broadcast / keepdim-reduction ops: output axes correspond to
-#: inputs by right-aligned (NumPy) broadcasting. ONLY genuine axis-identity ops
+#: inputs by right-aligned (NumPy) broadcasting. ONLY real axis-identity ops
 #: belong here (never axis reorderers), so the broadcast rule stays sound.
 _ELEMENTWISE_KINDS = {
     # arithmetic
@@ -302,7 +302,11 @@ def _matmul_rule(op, out, dyn_of, full) -> T.Set[int]:
     """matmul/bmm: contract a[-1] with b[-2]; batch dims broadcast."""
     a, b = op.inputs[0], op.inputs[1]
     arank, brank, orank = _rank(a), _rank(b), _rank(out)
-    if None in (arank, brank, orank) or arank < 2 or brank < 2:
+    # Checked one by one rather than with `None in (...)`, which reads as a
+    # plain membership test and so narrows nothing for the arithmetic below.
+    if arank is None or brank is None or orank is None:
+        return full(out)
+    if arank < 2 or brank < 2:
         return full(out)
     res: T.Set[int] = set()
     for ia in dyn_of(a):
@@ -333,16 +337,19 @@ def _broadcast_align(op, out, dyn_of, full) -> T.Set[int]:
     orank = _rank(out)
     if orank is None:
         return set()
-    tensor_inputs = [
-        i
-        for i in op.inputs
-        if isinstance(i, TensorVariable) and _rank(i) is not None
-    ]
-    if not tensor_inputs or any(_rank(i) > orank for i in tensor_inputs):
+    # Rank is bound alongside each node so it stays known to be non-None for
+    # the arithmetic below, instead of being recomputed as an Optional.
+    ranked: T.List[T.Tuple[TensorVariable, int]] = []
+    for i in op.inputs:
+        if isinstance(i, TensorVariable):
+            irank = _rank(i)
+            if irank is not None:
+                ranked.append((i, irank))
+    if not ranked or any(irank > orank for _, irank in ranked):
         return full(out)
     result: T.Set[int] = set()
-    for node in tensor_inputs:
-        offset = orank - _rank(node)
+    for node, nrank in ranked:
+        offset = orank - nrank
         for ia in dyn_of(node):
             result.add(ia + offset)
     return result

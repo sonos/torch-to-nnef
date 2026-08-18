@@ -19,7 +19,16 @@ from ..shapes import (
     shape_st,
     ternary_broadcast_shapes_st,
 )
-from ._common import OpSample, OpSpec, _unary_sample_st
+from ._common import NnefGapStage, OpSample, OpSpec, _unary_sample_st
+from ._gap_common import (
+    REASON_SERIES,
+    REASON_SORT,
+    binary_st,
+    gap_spec,
+    int_binary_st,
+    isin_st,
+    unary_st,
+)
 
 # Domain bounds chosen to keep outputs in a numerically meaningful range and
 # avoid trivial saturation while still exercising edge cases.
@@ -701,6 +710,12 @@ def _binary_compare_specs() -> T.List[OpSpec]:
 
 
 def _binary_logical_specs() -> T.List[OpSpec]:
+    @st.composite
+    def _logical_not_sample_st(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=4))
+        x = draw(tensor_st(shape, torch.bool))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.logical_not))
+
     cases: T.List[T.Tuple[str, T.Callable]] = [
         ("logical_and", torch.logical_and),
         ("logical_or", torch.logical_or),
@@ -714,6 +729,13 @@ def _binary_logical_specs() -> T.List[OpSpec]:
             tolerance=TractCheckTolerance.EXACT,
         )
         for name, op in cases
+    ] + [
+        OpSpec(
+            name="logical_not",
+            aten_ops=("logical_not",),
+            sample_st=_logical_not_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        )
     ]
 
 
@@ -1615,6 +1637,98 @@ def _tier_a2_specs() -> T.List[OpSpec]:
 
 # Specialty ops (embedding, repeat_interleave, upsample, sdpa, ...)
 
+
+def _number_theory_specs() -> T.Tuple[OpSpec, ...]:
+    """Integer pair ops. Both iterate, so a lowering means unrolling.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- elementwise: integer --
+        gap_spec(
+            "gcd",
+            int_binary_st(torch.gcd, "gcd"),
+            "iterative (Euclid), so a lowering means unrolling to a "
+            "fixed bound",
+        ),
+        gap_spec(
+            "lcm",
+            int_binary_st(torch.lcm, "lcm"),
+            "same iteration as `gcd`, which it is defined in terms of",
+        ),
+    )
+
+
+def _series_function_specs() -> T.Tuple[OpSpec, ...]:
+    """Series evaluations with no NNEF primitive behind them.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        # -- elementwise: float --
+        gap_spec(
+            "erfinv",
+            unary_st(torch.erfinv, "erfinv", domain=Interval(-0.99, 0.99)),
+            REASON_SERIES,
+        ),
+        gap_spec(
+            "igamma",
+            binary_st(torch.igamma, "igamma", domain=Interval(0.1, 10.0)),
+            REASON_SERIES,
+        ),
+        gap_spec(
+            "igammac",
+            binary_st(torch.igammac, "igammac", domain=Interval(0.1, 10.0)),
+            REASON_SERIES,
+        ),
+        gap_spec(
+            "polygamma",
+            unary_st(
+                lambda x: torch.polygamma(1, x),
+                "polygamma",
+                domain=Interval(0.1, 10.0),
+            ),
+            REASON_SERIES,
+        ),
+    )
+
+
+def _predicate_and_cast_specs() -> T.Tuple[OpSpec, ...]:
+    """Predicates and dtype casts that never got an emitter.
+
+    Not translated yet: each spec carries `nnef_gap`, so the tract
+    driver asserts the failure and the ONNX sweep still measures
+    it. Implementing one means deleting that one field.
+    """
+    return (
+        gap_spec(
+            "nextafter",
+            binary_st(torch.nextafter, "nextafter"),
+            "steps one representable float, which is a bit-level operation "
+            "NNEF cannot express",
+        ),
+        gap_spec(
+            "isreal",
+            unary_st(torch.isreal, "isreal"),
+            "trivially true for the real dtypes tract runs, but no emitter "
+            "folds it to a constant",
+        ),
+        gap_spec("isin", isin_st(), REASON_SORT),
+        # -- dtype / range --
+        gap_spec(
+            "chalf",
+            unary_st(lambda t: t.chalf().float(), "chalf"),
+            "complex32 has no NNEF dtype, and the export crashes with a "
+            "bare KeyError instead of naming it",
+            stage=NnefGapStage.RAW_ERROR,
+        ),
+    )
+
+
 SPECS = (
     *_unary_specs(),
     *_unary_broad_specs(),
@@ -1626,4 +1740,7 @@ SPECS = (
     *_recent_elementwise_specs(),
     *_special_function_specs(),
     *_tier_a2_specs(),
+    *_number_theory_specs(),
+    *_series_function_specs(),
+    *_predicate_and_cast_specs(),
 )

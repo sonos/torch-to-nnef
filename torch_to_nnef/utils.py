@@ -10,7 +10,7 @@ import typing as T
 from abc import ABC
 from collections.abc import MutableMapping
 from enum import Enum
-from functools import lru_cache, total_ordering, wraps
+from functools import lru_cache, wraps
 
 import torch
 from torch import _C
@@ -345,7 +345,6 @@ def init_on_device(
             setattr(torch, torch_function_name, old_torch_function)
 
 
-@total_ordering
 class SemanticVersion:
     """SemVer 2.0 compatible version class.
 
@@ -413,7 +412,7 @@ class SemanticVersion:
 
         prerelease_raw = m.group("prerelease")
         if prerelease_raw:
-            parsed = []
+            parsed: T.List[T.Union[int, str]] = []
             for part in prerelease_raw.split("."):
                 if part.isdigit():
                     parsed.append(int(part))
@@ -462,9 +461,23 @@ class SemanticVersion:
         other = self._coerce_other(other)
         return self._cmp_key == other._cmp_key
 
-    def __lt__(self, other):
-        other = self._coerce_other(other)
-        return self._cmp_key < other._cmp_key
+    # The four ordering methods are spelled out rather than left to
+    # @total_ordering: mypy does not model the methods that decorator
+    # synthesises, so a reflected comparison such as `"1.13" <= version`
+    # (str.__le__ returns NotImplemented, then SemanticVersion.__ge__ runs)
+    # looked like an unsupported operand at ~29 call sites. Behaviour is
+    # unchanged; `_coerce_other` still accepts a str on either side.
+    def __lt__(self, other: T.Union[str, "SemanticVersion"]) -> bool:
+        return self._cmp_key < self._coerce_other(other)._cmp_key
+
+    def __le__(self, other: T.Union[str, "SemanticVersion"]) -> bool:
+        return self._cmp_key <= self._coerce_other(other)._cmp_key
+
+    def __gt__(self, other: T.Union[str, "SemanticVersion"]) -> bool:
+        return self._cmp_key > self._coerce_other(other)._cmp_key
+
+    def __ge__(self, other: T.Union[str, "SemanticVersion"]) -> bool:
+        return self._cmp_key >= self._coerce_other(other)._cmp_key
 
     def to_str(self) -> str:
         """Return canonical SemVer string."""
@@ -491,7 +504,7 @@ def torch_safe_load(f, **kwargs):
     """``torch.load`` that avoids arbitrary code execution by default.
 
     Prefers ``weights_only=True`` (loads tensors and primitives only). A file
-    that genuinely needs full unpickling (a pickled ``nn.Module`` or a custom
+    that actually needs full unpickling (a pickled ``nn.Module`` or a custom
     tensor subclass) falls back to ``weights_only=False`` with a warning, since
     that path executes pickled code: only load files you trust. On torch < 1.13
     (no ``weights_only`` support) it behaves like a plain ``torch.load``.
@@ -767,7 +780,21 @@ class _Injected:
 
 
 INJECTED = _Injected()
-Injected = type(INJECTED)
+
+if T.TYPE_CHECKING:
+    # `Injected` appears only inside `Union[SomeModule, Injected]` aliases in
+    # the packages' _optional_types.py. `require_extra_decorator` below swaps
+    # the INJECTED default for the real module before the function body runs,
+    # so by the time annotated code executes the sentinel branch is gone.
+    # Assigning the class directly (`Injected = type(INJECTED)`) reads to mypy
+    # as a *variable*, which makes every such alias invalid as a type; the
+    # alias below is what keeps those annotations usable at all.
+    # It does NOT silence attribute access on the union's other member:
+    # `Union[X, Any]` still checks X, so an installed-but-untyped
+    # transformers can still produce union-attr errors.
+    Injected = T.Any
+else:
+    Injected = type(INJECTED)
 
 
 def require_extra_decorator(

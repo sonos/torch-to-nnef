@@ -8,6 +8,7 @@ on:
       - "torch_to_nnef/**"
       - "uv.lock"
       - ".github/workflows/ci-llm.yml"
+      - "scripts/hf_pull.py"
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +16,7 @@ on:
       - "torch_to_nnef/**"
       - "uv.lock"
       - ".github/workflows/ci-llm.yml"
+      - "scripts/hf_pull.py"
   workflow_dispatch:
 
 permissions:

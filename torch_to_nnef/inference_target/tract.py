@@ -59,6 +59,11 @@ T2N_CHECK_IO_RAISE_EXCEPTION = "T2N_CHECK_IO_RAISE_EXCEPTION"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "svc" / "tract"
 LOGGER = logging.getLogger(__name__)
 
+# tract's native `tract_transformers_gdn_recurrent` (fused gated-delta-net
+# decode step, with CPU/CUDA/Metal kernels) landed on tract main AFTER the
+# v0.23.4 tag, so the first release exposing it is 0.23.5.
+NATIVE_GDN_RECURRENT_MIN_VERSION = "0.23.5"
+
 
 class TractFeatureFlag(str, enum.Enum):
     DEFAULT = "default"
@@ -135,6 +140,7 @@ class TractNNEF(InferenceTarget):
         force_norm_in_f32: bool = False,
         reify_sdpa_operator: T.Optional[bool] = None,
         upsample_with_debox: bool = False,
+        native_gated_delta_op: T.Optional[bool] = None,
     ):
         """Init.
 
@@ -192,6 +198,15 @@ class TractNNEF(InferenceTarget):
                 This should be faster.
                 (if tract version support it).
                 Experimental feature.
+            native_gated_delta_op:
+                (Optional) emit `t2n_extra::gated_delta_scan` as tract's fused
+                `tract_transformers_gdn_recurrent` operator instead of the
+                portable `tract_core_scan` lowering. Defaults to enabled from
+                tract 0.23.5 (the first release carrying that operator).
+                The fused operator is a single decode step, so it is only
+                emitted when the traced graph also satisfies its constraints
+                (time axis of size 1, key/value head dim of 128, f16 q/k/v and
+                beta with f32 log-decay/state); anything else keeps the scan.
         """
         super().__init__(version, check_io)
         if (
@@ -225,6 +240,11 @@ class TractNNEF(InferenceTarget):
         if reify_sdpa_operator is None:
             reify_sdpa_operator = self.version > "0.22.0"
         self.reify_sdpa_operator = reify_sdpa_operator
+        if native_gated_delta_op is None:
+            native_gated_delta_op = (
+                self.version >= NATIVE_GDN_RECURRENT_MIN_VERSION
+            )
+        self.native_gated_delta_op = native_gated_delta_op
         self.upsample_with_debox = upsample_with_debox
         self.dump_identity_properties = dump_identity_properties
         if self.feature_flags:
@@ -427,7 +447,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                 )
             LOGGER.warning(
                 "dynamic_axes references input '%s' which was pruned "
-                "during tracing (not in graph inputs: %s) — skipping",
+                "during tracing (not in graph inputs: %s), skipping",
                 node_name,
                 nnef_graph.inputs,
             )

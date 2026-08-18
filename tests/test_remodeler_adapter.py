@@ -166,7 +166,7 @@ def test_outputs_keep_unknown_name_silently_skipped():
         collapse_by_input={},
         outputs_keep=["feat", "bad_name"],
     )
-    # bad_name is simply not matched — only feat is returned
+    # bad_name is simply not matched: only feat is returned
     result = ba(torch.zeros(2, 4))
     assert isinstance(result, tuple)
     assert len(result) == 1
@@ -275,7 +275,7 @@ def test_outputs_keep_raw_container_name_returns_nothing():
         collapse_by_input={},
         outputs_keep=["logits", "states"],
     )
-    # 'states' is not a flat name — only 'logits' matches
+    # 'states' is not a flat name: only 'logits' matches
     result = ba(torch.zeros(2, 4))
     assert isinstance(result, tuple)
     assert len(result) == 1
