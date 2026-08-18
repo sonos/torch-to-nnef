@@ -4,7 +4,7 @@ Supports (transformers):
 - MoEFFN (reference wrapper)
 - MixtralSparseMoeBlock / MistralSparseMoeBlock
 - GptOssMLP (router + expert biases, interleaved gate/up, clamped SwiGLU)
-- Qwen2/Qwen3/Qwen3.5 MoE (Qwen2 & 3.5 shared expert decomposed outside)
+- Qwen2/Qwen3/Qwen3.5/Qwen3-Next MoE (shared expert decomposed outside)
 - OlmoeSparseMoeBlock
 
 All variants are normalized to the same tract_moe_ffn signature:
@@ -23,11 +23,13 @@ added on top of the routed output, not baked into the op.
 """
 
 import logging
+import os
 import typing as T
 
 import torch
 from torch import nn
 
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import (
     T2NErrorNotImplemented,
     T2NErrorStrictNNEFSpec,
@@ -358,11 +360,21 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
                 "shared expert activation "
                 f"{type(act).__name__} is unsupported (only SiLU/SwiGLU)"
             )
+
+        def _raw(weight: torch.Tensor) -> torch.Tensor:
+            # detach() on a QTensor-like weight decompresses it back to a
+            # dense float tensor (QTensor.__torch_function__ never
+            # propagates the subclass), silently dropping an export-time
+            # quantization. Pass those through untouched.
+            if _is_qtensor_like(weight):
+                return weight
+            return weight.detach()
+
         return {
-            "gate_proj": se.gate_proj.weight.detach(),
-            "up_proj": se.up_proj.weight.detach(),
-            "down_proj": se.down_proj.weight.detach(),
-            "router": m.shared_expert_gate.weight.detach(),
+            "gate_proj": _raw(se.gate_proj.weight),
+            "up_proj": _raw(se.up_proj.weight),
+            "down_proj": _raw(se.down_proj.weight),
+            "router": _raw(m.shared_expert_gate.weight),
         }
 
     def gate(self, m: nn.Module) -> str:
@@ -436,10 +448,14 @@ _ADAPTER_BY_CLASSNAME: T.Dict[str, T.Type[_MoEWeightAdapter]] = {
     # GPT-OSS (transformers >=4.55 renamed the block to GptOssMLP)
     "GptOssMLP": _GptOssAdapter,
     "GptOssSparseMoeBlock": _GptOssAdapter,
-    # Qwen 2 / 3 / 3.5 MoE
+    # Qwen 2 / 3 / 3.5 / 3-Next MoE (Qwen3NextSparseMoeBlock is structurally
+    # identical to Qwen3_5MoeSparseMoeBlock: TopKRouter `gate`, fused
+    # experts.gate_up_proj [E,2H,D] / experts.down_proj [E,D,H], sigmoid-gated
+    # shared expert).
     "Qwen2MoeSparseMoeBlock": _QwenMoEAdapter,
     "Qwen3MoeSparseMoeBlock": _QwenMoEAdapter,
     "Qwen3_5MoeSparseMoeBlock": _QwenMoEAdapter,
+    "Qwen3NextSparseMoeBlock": _QwenMoEAdapter,
     # OLMoE shares the Qwen layout (fused [E, 2H, D] experts, softmax top-k
     # router with norm_topk_prob, no shared expert).
     "OlmoeSparseMoeBlock": _QwenMoEAdapter,
@@ -458,6 +474,57 @@ def _get_adapter(module: nn.Module) -> _MoEWeightAdapter:
             f"Supported: {sorted(_ADAPTER_BY_CLASSNAME.keys())}"
         )
     return adapter_cls()
+
+
+_EXPERT_LAYOUTS = {"canonical", "linear", "tract_moe_ffn"}
+
+
+def mark_moe_experts_for_q40(
+    model: nn.Module,
+    *,
+    quantize_q40: bool = True,
+    layout: T.Optional[str] = None,
+    module_class_names: T.Optional[T.Collection[str]] = None,
+) -> int:
+    """Mark every MoE block of ``model`` for export-time expert handling.
+
+    Sets the module markers the ``tract_moe_ffn`` extractor consumes:
+    ``_t2n_quantize_moe_experts_q40`` (quantize expert w1/w2/w3 to tract
+    q4_0 min-max AT EXTRACTION, so a large MoE never materializes dense
+    float experts) and ``_t2n_moe_expert_layout``.
+
+    By default any module whose class the MoE extractor itself dispatches
+    on (i.e. with a registered weight adapter) is marked; pass
+    ``module_class_names`` to restrict marking to explicit class names.
+
+    Returns the number of modules marked; raises if nothing matched
+    (silently exporting dense f16 experts is never what the caller wants).
+    """
+    if layout is not None and layout not in _EXPERT_LAYOUTS:
+        raise T2NErrorNotImplemented(
+            f"unsupported MoE expert layout {layout!r} "
+            f"(expected one of {sorted(_EXPERT_LAYOUTS)})"
+        )
+    wanted = set(module_class_names) if module_class_names is not None else None
+    marked = 0
+    for module in model.modules():
+        cls_name = type(module).__name__
+        if wanted is not None:
+            if cls_name not in wanted:
+                continue
+        elif cls_name not in _ADAPTER_BY_CLASSNAME:
+            continue
+        if quantize_q40:
+            module._t2n_quantize_moe_experts_q40 = True
+        if layout is not None:
+            module._t2n_moe_expert_layout = layout
+        marked += 1
+    if marked == 0:
+        raise T2NErrorNotImplemented(
+            "no MoE module found: wrong transformers class? (looked for "
+            f"{sorted(wanted) if wanted is not None else 'any registered'})"
+        )
+    return marked
 
 
 # ---------------------------------------------------------------------------
@@ -563,6 +630,7 @@ def _emit_shared_expert(
     x_shape,
     add_weight,
     mk,
+    inference_target,
 ):
     """Graft a shared expert on top of the routed MoE output (Qwen2 / Qwen3.5).
 
@@ -571,7 +639,27 @@ def _emit_shared_expert(
     (linear computes x @ filter^T) so no transpose is needed.
     """
     # pylint: disable-next=import-outside-toplevel
+    import numpy as np
+
+    # pylint: disable-next=import-outside-toplevel
+    from nnef_tools.model import Tensor as NTensor
+
+    # pylint: disable-next=import-outside-toplevel
     from torch_to_nnef.op import helper
+
+    # Respect the module dtype: tract materializes einsum operands in the
+    # accumulation dtype (a cast on a constant weight is folded into an
+    # upcast copy of the weight), so a hardcoded f32 acc silently turned
+    # every f16 shared-expert gemv into an f32 one, doubling its weight
+    # bandwidth. Accumulate in the weight dtype, exactly like the standard
+    # aten::linear path; force_linear_accumulation_in_f32 restores the old
+    # behavior on demand.
+    weight_dtype = shared["gate_proj"].dtype
+    acc = TORCH_DTYPE_TO_TRACT_STR[weight_dtype]
+    if weight_dtype != torch.float32 and getattr(
+        inference_target, "force_linear_accumulation_in_f32", False
+    ):
+        acc = "f32"
 
     def emit(op_type, op_inputs, out_t, attribs=None, as_list=False):
         # Most ops (sigmoid/mul/add) take positional inputs; tract_core_einsum
@@ -587,24 +675,57 @@ def _emit_shared_expert(
         )
         return out_t
 
-    def linear(x_t, weight_t, out_t):
-        # x @ weight^T with weight [out, in]; NNEF `linear` lowers to a matmul
-        # that requires equal input ranks, so use einsum to handle the 3D
-        # activation against the 2D weight (and accumulate in f32).
+    zero_bias = None
+
+    def _zero_bias():
+        # Same trick as the graph-level `null` ref: a producer-less scalar
+        # tensor with data is inlined by the NNEF writer as a 0.0 literal.
+        nonlocal zero_bias
+        if zero_bias is None:
+            zero_bias = NTensor(
+                g,
+                name=f"{out0.name}_se_bias0",
+                shape=(),
+                dtype=np.float32,
+                data=np.zeros(shape=(), dtype=np.float32),
+            )
+        return zero_bias
+
+    def linear(x_t, weight_data, weight_t, out_t):
+        # x @ weight^T with weight [out, in].
         rank = len(x_shape)
-        if rank == 3:
-            expr = "bij,oj->bio"
-        elif rank == 2:
-            expr = "ij,oj->io"
-        else:
+        if rank not in (2, 3):
             raise T2NErrorNotImplemented(
                 f"shared expert linear expects rank 2 or 3 input, got {rank}"
             )
+        if _is_qtensor_like(weight_data):
+            # Block-quantized weights go through the NNEF `linear` op, the
+            # same path every aten::linear q40 weight takes (tract handles
+            # the opaque block-quant filter there; einsum does not).
+            w_in = weight_t
+            if rank == 3:
+                w_in = NTensor(
+                    g,
+                    name=f"{weight_t.name}_aligned_rank_expanded",
+                    dtype=weight_t.dtype,
+                    shape=(1,) + tuple(weight_t.shape),
+                )
+                helper.cast_and_add_nnef_operation(
+                    name_to_tensor=name_to_tensor,
+                    graph=g,
+                    type="unsqueeze",
+                    inputs=(weight_t,),
+                    outputs=(w_in,),
+                    attribs={"axes": [0]},
+                    force_consistent_inputs_shapes=False,
+                )
+            return emit("linear", (x_t, w_in, _zero_bias()), out_t)
+        expr = "bij,oj->bio" if rank == 3 else "ij,oj->io"
         return emit(
             "tract_core_einsum",
             [x_t, weight_t],
             out_t,
-            attribs={"expr": expr, "acc": "f32", "output": ""},
+            attribs={"expr": expr, "acc": acc, "output": ""},
             as_list=True,
         )
 
@@ -619,13 +740,21 @@ def _emit_shared_expert(
     w_down = add_weight("se_down_proj", shared["down_proj"])
     w_router = add_weight("se_router", shared["router"])
 
-    gate_h = linear(input_tensor, w_gate, mk("se_gate_h", hs_shape))
-    up_h = linear(input_tensor, w_up, mk("se_up_h", hs_shape))
+    gate_h = linear(
+        input_tensor, shared["gate_proj"], w_gate, mk("se_gate_h", hs_shape)
+    )
+    up_h = linear(
+        input_tensor, shared["up_proj"], w_up, mk("se_up_h", hs_shape)
+    )
     gate_sig = emit("sigmoid", (gate_h,), mk("se_gate_sig", hs_shape))
     silu_g = emit("mul", (gate_h, gate_sig), mk("se_silu", hs_shape))
     inter = emit("mul", (silu_g, up_h), mk("se_inter", hs_shape))
-    shared_out = linear(inter, w_down, mk("se_out", d_shape))
-    logit = linear(input_tensor, w_router, mk("se_logit", one_shape))
+    shared_out = linear(
+        inter, shared["down_proj"], w_down, mk("se_out", d_shape)
+    )
+    logit = linear(
+        input_tensor, shared["router"], w_router, mk("se_logit", one_shape)
+    )
     gate = emit("sigmoid", (logit,), mk("se_gate", one_shape))
     gated = emit("mul", (gate, shared_out), mk("se_gated", d_shape))
     emit("add", (routed, gated), out0)
@@ -669,6 +798,25 @@ def _maybe_quantize_expert_weight(
         **expert_q40_quantizer_kwargs,
     )
     q_data.nnef_name = f"{node.outputs[0].name}_{name}"
+    if os.environ.get("T2N_OFFLOAD_QUANTIZED_EXPERTS") == "1":
+        # Spill each freshly quantized expert tensor to disk so a large
+        # MoE conversion does not accumulate every QTensor in RAM: the
+        # NNEF writer re-materializes them one at a time at archive
+        # write. ~40 x 0.45GB held -> ~1 at a time.
+        # pylint: disable-next=import-outside-toplevel
+        import gc
+
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.tensor.offload import OffloadedTensor
+
+        offloaded = OffloadedTensor.from_original_tensor(
+            q_data,
+            name=q_data.nnef_name,
+        )
+        offloaded.nnef_name = q_data.nnef_name
+        del q_data
+        gc.collect()
+        return offloaded
     return q_data
 
 
@@ -888,6 +1036,7 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
             x_shape,
             _add_weight,
             _mk,
+            inference_target,
         )
         return ["tract_transformers", "tract_core"]
 
@@ -998,6 +1147,10 @@ def _register_all_transformers_moe():
         (
             "transformers.models.qwen3_5_moe.modeling_qwen3_5_moe",
             "Qwen3_5MoeSparseMoeBlock",
+        ),
+        (
+            "transformers.models.qwen3_next.modeling_qwen3_next",
+            "Qwen3NextSparseMoeBlock",
         ),
         (
             "transformers.models.olmoe.modeling_olmoe",

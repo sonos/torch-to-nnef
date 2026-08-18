@@ -1,6 +1,7 @@
 import abc
 import contextlib
 import logging
+import os
 import typing as T
 import warnings
 
@@ -29,7 +30,19 @@ IR_OPAQUE_NAME = "t2n::opaque_tensor_expand"
 # this legacy is less optimal since it duplicate
 # weights at export time between with Opaque and
 # OpaqueTensorRef.
-NEW_OPAQUE_TRACING_STRATEGY = torch_version() >= "2.4.0"
+#
+# T2N_LEGACY_OPAQUE_TRACING=1 forces the legacy strategy: every opaque
+# param materializes per-use during trace (streamed through the
+# opaque_t2n_expand custom op, so the traced graph does not retain the
+# values). Needed for STATEFUL models under disk offload: the meta/fake
+# strategy makes the whole activation stream fake, and every op mixing
+# it with the (real) handler-fed cache tensors (cat/copy_ on KV, conv or
+# recurrent states) trips jit tracer internal asserts at the real/fake
+# boundary.
+NEW_OPAQUE_TRACING_STRATEGY = (
+    torch_version() >= "2.4.0"
+    and os.environ.get("T2N_LEGACY_OPAQUE_TRACING", "0") != "1"
+)
 _TRACE_FAKE_MODE = None
 
 

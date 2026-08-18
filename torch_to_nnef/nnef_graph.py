@@ -193,6 +193,19 @@ class TorchToNGraphExtractor:
                 return False
             return True
 
+        import os as _os
+
+        _mem_log = _os.environ.get("T2N_LOG_CONVERT_MEMORY") == "1"
+        if _mem_log:
+            import resource as _resource
+
+            def _rss_gb():
+                return _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss / (
+                    1 << 30
+                )
+
+            _last_rss = [_rss_gb()]
+
         operators_nodes = self._torch_ir_graph.op_nodes[:]
         self._if_dyn_shape_may_remove_resolved_dim(operators_nodes)
         while operators_nodes:
@@ -204,6 +217,17 @@ class TorchToNGraphExtractor:
                 custom_fragments = self._op_nodes_to_nnef_operation(
                     op_node, name_to_tensor, null_ref=null_ref
                 )
+                if _mem_log:
+                    rss = _rss_gb()
+                    if rss - _last_rss[0] > 0.25:
+                        LOGGER.warning(
+                            "convert memory +%.2fGB (peak %.2fGB) at %s %s",
+                            rss - _last_rss[0],
+                            rss,
+                            op_node.kind,
+                            [o.name for o in op_node.outputs][:1],
+                        )
+                        _last_rss[0] = rss
                 if custom_fragments:
                     self.activated_custom_fragment_keys.update(custom_fragments)
                 done_nodes.append(op_node)

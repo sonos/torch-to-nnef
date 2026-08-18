@@ -655,9 +655,25 @@ def fill(
 
 @OP_REGISTRY.register(torch_op_ids=["copy", "clone"])
 def copy(
-    g, node, name_to_tensor, inference_target, torch_graph, null_ref, **kwargs
+    g,
+    node,
+    name_to_tensor,
+    inference_target,
+    torch_graph,
+    null_ref,
+    op_helper,
+    **kwargs,
 ):
-    """Map PyTorch: 'aten:copy', 'aten:clone' to NNEF."""
+    """Map PyTorch: 'aten:copy', 'aten:copy_', 'aten:clone' to NNEF.
+
+    `clone(self)` reads its single tensor input: alias the output to
+    inputs[0]. `copy(dst, src)` / `copy_(dst, src)` write `src` INTO
+    `dst`; the tracer SSA-renames every later read of `dst` to this
+    node's output, so the value that must flow out is `src` (inputs[1]),
+    cast to the destination dtype. Aliasing to inputs[0] instead would
+    resurrect the destination's pre-write value (e.g. the lazily
+    created zeros buffer behind HF linear-attention caches).
+    """
     if not isinstance(inference_target, TractNNEF):
         # nnef spec include copy fragment
         return unary_output_op_without_attr(
@@ -667,7 +683,27 @@ def copy(
             name_to_tensor=name_to_tensor,
             null_ref=null_ref,
         )
-    torch_graph.remap_node(node.outputs[0], node.inputs[0])
+    value_node = node.inputs[0]
+    is_write_style_copy = (
+        node.kind.split("::")[1].startswith("copy") and len(node.inputs) >= 2
+    )
+    if is_write_style_copy:
+        value_node = node.inputs[1]
+        dst_node = node.outputs[0]
+        if list(value_node.shape) != list(dst_node.shape):
+            raise T2NErrorNotImplemented(
+                "aten::copy_ with a broadcasting source is not supported: "
+                f"src shape {value_node.shape} vs dst shape {dst_node.shape}"
+            )
+        if value_node.dtype != dst_node.dtype:
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "tract_core_cast",
+                inputs=op_helper.data_nodes_to_nnef_tensors([value_node]),
+                attrs={"to": TORCH_DTYPE_TO_TRACT_STR[dst_node.dtype]},
+            )
+            return []
+    torch_graph.remap_node(node.outputs[0], value_node)
     return []
 
 

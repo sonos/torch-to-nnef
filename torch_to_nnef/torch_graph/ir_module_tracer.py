@@ -14,6 +14,9 @@ from torch import jit, nn
 
 from torch_to_nnef.dtypes import is_quantized_dtype
 from torch_to_nnef.exceptions import T2NErrorTorchJitTraceFailed
+from torch_to_nnef.torch_graph.jit_mutation import (
+    functionalize_view_inplace_copy,
+)
 from torch_to_nnef.utils import cache, torch_version
 
 
@@ -166,7 +169,9 @@ class TorchModuleTracer:
         trace = self.traced_module
         if self.fn_name and self.fn_name != "forward":
             trace = getattr(trace, self.fn_name)
-        return trace.graph
+        graph = trace.graph
+        functionalize_view_inplace_copy(graph)
+        return graph
 
     def __call__(self, *args, **kwargs):
         """Invoke the traced forward method.
