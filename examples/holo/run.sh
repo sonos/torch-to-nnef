@@ -12,9 +12,10 @@ source .venv/bin/activate
 
 REPO=${REPO:-}
 DTYPE=${DTYPE:-f32}
+MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-16}
 if [ -z "$REPO" ]; then
   echo "[holo] exporting tiny dummy model (set REPO=... for a real checkpoint)"
-  python export.py --dummy --dtype "$DTYPE" --verify 12 --out ./exp
+  python export.py --dummy --dtype "$DTYPE" --verify "$MAX_NEW_TOKENS" --out ./exp
 else
   echo "[holo] exporting $REPO ($DTYPE)"
   hf_pull "$REPO"
@@ -22,4 +23,4 @@ else
     ${PROMPT:+--prompt "$PROMPT"} --out ./exp
 fi
 
-(cd holo-rs && cargo run --release -- --dir ../exp --max-new-tokens 16)
+(cd holo-rs && cargo run --release -- --dir ../exp --max-new-tokens "$MAX_NEW_TOKENS")
