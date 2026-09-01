@@ -13,6 +13,9 @@
   that runs the vision encoder, streams the hybrid decoder, decodes generated
   token ids with `tokenizer.json`, and prints Markdown.
 
+### Fixed
+- **`tract >= 0.23.4`'s new "mislabeled symbol name" assertion warning no longer fails an otherwise-successful `check_io` run.** That tract release started warning when an NNEF `tract_assert` constrains a symbol absent from every tensor shape (harmless, tract itself says "it has no effect"), but t2n's `tract_err_filter` treated any leftover stderr as fatal and raised `T2NErrorTract` on it. The pattern is now filtered like the other benign deprecation warnings.
+
 ## [0.24.7] - 2026-08-01
 
 ### Added

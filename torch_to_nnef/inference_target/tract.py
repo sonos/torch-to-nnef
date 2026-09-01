@@ -663,6 +663,16 @@ def tract_err_filter(serr: str) -> str:
         ):
             continue
 
+        if all(
+            _ in serrline
+            for _ in [
+                "constrains symbol(s) absent from every tensor shape",
+                "it has no effect",
+                "WARN",
+            ]
+        ):
+            continue
+
         serrline = serrline.strip()
         if serrline:
             err_filtered += f"{serrline}\n"
