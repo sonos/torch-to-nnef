@@ -637,48 +637,33 @@ class TractCli:
         return True
 
 
+# Each entry is a set of substrings that must ALL appear in a stderr line
+# for it to be considered a known-harmless tract warning.
+# NOTE: discuss with @kali about migration
+_BENIGN_TRACT_STDERR_PATTERNS: T.List[T.List[str]] = [
+    ["Ignore unknown extension"],
+    ["tract_pulse_streaming_symbol", "deprecated", "WARN"],
+    ["Flattening the shape will be deprecated.", "Reshape", "WARN"],
+    [
+        "constrains symbol(s) absent from every tensor shape",
+        "it has no effect",
+        "WARN",
+    ],
+]
+
+
 def tract_err_filter(serr: str) -> str:
     """Drop stderr lines known to be tract warnings that are harmless to t2n.
 
     Each dropped line is still surfaced via ``LOGGER.warning`` so it
-    remains visible (e.g. in CI logs) instead of vanishing silently --
+    remains visible (e.g. in CI logs) instead of vanishing silently:
     filtering only means "don't fail the export on this", not "hide it".
     """
     err_filtered = ""
     for serrline in serr.split("\n"):
-        if any(_ in serrline for _ in ["Ignore unknown extension"]):
-            LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
-            continue
-
-        if all(  # NOTE: discuss with @kali about migration
-            _ in serrline
-            for _ in [
-                "tract_pulse_streaming_symbol",
-                "deprecated",
-                "WARN",
-            ]
-        ):
-            LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
-            continue
-
-        if all(  # NOTE: discuss with @kali about migration
-            _ in serrline
-            for _ in [
-                "Flattening the shape will be deprecated.",
-                "Reshape",
-                "WARN",
-            ]
-        ):
-            LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
-            continue
-
-        if all(
-            _ in serrline
-            for _ in [
-                "constrains symbol(s) absent from every tensor shape",
-                "it has no effect",
-                "WARN",
-            ]
+        if any(
+            all(needle in serrline for needle in pattern)
+            for pattern in _BENIGN_TRACT_STDERR_PATTERNS
         ):
             LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
             continue

@@ -363,11 +363,12 @@ def test_eval_symbol_pinned_axis_drops_its_auto_assertion():
 
 
 def test_eval_symbol_pinned_axis_also_drops_user_declared_extension():
-    """A user/slug-declared extension about a pinned axis is dropped too.
+    """A user/slug-declared extension naming a pinned axis is dropped too.
 
     The same staleness as above, but for a hand-written or slug-registry
-    ``extensions:`` entry rather than an auto-generated one -- both sources
-    must go through the same "still present in dyn" filter.
+    ``extensions:`` entry rather than an auto-generated one: it is dropped
+    when it names the pinned symbol verbatim, not by requiring every
+    identifier it mentions to be a known axis (see the next test).
     """
     reg = _fake_registry(
         renamed={},
@@ -387,3 +388,31 @@ def test_eval_symbol_pinned_axis_also_drops_user_declared_extension():
     exts = prepared.custom_extensions
     assert "tract_assert TARGETS__BATCH >= 1" in exts
     assert not any("TARGETS__TIME" in e for e in exts)
+
+
+def test_user_declared_extension_with_label_is_not_wrongly_dropped():
+    """A labeled extension survives even though its label isn't an axis.
+
+    ``packages/llm/torch_to_nnef_llm/exporter.py`` ships extensions like
+    ``tract_assert tg: S==1`` (a label, ``tg``, prefixing the constraint).
+    Requiring every identifier in a user-declared assertion to be a known
+    ``dyn`` axis would drop this outright since ``TG`` is not one: only an
+    assertion naming a symbol this subnet's ``eval_symbols`` actually
+    pinned static should be dropped (regression, see previous test).
+    """
+    reg = _fake_registry(
+        renamed={},
+        extensions={"decoder": ["tract_assert tg: TARGETS__BATCH==1"]},
+        eval_symbols={"decoder.targets": {"TARGETS__TIME": 1}},
+    )
+    prepared = prepare_subnet_export(
+        model=torch.nn.Identity(),
+        test_input=[torch.zeros(1, 1, dtype=torch.float32)],
+        input_names=["targets"],
+        output_names=["targets"],
+        subnet_name="decoder",
+        dyn={"targets": {0: "TARGETS__BATCH", 1: "TARGETS__TIME"}},
+        custom_extensions=[],
+        axis_registry=reg,
+    )
+    assert "tract_assert tg: TARGETS__BATCH==1" in prepared.custom_extensions
