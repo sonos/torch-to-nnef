@@ -2381,6 +2381,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../op/gated_delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>gated_delta
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../op/helper/" class="md-nav__link">
         
   
@@ -2625,6 +2653,28 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;apply_symbol_renames_to_dyn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.remodeler.dyn_axes.drop_assertions_referencing_symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;drop_assertions_referencing_symbols
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.remodeler.dyn_axes.filter_assertions_present_in_dyn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;filter_assertions_present_in_dyn
       
     </span>
   </a>
@@ -4052,6 +4102,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#torch_to_nnef.remodeler.dyn_axes.drop_assertions_referencing_symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;drop_assertions_referencing_symbols
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.remodeler.dyn_axes.filter_assertions_present_in_dyn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;filter_assertions_present_in_dyn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.remodeler.dyn_axes.remove_eval_symbols_from_dyn" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4183,6 +4255,22 @@ strings.  They are used by NeMo and can be reused by any provider.</p>
               </td>
             </tr>
             <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            drop_assertions_referencing_symbols (torch_to_nnef.remodeler.dyn_axes.drop_assertions_referencing_symbols)" href="#torch_to_nnef.remodeler.dyn_axes.drop_assertions_referencing_symbols">drop_assertions_referencing_symbols</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Drop assertions that name one of <code>removed_symbols</code> verbatim.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            filter_assertions_present_in_dyn (torch_to_nnef.remodeler.dyn_axes.filter_assertions_present_in_dyn)" href="#torch_to_nnef.remodeler.dyn_axes.filter_assertions_present_in_dyn">filter_assertions_present_in_dyn</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Drop assertions that reference a symbol absent from every axis.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
               <td><code><a class="autorefs autorefs-internal" title="            remove_eval_symbols_from_dyn (torch_to_nnef.remodeler.dyn_axes.remove_eval_symbols_from_dyn)" href="#torch_to_nnef.remodeler.dyn_axes.remove_eval_symbols_from_dyn">remove_eval_symbols_from_dyn</a></code></td>
               <td>
                 <div class="doc-md-description">
@@ -4260,6 +4348,66 @@ strings.  They are used by NeMo and can be reused by any provider.</p>
         <p>Apply symbol renames directly to a dynamic axes mapping.</p>
 <p>This is the lightweight alternative to BoundaryAdapter when only
 symbol renames are needed (no collapse, bind, or output filtering).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="torch_to_nnef.remodeler.dyn_axes.drop_assertions_referencing_symbols" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">drop_assertions_referencing_symbols</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">drop_assertions_referencing_symbols</span><span class="p">(</span><span class="n">assertions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">removed_symbols</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Drop assertions that name one of <code>removed_symbols</code> verbatim.</p>
+<p>Unlike :func:<code>filter_assertions_present_in_dyn</code>, this does not require
+every identifier in the assertion to be a known axis symbol: a
+hand-written or slug/derived-declared assertion may legitimately use a
+label (e.g. <code>tract_assert tg: S==1</code>) or reference something outside
+<code>dyn</code> entirely, and must not be discarded for that alone. It only
+drops an assertion when it references a symbol known to have just been
+pinned static (e.g. via <code>eval_symbols</code>), i.e. one that used to exist
+but provably no longer does.</p>
+<p>Returns de-duplicated assertions.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="torch_to_nnef.remodeler.dyn_axes.filter_assertions_present_in_dyn" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">filter_assertions_present_in_dyn</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">filter_assertions_present_in_dyn</span><span class="p">(</span><span class="n">assertions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">dyn</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Drop assertions that reference a symbol absent from every axis.</p>
+<p>An assertion whose symbol(s) never appear in <code>dyn</code> (renamed away,
+collapsed, or bound) can never be evaluated against a real dimension:
+it is dead weight in the exported NNEF that tract itself flags as a
+"mislabeled symbol name" warning. Requires <em>every</em> identifier the
+assertion mentions to be a known axis symbol, so it only fits the
+single-symbol, machine-generated shape (e.g. <code>tract_assert S &gt;= 1</code>)
+that :func:<code>torch_to_nnef_nemo.dynaxes.build_dynamic_axes</code> produces --
+a free-form, user-declared assertion may use syntax this does not
+parse (a label, a function call) and should go through
+:func:<code>drop_assertions_referencing_symbols</code> instead.</p>
+<p>Returns de-duplicated assertions.</p>
 
 
     </div>

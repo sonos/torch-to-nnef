@@ -1526,6 +1526,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.inference_target.tract.TractNNEF(native_gated_delta_op)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;native_gated_delta_op
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.inference_target.tract.TractNNEF.post_export" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1601,6 +1612,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;debug_dumper_pytorch_to_onnx_to_nnef
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.inference_target.tract.tract_err_filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tract_err_filter
       
     </span>
   </a>
@@ -2747,6 +2769,34 @@
     
   
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fragment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../op/gated_delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>gated_delta
   
 
     
@@ -4539,6 +4589,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.inference_target.tract.TractNNEF(native_gated_delta_op)" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-parameter"></code>&nbsp;native_gated_delta_op
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.inference_target.tract.TractNNEF.post_export" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4614,6 +4675,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;debug_dumper_pytorch_to_onnx_to_nnef
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.inference_target.tract.tract_err_filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tract_err_filter
       
     </span>
   </a>
@@ -4738,6 +4810,14 @@
               <td>
                 <div class="doc-md-description">
                   <p>Try to export the model with ONNX and convert the ONNX to NNEF via tract.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            tract_err_filter (torch_to_nnef.inference_target.tract.tract_err_filter)" href="#torch_to_nnef.inference_target.tract.tract_err_filter">tract_err_filter</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Drop stderr lines known to be tract warnings that are harmless to t2n.</p>
                 </div>
               </td>
             </tr>
@@ -5139,7 +5219,7 @@ Python-side, NaN-aware comparison that tract's strict
 
 
 </h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TractNNEF</span><span class="p">(</span><span class="n">version</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SemanticVersion</span><span class="p">],</span> <span class="n">feature_flags</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Set</span><span class="p">[</span><span class="n">TractFeatureFlag</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">check_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">dynamic_axes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">specific_tract_binary_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">check_io_tolerance</span><span class="p">:</span> <span class="n">TractCheckTolerance</span> <span class="o">=</span> <span class="n">TractCheckTolerance</span><span class="o">.</span><span class="n">APPROXIMATE</span><span class="p">,</span> <span class="n">specific_properties</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dump_identity_properties</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">force_attention_inner_in_f32</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">force_linear_accumulation_in_f32</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">force_norm_in_f32</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">reify_sdpa_operator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">upsample_with_debox</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TractNNEF</span><span class="p">(</span><span class="n">version</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SemanticVersion</span><span class="p">],</span> <span class="n">feature_flags</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Set</span><span class="p">[</span><span class="n">TractFeatureFlag</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">check_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">dynamic_axes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">specific_tract_binary_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">check_io_tolerance</span><span class="p">:</span> <span class="n">TractCheckTolerance</span> <span class="o">=</span> <span class="n">TractCheckTolerance</span><span class="o">.</span><span class="n">APPROXIMATE</span><span class="p">,</span> <span class="n">specific_properties</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dump_identity_properties</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">force_attention_inner_in_f32</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">force_linear_accumulation_in_f32</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">force_norm_in_f32</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">reify_sdpa_operator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">upsample_with_debox</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">native_gated_delta_op</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -5400,6 +5480,29 @@ Experimental feature.</p>
                   <code>False</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+<h3 id="torch_to_nnef.inference_target.tract.TractNNEF(native_gated_delta_op)" class="doc doc-heading doc-heading-parameter">                  <code>native_gated_delta_op</code>
+</h3>            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="bool">bool</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(Optional) emit <code>t2n_extra::gated_delta_scan</code> as tract's fused
+<code>tract_transformers_gdn_recurrent</code> operator instead of the
+portable <code>tract_core_scan</code> lowering. Defaults to enabled from
+tract 0.23.5 (the first release carrying that operator).
+The fused operator is a single decode step, so it is only
+emitted when the traced graph also satisfies its constraints
+(time axis of size 1, key/value head dim of 128, f16 q/k/v and
+beta with f32 log-decay/state); anything else keeps the scan.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -5620,6 +5723,29 @@ Experimental feature.</p>
         <p>Try to export the model with ONNX and convert the ONNX to NNEF via tract.</p>
 <p>Used in debug bundle build
 (if it works, that's give a valuable reference, to debug T2N)</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="torch_to_nnef.inference_target.tract.tract_err_filter" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">tract_err_filter</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">tract_err_filter</span><span class="p">(</span><span class="n">serr</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Drop stderr lines known to be tract warnings that are harmless to t2n.</p>
+<p>Each dropped line is still surfaced via <code>LOGGER.warning</code> so it
+remains visible (e.g. in CI logs) instead of vanishing silently:
+filtering only means "don't fail the export on this", not "hide it".</p>
 
 
     </div>

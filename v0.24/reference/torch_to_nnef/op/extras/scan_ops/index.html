@@ -2381,6 +2381,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.extras.scan_ops.gated_delta_scan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;gated_delta_scan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.op.extras.scan_ops.ssm_scan" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2434,6 +2445,34 @@
     
   
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fragment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../gated_delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>gated_delta
   
 
     
@@ -3971,6 +4010,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.extras.scan_ops.gated_delta_scan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;gated_delta_scan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.op.extras.scan_ops.ssm_scan" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4049,6 +4099,14 @@ cost is one tract call instead of one per token.</p>
       </thead>
       <tbody>
             <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            gated_delta_scan (torch_to_nnef.op.extras.scan_ops.gated_delta_scan)" href="#torch_to_nnef.op.extras.scan_ops.gated_delta_scan">gated_delta_scan</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Emit a <code>gated_delta_scan</code> fragment call (Qwen3.5 gated-delta-net).</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
               <td><code><a class="autorefs autorefs-internal" title="            ssm_scan (torch_to_nnef.op.extras.scan_ops.ssm_scan)" href="#torch_to_nnef.op.extras.scan_ops.ssm_scan">ssm_scan</a></code></td>
               <td>
                 <div class="doc-md-description">
@@ -4081,6 +4139,49 @@ cost is one tract call instead of one per token.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="torch_to_nnef.op.extras.scan_ops.gated_delta_scan" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">gated_delta_scan</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">gated_delta_scan</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Emit a <code>gated_delta_scan</code> fragment call (Qwen3.5 gated-delta-net).</p>
+
+
+<details class="torch-side" open>
+  <summary>Torch side</summary>
+  <p>t2n_extra::gated_delta_scan(q, k, v, g, beta, s0) -&gt; (y, s_final)</p>
+</details>        <p>with (time axis at 2):
+    q, k    (B, H, T, hk)   v  (B, H, T, hv)
+    g, beta (B, H, T)       s0 (B, H, hk, hv)
+The scan iterates axis 0, so pre-transpose the per-step inputs to put
+time first (s0 is the state, left as-is), then the fragment wraps
+<code>tract_core_scan</code>. Outputs: y (B, H, T, hv), s_final (B, H, hk, hv).</p>
+<p>From tract 0.23.5 a single-step graph instead emits tract's fused
+<code>tract_transformers_gdn_recurrent</code> (CPU/CUDA/Metal kernels) when it fits
+the operator's constraints, see <code>_native_gdn_reject_reason</code>. That operator
+additionally folds the q/k l2-norm and a <code>1 / sqrt(head_dim)</code> output
+scale, so it assumes the Qwen3.5 convention this op is written for: q
+passed as <code>l2norm(q) / sqrt(head_k_dim)</code> and k as <code>l2norm(k)</code>.
+Re-normalizing an already-normalized q/k is a no-op, and the internal
+scale (tract reads <code>head_dim</code> off the same axis, so it always matches
+ours) then restores the one normalizing q stripped, so both lowerings agree
+(to ~6e-5 relative, from the operator's <code>1e-6</code> norm epsilon; under f16
+resolution, and covered by <code>check_io</code>). Feeding raw, un-normalized q/k
+would NOT be equivalent.</p>
+
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 
