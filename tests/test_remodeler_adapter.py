@@ -286,10 +286,10 @@ def test_outputs_keep_raw_container_name_returns_nothing():
 # ---------------------------------------------------------------------------
 
 
-def _fake_registry(*, renamed, extensions):
+def _fake_registry(*, renamed, extensions, eval_symbols=None):
     """Minimal stand-in exposing the attributes prepare_subnet_export reads."""
     return types.SimpleNamespace(
-        eval_symbols_per_input={},
+        eval_symbols_per_input=eval_symbols or {},
         renamed_symbols_per_subnet=renamed,
         outputs_keep_per_subnet={},
         input_collapse_dims={},
@@ -325,3 +325,38 @@ def test_user_extensions_get_symbol_renames_applied():
     assert "tract_assert S<=39993" in exts
     assert "tract_assert S >= 1" in exts
     assert not any("AUDIO_SIGNAL__TIME" in e for e in exts)
+
+
+def test_eval_symbol_pinned_axis_drops_its_auto_assertion():
+    """An eval-symbol-pinned axis must not keep its auto assertion (regression).
+
+    ``eval_symbols`` pins a dynamic axis (e.g. ``TARGETS__TIME`` for
+    single-step RNN-T decoding) to a concrete size, so it becomes a static
+    dim in every tensor shape. The auto-generated
+    ``tract_assert TARGETS__TIME >= 1`` for that axis used to survive
+    regardless, shipping a permanently vestigial assertion that tract
+    (>= 0.23.4) warns about as "constrains symbol(s) absent from every
+    tensor shape".
+    """
+    reg = _fake_registry(
+        renamed={},
+        extensions={},
+        eval_symbols={"decoder.targets": {"TARGETS__TIME": 1}},
+    )
+    prepared = prepare_subnet_export(
+        model=torch.nn.Identity(),
+        test_input=[torch.zeros(1, 1, dtype=torch.float32)],
+        input_names=["targets"],
+        output_names=["targets"],
+        subnet_name="decoder",
+        dyn={"targets": {0: "TARGETS__BATCH", 1: "TARGETS__TIME"}},
+        custom_extensions=[
+            "tract_assert TARGETS__TIME >= 1",
+            "tract_assert TARGETS__BATCH >= 1",
+        ],
+        axis_registry=reg,
+    )
+    exts = prepared.custom_extensions
+    assert "tract_assert TARGETS__BATCH >= 1" in exts
+    assert not any("TARGETS__TIME" in e for e in exts)
+    assert 1 not in prepared.dyn["targets"]

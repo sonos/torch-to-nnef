@@ -231,6 +231,20 @@ def prepare_subnet_export(
         elif rename_map:
             dyn = apply_symbol_renames_to_dyn(dyn, rename_map)
 
+    if axis_registry is not None and axis_registry.eval_symbols_per_input:
+        # Pin eval-symbol axes out of `dyn` *before* filtering assertions
+        # below: an eval-symbol axis (e.g. TARGETS__TIME=1 for single-step
+        # decoding) becomes a static dim in every tensor shape, so any
+        # auto-generated `tract_assert <SYMBOL> >= 1` about it would
+        # otherwise survive the "symbol still present in dyn" filter and
+        # ship as a permanently vestigial assertion tract warns about.
+        remove_eval_symbols_from_dyn(
+            input_names,
+            subnet_name,
+            dyn,
+            axis_registry.eval_symbols_per_input,
+        )
+
     custom_ext = set(
         rewrite_and_filter_assertions(
             list(custom_extensions),
@@ -251,14 +265,6 @@ def prepare_subnet_export(
                 axis_registry.extensions_per_subnet.get(subnet_name, []),
                 rename_map,
             )
-        )
-
-    if axis_registry is not None and axis_registry.eval_symbols_per_input:
-        remove_eval_symbols_from_dyn(
-            input_names,
-            subnet_name,
-            dyn,
-            axis_registry.eval_symbols_per_input,
         )
 
     return PreparedSubnet(
