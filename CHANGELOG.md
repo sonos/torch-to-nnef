@@ -1,7 +1,7 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
-## [Unreleased]
+## [0.24.8] - 2026-09-01
 
 ### Added
 - **Review follow-ups on the Qwen3.5 export and its examples** (core / LLM / examples): the fused gated-delta operator is no longer emitted into a graph that declares `dynamic_axes`, since a handler cannot tell a symbolic time axis from a static one and the operator decodes a single step; the `holo` demo generated `max_new_tokens + 1` ids so its advertised token-parity check compared unequal lengths (both sides now use one count); a list-valued `eos_token_id`, which HF configs commonly carry, no longer breaks the demo's manifest parse; the `qwen3_5` handler now rejects a `sample_text` shorter than the image-token span and a `linear_conv_kernel_dim` below 2 instead of indexing past the end or emitting a mismatched conv state; the gated-delta fake kernel reports the promoted dtype the eager op actually returns; and a missing optional `onnxscript` in the ONNX debug dumper no longer replaces the `check_io` mismatch report it was called for.
