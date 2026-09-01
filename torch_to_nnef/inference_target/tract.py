@@ -638,9 +638,16 @@ class TractCli:
 
 
 def tract_err_filter(serr: str) -> str:
+    """Drop stderr lines known to be tract warnings that are harmless to t2n.
+
+    Each dropped line is still surfaced via ``LOGGER.warning`` so it
+    remains visible (e.g. in CI logs) instead of vanishing silently --
+    filtering only means "don't fail the export on this", not "hide it".
+    """
     err_filtered = ""
     for serrline in serr.split("\n"):
         if any(_ in serrline for _ in ["Ignore unknown extension"]):
+            LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
             continue
 
         if all(  # NOTE: discuss with @kali about migration
@@ -651,6 +658,7 @@ def tract_err_filter(serr: str) -> str:
                 "WARN",
             ]
         ):
+            LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
             continue
 
         if all(  # NOTE: discuss with @kali about migration
@@ -661,6 +669,7 @@ def tract_err_filter(serr: str) -> str:
                 "WARN",
             ]
         ):
+            LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
             continue
 
         if all(
@@ -671,6 +680,7 @@ def tract_err_filter(serr: str) -> str:
                 "WARN",
             ]
         ):
+            LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
             continue
 
         serrline = serrline.strip()
