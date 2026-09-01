@@ -27,6 +27,7 @@ from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
 from torch_to_nnef.remodeler.dyn_axes import (
     apply_eval_symbols,
     apply_symbol_renames_to_dyn,
+    filter_assertions_present_in_dyn,
     remove_eval_symbols_from_dyn,
     rewrite_and_filter_assertions,
     rewrite_assertions_with_renames,
@@ -53,6 +54,7 @@ __all__ = [
     "RenameOutputs",
     "apply_eval_symbols",
     "apply_symbol_renames_to_dyn",
+    "filter_assertions_present_in_dyn",
     "remove_eval_symbols_from_dyn",
     "rewrite_and_filter_assertions",
     "rewrite_assertions_with_renames",
@@ -245,27 +247,25 @@ def prepare_subnet_export(
             axis_registry.eval_symbols_per_input,
         )
 
+    # Auto-generated (`build_dynamic_axes`) and user/slug/derived-declared
+    # (``extensions_per_subnet``) assertions both need the same treatment:
+    # renamed via ``renamed_symbols`` (e.g. AUDIO_SIGNAL__TIME -> S), then
+    # dropped if they end up referencing a symbol no longer present in
+    # `dyn` at all -- renamed away, collapsed, bound, or pinned static via
+    # ``eval_symbols`` above. A single filter pass over both sources keeps
+    # a user/slug-declared bound from leaking through un-filtered the way
+    # the auto ones already are.
     custom_ext = set(
-        rewrite_and_filter_assertions(
-            list(custom_extensions),
-            (
-                axis_registry.renamed_symbols_per_subnet
-                if axis_registry is not None
-                else {}
-            ).get(subnet_name, {}),
-            dyn,
-        )
+        rewrite_assertions_with_renames(list(custom_extensions), rename_map)
     )
     if axis_registry is not None:
-        # User/derived/slug extensions may reference source symbols that were
-        # renamed via ``renamed_symbols`` (e.g. AUDIO_SIGNAL__TIME -> S), so
-        # they must go through the same rewrite as the auto-generated ones.
         custom_ext.update(
             rewrite_assertions_with_renames(
                 axis_registry.extensions_per_subnet.get(subnet_name, []),
                 rename_map,
             )
         )
+    custom_ext = set(filter_assertions_present_in_dyn(list(custom_ext), dyn))
 
     return PreparedSubnet(
         model=model,

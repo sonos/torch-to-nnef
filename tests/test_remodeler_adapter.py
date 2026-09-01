@@ -360,3 +360,30 @@ def test_eval_symbol_pinned_axis_drops_its_auto_assertion():
     assert "tract_assert TARGETS__BATCH >= 1" in exts
     assert not any("TARGETS__TIME" in e for e in exts)
     assert 1 not in prepared.dyn["targets"]
+
+
+def test_eval_symbol_pinned_axis_also_drops_user_declared_extension():
+    """A user/slug-declared extension about a pinned axis is dropped too.
+
+    The same staleness as above, but for a hand-written or slug-registry
+    ``extensions:`` entry rather than an auto-generated one -- both sources
+    must go through the same "still present in dyn" filter.
+    """
+    reg = _fake_registry(
+        renamed={},
+        extensions={"decoder": ["tract_assert TARGETS__TIME<=384"]},
+        eval_symbols={"decoder.targets": {"TARGETS__TIME": 1}},
+    )
+    prepared = prepare_subnet_export(
+        model=torch.nn.Identity(),
+        test_input=[torch.zeros(1, 1, dtype=torch.float32)],
+        input_names=["targets"],
+        output_names=["targets"],
+        subnet_name="decoder",
+        dyn={"targets": {0: "TARGETS__BATCH", 1: "TARGETS__TIME"}},
+        custom_extensions=["tract_assert TARGETS__BATCH >= 1"],
+        axis_registry=reg,
+    )
+    exts = prepared.custom_extensions
+    assert "tract_assert TARGETS__BATCH >= 1" in exts
+    assert not any("TARGETS__TIME" in e for e in exts)

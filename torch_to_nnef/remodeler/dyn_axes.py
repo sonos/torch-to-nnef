@@ -140,6 +140,40 @@ def rewrite_assertions_with_renames(
     return [ident.sub(_sub, str(a)) for a in assertions]
 
 
+def filter_assertions_present_in_dyn(
+    assertions: list[str],
+    dyn: T.Optional[dict[str, dict[int, str]]],
+) -> list[str]:
+    """Drop assertions that reference a symbol absent from every axis.
+
+    An assertion whose symbol(s) never appear in ``dyn`` (renamed away,
+    collapsed, bound, or pinned static via ``eval_symbols``) can never be
+    evaluated against a real dimension: it is dead weight in the exported
+    NNEF that tract itself flags as a "mislabeled symbol name" warning.
+    Applies to both auto-generated and user/slug/derived-declared
+    assertions alike -- callers should apply this *after* any such symbol
+    has already been removed from ``dyn``.
+
+    Returns de-duplicated assertions, order preserved.
+    """
+    present: set[str] = set()
+    for axes in (dyn or {}).values():
+        for s in (axes or {}).values():
+            present.add(str(s).upper())
+
+    ident = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+    filtered = [
+        a
+        for a in assertions
+        if all(
+            t.upper() in present
+            for t in ident.findall(a)
+            if t.upper() not in {"TRACT_ASSERT"}
+        )
+    ]
+    return list(dict.fromkeys(filtered))
+
+
 def rewrite_and_filter_assertions(
     assertions: list[str],
     rename_map: T.Optional[dict[str, list[str]]],
@@ -154,19 +188,4 @@ def rewrite_and_filter_assertions(
     - Returns de-duplicated assertions.
     """
     rewritten = rewrite_assertions_with_renames(assertions, rename_map)
-    present: set[str] = set()
-    for axes in (dyn or {}).values():
-        for s in (axes or {}).values():
-            present.add(str(s).upper())
-
-    ident = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
-    filtered = [
-        a
-        for a in rewritten
-        if all(
-            t.upper() in present
-            for t in ident.findall(a)
-            if t.upper() not in {"TRACT_ASSERT"}
-        )
-    ]
-    return list(dict.fromkeys(filtered))
+    return filter_assertions_present_in_dyn(rewritten, dyn)
