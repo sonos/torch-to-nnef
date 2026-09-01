@@ -730,7 +730,19 @@ class OffloadedTensor(OpaqueTensor):
             tensor = tensor.to_offload_state()
         return torch.save(tensor, cls._offload_path(offload_dir, name, dtype))
 
+    _t2n_reload_total_bytes = [0]
+
     def reload(self):
+        if os.environ.get("T2N_LOG_RELOADS") == "1":
+            nbytes = self.numel() * self.dtype.itemsize
+            OffloadedTensor._t2n_reload_total_bytes[0] += nbytes
+            if nbytes > 50 * 1024 * 1024:
+                LOGGER.warning(
+                    "reload %.2fGB (cumulative %.2fGB) for %s",
+                    nbytes / (1 << 30),
+                    OffloadedTensor._t2n_reload_total_bytes[0] / (1 << 30),
+                    getattr(self, "_name", "?"),
+                )
         if issubclass(self.offloaded_tensor_type, OpaqueTensor):
             load_kwargs = {}
             if torch_version() >= "1.13.0":
@@ -1131,6 +1143,34 @@ def t2n_load_checkpoint_and_dispatch(
     unexpected_keys: T.Set[str] = set()
     model_keys = set(model.state_dict().keys())
     assert checkpoint_files is not None
+
+    # Multimodal checkpoints loaded into a sub-model class store that
+    # sub-model's weights under an extra path segment (e.g. a
+    # `Qwen3_5MoeForConditionalGeneration` checkpoint keeps the text
+    # weights under `model.language_model.*` while the text-only
+    # `Qwen3_5MoeForCausalLM` expects `model.*`). `from_pretrained`
+    # resolves this internally; this manual dispatch must do the same:
+    # a checkpoint key absent from the model is retried with exactly one
+    # dotted segment dropped.
+    _rename_cache: T.Dict[str, str] = {}
+
+    def remap_checkpoint_key(key: str) -> str:
+        if key in model_keys:
+            return key
+        if key in _rename_cache:
+            return _rename_cache[key]
+        parts = key.split(".")
+        renamed = key
+        for i in range(len(parts)):
+            cand = ".".join(parts[:i] + parts[i + 1 :])
+            if cand in model_keys:
+                renamed = cand
+                break
+        _rename_cache[key] = renamed
+        if renamed != key:
+            LOGGER.debug("checkpoint key %s loaded as %s", key, renamed)
+        return renamed
+
     mod_updater = ModTensorUpdater(
         model,
         add_parameter_if_unset=True,
@@ -1187,6 +1227,8 @@ def t2n_load_checkpoint_and_dispatch(
                     LOGGER.error("unsupported SCB param")
                     continue
 
+                param_name = remap_checkpoint_key(param_name)
+
                 if converter_collector.collect(param_name, param):
                     continue
 
@@ -1200,6 +1242,13 @@ def t2n_load_checkpoint_and_dispatch(
         del loaded_checkpoint
         gc.collect()
     converter_collector.finish()
+    ignore_patterns = getattr(model, "_keys_to_ignore_on_load_unexpected", None)
+    if ignore_patterns:
+        unexpected_keys = {
+            key
+            for key in unexpected_keys
+            if not any(re.search(pattern, key) for pattern in ignore_patterns)
+        }
     if not strict and len(unexpected_keys) > 0:
         LOGGER.warning(
             "Some weights of the model checkpoint at %s were not used when"

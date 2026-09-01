@@ -4,6 +4,7 @@ import torch
 
 from .base import IOSpec, StateContext
 from .default import DefaultArchitectureHandler
+from .gdn_reify import reify_gated_delta_net
 from .registry import register_handler
 
 
@@ -12,6 +13,21 @@ class Qwen35MoeArchitectureHandler(DefaultArchitectureHandler):
     """Handler for Qwen3.5 MoE text models with hybrid attention caches."""
 
     ARCH_NAMES = ("qwen3_5_moe", "qwen3_5_moe_text")
+
+    def prepare_model_for_export(self, model) -> None:
+        """Reify the gated delta rule as one tract op.
+
+        HF computes the linear-attention core with a Python loop over the
+        sequence axis; traced, it unrolls at the traced length and the
+        export is frozen to it. Swapping the module-bound rule functions
+        with `GatedDeltaNetRecurrentReified` keeps the exported graph
+        S-generic (see torch_to_nnef.op.custom_extractors.gdn and
+        gdn_reify.reify_gated_delta_net). The GQA neutralization is safe
+        here: Qwen3_5MoeGatedDeltaNet's projections are separate
+        (in_proj_qkv / in_proj_z / in_proj_b / in_proj_a) and
+        `num_k_heads` has no post-__init__ reader besides the repeat gate.
+        """
+        reify_gated_delta_net(model, neutralize_gqa_repeat=True)
 
     @staticmethod
     def _layer_types(config_helper) -> T.Sequence[str]:

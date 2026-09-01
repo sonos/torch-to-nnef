@@ -126,10 +126,23 @@ commands_pre = [
         "-c",
         "real=$(command -v cmake) && mkdir -p {envtmpdir}/bin && printf '#!/bin/bash\\nexec \"%s\" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \"$@\"\\n' \"$real\" > {envtmpdir}/bin/cmake && chmod +x {envtmpdir}/bin/cmake",
     ],
+    # Install torch/torchaudio from the CPU-only index FIRST and alone, so they
+    # resolve to the CPU builds (no ~GBs of nvidia CUDA deps).
     [
         "bash",
         "-c",
-        "export PATH={envtmpdir}/bin:$PATH && uv pip install -i https://download.pytorch.org/whl/cpu torch==2.6.* torchaudio==2.6.* 'nemo_toolkit[asr]==2.7.2'",
+        "uv pip install -i https://download.pytorch.org/whl/cpu torch==2.6.* torchaudio==2.6.*",
+    ],
+    # Then install nemo's deps from PyPI (torch is already installed above and
+    # satisfies the constraint, so it stays the CPU build). Pin numpy<2.5: a
+    # py3.13-capable numba (>=0.61, here 0.65.x) requires numpy<2.5, but the
+    # test dependency-group pre-installs numpy 2.5.0; without this constraint uv
+    # keeps 2.5.0 and backtracks to the ancient numba 0.53.1 / llvmlite 0.36.0,
+    # which cannot build on Python 3.13. numpy 2.4.x satisfies matplotlib too.
+    [
+        "bash",
+        "-c",
+        "export PATH={envtmpdir}/bin:$PATH && uv pip install 'nemo_toolkit[asr]==2.7.2' 'numpy<2.5'",
     ],
     [
         "uv",

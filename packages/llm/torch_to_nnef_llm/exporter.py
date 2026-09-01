@@ -139,6 +139,14 @@ def _resolve_attn_implementation(
     return attn_implementation
 
 
+def _ensure_export_test_dir(
+    export_dirpath: Path, ignore_already_exist_dir: bool
+) -> Path:
+    test_dir = export_dirpath / "tests"
+    test_dir.mkdir(parents=True, exist_ok=ignore_already_exist_dir)
+    return test_dir
+
+
 #: Default number of retries for transient Hugging Face download failures.
 DEFAULT_HF_DOWNLOAD_N_RETRIES = 5
 
@@ -333,6 +341,35 @@ class LLMExporter:
     @property
     def model_n_params(self) -> int:
         return sum(_.numel() for _ in self.hf_model_causal.parameters())
+
+    def mark_moe_experts_for_q40(
+        self,
+        *,
+        quantize_q40: bool = True,
+        layout: T.Optional[str] = None,
+        module_class_names: T.Optional[T.Collection[str]] = None,
+    ) -> int:
+        """Mark the model's MoE blocks for q4_0 expert extraction.
+
+        Thin wrapper over
+        ``torch_to_nnef.op.custom_extractors.moe.mark_moe_experts_for_q40``
+        applied to the loaded causal model: the ``tract_moe_ffn``
+        extractor then quantizes expert w1/w2/w3 to tract q4_0 min-max
+        at extraction (never materializing dense float experts) and/or
+        stores them in the requested ``layout``. Returns the number of
+        MoE modules marked; raises if none matched.
+        """
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op.custom_extractors.moe import (
+            mark_moe_experts_for_q40,
+        )
+
+        return mark_moe_experts_for_q40(
+            self.hf_model_causal,
+            quantize_q40=quantize_q40,
+            layout=layout,
+            module_class_names=module_class_names,
+        )
 
     def _build_model_input_spec(
         self,
@@ -792,8 +829,9 @@ class LLMExporter:
             inference_target.dynamic_axes = dynamic_axes
 
             # Add io.npz test in exproted dir for dbg purpose
-            test_dir = export_dirpath / "tests"
-            test_dir.mkdir(parents=True)
+            test_dir = _ensure_export_test_dir(
+                export_dirpath, ignore_already_exist_dir
+            )
 
             if check_inference_modes:
                 self._dump_modes_json(
@@ -864,6 +902,7 @@ class LLMExporter:
                     "force_f32_linear_accumulator",
                     "force_f32_normalization",
                     "reify_sdpa_operator",
+                    "upcast_reified_sdpa_inputs_to_f32",
                     "tract_check_io_tolerance",
                 ]
                 if key in kwargs
@@ -885,6 +924,7 @@ class LLMExporter:
         force_f32_linear_accumulator: T.Optional[bool] = None,
         force_f32_normalization: T.Optional[bool] = None,
         reify_sdpa_operator: T.Optional[bool] = None,
+        upcast_reified_sdpa_inputs_to_f32: T.Optional[bool] = None,
         tract_check_io_tolerance: TractCheckTolerance = LM_CHECK_TOLERANCE,
         compression_method: T.Optional[str] = None,
         compression_registry: T.Optional[str] = None,
@@ -931,6 +971,10 @@ class LLMExporter:
 
         if reify_sdpa_operator is not None:
             inference_target.reify_sdpa_operator = reify_sdpa_operator
+        if upcast_reified_sdpa_inputs_to_f32 is not None:
+            inference_target.upcast_reified_sdpa_inputs_to_f32 = (
+                upcast_reified_sdpa_inputs_to_f32
+            )
 
         if (
             self.is_half_precision_model
@@ -1122,9 +1166,22 @@ def dump_llm(
     upcast_quant: T.Optional[T.Sequence[str]] = None,
     attn_implementation: T.Optional[str] = None,
     experts_implementation: T.Optional[str] = "auto",
+    quantize_moe_experts: T.Optional[str] = None,
+    moe_expert_layout: T.Optional[str] = None,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
-    """Util to export LLM model."""
+    """Util to export LLM model.
+
+    ``quantize_moe_experts`` ("q40" or None) marks every detected MoE
+    block so the ``tract_moe_ffn`` extractor quantizes expert w1/w2/w3
+    to tract q4_0 min-max at extraction; ``moe_expert_layout``
+    ("linear" or "canonical") selects the stored expert weight layout.
+    """
+    if quantize_moe_experts not in (None, "q40"):
+        raise T2NErrorMisuse(
+            "quantize_moe_experts must be 'q40' or None, got "
+            f"{quantize_moe_experts!r}"
+        )
     attn_implementation = _resolve_attn_implementation(
         attn_implementation,
         kwargs.get("reify_sdpa_operator"),
@@ -1144,6 +1201,17 @@ def dump_llm(
         experts_implementation=experts_implementation,
     )
     _reject_multimodal_in_llm_dump(exporter.model_infos.conf.model_type)
+    if quantize_moe_experts or moe_expert_layout:
+        marked = exporter.mark_moe_experts_for_q40(
+            quantize_q40=quantize_moe_experts == "q40",
+            layout=moe_expert_layout,
+        )
+        LOGGER.info(
+            "marked %d MoE modules (quantize=%s, layout=%s)",
+            marked,
+            quantize_moe_experts,
+            moe_expert_layout,
+        )
     dump_kwargs = _normalize_dump_kwargs(kwargs)
     exporter.dump(**dump_kwargs)
     export_path = dump_kwargs.get("export_dirpath")

@@ -162,6 +162,16 @@ def test_reify_sdpa_operator_rejects_eager_attention():
         exporter._resolve_attn_implementation("eager", True)
 
 
+def test_existing_export_test_dir_is_allowed_for_existing_export_root(
+    tmp_path,
+):
+    export_dir = tmp_path / "export"
+    test_dir = export_dir / "tests"
+    test_dir.mkdir(parents=True)
+
+    assert exporter._ensure_export_test_dir(export_dir, True) == test_dir
+
+
 def test_dump_llm_routes_reified_sdpa_to_loader(monkeypatch, tmp_path):
     captured_load = {}
     captured_dump = {}
@@ -212,6 +222,42 @@ def test_dump_llm_routes_experts_implementation_to_loader(
     )
 
     assert captured_load["experts_implementation"] == "batched_mm"
+
+
+def test_dump_llm_routes_reified_sdpa_input_upcast_policy(
+    monkeypatch, tmp_path
+):
+    captured_inference_target = {}
+
+    class _Exporter:
+        # non-multimodal model_type so dump_llm's multimodal guard passes
+        model_infos = SimpleNamespace(conf=SimpleNamespace(model_type="fake"))
+
+        def build_inference_target(self, **kwargs):
+            captured_inference_target.update(kwargs)
+            return object()
+
+        def dump_with_inference_target(self, **_kwargs):
+            return None
+
+        def dump(self, **kwargs):
+            return exporter.LLMExporter.dump(self, **kwargs)
+
+    def fake_load(*_args, **_kwargs):
+        return _Exporter()
+
+    monkeypatch.setattr(exporter.LLMExporter, "load", staticmethod(fake_load))
+    exporter.dump_llm(
+        "fake/model",
+        export_dirpath=tmp_path / "export",
+        reify_sdpa_operator=True,
+        upcast_reified_sdpa_inputs_to_f32=False,
+    )
+
+    assert captured_inference_target["reify_sdpa_operator"] is True
+    assert (
+        captured_inference_target["upcast_reified_sdpa_inputs_to_f32"] is False
+    )
 
 
 def test_cli_reify_sdpa_operator_implies_sdpa_attention(monkeypatch, tmp_path):

@@ -1,6 +1,9 @@
 """Attention mechanisms."""
 
+import numpy as np
 import torch
+from nnef_tools.model import Operation as NOperation
+from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target.base import InferenceTarget
@@ -58,7 +61,33 @@ def _broadcast_mask_query_axis(
     )
 
 
+def _emit_tract_cast(g, src: NTensor, name: str, to: str, dtype) -> NTensor:
+    """Emit a tract_core_cast intermediate with an explicit dtype."""
+    out = NTensor(g, name=name, dtype=dtype, shape=tuple(src.shape))
+    NOperation(
+        g,
+        type="tract_core_cast",
+        attribs={"to": to},
+        inputs=src,
+        outputs=out,
+    )
+    return out
+
+
+def _cast_sdpa_input_to_f32(g, src: NTensor, suffix: str) -> NTensor:
+    if src.dtype == np.float32:
+        return src
+    return _emit_tract_cast(
+        g,
+        src,
+        f"{src.name}_{suffix}",
+        "f32",
+        np.float32,
+    )
+
+
 @OP_REGISTRY.register()
+# pylint: disable-next=too-many-branches
 def scaled_dot_product_attention(
     g, node, name_to_tensor, inference_target, **kwargs
 ):
@@ -142,23 +171,71 @@ def scaled_dot_product_attention(
     )
 
     if reify_tract_spda:
+        sdpa_inputs = list(inputs)
+        sdpa_dtype_str = dtype_str
+        cast_sdpa_output_back = False
+        if (
+            inference_target.force_attention_inner_in_f32
+            and inference_target.upcast_reified_sdpa_inputs_to_f32
+            and query_node.dtype == torch.float16
+        ):
+            sdpa_inputs[0] = _cast_sdpa_input_to_f32(
+                g, sdpa_inputs[0], "sdpa_q_f32"
+            )
+            sdpa_inputs[1] = _cast_sdpa_input_to_f32(
+                g, sdpa_inputs[1], "sdpa_k_f32"
+            )
+            sdpa_inputs[2] = _cast_sdpa_input_to_f32(
+                g, sdpa_inputs[2], "sdpa_v_f32"
+            )
+            if has_masked_attn and len(sdpa_inputs) > 3:
+                sdpa_inputs[3] = _cast_sdpa_input_to_f32(
+                    g, sdpa_inputs[3], "sdpa_mask_f32"
+                )
+            sdpa_dtype_str = "f32"
+            cast_sdpa_output_back = True
+
         # Define SDPA attributes
         attrs = {
-            "datum_type": dtype_str,
+            "datum_type": sdpa_dtype_str,
             "acc_datum_type": inner_dtype,
             "is_causal": is_causal,
         }
         if scale is not None:
             attrs["scale"] = scale
 
-        add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_transformers_sdpa",
-            inputs=tuple(inputs),
-            attrs=attrs,
-        )
+        if cast_sdpa_output_back:
+            output_node = node.outputs[0]
+            sdpa_out = NTensor(
+                g,
+                name=f"{output_node.export_name}_sdpa_f32",
+                dtype=np.float32,
+                shape=tuple(output_node.shape),
+            )
+            NOperation(
+                g,
+                type="tract_transformers_sdpa",
+                attribs=attrs,
+                inputs=tuple(sdpa_inputs),
+                outputs=sdpa_out,
+            )
+            add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_cast",
+                inputs=sdpa_out,
+                attrs={"to": dtype_str},
+            )
+        else:
+            add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_transformers_sdpa",
+                inputs=tuple(sdpa_inputs),
+                attrs=attrs,
+            )
         return ["tract_transformers"]
 
     tmpl_fragment_name = "scaled_dot_product_attention"

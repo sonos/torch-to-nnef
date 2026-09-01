@@ -15,7 +15,6 @@ from torch import nn
 
 from torch_to_nnef.exceptions import (
     T2NErrorTestFailed,
-    T2NErrorTorchJitTraceFailed,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
@@ -288,12 +287,13 @@ def test_quantized_opaque_shape_ops_on_ref_do_not_materialize(
 
 
 @skipif_unsupported_qtensor
-def test_opaque_trace_tensor_materializes_real_data_on_non_meta_device():
+def test_opaque_trace_tensor_uses_fake_target_device_for_meta_request():
     q_tensor = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(8, 32))
 
-    meta = q_tensor._to_trace_tensor("meta")
-    assert meta.device.type == "meta"
-    assert meta.shape == q_tensor.shape
+    traced = q_tensor._to_trace_tensor("meta")
+    assert traced.device == q_tensor.device
+    assert traced.shape == q_tensor.shape
+    assert getattr(traced, "fake_mode", None) is not None
 
     # a real device must expose decompressed values, not uninitialized memory,
     # otherwise constant-index gathers bake garbage into the exported graph.
@@ -304,10 +304,11 @@ def test_opaque_trace_tensor_materializes_real_data_on_non_meta_device():
 
 @skipif_unsupported_qtensor
 @skipif_no_meta_opaque_tracing
-def test_opaque_meta_arithmetic_raises_actionable_error():
-    # Combining a meta-traced opaque-weight view with a real tensor is
-    # unsupported by the meta strategy; the trace failure must carry an
-    # actionable hint rather than a bare device-mismatch RuntimeError.
+def test_opaque_fake_trace_allows_same_device_arithmetic(
+    forbid_qtensor_materialization,
+):
+    # Fake target-device placeholders keep opaque weights non-materialized
+    # while still allowing same-device arithmetic during trace.
     class ScaledViewedWeight(nn.Module):
         def __init__(self):
             super().__init__()
@@ -323,10 +324,9 @@ def test_opaque_meta_arithmetic_raises_actionable_error():
 
     model = ScaledViewedWeight().eval()
     set_opaque_tensor_in_params_as_ref(model)
-    with pytest.raises(T2NErrorTorchJitTraceFailed, match="meta placeholder"):
-        module_tracer_into_ir_graph(
-            TorchModuleTracer(model, args=(torch.randn(1, 32),))
-        )
+    module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(torch.randn(1, 32),))
+    )
 
 
 @skipif_unsupported_qtensor

@@ -313,8 +313,10 @@ def _materialize_size_fold(
     if kind == ATEN_NUMEL:
         if sizes is None:
             return None
+        concrete_sizes = T.cast(T.List[int], sizes)
         n = 1
-        for s in sizes:
+        # pylint: disable-next=not-an-iterable
+        for s in concrete_sizes:
             n *= int(s)
         return _insert_int_constant_before(graph, n, node)
     if kind == ATEN_LEN:

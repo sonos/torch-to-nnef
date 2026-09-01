@@ -103,6 +103,9 @@ def check_contains_f32_upcast_attn(inference_target, path):
         assert "tract_transformers_sdpa(" in graph_content
         if inference_target.force_attention_inner_in_f32:
             assert "acc_datum_type = 'f32'" in graph_content
+            assert "datum_type = 'f32'" in graph_content
+            assert "to = 'f32'" in graph_content
+            assert "to = 'f16'" in graph_content
     elif inference_target.force_attention_inner_in_f32:
         assert (
             "fragment scaled_dot_product_attention_3d_f16_df32("
@@ -110,6 +113,48 @@ def check_contains_f32_upcast_attn(inference_target, path):
         )
     else:
         assert "fragment scaled_dot_product_attention_3d_f16(" in graph_content
+
+
+def check_contains_f32_accum_sdpa_without_input_upcast(inference_target, path):
+    assert path.exists()
+    graph_content = _read_graph_nnef_from_archive(path)
+    assert "tract_transformers_sdpa(" in graph_content
+    assert "acc_datum_type = 'f32'" in graph_content
+    assert "datum_type = 'f16'" in graph_content
+    assert "sdpa_q_f32" not in graph_content
+    assert "sdpa_k_f32" not in graph_content
+    assert "sdpa_v_f32" not in graph_content
+
+
+@pytest.mark.skipif(
+    condition=torch_version() < "2.2.0",
+    reason="torch older than 2.2.0 lack too much half operator support on CPU",
+)
+def test_reified_sdpa_can_keep_f16_inputs_with_f32_accum():
+    targets = [
+        deepcopy(inf)
+        for inf in TRACT_INFERENCES_TO_TESTS_APPROX
+        if inf.version >= "0.22.0"
+    ]
+    if not targets:
+        pytest.skip("No tract target with reified SDPA support")
+
+    inference_target = targets[0]
+    inference_target.check_io = False
+    inference_target.force_attention_inner_in_f32 = True
+    inference_target.reify_sdpa_operator = True
+    inference_target.upcast_reified_sdpa_inputs_to_f32 = False
+
+    check_model_io_test(
+        model=TernaryPrimitive(op=F.scaled_dot_product_attention),
+        test_input=(
+            torch.arange(12).reshape(1, 3, 4).half(),
+            torch.arange(12).reshape(1, 3, 4).half(),
+            torch.arange(12).reshape(1, 3, 4).half(),
+        ),
+        inference_target=inference_target,
+        callback_post_export=check_contains_f32_accum_sdpa_without_input_upcast,
+    )
 
 
 @pytest.mark.parametrize(

@@ -15,6 +15,29 @@ from torch_to_nnef.utils import (
 LOGGER = logging.getLogger(__name__)
 
 
+def find_fake_mode(*containers):
+    """Return the ``FakeTensorMode`` of any fake operand, else ``None``.
+
+    Opaque float weights are traced as ``FakeTensor`` placeholders (see
+    ``torch_to_nnef.tensor.opaque._fake_trace_tensor``). A fake tensor's
+    dispatch only works while its owning mode is active, so when such a
+    tensor meets a :class:`NamedTensor` (which drops out of the subclass
+    dispatch) the bare op raises ``TypeError: unsupported operand``. We
+    re-activate the mode around the op to let the two compose.
+    """
+    try:
+        from torch._subclasses.fake_tensor import (  # pylint: disable=import-outside-toplevel
+            FakeTensor,
+        )
+    except ImportError:
+        return None
+    for container in containers:
+        for value in container:
+            if isinstance(value, FakeTensor):
+                return value.fake_mode
+    return None
+
+
 class NamedTensor(torch.Tensor):
     """Tensor enriched with name attribute."""
 
@@ -101,12 +124,29 @@ class NamedTensor(torch.Tensor):
             kwargs = {}
 
         with select_ctx_disable_torch_fn():
-            new_args = [a.clone() if isinstance(a, cls) else a for a in args]
-            new_kwargs = {
-                k: v.clone() if isinstance(v, cls) else v
-                for k, v in kwargs.items()
-            }
-            ret = func(*new_args, **new_kwargs)
+            # An opaque float weight is traced as a ``FakeTensor`` placeholder.
+            # Fake dispatch (``__torch_dispatch__``) rejects a ``NamedTensor``
+            # operand outright, so when a fake tensor is present we must hand
+            # ``func`` the plain underlying tensor rather than a re-wrapped
+            # ``NamedTensor`` clone, and re-activate the fake mode so the op
+            # resolves (plain tensors resolve fine either way under meta).
+            fake_mode = find_fake_mode(args, kwargs.values())
+
+            def _prepare(value):
+                if not isinstance(value, cls):
+                    return value
+                cloned = value.clone()
+                if fake_mode is not None:
+                    return cloned.as_subclass(torch.Tensor)
+                return cloned
+
+            new_args = [_prepare(a) for a in args]
+            new_kwargs = {k: _prepare(v) for k, v in kwargs.items()}
+            if fake_mode is not None:
+                with fake_mode:
+                    ret = func(*new_args, **new_kwargs)
+            else:
+                ret = func(*new_args, **new_kwargs)
             if func in get_default_nowrap_functions():
                 return ret
             # important modification

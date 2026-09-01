@@ -702,6 +702,7 @@ def add_multi_output_op(
     attrs=None,
     ensure_tuple=True,
     output_tensor_name_suffix: str = "",
+    force_consistent_inputs_shapes: bool = True,
 ):
     if len(node.outputs) == 1:
         LOGGER.debug(
@@ -728,6 +729,7 @@ def add_multi_output_op(
         inputs=inputs,
         outputs=tuple(output_tensors),
         attribs=attrs or {},
+        force_consistent_inputs_shapes=force_consistent_inputs_shapes,
     )
     return output_tensors
 
@@ -829,6 +831,47 @@ def get_list_of_int(
     return int_list
 
 
+def add_cast_nnef_tensor(
+    g,
+    name_to_tensor,
+    nnef_tensor: NTensor,
+    cast_to: np.dtype,
+    force_full_output_tensor_name: T.Optional[str] = None,
+) -> NTensor:
+    """Emit a tract dtype cast preserving the input tensor shape."""
+    cast_to = np.dtype(cast_to).type
+    to_str = numpy_dtype_to_tract_str(cast_to)
+    out_name = (
+        force_full_output_tensor_name or f"{nnef_tensor.name}_as_{to_str}"
+    )
+    existing = name_to_tensor.get(out_name)
+    if existing is not None:
+        if existing.dtype == cast_to and tuple(existing.shape) == tuple(
+            nnef_tensor.shape
+        ):
+            return existing
+        raise T2NErrorConsistency(
+            f"cast output name collision for {out_name!r}: "
+            f"existing dtype/shape {existing.dtype}/{existing.shape}, "
+            f"requested {cast_to}/{nnef_tensor.shape}"
+        )
+    out = NTensor(
+        g,
+        out_name,
+        dtype=cast_to,
+        shape=tuple(nnef_tensor.shape),
+    )
+    name_to_tensor[out_name] = out
+    NOperation(
+        g,
+        type="tract_core_cast",
+        inputs=nnef_tensor,
+        outputs=out,
+        attribs={"to": to_str},
+    )
+    return out
+
+
 def cast_to_if_not_dtype_and_variable(
     g,
     name_to_tensor,
@@ -851,16 +894,20 @@ def cast_to_if_not_dtype_and_variable(
             cast_to,
         )
         cast_to = nnef_tensor.dtype
-    out = add_single_output_op(
+    # The cast output stands in for ``node``'s output (e.g. the final
+    # forced-cast of a div result), so it must be named after
+    # ``node.outputs[0]`` (as the previous ``add_single_output_op`` path
+    # did). Naming it after the *input* tensor would leave the graph
+    # output name (e.g. ``output_0``) unbound.
+    out_name = node.outputs[0].export_name
+    if suffix:
+        out_name += f"_{suffix}"
+    out = add_cast_nnef_tensor(
         g,
-        node,
         name_to_tensor,
-        "tract_core_cast",
-        inputs=nnef_tensor,
-        attrs={
-            "to": numpy_dtype_to_tract_str(cast_to),
-        },
-        output_tensor_name_suffix=suffix,
+        nnef_tensor,
+        cast_to=cast_to,
+        force_full_output_tensor_name=out_name,
     )
     return out, ["tract_core"]
 
@@ -1192,6 +1239,20 @@ class OpHelper:
             nnef_tensor,
             cast_to,
             suffix,
+        )
+
+    def add_cast_nnef_tensor(
+        self,
+        nnef_tensor: NTensor,
+        cast_to: np.dtype,
+        force_full_output_tensor_name: T.Optional[str] = None,
+    ) -> NTensor:
+        return add_cast_nnef_tensor(
+            self.g,
+            self.name_to_tensor,
+            nnef_tensor,
+            cast_to,
+            force_full_output_tensor_name,
         )
 
     def cast_and_add_nnef_operation(self, **kwargs):
