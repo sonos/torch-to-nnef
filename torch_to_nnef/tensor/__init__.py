@@ -12,10 +12,18 @@ from torch_to_nnef.tensor.quant import (
     QTensor,
     QTensorTractScaleOnly,
 )
+from torch_to_nnef.tensor.residency import (
+    TensorPrefetch,
+    TensorResidencyLease,
+    TensorResidencyPool,
+)
 
 __all__ = [
     "NamedTensor",
     "OffloadedTensor",
+    "TensorPrefetch",
+    "TensorResidencyLease",
+    "TensorResidencyPool",
     "apply_name_to_tensor_in_module",
     "QTensor",
     "QScalePerGroupF16",

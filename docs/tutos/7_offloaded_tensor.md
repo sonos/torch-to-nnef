@@ -80,3 +80,35 @@ tensor was offloaded you can just use the helper:
 </div>
 
 If this is a new tensor just use the `OffloadedTensor.from_original_tensor` defined upper.
+
+## Scoped residency and prefetch
+
+Repeated operations on offloaded values can retain them in memory with
+`TensorResidencyPool`. Activating the pool for an execution scope makes normal
+tensor operations use resident values transparently, while `prefetch` starts
+loading a later value on a background worker.
+
+```python
+from torch_to_nnef.tensor import TensorResidencyPool
+
+with TensorResidencyPool(max_resident_bytes=2 * 1024**3) as pool:
+    with pool.scope(device="cuda"):
+        pool.prefetch(next_weight, device="cuda")
+        output = input @ current_weight
+        output = output @ next_weight
+```
+
+This allows a model or module hook to schedule the next tensor without changing
+the operations that consume the current one. Use an explicit `read_write`
+lease when an operation changes the resident tensor. The pool writes dirty
+values back before eviction, during `flush`, or when the pool closes.
+
+```python
+with pool.acquire(statistic, mode="read_write") as value:
+    value.add_(update)
+```
+
+The optional byte budget uses least-recently-used eviction. Active leases are
+never evicted, so an individual leased value may temporarily exceed the
+budget. Scheduling decisions, such as which model block to prefetch next,
+remain with the caller.

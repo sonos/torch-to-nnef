@@ -730,7 +730,34 @@ class OffloadedTensor(OpaqueTensor):
             tensor = tensor.to_offload_state()
         return torch.save(tensor, cls._offload_path(offload_dir, name, dtype))
 
-    def reload(self):
+    def reload(self, device: T.Optional[TDEVICE] = None):
+        """Reload the stored value on ``device``.
+
+        The optional override does not change the tensor's configured target
+        device. This lets a residency manager stage the same payload on a
+        worker-selected device without mutating shared tensor state.
+        """
+        # Import locally to keep the offload/residency modules acyclic.
+        from torch_to_nnef.tensor.residency import active_tensor_residency
+
+        active_residency = active_tensor_residency()
+        if active_residency is not None:
+            residency_pool, scope_device = active_residency
+            target_device = (
+                torch.device(device)
+                if device is not None
+                else scope_device or self.target_device
+            )
+            return residency_pool.resolve(self, device=target_device)
+        return self._reload_unmanaged(device=device)
+
+    def _reload_unmanaged(
+        self, device: T.Optional[TDEVICE] = None
+    ) -> torch.Tensor:
+        """Reload without consulting the active residency scope."""
+        target_device = (
+            self.target_device if device is None else torch.device(device)
+        )
         if issubclass(self.offloaded_tensor_type, OpaqueTensor):
             load_kwargs = {}
             if torch_version() >= "1.13.0":
@@ -739,10 +766,10 @@ class OffloadedTensor(OpaqueTensor):
             state_cls = resolve_offload_state(loaded)
             if state_cls is not None:
                 return state_cls.from_offload_state(
-                    loaded, target_device=self.target_device
+                    loaded, target_device=target_device
                 )
-            return loaded.to(self.target_device)
-        return torch_safe_load(self.offload_path).to(self.target_device)
+            return loaded.to(target_device)
+        return torch_safe_load(self.offload_path).to(target_device)
 
     def write_qtensor_in_file(
         self,
