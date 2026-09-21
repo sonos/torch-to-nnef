@@ -83,6 +83,74 @@ def test_completed_prefetches_obey_budget(tmp_path):
 
 
 @skipif_limited_offload_support
+def test_oversized_prefetch_is_not_retained(monkeypatch, tmp_path):
+    source = OffloadedTensor.from_original_tensor(
+        torch.ones(8), "oversized", offload_dir=tmp_path
+    )
+    with TensorResidencyPool(max_resident_bytes=16) as pool:
+        completion_observed = threading.Event()
+        original_complete = pool._complete_prefetch
+
+        def observed_complete(*args, **kwargs):
+            original_complete(*args, **kwargs)
+            completion_observed.set()
+
+        monkeypatch.setattr(pool, "_complete_prefetch", observed_complete)
+        handle = pool.prefetch(source)
+        assert completion_observed.wait(timeout=5)
+        assert pool.resident_bytes == 0
+        assert not pool.is_resident(source)
+        value = handle.wait()
+        assert torch.equal(value, torch.ones(8))
+        assert pool.resident_bytes == 0
+        assert not pool.is_resident(source)
+
+
+@skipif_limited_offload_support
+def test_oversized_lease_is_pinned_only_for_lease_lifetime(tmp_path):
+    source = OffloadedTensor.from_original_tensor(
+        torch.ones(8), "oversized_lease", offload_dir=tmp_path
+    )
+    with TensorResidencyPool(max_resident_bytes=16) as pool:
+        with pool.acquire(source) as value:
+            assert torch.equal(value, torch.ones(8))
+            assert pool.is_resident(source)
+        assert pool.resident_bytes == 0
+        assert not pool.is_resident(source)
+
+
+@skipif_limited_offload_support
+def test_close_rejects_new_work_once_shutdown_starts(monkeypatch, tmp_path):
+    source = OffloadedTensor.from_original_tensor(
+        torch.ones(4), "closing", offload_dir=tmp_path
+    )
+    pool = TensorResidencyPool()
+    flush_started = threading.Event()
+    allow_flush = threading.Event()
+    original_flush = pool.flush
+
+    def controlled_flush(*args, **kwargs):
+        flush_started.set()
+        assert allow_flush.wait(timeout=5)
+        return original_flush(*args, **kwargs)
+
+    monkeypatch.setattr(pool, "flush", controlled_flush)
+    close_thread = threading.Thread(target=pool.close)
+    close_thread.start()
+    assert flush_started.wait(timeout=5)
+    with pytest.raises(T2NErrorMisuse, match="closing"):
+        pool.prefetch(source)
+    with (
+        pytest.raises(T2NErrorMisuse, match="closing"),
+        pool.acquire(source),
+    ):
+        pass
+    allow_flush.set()
+    close_thread.join(timeout=5)
+    assert not close_thread.is_alive()
+
+
+@skipif_limited_offload_support
 def test_scope_transparently_reuses_offloaded_value(monkeypatch, tmp_path):
     source = OffloadedTensor.from_original_tensor(
         torch.arange(4), "transparent", offload_dir=tmp_path

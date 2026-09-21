@@ -738,7 +738,9 @@ class OffloadedTensor(OpaqueTensor):
         worker-selected device without mutating shared tensor state.
         """
         # Import locally to keep the offload/residency modules acyclic.
-        from torch_to_nnef.tensor.residency import active_tensor_residency
+        from torch_to_nnef.tensor.residency import (  # pylint: disable=import-outside-toplevel
+            active_tensor_residency,
+        )
 
         active_residency = active_tensor_residency()
         if active_residency is not None:

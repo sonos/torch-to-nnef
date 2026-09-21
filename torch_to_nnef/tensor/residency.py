@@ -48,22 +48,30 @@ class TensorPrefetch:
         source: OffloadedTensor,
         device: torch.device,
         future: T.Optional[concurrent.futures.Future],
+        value: T.Optional[torch.Tensor] = None,
     ):
         self._pool = pool
         self._source = source
         self._device = device
         self._future = future
+        self._value = value
 
     def wait(self) -> torch.Tensor:
         """Wait for prefetch completion and return the resident value."""
+        if self._value is not None:
+            self._pool._enforce_budget()
+            return self._value
         if self._future is None:
-            return self._pool.resolve(self._source, device=self._device)
+            return self._pool._wait(id(self._source))
         value = self._future.result()
         self._pool._complete_prefetch(id(self._source), self._future)
+        self._pool._enforce_budget()
         return value
 
     def done(self) -> bool:
         """Return whether the prefetch has finished."""
+        if self._value is not None:
+            return True
         if self._future is not None:
             return self._future.done()
         return self._pool._done(id(self._source))
@@ -126,6 +134,7 @@ class TensorResidencyPool:
         self._lock = threading.RLock()
         self._access_order = 0
         self._closed = False
+        self._closing = False
 
     @property
     def resident_bytes(self) -> int:
@@ -149,6 +158,16 @@ class TensorResidencyPool:
         target_device = torch.device(
             source.target_device if device is None else device
         )
+        return self._prefetch(source, target_device, lease=False)
+
+    def _prefetch(
+        self,
+        source: OffloadedTensor,
+        target_device: torch.device,
+        *,
+        lease: bool,
+    ) -> TensorPrefetch:
+        """Start or reuse a load, optionally reserving it for a lease."""
         key = id(source)
         with self._lock:
             self._ensure_open()
@@ -158,22 +177,35 @@ class TensorResidencyPool:
                     raise T2NErrorMisuse(
                         "a tensor cannot be resident on two devices"
                     )
+                if lease:
+                    entry.leases += 1
                 self._touch(entry)
-                return TensorPrefetch(self, source, target_device, entry.future)
-            entry = _ResidentEntry(source=source, device=target_device)
+                return TensorPrefetch(
+                    self,
+                    source,
+                    target_device,
+                    entry.future,
+                    entry.value,
+                )
+            entry = _ResidentEntry(
+                source=source,
+                device=target_device,
+                leases=int(lease),
+            )
             self._touch(entry)
             self._entries[key] = entry
-            entry.future = self._executor.submit(
+            future = self._executor.submit(
                 source._reload_unmanaged, device=target_device
             )
+            entry.future = future
 
             def complete_prefetch(
                 future: concurrent.futures.Future,
             ) -> None:
                 self._complete_prefetch(key, future)
 
-            entry.future.add_done_callback(complete_prefetch)
-        return TensorPrefetch(self, source, target_device, entry.future)
+            future.add_done_callback(complete_prefetch)
+        return TensorPrefetch(self, source, target_device, future)
 
     def acquire(
         self,
@@ -204,8 +236,7 @@ class TensorResidencyPool:
         inside :meth:`scope`. Use :meth:`acquire` for explicit pinning or
         mutation tracking.
         """
-        self.prefetch(source, device=device)
-        return self._wait(id(source))
+        return self.prefetch(source, device=device).wait()
 
     @contextlib.contextmanager
     def scope(self, device: T.Optional[TDEVICE] = None):
@@ -249,21 +280,22 @@ class TensorResidencyPool:
         with self._lock:
             if self._closed:
                 return
+            if self._closing:
+                raise T2NErrorMisuse("tensor residency pool is closing")
             active = [entry for entry in self._entries.values() if entry.leases]
             if active:
                 raise T2NErrorMisuse("cannot close a pool with active leases")
-        error: T.Optional[BaseException] = None
+            # Prevent a new prefetch or lease from entering after the active
+            # lease check and before the entries are flushed and cleared.
+            self._closing = True
         try:
             self.flush()
-        except BaseException as exc:  # preserve cleanup on failed prefetch
-            error = exc
         finally:
             with self._lock:
                 self._entries.clear()
                 self._closed = True
+                self._closing = False
             self._executor.shutdown(wait=True, cancel_futures=True)
-        if error is not None:
-            raise error
 
     def __enter__(self) -> "TensorResidencyPool":
         self._ensure_open()
@@ -272,7 +304,7 @@ class TensorResidencyPool:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         try:
             self.close()
-        except BaseException:
+        except Exception:  # pylint: disable=broad-exception-caught
             if exc_value is None:
                 raise
             LOGGER.exception("failed to close tensor residency pool")
@@ -293,7 +325,14 @@ class TensorResidencyPool:
             entry.future = None
             entry.nbytes = self._value_nbytes(value)
             self._touch(entry)
-            self._evict_to_budget(exclude={key})
+            if (
+                self.max_resident_bytes is not None
+                and entry.nbytes > self.max_resident_bytes
+                and not entry.leases
+            ):
+                del self._entries[key]
+            else:
+                self._evict_to_budget(exclude={key})
 
     def _wait(self, key: int) -> torch.Tensor:
         with self._lock:
@@ -316,7 +355,15 @@ class TensorResidencyPool:
                     self._touch(entry)
                     self._evict_to_budget(exclude={key})
                 value = entry.value
+        # The returned local reference keeps the value alive even when the
+        # pool must immediately evict an oversized, unleased entry.
+        self._enforce_budget()
         return value
+
+    def _enforce_budget(self) -> None:
+        """Evict unleased entries after a caller has captured its value."""
+        with self._lock:
+            self._evict_to_budget()
 
     def _done(self, key: int) -> bool:
         with self._lock:
@@ -330,20 +377,10 @@ class TensorResidencyPool:
     def _enter_lease(
         self, source: OffloadedTensor, device: torch.device
     ) -> T.Tuple[int, torch.Tensor]:
-        handle = self.prefetch(source, device=device)
+        handle = self._prefetch(source, device, lease=True)
         key = id(handle._source)
-        with self._lock:
-            entry = self._entries.get(key)
-            if entry is None:
-                # A concurrent completion may have evicted an unleased value
-                # between prefetch() and lease entry. Retry it while holding
-                # the re-entrant lock, then pin it before releasing the lock.
-                handle = self.prefetch(source, device=device)
-                entry = self._entries[key]
-            entry.leases += 1
-            self._touch(entry)
         try:
-            value = self._wait(key)
+            value = handle.wait()
         except BaseException:
             with self._lock:
                 entry = self._entries.get(key)
@@ -396,5 +433,8 @@ class TensorResidencyPool:
         entry.access_order = self._access_order
 
     def _ensure_open(self) -> None:
-        if self._closed:
-            raise T2NErrorMisuse("tensor residency pool is closed")
+        with self._lock:
+            if self._closed:
+                raise T2NErrorMisuse("tensor residency pool is closed")
+            if self._closing:
+                raise T2NErrorMisuse("tensor residency pool is closing")
