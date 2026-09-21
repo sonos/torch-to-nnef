@@ -31,6 +31,7 @@ import os
 import re
 import tempfile
 import typing as T
+import uuid
 import warnings
 from collections import Counter
 from contextlib import contextmanager
@@ -497,6 +498,7 @@ class OffloadedTensor(OpaqueTensor):
         name: str,
         offloaded_tensor_type: T.Type[torch.Tensor],
         force_gc_collect: bool = False,
+        storage_id: T.Optional[str] = None,
     ):
         super().__init__()
         self.elem = elem
@@ -505,6 +507,7 @@ class OffloadedTensor(OpaqueTensor):
         self.offload_dir = offload_dir
         self.offloaded_tensor_type = offloaded_tensor_type
         self.force_gc_collect = force_gc_collect
+        self._storage_id = storage_id
 
     @property
     def is_meta(self) -> bool:
@@ -540,11 +543,22 @@ class OffloadedTensor(OpaqueTensor):
 
     @property
     def offload_path(self):
-        return self._offload_path(self.offload_dir, self._name, self.elem.dtype)
+        return self._offload_path(
+            self.offload_dir,
+            self._name,
+            self.elem.dtype,
+            storage_id=self._storage_id,
+        )
 
     @staticmethod
-    def _offload_path(offload_dir: Path, name: str, dtype: torch.dtype) -> Path:
-        return offload_dir / f"{name}_{dtype}.pt"
+    def _offload_path(
+        offload_dir: Path,
+        name: str,
+        dtype: torch.dtype,
+        storage_id: T.Optional[str] = None,
+    ) -> Path:
+        suffix = f"_{storage_id}" if storage_id is not None else ""
+        return offload_dir / f"{name}_{dtype}{suffix}.pt"
 
     @classmethod
     def from_original_tensor(
@@ -574,13 +588,19 @@ class OffloadedTensor(OpaqueTensor):
                     tempfile.mkdtemp(prefix="t2n_offload_disk")
                 )
             offload_dir = cls.tmp_basedir
-        cls._save(tensor, offload_dir, name)
+        # A logical tensor name is not a storage identity: independent model or
+        # calibration runs routinely reuse names in the same temporary
+        # directory.  Keep their payload paths distinct so destruction of an
+        # older object cannot unlink (or overwrite) a newer object's data.
+        storage_id = uuid.uuid4().hex
+        cls._save(tensor, offload_dir, name, storage_id=storage_id)
         off_tensor = cls(
             torch.zeros(tensor.shape, dtype=tensor.dtype, device="meta"),
             tensor.device,
             offload_dir=offload_dir,
             name=name,
             offloaded_tensor_type=type(tensor),
+            storage_id=storage_id,
         )
         LOGGER.info(
             "Offloaded param (kept on-disk): '%s' %s", name, suffix_log_msg
@@ -609,6 +629,7 @@ class OffloadedTensor(OpaqueTensor):
                     tensor,
                     self.offload_dir,
                     self._name,
+                    storage_id=self._storage_id,
                 )
                 self.offload_path.unlink()
                 self.elem = self.elem.to(dtype)
@@ -700,7 +721,10 @@ class OffloadedTensor(OpaqueTensor):
                 values.dtype,
             )
             assert self._offload_path(
-                self.offload_dir, self._name, values.dtype
+                self.offload_dir,
+                self._name,
+                values.dtype,
+                storage_id=self._storage_id,
             ).exists()
         # update elem accordingly to new shape/dtype
         if (not strict_dtype and self.elem.dtype != values.dtype) or (
@@ -712,13 +736,18 @@ class OffloadedTensor(OpaqueTensor):
             )
 
         self.offloaded_tensor_type = type(values)
-        OffloadedTensor._save(values, self.offload_dir, self._name)
+        OffloadedTensor._save(
+            values,
+            self.offload_dir,
+            self._name,
+            storage_id=self._storage_id,
+        )
         if old_offload_path != self.offload_path and old_offload_path.exists():
             old_offload_path.unlink()
         LOGGER.debug("updated values: '%s'", self._name)
 
     @classmethod
-    def _save(cls, tensor, offload_dir, name):
+    def _save(cls, tensor, offload_dir, name, storage_id=None):
         dtype = tensor.dtype
         # Compact state is only reloadable through the OpaqueTensor branch of
         # reload(); gate the save on the same condition so a non-opaque
@@ -728,7 +757,15 @@ class OffloadedTensor(OpaqueTensor):
             tensor, SupportsOffloadState
         ):
             tensor = tensor.to_offload_state()
-        return torch.save(tensor, cls._offload_path(offload_dir, name, dtype))
+        return torch.save(
+            tensor,
+            cls._offload_path(
+                offload_dir,
+                name,
+                dtype,
+                storage_id=storage_id,
+            ),
+        )
 
     def reload(self, device: T.Optional[TDEVICE] = None):
         """Reload the stored value on ``device``.
