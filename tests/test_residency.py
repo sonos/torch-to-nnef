@@ -113,7 +113,7 @@ def test_oversized_prefetch_delivers_value_without_caching_it(
 
 
 @skipif_limited_offload_support
-def test_oversized_lease_is_pinned_only_for_lease_lifetime(caplog, tmp_path):
+def test_oversized_lease_is_retained_only_for_lease_lifetime(caplog, tmp_path):
     source = OffloadedTensor.from_original_tensor(
         torch.ones(8), "oversized_lease", offload_dir=tmp_path
     )
@@ -224,6 +224,102 @@ def test_budget_evicts_least_recently_used_value(tmp_path):
             assert pool.is_resident(second)
 
 
+@skipif_limited_offload_support
+def test_pin_avoids_lru_musical_chairs_across_forward_passes(
+    monkeypatch, tmp_path
+):
+    sources = [
+        OffloadedTensor.from_original_tensor(
+            torch.full((4,), value, dtype=torch.float32),
+            f"fixed_{value}",
+            offload_dir=tmp_path,
+        )
+        for value in range(3)
+    ]
+    reload_counts = [0, 0, 0]
+    for index, source in enumerate(sources):
+        original_reload = source._reload_unmanaged
+
+        def counted_reload(
+            *args, _index=index, _reload=original_reload, **kwargs
+        ):
+            reload_counts[_index] += 1
+            return _reload(*args, **kwargs)
+
+        monkeypatch.setattr(source, "_reload_unmanaged", counted_reload)
+
+    with TensorResidencyPool(max_cached_bytes=16) as pool:
+        pool.pin(sources[0]).wait()
+        for _ in range(2):
+            for source in sources:
+                pool.resolve(source)
+        assert pool.is_pinned(sources[0])
+        assert pool.is_resident(sources[0])
+        assert reload_counts == [1, 2, 2]
+
+
+@skipif_limited_offload_support
+def test_unpin_returns_value_to_lru_management(tmp_path):
+    first = OffloadedTensor.from_original_tensor(
+        torch.ones(4), "pinned_first", offload_dir=tmp_path
+    )
+    second = OffloadedTensor.from_original_tensor(
+        torch.ones(4), "after_unpin", offload_dir=tmp_path
+    )
+    with TensorResidencyPool(max_cached_bytes=16) as pool:
+        pool.pin(first).wait()
+        pool.pin(first).wait()
+        pool.unpin(first)
+        assert not pool.is_pinned(first)
+        pool.resolve(second)
+        assert not pool.is_resident(first)
+        assert pool.is_resident(second)
+
+
+@skipif_limited_offload_support
+def test_oversized_pin_is_retained_until_unpinned(caplog, tmp_path):
+    source = OffloadedTensor.from_original_tensor(
+        torch.ones(8), "oversized_pin", offload_dir=tmp_path
+    )
+    with (
+        caplog.at_level("DEBUG", logger="torch_to_nnef.tensor.residency"),
+        TensorResidencyPool(max_cached_bytes=16) as pool,
+    ):
+        pool.pin(source).wait()
+        assert pool.is_pinned(source)
+        assert pool.is_resident(source)
+        assert pool.resident_bytes == 32
+        pool.unpin(source)
+        assert not pool.is_resident(source)
+    assert "keeping it resident while pinned" in caplog.text
+
+
+@skipif_limited_offload_support
+def test_unpin_during_load_applies_budget_after_completion(
+    monkeypatch, tmp_path
+):
+    source = OffloadedTensor.from_original_tensor(
+        torch.ones(4), "unpin_during_load", offload_dir=tmp_path
+    )
+    original_reload = source._reload_unmanaged
+    load_started = threading.Event()
+    allow_load = threading.Event()
+
+    def controlled_reload(*args, **kwargs):
+        load_started.set()
+        assert allow_load.wait(timeout=5)
+        return original_reload(*args, **kwargs)
+
+    monkeypatch.setattr(source, "_reload_unmanaged", controlled_reload)
+    with TensorResidencyPool(max_cached_bytes=0) as pool:
+        handle = pool.pin(source)
+        assert load_started.wait(timeout=5)
+        pool.unpin(source)
+        allow_load.set()
+        assert torch.equal(handle.wait(), torch.ones(4))
+        assert not pool.is_resident(source)
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
@@ -244,6 +340,9 @@ def test_invalid_pool_configuration(kwargs, message):
         lambda pool, tensor: pool.resolve(tensor),
         lambda pool, tensor: pool.flush(tensor),
         lambda pool, tensor: pool.evict(tensor),
+        lambda pool, tensor: pool.pin(tensor),
+        lambda pool, tensor: pool.unpin(tensor),
+        lambda pool, tensor: pool.is_pinned(tensor),
     ],
 )
 def test_pool_rejects_regular_tensors_with_clear_error(operation):

@@ -34,6 +34,7 @@ class _ResidentEntry:
     value: T.Optional[torch.Tensor] = None
     future: T.Optional[concurrent.futures.Future] = None
     leases: int = 0
+    pinned: bool = False
     dirty: bool = False
     access_order: int = 0
     nbytes: int = 0
@@ -112,15 +113,17 @@ class TensorResidencyPool:
 
     Values can be prefetched by background workers and acquired through a
     lease. A lease is a scoped claim that a materialized value is in active
-    use, so its value remains resident until the lease ends. Unleased values
+    use, so its value remains resident until the lease ends. Pinned values
+    remain resident until explicitly unpinned or the pool closes. Other values
     are evicted in least-recently-used order when the optional cache budget is
     exceeded. A ``read_write`` lease writes the value back before eviction.
 
     ``max_cached_bytes`` is a soft cache-retention limit, not a hard bound on
-    process memory. Leased values remain available even when they exceed it.
-    An oversized value can therefore be materialized for an active caller but
-    is evicted as soon as its final lease ends. Prefetched oversized values are
-    returned to their waiting caller without being retained by the pool.
+    process memory. Leased and pinned values remain available even when they
+    exceed it. An oversized value can therefore be materialized for an active
+    caller but is evicted as soon as its final lease ends. Prefetched oversized
+    values are returned to their waiting caller without being retained by the
+    pool unless they are pinned.
     """
 
     def __init__(
@@ -156,6 +159,14 @@ class TensorResidencyPool:
             entry = self._entries.get(key)
             return entry is not None and entry.value is not None
 
+    def is_pinned(self, source: OffloadedTensor) -> bool:
+        """Return whether ``source`` is excluded from LRU eviction."""
+        self._validate_source(source)
+        key = id(source)
+        with self._lock:
+            entry = self._entries.get(key)
+            return entry is not None and entry.pinned
+
     def prefetch(
         self,
         source: OffloadedTensor,
@@ -166,7 +177,37 @@ class TensorResidencyPool:
         target_device = torch.device(
             source.target_device if device is None else device
         )
-        return self._prefetch(source, target_device, lease=False)
+        return self._prefetch(source, target_device, lease=False, pin=False)
+
+    def pin(
+        self,
+        source: OffloadedTensor,
+        device: T.Optional[TDEVICE] = None,
+    ) -> TensorPrefetch:
+        """Load ``source`` and exclude it from LRU eviction until unpinned.
+
+        Pinning is idempotent and the returned handle can be used to wait for
+        materialization. A pin is cache policy rather than an active-use lease,
+        so closing the pool releases pinned values automatically.
+        """
+        self._validate_source(source)
+        target_device = torch.device(
+            source.target_device if device is None else device
+        )
+        return self._prefetch(source, target_device, lease=False, pin=True)
+
+    def unpin(self, source: OffloadedTensor) -> None:
+        """Return a pinned value to normal LRU cache management."""
+        self._validate_source(source)
+        key = id(source)
+        with self._lock:
+            self._ensure_open()
+            entry = self._entries.get(key)
+            if entry is None or not entry.pinned:
+                raise T2NErrorMisuse("tensor is not pinned in this pool")
+            entry.pinned = False
+            self._touch(entry)
+            self._evict_to_budget()
 
     def _prefetch(
         self,
@@ -174,8 +215,9 @@ class TensorResidencyPool:
         target_device: torch.device,
         *,
         lease: bool,
+        pin: bool,
     ) -> TensorPrefetch:
-        """Start or reuse a load, optionally reserving it for a lease."""
+        """Start or reuse a load, optionally leasing or pinning it."""
         key = id(source)
         with self._lock:
             self._ensure_open()
@@ -187,6 +229,8 @@ class TensorResidencyPool:
                     )
                 if lease:
                     entry.leases += 1
+                if pin:
+                    entry.pinned = True
                 self._touch(entry)
                 return TensorPrefetch(
                     self,
@@ -199,6 +243,7 @@ class TensorResidencyPool:
                 source=source,
                 device=target_device,
                 leases=int(lease),
+                pinned=pin,
             )
             self._touch(entry)
             self._entries[key] = entry
@@ -242,8 +287,8 @@ class TensorResidencyPool:
         """Return a resident value, loading it when necessary.
 
         This is the read-only path used automatically by ``OffloadedTensor``
-        inside :meth:`scope`. Use :meth:`acquire` for explicit pinning or
-        mutation tracking.
+        inside :meth:`scope`. Use :meth:`acquire` for active-use protection or
+        mutation tracking, and :meth:`pin` for fixed cache retention.
         """
         return self.prefetch(source, device=device).wait()
 
@@ -274,7 +319,7 @@ class TensorResidencyPool:
                     self._write_back(entry)
 
     def evict(self, source: OffloadedTensor) -> None:
-        """Write back and remove an unleased value from the pool."""
+        """Write back and remove an unleased, unpinned value from the pool."""
         self._validate_source(source)
         key = id(source)
         self._wait(key)
@@ -282,8 +327,10 @@ class TensorResidencyPool:
             entry = self._entries.get(key)
             if entry is None:
                 return
-            if entry.leases:
-                raise T2NErrorMisuse("cannot evict a tensor with active leases")
+            if entry.leases or entry.pinned:
+                raise T2NErrorMisuse(
+                    "cannot evict a tensor with active leases or pins"
+                )
             self._write_back(entry)
             del self._entries[key]
 
@@ -297,8 +344,8 @@ class TensorResidencyPool:
             active = [entry for entry in self._entries.values() if entry.leases]
             if active:
                 raise T2NErrorMisuse("cannot close a pool with active leases")
-            # Prevent a new prefetch or lease from entering after the active
-            # lease check and before the entries are flushed and cleared.
+            # Prevent new work from entering after the active lease check and
+            # before the entries are flushed and cleared.
             self._closing = True
         try:
             self.flush()
@@ -342,6 +389,7 @@ class TensorResidencyPool:
                 self.max_cached_bytes is not None
                 and entry.nbytes > self.max_cached_bytes
                 and not entry.leases
+                and not entry.pinned
             ):
                 del self._entries[key]
             else:
@@ -370,12 +418,12 @@ class TensorResidencyPool:
                     self._evict_to_budget(exclude={key})
                 value = entry.value
         # The returned local reference keeps the value alive even when the
-        # pool must immediately evict an oversized, unleased entry.
+        # pool must immediately evict an oversized, unprotected entry.
         self._enforce_budget()
         return value
 
     def _enforce_budget(self) -> None:
-        """Evict unleased entries after a caller has captured its value."""
+        """Evict unleased, unpinned entries after capturing their values."""
         with self._lock:
             self._evict_to_budget()
 
@@ -391,7 +439,7 @@ class TensorResidencyPool:
     def _enter_lease(
         self, source: OffloadedTensor, device: torch.device
     ) -> T.Tuple[int, torch.Tensor]:
-        handle = self._prefetch(source, device, lease=True)
+        handle = self._prefetch(source, device, lease=True, pin=False)
         key = id(handle._source)
         try:
             value = handle.wait()
@@ -424,6 +472,7 @@ class TensorResidencyPool:
                 if key not in excluded
                 and entry.value is not None
                 and not entry.leases
+                and not entry.pinned
             ]
             if not candidates:
                 return
@@ -441,7 +490,9 @@ class TensorResidencyPool:
             or entry.nbytes <= self.max_cached_bytes
         ):
             return
-        if entry.leases:
+        if entry.pinned:
+            disposition = "keeping it resident while pinned"
+        elif entry.leases:
             disposition = "keeping it until its final lease ends"
         else:
             disposition = "delivering it without cache retention"
