@@ -1,3 +1,4 @@
+import gc
 import tempfile
 from copy import deepcopy
 from pathlib import Path
@@ -24,6 +25,28 @@ from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
+
+
+@skipif_limited_offload_support
+def test_same_named_offloads_have_independent_lifetimes(tmp_path):
+    first = OffloadedTensor.from_original_tensor(
+        torch.ones(2), "shared", offload_dir=tmp_path
+    )
+    first_path = first.offload_path
+    second = OffloadedTensor.from_original_tensor(
+        torch.full((2,), 2.0), "shared", offload_dir=tmp_path
+    )
+
+    assert first.offload_path != second.offload_path
+    assert first_path.exists()
+    assert second.offload_path.exists()
+
+    del first
+    gc.collect()
+
+    assert not first_path.exists()
+    assert second.offload_path.exists()
+    torch.testing.assert_close(second.reload(), torch.full((2,), 2.0))
 
 
 @skipif_limited_offload_support
