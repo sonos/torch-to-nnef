@@ -224,3 +224,25 @@ def test_budget_evicts_least_recently_used_value(tmp_path):
 def test_invalid_pool_configuration(kwargs, message):
     with pytest.raises(T2NErrorMisuse, match=message):
         TensorResidencyPool(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        lambda pool, tensor: pool.acquire(tensor),
+        lambda pool, tensor: pool.prefetch(tensor),
+        lambda pool, tensor: pool.resolve(tensor),
+        lambda pool, tensor: pool.flush(tensor),
+        lambda pool, tensor: pool.evict(tensor),
+    ],
+)
+def test_pool_rejects_regular_tensors_with_clear_error(operation):
+    tensor = torch.ones(4)
+    with (
+        TensorResidencyPool() as pool,
+        pytest.raises(
+            T2NErrorMisuse,
+            match="only manages OffloadedTensor values; got Tensor",
+        ),
+    ):
+        operation(pool, tensor)

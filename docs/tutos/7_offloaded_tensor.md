@@ -124,4 +124,7 @@ framework allocations can exceed `max_cached_bytes`; callers that require a
 hard allocation limit must validate their working-set sizes separately.
 
 Scheduling decisions, such as which model block to prefetch next, remain with
-the caller.
+the caller. The pool only manages `OffloadedTensor` values. Passing a regular
+`torch.Tensor` to `acquire`, `prefetch`, `resolve`, `flush`, or `evict` raises
+`T2NErrorMisuse` immediately; ordinary tensors are already materialized and do
+not need the residency layer.

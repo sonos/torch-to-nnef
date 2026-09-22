@@ -162,6 +162,7 @@ class TensorResidencyPool:
         device: T.Optional[TDEVICE] = None,
     ) -> TensorPrefetch:
         """Begin loading ``source`` and return a completion handle."""
+        self._validate_source(source)
         target_device = torch.device(
             source.target_device if device is None else device
         )
@@ -225,6 +226,7 @@ class TensorResidencyPool:
         Use ``mode="read_write"`` when the returned value may be modified.
         The pool writes dirty values back before eviction or flushing.
         """
+        self._validate_source(source)
         if mode not in ("read", "read_write"):
             raise T2NErrorMisuse("mode must be 'read' or 'read_write'")
         target_device = torch.device(
@@ -258,6 +260,8 @@ class TensorResidencyPool:
 
     def flush(self, source: T.Optional[OffloadedTensor] = None) -> None:
         """Wait for loads and write dirty resident values back to storage."""
+        if source is not None:
+            self._validate_source(source)
         with self._lock:
             keys = list(self._entries)
             if source is not None:
@@ -271,6 +275,7 @@ class TensorResidencyPool:
 
     def evict(self, source: OffloadedTensor) -> None:
         """Write back and remove an unleased value from the pool."""
+        self._validate_source(source)
         key = id(source)
         self._wait(key)
         with self._lock:
@@ -445,3 +450,11 @@ class TensorResidencyPool:
                 raise T2NErrorMisuse("tensor residency pool is closed")
             if self._closing:
                 raise T2NErrorMisuse("tensor residency pool is closing")
+
+    @staticmethod
+    def _validate_source(source: object) -> None:
+        if not isinstance(source, OffloadedTensor):
+            raise T2NErrorMisuse(
+                "TensorResidencyPool only manages OffloadedTensor values; "
+                f"got {type(source).__name__}"
+            )
