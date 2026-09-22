@@ -337,6 +337,7 @@ class TensorResidencyPool:
             entry.future = None
             entry.nbytes = self._value_nbytes(value)
             self._touch(entry)
+            self._log_oversized_entry(entry)
             if (
                 self.max_cached_bytes is not None
                 and entry.nbytes > self.max_cached_bytes
@@ -365,6 +366,7 @@ class TensorResidencyPool:
                     entry.nbytes = self._value_nbytes(value)
                     entry.future = None
                     self._touch(entry)
+                    self._log_oversized_entry(entry)
                     self._evict_to_budget(exclude={key})
                 value = entry.value
         # The returned local reference keeps the value alive even when the
@@ -432,6 +434,25 @@ class TensorResidencyPool:
     @staticmethod
     def _value_nbytes(value: torch.Tensor) -> int:
         return value.numel() * value.element_size()
+
+    def _log_oversized_entry(self, entry: _ResidentEntry) -> None:
+        if (
+            self.max_cached_bytes is None
+            or entry.nbytes <= self.max_cached_bytes
+        ):
+            return
+        if entry.leases:
+            disposition = "keeping it until its final lease ends"
+        else:
+            disposition = "delivering it without cache retention"
+        LOGGER.debug(
+            "Offloaded tensor '%s' materialized to %d bytes, exceeding "
+            "max_cached_bytes=%d; %s",
+            entry.source._name,
+            entry.nbytes,
+            self.max_cached_bytes,
+            disposition,
+        )
 
     @staticmethod
     def _write_back(entry: _ResidentEntry) -> None:

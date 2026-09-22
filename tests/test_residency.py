@@ -83,11 +83,16 @@ def test_completed_prefetches_obey_budget(tmp_path):
 
 
 @skipif_limited_offload_support
-def test_oversized_prefetch_is_not_retained(monkeypatch, tmp_path):
+def test_oversized_prefetch_delivers_value_without_caching_it(
+    caplog, monkeypatch, tmp_path
+):
     source = OffloadedTensor.from_original_tensor(
         torch.ones(8), "oversized", offload_dir=tmp_path
     )
-    with TensorResidencyPool(max_cached_bytes=16) as pool:
+    with (
+        caplog.at_level("DEBUG", logger="torch_to_nnef.tensor.residency"),
+        TensorResidencyPool(max_cached_bytes=16) as pool,
+    ):
         completion_observed = threading.Event()
         original_complete = pool._complete_prefetch
 
@@ -104,19 +109,24 @@ def test_oversized_prefetch_is_not_retained(monkeypatch, tmp_path):
         assert torch.equal(value, torch.ones(8))
         assert pool.resident_bytes == 0
         assert not pool.is_resident(source)
+    assert "delivering it without cache retention" in caplog.text
 
 
 @skipif_limited_offload_support
-def test_oversized_lease_is_pinned_only_for_lease_lifetime(tmp_path):
+def test_oversized_lease_is_pinned_only_for_lease_lifetime(caplog, tmp_path):
     source = OffloadedTensor.from_original_tensor(
         torch.ones(8), "oversized_lease", offload_dir=tmp_path
     )
-    with TensorResidencyPool(max_cached_bytes=16) as pool:
+    with (
+        caplog.at_level("DEBUG", logger="torch_to_nnef.tensor.residency"),
+        TensorResidencyPool(max_cached_bytes=16) as pool,
+    ):
         with pool.acquire(source) as value:
             assert torch.equal(value, torch.ones(8))
             assert pool.is_resident(source)
         assert pool.resident_bytes == 0
         assert not pool.is_resident(source)
+    assert "keeping it until its final lease ends" in caplog.text
 
 
 @skipif_limited_offload_support

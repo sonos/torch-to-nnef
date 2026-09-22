@@ -101,6 +101,16 @@ with TensorResidencyPool(max_cached_bytes=2 * 1024**3) as pool:
 This allows a model or module hook to schedule the next tensor without changing
 the operations that consume the current one.
 
+The first access to an `OffloadedTensor` through a pool that does not yet
+contain it is a cache miss: the pool materializes it from disk on the selected
+device. If the value fits within `max_cached_bytes`, that first materialization
+becomes the cached value, and later accesses through the same pool reuse it
+without another disk load. It remains cached until explicit eviction,
+least-recently-used eviction to make room for another value, or pool closure.
+`prefetch` starts this first load early but otherwise follows the same retention
+rules. This caching is specific to access routed through the pool; other access
+to an `OffloadedTensor` keeps its normal transient materialization behavior.
+
 A lease is a scoped claim that a materialized tensor is currently in use. It
 lasts for the duration of the `with pool.acquire(...)` block. While any lease
 is active, the pool keeps that value resident and does not evict it. Multiple
@@ -122,6 +132,9 @@ caching it. A prefetched oversized value is similarly delivered to its waiting
 caller without being retained. Consequently, active values and temporary
 framework allocations can exceed `max_cached_bytes`; callers that require a
 hard allocation limit must validate their working-set sizes separately.
+The `torch_to_nnef.tensor.residency` logger emits these decisions at `DEBUG`
+level, including whether the value is being delivered without cache retention
+or kept until its final lease ends.
 
 Scheduling decisions, such as which model block to prefetch next, remain with
 the caller. The pool only manages `OffloadedTensor` values. Passing a regular
