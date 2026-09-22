@@ -91,7 +91,7 @@ loading a later value on a background worker.
 ```python
 from torch_to_nnef.tensor import TensorResidencyPool
 
-with TensorResidencyPool(max_resident_bytes=2 * 1024**3) as pool:
+with TensorResidencyPool(max_cached_bytes=2 * 1024**3) as pool:
     with pool.scope(device="cuda"):
         pool.prefetch(next_weight, device="cuda")
         output = input @ current_weight
@@ -99,16 +99,29 @@ with TensorResidencyPool(max_resident_bytes=2 * 1024**3) as pool:
 ```
 
 This allows a model or module hook to schedule the next tensor without changing
-the operations that consume the current one. Use an explicit `read_write`
-lease when an operation changes the resident tensor. The pool writes dirty
-values back before eviction, during `flush`, or when the pool closes.
+the operations that consume the current one.
+
+A lease is a scoped claim that a materialized tensor is currently in use. It
+lasts for the duration of the `with pool.acquire(...)` block. While any lease
+is active, the pool keeps that value resident and does not evict it. Multiple
+callers may lease the same resident value. Use a `read_write` lease when an
+operation changes the value; the pool writes dirty values back before
+eviction, during `flush`, or when the pool closes.
 
 ```python
 with pool.acquire(statistic, mode="read_write") as value:
     value.add_(update)
 ```
 
-The optional byte budget uses least-recently-used eviction. Active leases are
-never evicted, so an individual leased value may temporarily exceed the
-budget. Scheduling decisions, such as which model block to prefetch next,
-remain with the caller.
+`max_cached_bytes` is a soft limit on payloads retained for reuse, not a hard
+limit on process or device memory. The pool enforces it by evicting unleased
+values in least-recently-used order. If an active caller leases a value larger
+than the cache budget, the pool still materializes it so the operation can
+proceed, keeps it resident until the lease ends, and then evicts it instead of
+caching it. A prefetched oversized value is similarly delivered to its waiting
+caller without being retained. Consequently, active values and temporary
+framework allocations can exceed `max_cached_bytes`; callers that require a
+hard allocation limit must validate their working-set sizes separately.
+
+Scheduling decisions, such as which model block to prefetch next, remain with
+the caller.

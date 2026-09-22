@@ -111,21 +111,28 @@ class TensorResidencyPool:
     """Keep offloaded tensors resident across a bounded operation scope.
 
     Values can be prefetched by background workers and acquired through a
-    lease. An active lease pins its value in memory. Unleased values are
-    evicted in least-recently-used order when the optional byte budget is
+    lease. A lease is a scoped claim that a materialized value is in active
+    use, so its value remains resident until the lease ends. Unleased values
+    are evicted in least-recently-used order when the optional cache budget is
     exceeded. A ``read_write`` lease writes the value back before eviction.
+
+    ``max_cached_bytes`` is a soft cache-retention limit, not a hard bound on
+    process memory. Leased values remain available even when they exceed it.
+    An oversized value can therefore be materialized for an active caller but
+    is evicted as soon as its final lease ends. Prefetched oversized values are
+    returned to their waiting caller without being retained by the pool.
     """
 
     def __init__(
         self,
-        max_resident_bytes: T.Optional[int] = None,
+        max_cached_bytes: T.Optional[int] = None,
         max_workers: int = 1,
     ):
-        if max_resident_bytes is not None and max_resident_bytes < 0:
-            raise T2NErrorMisuse("max_resident_bytes must be non-negative")
+        if max_cached_bytes is not None and max_cached_bytes < 0:
+            raise T2NErrorMisuse("max_cached_bytes must be non-negative")
         if max_workers < 1:
             raise T2NErrorMisuse("max_workers must be at least one")
-        self.max_resident_bytes = max_resident_bytes
+        self.max_cached_bytes = max_cached_bytes
         self._executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=max_workers,
             thread_name_prefix="t2n-residency",
@@ -326,8 +333,8 @@ class TensorResidencyPool:
             entry.nbytes = self._value_nbytes(value)
             self._touch(entry)
             if (
-                self.max_resident_bytes is not None
-                and entry.nbytes > self.max_resident_bytes
+                self.max_cached_bytes is not None
+                and entry.nbytes > self.max_cached_bytes
                 and not entry.leases
             ):
                 del self._entries[key]
@@ -400,10 +407,10 @@ class TensorResidencyPool:
             self._evict_to_budget()
 
     def _evict_to_budget(self, exclude: T.Optional[T.Set[int]] = None) -> None:
-        if self.max_resident_bytes is None:
+        if self.max_cached_bytes is None:
             return
         excluded = set() if exclude is None else exclude
-        while self.resident_bytes > self.max_resident_bytes:
+        while self.resident_bytes > self.max_cached_bytes:
             candidates = [
                 (key, entry)
                 for key, entry in self._entries.items()

@@ -73,7 +73,7 @@ def test_completed_prefetches_obey_budget(tmp_path):
     second = OffloadedTensor.from_original_tensor(
         torch.ones(4), "prefetched_second", offload_dir=tmp_path
     )
-    with TensorResidencyPool(max_resident_bytes=16) as pool:
+    with TensorResidencyPool(max_cached_bytes=16) as pool:
         pool.prefetch(first).wait()
         assert pool.is_resident(first)
         pool.prefetch(second).wait()
@@ -87,7 +87,7 @@ def test_oversized_prefetch_is_not_retained(monkeypatch, tmp_path):
     source = OffloadedTensor.from_original_tensor(
         torch.ones(8), "oversized", offload_dir=tmp_path
     )
-    with TensorResidencyPool(max_resident_bytes=16) as pool:
+    with TensorResidencyPool(max_cached_bytes=16) as pool:
         completion_observed = threading.Event()
         original_complete = pool._complete_prefetch
 
@@ -111,7 +111,7 @@ def test_oversized_lease_is_pinned_only_for_lease_lifetime(tmp_path):
     source = OffloadedTensor.from_original_tensor(
         torch.ones(8), "oversized_lease", offload_dir=tmp_path
     )
-    with TensorResidencyPool(max_resident_bytes=16) as pool:
+    with TensorResidencyPool(max_cached_bytes=16) as pool:
         with pool.acquire(source) as value:
             assert torch.equal(value, torch.ones(8))
             assert pool.is_resident(source)
@@ -206,7 +206,7 @@ def test_budget_evicts_least_recently_used_value(tmp_path):
     second = OffloadedTensor.from_original_tensor(
         torch.ones(4), "second", offload_dir=tmp_path
     )
-    with TensorResidencyPool(max_resident_bytes=16) as pool:
+    with TensorResidencyPool(max_cached_bytes=16) as pool:
         with pool.acquire(first):
             pass
         with pool.acquire(second):
@@ -217,7 +217,7 @@ def test_budget_evicts_least_recently_used_value(tmp_path):
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
-        ({"max_resident_bytes": -1}, "non-negative"),
+        ({"max_cached_bytes": -1}, "non-negative"),
         ({"max_workers": 0}, "at least one"),
     ],
 )
