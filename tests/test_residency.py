@@ -5,7 +5,11 @@ import torch
 
 from tests.utils import skipif_limited_offload_support
 from torch_to_nnef.exceptions import T2NErrorMisuse
-from torch_to_nnef.tensor import OffloadedTensor, TensorResidencyPool
+from torch_to_nnef.tensor import (
+    OffloadedTensor,
+    ResidencyStrategy,
+    TensorResidencyPool,
+)
 
 
 @skipif_limited_offload_support
@@ -259,6 +263,92 @@ def test_pin_avoids_lru_musical_chairs_across_forward_passes(
 
 
 @skipif_limited_offload_support
+def test_fixed_strategy_preserves_first_fit_set_across_forward_passes(
+    caplog, monkeypatch, tmp_path
+):
+    sources = [
+        OffloadedTensor.from_original_tensor(
+            torch.full((4,), value, dtype=torch.float32),
+            f"automatic_fixed_{value}",
+            offload_dir=tmp_path,
+        )
+        for value in range(3)
+    ]
+    reload_counts = [0, 0, 0]
+    for index, source in enumerate(sources):
+        original_reload = source._reload_unmanaged
+
+        def counted_reload(
+            *args, _index=index, _reload=original_reload, **kwargs
+        ):
+            reload_counts[_index] += 1
+            return _reload(*args, **kwargs)
+
+        monkeypatch.setattr(source, "_reload_unmanaged", counted_reload)
+
+    with (
+        caplog.at_level("DEBUG", logger="torch_to_nnef.tensor.residency"),
+        TensorResidencyPool(
+            max_cached_bytes=32,
+            strategy=ResidencyStrategy.FIXED,
+        ) as pool,
+    ):
+        for _ in range(2):
+            for source in sources:
+                pool.resolve(source)
+        assert pool.is_resident(sources[0])
+        assert pool.is_resident(sources[1])
+        assert not pool.is_resident(sources[2])
+        assert reload_counts == [1, 1, 2]
+    assert "was not admitted by the fixed residency strategy" in caplog.text
+
+
+@skipif_limited_offload_support
+def test_fixed_resident_survives_concurrent_transient_lease(tmp_path):
+    fixed = OffloadedTensor.from_original_tensor(
+        torch.ones(4), "fixed_during_lease", offload_dir=tmp_path
+    )
+    transient = OffloadedTensor.from_original_tensor(
+        torch.ones(4), "transient_lease", offload_dir=tmp_path
+    )
+    with TensorResidencyPool(
+        max_cached_bytes=16,
+        strategy=ResidencyStrategy.FIXED,
+    ) as pool:
+        pool.resolve(fixed)
+        with pool.acquire(transient):
+            pool.resolve(fixed)
+            assert pool.is_resident(fixed)
+            assert pool.is_resident(transient)
+        assert pool.is_resident(fixed)
+        assert not pool.is_resident(transient)
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        lambda pool, tensor: pool.pin(tensor),
+        lambda pool, tensor: pool.unpin(tensor),
+        lambda pool, tensor: pool.is_pinned(tensor),
+    ],
+)
+@skipif_limited_offload_support
+def test_fixed_strategy_rejects_manual_pin_operations(operation, tmp_path):
+    source = OffloadedTensor.from_original_tensor(
+        torch.ones(4), "fixed_no_manual_pin", offload_dir=tmp_path
+    )
+    with (
+        TensorResidencyPool(strategy=ResidencyStrategy.FIXED) as pool,
+        pytest.raises(
+            T2NErrorMisuse,
+            match="manual pin operations are only available with "
+            "ResidencyStrategy.LRU",
+        ),
+    ):
+        operation(pool, source)
+
+
+@skipif_limited_offload_support
 def test_unpin_returns_value_to_lru_management(tmp_path):
     first = OffloadedTensor.from_original_tensor(
         torch.ones(4), "pinned_first", offload_dir=tmp_path
@@ -325,6 +415,7 @@ def test_unpin_during_load_applies_budget_after_completion(
     [
         ({"max_cached_bytes": -1}, "non-negative"),
         ({"max_workers": 0}, "at least one"),
+        ({"strategy": "fixed"}, "must be a ResidencyStrategy"),
     ],
 )
 def test_invalid_pool_configuration(kwargs, message):

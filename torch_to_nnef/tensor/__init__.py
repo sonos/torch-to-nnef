@@ -13,6 +13,7 @@ from torch_to_nnef.tensor.quant import (
     QTensorTractScaleOnly,
 )
 from torch_to_nnef.tensor.residency import (
+    ResidencyStrategy,
     TensorPrefetch,
     TensorResidencyLease,
     TensorResidencyPool,
@@ -21,6 +22,7 @@ from torch_to_nnef.tensor.residency import (
 __all__ = [
     "NamedTensor",
     "OffloadedTensor",
+    "ResidencyStrategy",
     "TensorPrefetch",
     "TensorResidencyLease",
     "TensorResidencyPool",

@@ -89,7 +89,7 @@ tensor operations use resident values transparently, while `prefetch` starts
 loading a later value on a background worker.
 
 ```python
-from torch_to_nnef.tensor import TensorResidencyPool
+from torch_to_nnef.tensor import ResidencyStrategy, TensorResidencyPool
 
 with TensorResidencyPool(max_cached_bytes=2 * 1024**3) as pool:
     with pool.scope(device="cuda"):
@@ -103,9 +103,9 @@ the operations that consume the current one.
 
 The first access to an `OffloadedTensor` through a pool that does not yet
 contain it is a cache miss: the pool materializes it from disk on the selected
-device. If the value fits within `max_cached_bytes`, that first materialization
-becomes the cached value, and later accesses through the same pool reuse it
-without another disk load. It remains cached until explicit eviction,
+device. With the default `ResidencyStrategy.LRU`, a value that fits within
+`max_cached_bytes` becomes cached, and later accesses through the same pool
+reuse it without another disk load. It remains cached until explicit eviction,
 least-recently-used eviction to make room for another value, or pool closure.
 `prefetch` starts this first load early but otherwise follows the same retention
 rules. This caching is specific to access routed through the pool; other access
@@ -113,26 +113,33 @@ to an `OffloadedTensor` keeps its normal transient materialization behavior.
 
 LRU performs poorly for a cyclic scan whose working set is larger than the
 cache: values can be evicted shortly before the next forward pass needs them.
-Use `pin` to choose a fixed resident subset for that workload. Pinning starts
-or reuses the load and returns a handle that can be awaited. The operation is
-idempotent, so pinning the same value again does not require an additional
-`unpin`.
+`ResidencyStrategy.FIXED` instead admits the first completed values that fit in
+the budget and does not replace them during later accesses. Values that do not
+fit are still delivered to their callers but are not retained. This provides a
+stable resident subset while the rest of each forward pass streams through the
+pool.
 
 ```python
-with TensorResidencyPool(max_cached_bytes=2 * 1024**3) as pool:
-    pool.pin(reused_statistic, device="cuda").wait()
+with TensorResidencyPool(
+    max_cached_bytes=2 * 1024**3,
+    strategy=ResidencyStrategy.FIXED,
+) as pool:
     with pool.scope(device="cuda"):
         for batch in calibration_batches:
             calibrate(model, batch)
-    pool.unpin(reused_statistic)
 ```
 
-Pinned values are excluded from LRU eviction until `unpin` is called or the
-pool closes. They count toward `resident_bytes` and the cache budget, leaving
-the remainder of the budget for LRU-managed values. Like an active lease, a
-pin may make residency exceed the soft budget; unlike a lease, it represents a
-retention choice rather than a value currently in use, and it does not prevent
-the pool from closing.
+With the default single worker, fixed admission follows request order. With
+multiple workers, concurrently prefetched values are admitted in completion
+order. Explicit `evict` can remove an admitted value and make capacity
+available for a later materialization. Pool closure releases the full set.
+
+Manual `pin` and `unpin` apply only to `ResidencyStrategy.LRU`; the FIXED
+strategy rejects them with `T2NErrorMisuse` because it already controls fixed
+admission. Under LRU, pinning starts or reuses a load and is idempotent. A
+pinned value is excluded from LRU eviction until `unpin` is called or the pool
+closes, counts toward `resident_bytes` and the cache budget, and can make
+residency exceed the soft budget.
 
 A lease is a scoped claim that a materialized tensor is currently in use. It
 lasts for the duration of the `with pool.acquire(...)` block. While any lease
@@ -147,8 +154,9 @@ with pool.acquire(statistic, mode="read_write") as value:
 ```
 
 `max_cached_bytes` is a soft limit on payloads retained for reuse, not a hard
-limit on process or device memory. The pool enforces it by evicting unleased,
-unpinned values in least-recently-used order. If an active caller leases a
+limit on process or device memory. LRU enforces it by evicting unleased,
+unpinned values in least-recently-used order. FIXED preserves admitted values
+and removes non-admitted values after delivery. If an active caller leases a
 value larger than the cache budget, the pool still materializes it so the
 operation can proceed, keeps it resident until the lease ends, and then evicts
 it instead of caching it. A prefetched oversized value is similarly delivered
@@ -157,8 +165,8 @@ temporary framework allocations can exceed `max_cached_bytes`; callers that
 require a hard allocation limit must validate their working-set sizes
 separately.
 The `torch_to_nnef.tensor.residency` logger emits these decisions at `DEBUG`
-level, including whether the value is being delivered without cache retention,
-kept until its final lease ends, or retained while pinned.
+level, including whether the value is not admitted by FIXED, delivered without
+cache retention, kept until its final lease ends, or retained by an LRU pin.
 
 Scheduling decisions, such as which model block to prefetch next, remain with
 the caller. The pool only manages `OffloadedTensor` values. Passing a regular

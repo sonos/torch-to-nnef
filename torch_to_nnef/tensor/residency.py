@@ -4,6 +4,7 @@ import concurrent.futures
 import contextlib
 import contextvars
 import dataclasses
+import enum
 import logging
 import threading
 import typing as T
@@ -27,6 +28,18 @@ def active_tensor_residency() -> T.Optional[
     return _ACTIVE_RESIDENCY.get()
 
 
+class ResidencyStrategy(enum.Enum):
+    """Retention strategy for unleased values in a residency pool.
+
+    ``LRU`` replaces the least recently used eligible value and permits manual
+    pins. ``FIXED`` preserves its first-fit admitted set for the pool lifetime
+    and rejects manual pin operations.
+    """
+
+    LRU = "lru"
+    FIXED = "fixed"
+
+
 @dataclasses.dataclass
 class _ResidentEntry:
     source: OffloadedTensor
@@ -35,6 +48,7 @@ class _ResidentEntry:
     future: T.Optional[concurrent.futures.Future] = None
     leases: int = 0
     pinned: bool = False
+    fixed: bool = False
     dirty: bool = False
     access_order: int = 0
     nbytes: int = 0
@@ -113,29 +127,35 @@ class TensorResidencyPool:
 
     Values can be prefetched by background workers and acquired through a
     lease. A lease is a scoped claim that a materialized value is in active
-    use, so its value remains resident until the lease ends. Pinned values
-    remain resident until explicitly unpinned or the pool closes. Other values
-    are evicted in least-recently-used order when the optional cache budget is
-    exceeded. A ``read_write`` lease writes the value back before eviction.
+    use, so its value remains resident until the lease ends. The default LRU
+    strategy evicts other values in least-recently-used order when the optional
+    cache budget is exceeded and supports manual pins. The FIXED strategy
+    retains the first completed values that fit and streams later values
+    without displacing that resident set. A ``read_write`` lease writes the
+    value back before eviction.
 
     ``max_cached_bytes`` is a soft cache-retention limit, not a hard bound on
-    process memory. Leased and pinned values remain available even when they
-    exceed it. An oversized value can therefore be materialized for an active
-    caller but is evicted as soon as its final lease ends. Prefetched oversized
-    values are returned to their waiting caller without being retained by the
-    pool unless they are pinned.
+    process memory. Leased values, and values manually pinned under LRU, remain
+    available even when they exceed it. An oversized value can therefore be
+    materialized for an active caller but is evicted as soon as its final lease
+    ends. Prefetched oversized values are returned to their waiting caller
+    without being retained by the pool unless they are pinned.
     """
 
     def __init__(
         self,
         max_cached_bytes: T.Optional[int] = None,
         max_workers: int = 1,
+        strategy: ResidencyStrategy = ResidencyStrategy.LRU,
     ):
         if max_cached_bytes is not None and max_cached_bytes < 0:
             raise T2NErrorMisuse("max_cached_bytes must be non-negative")
         if max_workers < 1:
             raise T2NErrorMisuse("max_workers must be at least one")
+        if not isinstance(strategy, ResidencyStrategy):
+            raise T2NErrorMisuse("strategy must be a ResidencyStrategy")
         self.max_cached_bytes = max_cached_bytes
+        self.strategy = strategy
         self._executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=max_workers,
             thread_name_prefix="t2n-residency",
@@ -160,8 +180,9 @@ class TensorResidencyPool:
             return entry is not None and entry.value is not None
 
     def is_pinned(self, source: OffloadedTensor) -> bool:
-        """Return whether ``source`` is excluded from LRU eviction."""
+        """Return whether ``source`` is manually pinned under LRU."""
         self._validate_source(source)
+        self._ensure_manual_pinning()
         key = id(source)
         with self._lock:
             entry = self._entries.get(key)
@@ -188,17 +209,20 @@ class TensorResidencyPool:
 
         Pinning is idempotent and the returned handle can be used to wait for
         materialization. A pin is cache policy rather than an active-use lease,
-        so closing the pool releases pinned values automatically.
+        so closing the pool releases pinned values automatically. Manual pins
+        are available only with :attr:`ResidencyStrategy.LRU`.
         """
         self._validate_source(source)
+        self._ensure_manual_pinning()
         target_device = torch.device(
             source.target_device if device is None else device
         )
         return self._prefetch(source, target_device, lease=False, pin=True)
 
     def unpin(self, source: OffloadedTensor) -> None:
-        """Return a pinned value to normal LRU cache management."""
+        """Return a manually pinned value to normal LRU management."""
         self._validate_source(source)
+        self._ensure_manual_pinning()
         key = id(source)
         with self._lock:
             self._ensure_open()
@@ -288,7 +312,7 @@ class TensorResidencyPool:
 
         This is the read-only path used automatically by ``OffloadedTensor``
         inside :meth:`scope`. Use :meth:`acquire` for active-use protection or
-        mutation tracking, and :meth:`pin` for fixed cache retention.
+        mutation tracking. Under LRU, use :meth:`pin` for manual retention.
         """
         return self.prefetch(source, device=device).wait()
 
@@ -384,6 +408,7 @@ class TensorResidencyPool:
             entry.future = None
             entry.nbytes = self._value_nbytes(value)
             self._touch(entry)
+            self._admit_fixed(entry)
             self._log_oversized_entry(entry)
             if (
                 self.max_cached_bytes is not None
@@ -393,7 +418,7 @@ class TensorResidencyPool:
             ):
                 del self._entries[key]
             else:
-                self._evict_to_budget(exclude={key})
+                self._evict_to_budget(exclude=self._new_entry_exclusions(key))
 
     def _wait(self, key: int) -> torch.Tensor:
         with self._lock:
@@ -414,8 +439,11 @@ class TensorResidencyPool:
                     entry.nbytes = self._value_nbytes(value)
                     entry.future = None
                     self._touch(entry)
+                    self._admit_fixed(entry)
                     self._log_oversized_entry(entry)
-                    self._evict_to_budget(exclude={key})
+                    self._evict_to_budget(
+                        exclude=self._new_entry_exclusions(key)
+                    )
                 value = entry.value
         # The returned local reference keeps the value alive even when the
         # pool must immediately evict an oversized, unprotected entry.
@@ -473,12 +501,38 @@ class TensorResidencyPool:
                 and entry.value is not None
                 and not entry.leases
                 and not entry.pinned
+                and (self.strategy is ResidencyStrategy.LRU or not entry.fixed)
             ]
             if not candidates:
                 return
             key, entry = min(candidates, key=lambda item: item[1].access_order)
+            if self.strategy is ResidencyStrategy.FIXED:
+                LOGGER.debug(
+                    "Offloaded tensor '%s' was not admitted by the fixed "
+                    "residency strategy; delivering it without cache retention",
+                    entry.source._name,
+                )
             self._write_back(entry)
             del self._entries[key]
+
+    def _new_entry_exclusions(self, key: int) -> T.Optional[T.Set[int]]:
+        if self.strategy is ResidencyStrategy.LRU:
+            return {key}
+        return None
+
+    def _admit_fixed(self, entry: _ResidentEntry) -> None:
+        if self.strategy is not ResidencyStrategy.FIXED:
+            return
+        fixed_bytes = sum(
+            candidate.nbytes
+            for candidate in self._entries.values()
+            if candidate.fixed
+        )
+        if (
+            self.max_cached_bytes is None
+            or fixed_bytes + entry.nbytes <= self.max_cached_bytes
+        ):
+            entry.fixed = True
 
     @staticmethod
     def _value_nbytes(value: torch.Tensor) -> int:
@@ -522,6 +576,13 @@ class TensorResidencyPool:
                 raise T2NErrorMisuse("tensor residency pool is closed")
             if self._closing:
                 raise T2NErrorMisuse("tensor residency pool is closing")
+
+    def _ensure_manual_pinning(self) -> None:
+        if self.strategy is not ResidencyStrategy.LRU:
+            raise T2NErrorMisuse(
+                "manual pin operations are only available with "
+                "ResidencyStrategy.LRU"
+            )
 
     @staticmethod
     def _validate_source(source: object) -> None:
