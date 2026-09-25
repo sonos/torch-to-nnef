@@ -17,7 +17,7 @@ try:
     import nemo
     import nemo.collections.asr as nemo_asr  # noqa: F401
     import sentencepiece as spm
-    from omegaconf import DictConfig, OmegaConf
+    from omegaconf import OmegaConf
 
     from torch_to_nnef.inference_target.tract import TractCheckTolerance
     from torch_to_nnef.remodeler import Stage, save_config
@@ -144,8 +144,8 @@ def _create_minimal_tokenizer(tokenizer_dir: str):
             fh.write(sp.IdToPiece(i) + "\n")
 
 
-def _create_parakeet_v3_random_weights(tokenizer_dir: str):
-    """Instantiate a Parakeet V3-like model with random weights.
+def _parakeet_v3_config(tokenizer_dir: str):
+    """Configure a reduced-depth Parakeet V3-like model.
 
     Uses the same key dimensions as ``nvidia/parakeet-tdt-0.6b-v3``
     (128 mel features, 1024 encoder dim, 640 decoder dim, 2 LSTM layers)
@@ -232,9 +232,55 @@ def _create_parakeet_v3_random_weights(tokenizer_dir: str):
             },
         }
     )
+    return cfg
+
+
+def _create_parakeet_v3_random_weights(tokenizer_dir: str):
     model = nemo_asr.models.EncDecRNNTBPEModel(
-        cfg=DictConfig(cfg), trainer=None
+        cfg=_parakeet_v3_config(tokenizer_dir), trainer=None
     )
+    model.eval()
+    return model
+
+
+def _create_nemotron_random_weights(tokenizer_dir: str):
+    """Build NeMo 3's prompt-conditioned streaming RNNT without downloads.
+
+    Architecture settings follow NVIDIA's Nemotron 3.5 0.6B config:
+    https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/blob/ea30d66debe3740a08b573244286791d423d6b3e/config.json
+    and NeMo v3.0.0's fastconformer_transducer_bpe_streaming_prompt.yaml.
+    Encoder depth and vocabulary are reduced; dropout is disabled.
+    Uses the upstream training YAML's [70, 6] attention context.
+    """
+    from nemo.collections.asr.models.rnnt_bpe_models_prompt import (
+        EncDecRNNTBPEModelWithPrompt,
+    )
+
+    cfg = _parakeet_v3_config(tokenizer_dir)
+    cfg.encoder.update(
+        {
+            "subsampling": "dw_striding",
+            "subsampling_factor": 8,
+            "subsampling_conv_channels": 256,
+            "causal_downsampling": True,
+            "use_bias": False,
+            "att_context_size": [70, 6],
+            "att_context_style": "chunked_limited",
+            "xscaling": False,
+            "conv_kernel_size": 9,
+            "conv_norm_type": "layer_norm",
+            "conv_context_size": "causal",
+        }
+    )
+    cfg.model_defaults.update(
+        {
+            "initialize_prompt_feature": True,
+            "num_prompts": 128,
+            "norm": "None",
+            "prompt_dictionary": {"en-US": 0, "auto": 101},
+        }
+    )
+    model = EncDecRNNTBPEModelWithPrompt(cfg=cfg, trainer=None)
     model.eval()
     return model
 
@@ -467,13 +513,15 @@ def test_nemo_export_shape_config(model_slug, shape_config, extra_cfg):
     check_export_asr_model(model_slug, cfg=extra_cfg, shape_config=shape_config)
 
 
-def test_nemo_export_parakeet_v3_random_weights():
-    """Export Parakeet V3 architecture with random weights + shape config.
-
-    Same key dimensions as nvidia/parakeet-tdt-0.6b-v3 (128 mel, 1024
-    encoder, 640 decoder) but only 2 conformer layers and a tiny BPE
-    tokenizer -- no pretrained download required.
-    """
+@pytest.mark.parametrize("model_kind", ["parakeet", "nemotron"])
+def test_nemo_export_random_weights(model_kind):
+    """Check random-weight subnet outputs in tract with Parakeet's YAML."""
+    if (
+        model_kind == "nemotron"
+        and SemanticVersion.from_str(nemo.__version__) < "3.0.0"
+    ):
+        pytest.skip("Nemotron prompt model requires NeMo 3")
+    torch.manual_seed(0)
     inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
     _skip_unless_nemo_tract(inference_target)
 
@@ -486,7 +534,12 @@ def test_nemo_export_parakeet_v3_random_weights():
         os.makedirs(tokenizer_dir)
         _create_minimal_tokenizer(tokenizer_dir)
 
-        asr_model = _create_parakeet_v3_random_weights(tokenizer_dir)
+        factory = (
+            _create_nemotron_random_weights
+            if model_kind == "nemotron"
+            else _create_parakeet_v3_random_weights
+        )
+        asr_model = factory(tokenizer_dir)
 
         shape_config = ASSETS_DIR / "shapes.parakeet.yaml"
         axis_reg = _build_axis_registry(
@@ -502,6 +555,12 @@ def test_nemo_export_parakeet_v3_random_weights():
             axis_reg=axis_reg,
             cfg=cfg,
         )
+        expected = {"preprocessor", "encoder", "decoder", "joint"}
+        if model_kind == "nemotron":
+            expected.add("prompt")
+        assert {p.name for p in export_dir.glob("*.nnef.tgz")} == {
+            f"{name}.nnef.tgz" for name in expected
+        }
 
 
 @pytest.mark.ci_skip

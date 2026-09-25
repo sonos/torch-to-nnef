@@ -36,6 +36,7 @@ jobs:
           matrix: |
             python-version {3.12}, tox-env {"nemo_tract_2_5_3"}
             python-version {3.13}, tox-env {"nemo_tract_2_7_2"}
+            python-version {3.13}, tox-env {"nemo_tract_3_0_0"}
 
     outputs:
       matrix: ${{ steps.create_matrix.outputs.matrix }}
