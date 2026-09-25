@@ -20,7 +20,7 @@ classifiers = [
 keywords = ["nnef", "pytorch", "torch", "nemo", "asr", "export"]
 dependencies = [
     "torch_to_nnef>=0.22.0",
-    "nemo_toolkit[asr]>=2.0.0,<2.8.0",
+    "nemo_toolkit[asr]>=2.0.0,<4.0.0",
     "torchaudio",
     "questionary",
     "rich",
@@ -80,7 +80,7 @@ convention = "google"
 
 [tool.tox]
 isolated_build = true
-envlist = ["nemo_tract_2_5_3", "nemo_tract_2_7_2"]
+envlist = ["nemo_tract_2_5_3", "nemo_tract_2_7_2", "nemo_tract_3_0_0"]
 requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.tox.env_run_base]
@@ -146,3 +146,30 @@ commands_pre = [
     ],
 ]
 commands = [["pytest", "-s", "-m", "not ci_skip", "tests/test_nemo_asr.py"]]
+
+[tool.tox.env.nemo_tract_3_0_0]
+basepython = ["python3.13"]
+skip_install = true
+allowlist_externals = ["uv"]
+commands_pre = [
+    # Resolve both local packages and the version pins together. Tox's
+    # separate workspace installation can otherwise replace the pinned torch.
+    [
+        "uv",
+        "pip",
+        "install",
+        "-i",
+        "https://download.pytorch.org/whl/cpu",
+        "torch==2.6.*",
+        "torchaudio==2.6.*",
+        "nemo_toolkit[asr]==3.0.0",
+        "{toxinidir}/../..",
+        "{toxinidir}",
+    ],
+]
+commands = [
+    ["python", "-c", "from importlib.metadata import version; assert version('torch').startswith('2.6.'); assert version('torchaudio').startswith('2.6.'); assert version('nemo_toolkit') == '3.0.0'"],
+    # Fail on a broken NeMo installation instead of a module-level pytest skip.
+    ["python", "-c", "import nemo.collections.asr; from nemo.collections.asr.models.rnnt_bpe_models_prompt import EncDecRNNTBPEModelWithPrompt"],
+    ["pytest", "-s", "-m", "not ci_skip", "tests/test_nemo_asr.py"],
+]

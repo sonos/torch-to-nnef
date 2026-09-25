@@ -38,14 +38,13 @@ class Console:
             # pylint: disable-next=import-outside-toplevel
             from rich.theme import Theme
 
-            self.print = rConsole(theme=Theme(self.theme)).print  # type: ignore
+            self._printer = rConsole(theme=Theme(self.theme)).print
         except ImportError:
-            self.print = self._degraded_print  # type: ignore
+            self._printer = self._degraded_print
 
     @staticmethod
     def _degraded_print(*args):
         print(striptags(" ".join(args)))
 
-    def print(self, *args):
-        text = " ".join(args)
-        self.print(text)
+    def print(self, *args, **kwargs):
+        return self._printer(*args, **kwargs)
