@@ -71,11 +71,23 @@ jobs:
             Managed by the daily tract release workflow. A newer release replaces this proposal in the same PR. This PR closes automatically if the update is already on the default branch.
       # GITHUB_TOKEN-created PRs do not automatically run ordinary PR CI
       # without approval. Dispatch compatibility CI explicitly on this branch.
-      - name: Run compatibility CI for a new or updated proposal
-        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+      # Check each workflow separately so later daily runs recover from a
+      # partially failed dispatch without repeating existing checks.
+      - name: Ensure compatibility CI exists for the proposal
+        if: steps.pr.outputs.pull-request-number != '' && steps.pr.outputs.pull-request-operation != 'closed'
         env:
           UPDATE_BRANCH: automation/tract-release
+          UPDATE_SHA: ${{ steps.pr.outputs.pull-request-head-sha }}
+          TRACT_VERSION: ${{ steps.release.outputs.latest }}
         run: |
-          gh workflow run ci-core.yml --ref "$UPDATE_BRANCH"
-          gh workflow run ci-llm.yml --ref "$UPDATE_BRANCH"
-          gh workflow run ci-nemo.yml --ref "$UPDATE_BRANCH"
+          for workflow in ci-core.yml ci-llm.yml ci-nemo.yml; do
+            runs=$(gh run list --workflow "$workflow" --branch "$UPDATE_BRANCH" \
+              --commit "$UPDATE_SHA" --event workflow_dispatch --limit 1 --json databaseId --jq 'length')
+            if [ "$runs" = 0 ]; then
+              if [ "$workflow" = ci-nemo.yml ]; then
+                gh workflow run "$workflow" --ref "$UPDATE_BRANCH" -f tract-version="$TRACT_VERSION"
+              else
+                gh workflow run "$workflow" --ref "$UPDATE_BRANCH"
+              fi
+            fi
+          done
