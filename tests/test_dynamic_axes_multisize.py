@@ -164,3 +164,61 @@ def test_two_layer_attention_dynamic_seq():
         {"input_0": {1: "S"}},
         sizes=[8, 16, 4],
     )
+
+
+class ReusedStaticSize(nn.Module):
+    """A static size is used in tensor arithmetic before a mixed reshape."""
+
+    def forward(self, x):
+        batch, seq, features = x.shape
+        flat = x.reshape(batch * seq, features)
+        return flat.reshape(seq, batch, features)
+
+
+def test_static_size_reused_in_dynamic_reshape():
+    _assert_dynamic_correct(
+        ReusedStaticSize(),
+        lambda s: torch.rand(4, s, 8),
+        {"input_0": {1: "S"}},
+        sizes=[16, 7, 1],
+    )
+
+
+class DynamicMultiheadAttention(nn.Module):
+    """PyTorch MHA reuses its static batch size in the output reshape."""
+
+    def __init__(self, heads, causal):
+        super().__init__()
+        self.heads = heads
+        self.causal = causal
+        self.attention = nn.MultiheadAttention(64, heads)
+
+    def forward(self, query, key, value):
+        q, k, v = (x.transpose(0, 1) for x in (query, key, value))
+        mask = None
+        if self.causal:
+            mask = torch.triu(
+                torch.ones(
+                    (query.shape[0] * self.heads, q.shape[0], k.shape[0]),
+                    dtype=torch.bool,
+                    device=query.device,
+                ),
+                diagonal=1,
+            )
+        output, _ = self.attention(q, k, v, attn_mask=mask, need_weights=False)
+        return output.transpose(0, 1)
+
+
+@pytest.mark.skipif(
+    not hasattr(torch.nn.functional, "scaled_dot_product_attention"),
+    reason="MHA's SDPA path requires PyTorch >= 2.0",
+)
+@pytest.mark.parametrize("heads", [1, 4])
+@pytest.mark.parametrize("causal", [False, True])
+def test_multihead_attention_dynamic_sequence(heads, causal):
+    _assert_dynamic_correct(
+        DynamicMultiheadAttention(heads, causal),
+        lambda s: tuple(torch.rand(4, s, 64) for _ in range(3)),
+        {f"input_{i}": {1: "S"} for i in range(3)},
+        sizes=[16, 7, 1],
+    )
