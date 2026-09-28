@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+## [0.24.10] - 2026-09-28
+
 ### Changed
 - **Latest officially supported tract version is now 0.23.8**, up from 0.23.3. `TractNNEF.latest()` and default exports target 0.23.8; tract 0.22.1 remains supported. Eligible single-step gated-delta exports now use tract's fused recurrent operator by default.
 
