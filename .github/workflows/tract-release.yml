@@ -1,0 +1,93 @@
+name: tract release update
+
+on:
+  schedule:
+    - cron: "23 6 * * *" # Daily at 06:23 UTC
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/tract-release.yml"
+      - ".github/scripts/update_tract.py"
+      - ".github/scripts/test_update_tract.py"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s .github/scripts -p 'test_update_tract.py' -v
+
+  update:
+    needs: test
+    if: >-
+      github.repository == 'sonos/torch-to-nnef' &&
+      github.event_name != 'pull_request' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: tract-release-update
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Find newest stable tract release
+        id: release
+        run: |
+          gh api --paginate --slurp 'repos/sonos/tract/releases?per_page=100' > "$RUNNER_TEMP/tract-releases.json"
+          python3 .github/scripts/update_tract.py "$RUNNER_TEMP/tract-releases.json"
+      # A fixed branch replaces the previous proposed bump in the same PR.
+      # Run even without a diff so an obsolete automation PR is closed when
+      # main already includes the release (for example via a manual PR).
+      - name: Create or refresh the single tract update PR
+        id: pr
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          branch: automation/tract-release
+          delete-branch: true
+          add-paths: |
+            torch_to_nnef/inference_target/tract.py
+            CHANGELOG.md
+          commit-message: "chore: bump supported tract to ${{ steps.release.outputs.latest }}"
+          title: "chore: bump supported tract to ${{ steps.release.outputs.latest }}"
+          body: |
+            Make tract ${{ steps.release.outputs.latest }} the latest officially supported target, replacing ${{ steps.release.outputs.current }}. Default exports and the compatibility test matrix use the new version; older entries in the support list are retained.
+
+            See the [upstream releases](https://github.com/sonos/tract/releases). Review compatibility results before merging: new versions can enable version-gated export paths.
+
+            Managed by the daily tract release workflow. A newer release replaces this proposal in the same PR. This PR closes automatically if the update is already on the default branch.
+      # GITHUB_TOKEN-created PRs do not automatically run ordinary PR CI
+      # without approval. Dispatch compatibility CI explicitly on this branch.
+      # Check each workflow separately so later daily runs recover from a
+      # partially failed dispatch without repeating existing checks.
+      - name: Ensure compatibility CI exists for the proposal
+        if: steps.pr.outputs.pull-request-number != '' && steps.pr.outputs.pull-request-operation != 'closed'
+        env:
+          UPDATE_BRANCH: automation/tract-release
+          UPDATE_SHA: ${{ steps.pr.outputs.pull-request-head-sha }}
+          TRACT_VERSION: ${{ steps.release.outputs.latest }}
+        run: |
+          for workflow in ci-core.yml ci-llm.yml ci-nemo.yml; do
+            runs=$(gh run list --workflow "$workflow" --branch "$UPDATE_BRANCH" \
+              --commit "$UPDATE_SHA" --event workflow_dispatch --limit 1 --json databaseId --jq 'length')
+            if [ "$runs" = 0 ]; then
+              if [ "$workflow" = ci-nemo.yml ]; then
+                gh workflow run "$workflow" --ref "$UPDATE_BRANCH" -f tract-version="$TRACT_VERSION"
+              else
+                gh workflow run "$workflow" --ref "$UPDATE_BRANCH"
+              fi
+            fi
+          done
