@@ -37,6 +37,7 @@ from torch_to_nnef.inference_target.tract import (
 from torch_to_nnef.op.gated_delta import (
     gated_delta_fake,
     gated_delta_reference,
+    l2norm,
 )
 from torch_to_nnef.utils import SemanticVersion
 
@@ -126,8 +127,8 @@ def test_gated_delta_scan_export(_id, test_input, model, inference_target):
 
 
 # --- tract's fused decode operator (`tract_transformers_gdn_recurrent`) ------
-# Auto-enabled from tract 0.23.5; until that release exists the emission is
-# exercised by forcing the flag, with check_io off (no binary knows the op).
+# Auto-enabled from tract 0.23.5; graph checks below cover the fused emission
+# and the conditions that retain the portable scan lowering.
 
 
 def _decode_inputs(T_=1, head=128, dtype=torch.float16):
@@ -157,13 +158,18 @@ def _export_graph_nnef(inputs, inference_target, tmp_path) -> str:
         return tf.extractfile("graph.nnef").read().decode("utf8")
 
 
-def test_native_gdn_recurrent_emitted(tmp_path):
+@pytest.mark.parametrize("native", [None, True], ids=["auto", "forced"])
+def test_native_gdn_recurrent_emitted(tmp_path, native):
+    q, k, v, g, beta, state = _decode_inputs()
+    # Match the custom op's contract: q/k are normalized before the
+    # recurrence and q includes the attention scale.
+    inputs = (l2norm(q) / q.shape[-1] ** 0.5, l2norm(k), v, g, beta, state)
     graph = _export_graph_nnef(
-        _decode_inputs(),
+        inputs,
         TractNNEF(
             TractNNEF.latest_version(),
-            check_io=False,
-            native_gated_delta_op=True,
+            check_io=True,
+            native_gated_delta_op=native,
         ),
         tmp_path,
     )
@@ -207,11 +213,10 @@ def test_native_gdn_recurrent_auto_activation():
     assert (
         SemanticVersion.from_str("0.23.5") >= NATIVE_GDN_RECURRENT_MIN_VERSION
     )
-    # Tripwire, not a tautology: no supported release carries the operator
-    # yet, so auto-activation is off. Whoever adds 0.23.5 to
-    # OFFICIAL_SUPPORTED_VERSIONS flips this on and updates these two lines.
-    assert TractNNEF.latest_version() < NATIVE_GDN_RECURRENT_MIN_VERSION
-    assert not TractNNEF(
+    # The latest supported release carries the fused operator, so it is
+    # enabled by default while callers can still explicitly opt out.
+    assert TractNNEF.latest_version() >= NATIVE_GDN_RECURRENT_MIN_VERSION
+    assert TractNNEF(
         TractNNEF.latest_version(), check_io=False
     ).native_gated_delta_op
     assert not TractNNEF(
