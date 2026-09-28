@@ -13,6 +13,11 @@ dependencies = [
 
 [tool.uv]
 package = false
+# Match the workspace's security overrides for NeMo's stale upper bounds.
+override-dependencies = [
+    "hydra-core==1.3.4",
+    "pytorch-lightning==2.6.6",
+]
 
 [tool.uv.sources]
 torch_to_nnef = { path = "../../", editable = true }

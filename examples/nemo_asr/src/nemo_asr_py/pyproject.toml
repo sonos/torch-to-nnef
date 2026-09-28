@@ -10,9 +10,9 @@ authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 eval = [
     "jiwer>=3.1.0,<4.0.0",
     "evaluate>=0.4.6",
-    "transformers>=4.35.2,<5",
+    "transformers>=5.10.0,<6",
     "onnx>=1.22.0",                    # failing dep in osx
-    "nemo_toolkit[asr]>=2.6.2,<2.7.0", # to test against original nemo models
+    "nemo_toolkit[asr]>=3.0.0,<4", # supports the patched Transformers 5 line
     "datasets>=4.0.0",
     "torchcodec",
     "rich",
@@ -28,6 +28,13 @@ nemo_tract_eval_batch_align_checker = "nemo_asr_tract.eval.check_batch_aligned:m
 [build-system]
 requires = ["setuptools>=64", "setuptools_rust>=1.10"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+# Match the workspace's patched Hydra and pytorch-lightning versions.
+override-dependencies = [
+    "hydra-core==1.3.4",
+    "pytorch-lightning==2.6.6",
+]
 
 [tool.setuptools]
 packages = [

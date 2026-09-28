@@ -5,10 +5,7 @@ requires-python = ">=3.11"
 dependencies = [
     "torch_to_nnef[llm-tract]",
     "rich==15.0.0",
-    # Pin transformers <5 + torch 2.7: t2n's LLM export currently regresses on
-    # transformers 5.x (bf16/float attention dtype mismatch + tract parity
-    # divergence on SmolLM). Tracked separately; revisit when core supports 5.x.
-    "transformers==5.5.0",
+    "transformers==5.14.1",
     "torch==2.12.*",
 ]
 
