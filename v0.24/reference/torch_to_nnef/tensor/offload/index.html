@@ -2984,6 +2984,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;reload
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.set_" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3552,6 +3563,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../residency/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>residency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -4563,6 +4602,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;reload
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.tensor.offload.OffloadedTensor.set_" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5113,7 +5163,7 @@ device movable tensors (mutation support could be envisioned if needed).</p>
 
 
 </h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">OffloadedTensor</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">offload_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">offloaded_tensor_type</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">force_gc_collect</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">OffloadedTensor</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">offload_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">offloaded_tensor_type</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">force_gc_collect</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">storage_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -5162,6 +5212,14 @@ on targeted device.</p>
               <td>
                 <div class="doc-md-description">
                   <p>Take a torch.Tensor or OpaqueTensor and offload it to disk.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            reload (torch_to_nnef.tensor.offload.OffloadedTensor.reload)" href="../../../../tutos/7_offloaded_tensor/#torch_to_nnef.tensor.offload.OffloadedTensor.reload">reload</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Reload the stored value on <code>device</code>.</p>
                 </div>
               </td>
             </tr>
@@ -5362,6 +5420,29 @@ the filename store on disk</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.offload.OffloadedTensor.reload" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">reload</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">reload</span><span class="p">(</span><span class="n">device</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TDEVICE</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Reload the stored value on <code>device</code>.</p>
+<p>The optional override does not change the tensor's configured target
+device. This lets a residency manager stage the same payload on a
+worker-selected device without mutating shared tensor state.</p>
 
 
     </div>

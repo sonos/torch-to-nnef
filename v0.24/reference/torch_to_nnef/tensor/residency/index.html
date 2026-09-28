@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../">
+        <link rel="prev" href="../quant/qtract/">
       
       
-        <link rel="next" href="../harden/">
+        <link rel="next" href="../updater/">
       
       
         
@@ -23,7 +23,7 @@
     
     
       
-        <title>dynamic_axes - Torch → NNEF documentation</title>
+        <title>residency - Torch → NNEF documentation</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#torch_to_nnef.torch_graph.dynamic_axes" class="md-skip">
+        <a href="#torch_to_nnef.tensor.residency" class="md-skip">
           Skip to content
         </a>
       
@@ -142,7 +142,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              dynamic_axes
+              residency
             
           </span>
         </div>
@@ -2721,18 +2721,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_14" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_14" checked>
         
           
           <label class="md-nav__link" for="__nav_4_1_14" id="__nav_4_1_14_label" tabindex="0">
@@ -2753,7 +2755,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_14_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_14_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1_14">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2771,7 +2773,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -2799,7 +2801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/named/" class="md-nav__link">
+      <a href="../named/" class="md-nav__link">
         
   
   
@@ -2827,7 +2829,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/offload/" class="md-nav__link">
+      <a href="../offload/" class="md-nav__link">
         
   
   
@@ -2855,7 +2857,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/opaque/" class="md-nav__link">
+      <a href="../opaque/" class="md-nav__link">
         
   
   
@@ -2930,7 +2932,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/quant/" class="md-nav__link">
+      <a href="../quant/" class="md-nav__link">
         
   
   
@@ -2958,7 +2960,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/quant/base/" class="md-nav__link">
+      <a href="../quant/base/" class="md-nav__link">
         
   
   
@@ -2986,7 +2988,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/quant/qtract/" class="md-nav__link">
+      <a href="../quant/qtract/" class="md-nav__link">
         
   
   
@@ -3019,10 +3021,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../tensor/residency/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>residency
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -3038,6 +3067,247 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.ResidencyStrategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ResidencyStrategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorPrefetch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorPrefetch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" TensorPrefetch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorPrefetch.done" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;done
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorPrefetch.wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;wait
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyLease" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorResidencyLease
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorResidencyPool
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" TensorResidencyPool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resident_bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;resident_bytes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.acquire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;acquire
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.close" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;close
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.evict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;evict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.flush" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;flush
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.is_pinned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_pinned
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.is_resident" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_resident
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.pin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;pin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.prefetch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;prefetch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resolve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;resolve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.unpin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;unpin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.active_tensor_residency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;active_tensor_residency
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -3050,7 +3320,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/updater/" class="md-nav__link">
+      <a href="../updater/" class="md-nav__link">
         
   
   
@@ -3078,7 +3348,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tensor/utils/" class="md-nav__link">
+      <a href="../utils/" class="md-nav__link">
         
   
   
@@ -3111,20 +3381,18 @@
                 
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_15" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_15" >
         
           
           <label class="md-nav__link" for="__nav_4_1_15" id="__nav_4_1_15_label" tabindex="0">
@@ -3145,7 +3413,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_15_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_15_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_15">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3163,7 +3431,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../torch_graph/" class="md-nav__link">
         
   
   
@@ -3188,37 +3456,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>dynamic_axes
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../torch_graph/dynamic_axes/" class="md-nav__link">
         
   
   
@@ -3234,48 +3475,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.torch_graph.dynamic_axes.compute_dynamic_axis_map" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;compute_dynamic_axis_map
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.torch_graph.dynamic_axes.size_query_is_dynamic" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;size_query_is_dynamic
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -3288,7 +3487,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../harden/" class="md-nav__link">
+      <a href="../../torch_graph/harden/" class="md-nav__link">
         
   
   
@@ -3316,7 +3515,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_data/" class="md-nav__link">
+      <a href="../../torch_graph/ir_data/" class="md-nav__link">
         
   
   
@@ -3344,7 +3543,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_graph/" class="md-nav__link">
+      <a href="../../torch_graph/ir_graph/" class="md-nav__link">
         
   
   
@@ -3372,7 +3571,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_helpers/" class="md-nav__link">
+      <a href="../../torch_graph/ir_helpers/" class="md-nav__link">
         
   
   
@@ -3400,7 +3599,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_module_tracer/" class="md-nav__link">
+      <a href="../../torch_graph/ir_module_tracer/" class="md-nav__link">
         
   
   
@@ -3428,7 +3627,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_naming/" class="md-nav__link">
+      <a href="../../torch_graph/ir_naming/" class="md-nav__link">
         
   
   
@@ -3456,7 +3655,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_op/" class="md-nav__link">
+      <a href="../../torch_graph/ir_op/" class="md-nav__link">
         
   
   
@@ -3484,7 +3683,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../jit_inline/" class="md-nav__link">
+      <a href="../../torch_graph/jit_inline/" class="md-nav__link">
         
   
   
@@ -3512,7 +3711,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../jit_passes/" class="md-nav__link">
+      <a href="../../torch_graph/jit_passes/" class="md-nav__link">
         
   
   
@@ -3540,7 +3739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../jit_utils/" class="md-nav__link">
+      <a href="../../torch_graph/jit_utils/" class="md-nav__link">
         
   
   
@@ -3568,7 +3767,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_const/" class="md-nav__link">
+      <a href="../../torch_graph/torch_const/" class="md-nav__link">
         
   
   
@@ -4025,10 +4224,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.torch_graph.dynamic_axes.compute_dynamic_axis_map" class="md-nav__link">
+  <a href="#torch_to_nnef.tensor.residency.ResidencyStrategy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;compute_dynamic_axis_map
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ResidencyStrategy
       
     </span>
   </a>
@@ -4036,10 +4235,209 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.torch_graph.dynamic_axes.size_query_is_dynamic" class="md-nav__link">
+  <a href="#torch_to_nnef.tensor.residency.TensorPrefetch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;size_query_is_dynamic
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorPrefetch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" TensorPrefetch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorPrefetch.done" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;done
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorPrefetch.wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;wait
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyLease" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorResidencyLease
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TensorResidencyPool
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" TensorResidencyPool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resident_bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;resident_bytes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.acquire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;acquire
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.close" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;close
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.evict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;evict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.flush" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;flush
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.is_pinned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_pinned
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.is_resident" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_resident
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.pin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;pin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.prefetch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;prefetch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resolve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;resolve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.unpin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;unpin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.active_tensor_residency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;active_tensor_residency
       
     </span>
   </a>
@@ -4067,36 +4465,15 @@
 
 
 
-<h1 id="torch_to_nnef.torch_graph.dynamic_axes" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.torch_graph.dynamic_axes</span>
+<h1 id="torch_to_nnef.tensor.residency" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.tensor.residency</span>
 
 
 </h1>
 
     <div class="doc doc-contents first">
 
-        <p>Conservative per-tensor dynamic-axis tracking for symbolic-dim export.</p>
-<p>Under <code>dynamic_axes</code> only some tensor axes are symbolic; the rest keep their
-traced constant size. Without knowing which is which, t2n forces <em>every</em>
-shape-derived value dynamic (see <code>_if_dyn_shape_may_remove_resolved_dim</code>), so
-a <code>split</code> whose sizes come from <code>x.shape[-1]</code> on a static axis fails to
-lower. This pass computes, per tensor, the set of axis indices that are dynamic,
-so <code>aten::size</code> on a provably-static axis can still fold.</p>
-<p>Design (why it is sound):</p>
-<ul>
-<li>The returned set OVER-approximates the truly-dynamic axes. An axis is reported
-  static (absent) only when provably so, so a truly symbolic dimension is
-  never baked to a constant.</li>
-<li>The DEFAULT for any op without an explicit rule is "all axes dynamic". In
-  particular the elementwise/broadcasting rule (which assumes right-aligned axis
-  identity) is applied ONLY to a whitelist of real elementwise ops; an
-  axis-reordering op (transpose, permute, ...) that is not explicitly handled
-  therefore falls back to all-dynamic rather than being mis-mapped.</li>
-<li>Rules are STRUCTURAL: dynamic-ness is decided from op structure (reshape
-  target literals, axis arguments, right-aligned broadcasting), never by
-  comparing traced shape <em>values</em> -- a dynamic axis is often traced as size 1
-  (e.g. batch), indistinguishable from a static 1 by value.</li>
-</ul>
+        <p>Scoped residency and asynchronous prefetch for offloaded tensors.</p>
 
 
 
@@ -4105,6 +4482,51 @@ so <code>aten::size</code> on a provably-static axis can still fold.</p>
 
 
 
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            ResidencyStrategy (torch_to_nnef.tensor.residency.ResidencyStrategy)" href="#torch_to_nnef.tensor.residency.ResidencyStrategy">ResidencyStrategy</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Retention strategy for unleased values in a residency pool.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            TensorPrefetch (torch_to_nnef.tensor.residency.TensorPrefetch)" href="#torch_to_nnef.tensor.residency.TensorPrefetch">TensorPrefetch</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Handle for an asynchronous tensor prefetch.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            TensorResidencyLease (torch_to_nnef.tensor.residency.TensorResidencyLease)" href="#torch_to_nnef.tensor.residency.TensorResidencyLease">TensorResidencyLease</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Scoped access to a value managed by a tensor residency pool.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            TensorResidencyPool (torch_to_nnef.tensor.residency.TensorResidencyPool)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool">TensorResidencyPool</a></code></td>
+            <td>
+              <div class="doc-md-description">
+                <p>Keep offloaded tensors resident across a bounded operation scope.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -4119,18 +4541,10 @@ so <code>aten::size</code> on a provably-static axis can still fold.</p>
       </thead>
       <tbody>
             <tr class="doc-section-item">
-              <td><code><a class="autorefs autorefs-internal" title="            compute_dynamic_axis_map (torch_to_nnef.torch_graph.dynamic_axes.compute_dynamic_axis_map)" href="#torch_to_nnef.torch_graph.dynamic_axes.compute_dynamic_axis_map">compute_dynamic_axis_map</a></code></td>
+              <td><code><a class="autorefs autorefs-internal" title="            active_tensor_residency (torch_to_nnef.tensor.residency.active_tensor_residency)" href="#torch_to_nnef.tensor.residency.active_tensor_residency">active_tensor_residency</a></code></td>
               <td>
                 <div class="doc-md-description">
-                  <p>Map <code>tensor.name -&gt; set(dynamic axis indices)</code> (over-approximation).</p>
-                </div>
-              </td>
-            </tr>
-            <tr class="doc-section-item">
-              <td><code><a class="autorefs autorefs-internal" title="            size_query_is_dynamic (torch_to_nnef.torch_graph.dynamic_axes.size_query_is_dynamic)" href="#torch_to_nnef.torch_graph.dynamic_axes.size_query_is_dynamic">size_query_is_dynamic</a></code></td>
-              <td>
-                <div class="doc-md-description">
-                  <p>Whether <code>aten::size(input_node, axis)</code> reads a dynamic axis.</p>
+                  <p>Return the pool and default device active in this context.</p>
                 </div>
               </td>
             </tr>
@@ -4151,21 +4565,149 @@ so <code>aten::size</code> on a provably-static axis can still fold.</p>
 
 
 
+<div class="doc doc-object doc-class">
 
-<div class="doc doc-object doc-function">
 
 
-<h2 id="torch_to_nnef.torch_graph.dynamic_axes.compute_dynamic_axis_map" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">compute_dynamic_axis_map</span>
+<h2 id="torch_to_nnef.tensor.residency.ResidencyStrategy" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">ResidencyStrategy</span>
 
 
 </h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">compute_dynamic_axis_map</span><span class="p">(</span><span class="n">ir_graph</span><span class="p">,</span> <span class="n">dynamic_axes_by_name</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.Enum">Enum</span></code></p>
+
+
+
+        <p>Retention strategy for unleased values in a residency pool.</p>
+<p><code>LRU</code> replaces the least recently used eligible value and permits manual
+pins. <code>FIXED</code> preserves its first-fit admitted set for the pool lifetime
+and rejects manual pin operations.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="torch_to_nnef.tensor.residency.TensorPrefetch" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">TensorPrefetch</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TensorPrefetch</span><span class="p">(</span><span class="n">pool</span><span class="p">:</span> <span class="n">TensorResidencyPool</span><span class="p">,</span> <span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="n">device</span><span class="p">,</span> <span class="n">future</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Future</span><span class="p">],</span> <span class="n">value</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Map <code>tensor.name -&gt; set(dynamic axis indices)</code> (over-approximation).</p>
+
+
+        <p>Handle for an asynchronous tensor prefetch.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            done (torch_to_nnef.tensor.residency.TensorPrefetch.done)" href="#torch_to_nnef.tensor.residency.TensorPrefetch.done">done</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Return whether the prefetch has finished.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            wait (torch_to_nnef.tensor.residency.TensorPrefetch.wait)" href="#torch_to_nnef.tensor.residency.TensorPrefetch.wait">wait</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Wait for prefetch completion and return the resident value.</p>
+                </div>
+              </td>
+            </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorPrefetch.done" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">done</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">done</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return whether the prefetch has finished.</p>
 
 
     </div>
@@ -4175,18 +4717,548 @@ so <code>aten::size</code> on a provably-static axis can still fold.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="torch_to_nnef.torch_graph.dynamic_axes.size_query_is_dynamic" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">size_query_is_dynamic</span>
+<h3 id="torch_to_nnef.tensor.residency.TensorPrefetch.wait" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">wait</span>
 
 
-</h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">size_query_is_dynamic</span><span class="p">(</span><span class="n">dynamic_axis_map</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span> <span class="n">input_node</span><span class="p">,</span> <span class="n">axis</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">wait</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Whether <code>aten::size(input_node, axis)</code> reads a dynamic axis.</p>
-<p>Conservative: if the tensor is unknown to the map, treat as dynamic.</p>
+        <p>Wait for prefetch completion and return the resident value.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="torch_to_nnef.tensor.residency.TensorResidencyLease" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">TensorResidencyLease</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TensorResidencyLease</span><span class="p">(</span><span class="n">pool</span><span class="p">:</span> <span class="n">TensorResidencyPool</span><span class="p">,</span> <span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="n">device</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Scoped access to a value managed by a tensor residency pool.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="torch_to_nnef.tensor.residency.TensorResidencyPool" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">TensorResidencyPool</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TensorResidencyPool</span><span class="p">(</span><span class="n">max_cached_bytes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="n">ResidencyStrategy</span> <span class="o">=</span> <span class="n">ResidencyStrategy</span><span class="o">.</span><span class="n">LRU</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Keep offloaded tensors resident across a bounded operation scope.</p>
+<p>Values can be prefetched by background workers and acquired through a
+lease. A lease is a scoped claim that a materialized value is in active
+use, so its value remains resident until the lease ends. The default LRU
+strategy evicts other values in least-recently-used order when the optional
+cache budget is exceeded and supports manual pins. The FIXED strategy
+retains the first completed values that fit and streams later values
+without displacing that resident set. A <code>read_write</code> lease writes the
+value back before eviction.</p>
+<p><code>max_cached_bytes</code> is a soft cache-retention limit, not a hard bound on
+process memory. Leased values, and values manually pinned under LRU, remain
+available even when they exceed it. An oversized value can therefore be
+materialized for an active caller but is evicted as soon as its final lease
+ends. Prefetched oversized values are returned to their waiting caller
+without being retained by the pool unless they are pinned.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            acquire (torch_to_nnef.tensor.residency.TensorResidencyPool.acquire)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.acquire">acquire</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Return a scoped lease for <code>source</code>.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            close (torch_to_nnef.tensor.residency.TensorResidencyPool.close)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.close">close</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Flush all values, stop workers, and release resident memory.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            evict (torch_to_nnef.tensor.residency.TensorResidencyPool.evict)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.evict">evict</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Write back and remove an unleased, unpinned value from the pool.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            flush (torch_to_nnef.tensor.residency.TensorResidencyPool.flush)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.flush">flush</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Wait for loads and write dirty resident values back to storage.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            is_pinned (torch_to_nnef.tensor.residency.TensorResidencyPool.is_pinned)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.is_pinned">is_pinned</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Return whether <code>source</code> is manually pinned under LRU.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            is_resident (torch_to_nnef.tensor.residency.TensorResidencyPool.is_resident)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.is_resident">is_resident</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Return whether <code>source</code> has completed loading into the pool.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            pin (torch_to_nnef.tensor.residency.TensorResidencyPool.pin)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.pin">pin</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Load <code>source</code> and exclude it from LRU eviction until unpinned.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            prefetch (torch_to_nnef.tensor.residency.TensorResidencyPool.prefetch)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.prefetch">prefetch</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Begin loading <code>source</code> and return a completion handle.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            resolve (torch_to_nnef.tensor.residency.TensorResidencyPool.resolve)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resolve">resolve</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Return a resident value, loading it when necessary.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            scope (torch_to_nnef.tensor.residency.TensorResidencyPool.scope)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.scope">scope</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Make this pool transparently serve offloaded tensor reloads.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            unpin (torch_to_nnef.tensor.residency.TensorResidencyPool.unpin)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.unpin">unpin</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Return a manually pinned value to normal LRU management.</p>
+                </div>
+              </td>
+            </tr>
+      </tbody>
+    </table>
+
+
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="            resident_bytes
+
+
+  
+      property
+   (torch_to_nnef.tensor.residency.TensorResidencyPool.resident_bytes)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resident_bytes">resident_bytes</a></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Return the approximate bytes held by resident values.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.resident_bytes" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">resident_bytes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">resident_bytes</span><span class="p">:</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the approximate bytes held by resident values.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.acquire" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">acquire</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">acquire</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TDEVICE</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;read&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TensorResidencyLease</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a scoped lease for <code>source</code>.</p>
+<p>Use <code>mode="read_write"</code> when the returned value may be modified.
+The pool writes dirty values back before eviction or flushing.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.close" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">close</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">close</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Flush all values, stop workers, and release resident memory.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.evict" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">evict</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">evict</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Write back and remove an unleased, unpinned value from the pool.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.flush" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">flush</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">flush</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">OffloadedTensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Wait for loads and write dirty resident values back to storage.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.is_pinned" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">is_pinned</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">is_pinned</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return whether <code>source</code> is manually pinned under LRU.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.is_resident" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">is_resident</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">is_resident</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return whether <code>source</code> has completed loading into the pool.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.pin" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">pin</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">pin</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TDEVICE</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TensorPrefetch</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Load <code>source</code> and exclude it from LRU eviction until unpinned.</p>
+<p>Pinning is idempotent and the returned handle can be used to wait for
+materialization. A pin is cache policy rather than an active-use lease,
+so closing the pool releases pinned values automatically. Manual pins
+are available only with :attr:<code>ResidencyStrategy.LRU</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.prefetch" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">prefetch</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">prefetch</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TDEVICE</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TensorPrefetch</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Begin loading <code>source</code> and return a completion handle.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.resolve" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">resolve</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TDEVICE</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a resident value, loading it when necessary.</p>
+<p>This is the read-only path used automatically by <code>OffloadedTensor</code>
+inside :meth:<code>scope</code>. Use :meth:<code>acquire</code> for active-use protection or
+mutation tracking. Under LRU, use :meth:<code>pin</code> for manual retention.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.scope" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">scope</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">scope</span><span class="p">(</span><span class="n">device</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TDEVICE</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Make this pool transparently serve offloaded tensor reloads.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.unpin" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">unpin</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">unpin</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a manually pinned value to normal LRU management.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="torch_to_nnef.tensor.residency.active_tensor_residency" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">active_tensor_residency</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">active_tensor_residency</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Tuple</span><span class="p">[</span><span class="n">TensorResidencyPool</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">]]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the pool and default device active in this context.</p>
 
 
     </div>
@@ -4245,9 +5317,9 @@ so <code>aten::size</code> on a provably-static axis can still fold.</p>
         
           
           <a
-            href="../"
+            href="../quant/qtract/"
             class="md-footer__link md-footer__link--prev"
-            aria-label="Previous: torch_graph"
+            aria-label="Previous: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;qtract"
           >
             <div class="md-footer__button md-icon">
               
@@ -4258,7 +5330,7 @@ so <code>aten::size</code> on a provably-static axis can still fold.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                torch_graph
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>qtract
               </div>
             </div>
           </a>
@@ -4268,16 +5340,16 @@ so <code>aten::size</code> on a provably-static axis can still fold.</p>
         
           
           <a
-            href="../harden/"
+            href="../updater/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;harden"
+            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;updater"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>updater
               </div>
             </div>
             <div class="md-footer__button md-icon">
