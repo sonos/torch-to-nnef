@@ -154,6 +154,8 @@ allowlist_externals = ["uv"]
 commands_pre = [
     # Resolve both local packages and the version pins together. Tox's
     # separate workspace installation can otherwise replace the pinned torch.
+    # transformers>=5.18 calls torch.accelerator.current_accelerator() at
+    # import time, which raises on torch 2.6 CPU-only hosts.
     [
         "uv",
         "pip",
@@ -163,6 +165,7 @@ commands_pre = [
         "torch==2.6.*",
         "torchaudio==2.6.*",
         "nemo_toolkit[asr]==3.0.0",
+        "transformers<5.18",
         "{toxinidir}/../..",
         "{toxinidir}",
     ],
