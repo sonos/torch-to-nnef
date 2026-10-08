@@ -41,7 +41,6 @@ ignore = [
     "RUSTSEC-2026-0319", # anymap2 unmaintained (transitive via liquid / tract-linalg build)
     "RUSTSEC-2025-0119", # number_prefix unmaintained (transitive via indicatif)
     "RUSTSEC-2026-0192", # ttf-parser unmaintained (transitive via yolo/imageproc)
-    "RUSTSEC-2026-0319", # anymap2 unmaintained (transitive via tract-linalg build dep liquid)
 ]
 
 # --- Licenses ---------------------------------------------------------------
