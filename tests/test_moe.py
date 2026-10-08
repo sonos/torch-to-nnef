@@ -61,8 +61,9 @@ class MoEFFNWithBiasWrapper(nn.Module):
 
 
 def _skip_if_unsupported(inference_target):
-    # tract_moe_ffn first ships in tract 0.23.4; releases 0.23.0..0.23.3 are
-    # already out without it, so default CI (official versions) must skip.
+    # tract_moe_ffn (sonos/tract#2911) first ships in tract 0.23.9; releases up
+    # to 0.23.8 are already out without it, so default CI (official versions)
+    # must skip.
     # An explicitly provided tract (T2N_TEST_TRACT_PATH /
     # T2N_TEST_TRACT_VERSION) is trusted to have the op regardless of its
     # reported version, so the locally built dev binary (e.g. 0.23.2-pre)
@@ -73,9 +74,9 @@ def _skip_if_unsupported(inference_target):
         "T2N_TEST_TRACT_PATH" in os.environ
         or "T2N_TEST_TRACT_VERSION" in os.environ
     )
-    if not explicit and inference_target.version < "0.23.4":
+    if not explicit and inference_target.version < "0.23.9":
         pytest.skip(
-            "tract_moe_ffn first ships in tract 0.23.4; set "
+            "tract_moe_ffn first ships in tract 0.23.9; set "
             "T2N_TEST_TRACT_PATH to a build that has the op to run these"
         )
 
