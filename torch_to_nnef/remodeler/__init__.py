@@ -27,6 +27,8 @@ from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
 from torch_to_nnef.remodeler.dyn_axes import (
     apply_eval_symbols,
     apply_symbol_renames_to_dyn,
+    drop_assertions_referencing_symbols,
+    filter_assertions_present_in_dyn,
     remove_eval_symbols_from_dyn,
     rewrite_and_filter_assertions,
     rewrite_assertions_with_renames,
@@ -53,6 +55,8 @@ __all__ = [
     "RenameOutputs",
     "apply_eval_symbols",
     "apply_symbol_renames_to_dyn",
+    "drop_assertions_referencing_symbols",
+    "filter_assertions_present_in_dyn",
     "remove_eval_symbols_from_dyn",
     "rewrite_and_filter_assertions",
     "rewrite_assertions_with_renames",
@@ -231,34 +235,50 @@ def prepare_subnet_export(
         elif rename_map:
             dyn = apply_symbol_renames_to_dyn(dyn, rename_map)
 
-    custom_ext = set(
-        rewrite_and_filter_assertions(
-            list(custom_extensions),
-            (
-                axis_registry.renamed_symbols_per_subnet
-                if axis_registry is not None
-                else {}
-            ).get(subnet_name, {}),
-            dyn,
-        )
-    )
-    if axis_registry is not None:
-        # User/derived/slug extensions may reference source symbols that were
-        # renamed via ``renamed_symbols`` (e.g. AUDIO_SIGNAL__TIME -> S), so
-        # they must go through the same rewrite as the auto-generated ones.
-        custom_ext.update(
-            rewrite_assertions_with_renames(
-                axis_registry.extensions_per_subnet.get(subnet_name, []),
-                rename_map,
-            )
-        )
-
     if axis_registry is not None and axis_registry.eval_symbols_per_input:
+        # Pin eval-symbol axes out of `dyn` *before* filtering assertions
+        # below: an eval-symbol axis (e.g. TARGETS__TIME=1 for single-step
+        # decoding) becomes a static dim in every tensor shape, so any
+        # auto-generated `tract_assert <SYMBOL> >= 1` about it would
+        # otherwise survive the "symbol still present in dyn" filter and
+        # ship as a permanently vestigial assertion tract warns about.
         remove_eval_symbols_from_dyn(
             input_names,
             subnet_name,
             dyn,
             axis_registry.eval_symbols_per_input,
+        )
+
+    # Auto-generated (`build_dynamic_axes`) assertions are always the
+    # single-symbol `tract_assert <SYMBOL> >= 1` shape, so it's safe to
+    # require every identifier they mention to still be a known axis in
+    # `dyn` (renamed, collapsed, bound, or eval-symbol-pinned axes are all
+    # gone from it by this point).
+    custom_ext = set(
+        rewrite_and_filter_assertions(list(custom_extensions), rename_map, dyn)
+    )
+    if axis_registry is not None:
+        # User/slug/derived-declared extensions are free-form strings that
+        # may use syntax the filter above doesn't parse (a label, e.g.
+        # ``tract_assert tg: S==1``, or a function call), so requiring
+        # every identifier to be a known axis would wrongly drop those.
+        # Only drop one when it names a symbol this subnet's
+        # ``eval_symbols`` just pinned static, the one case we know for
+        # certain is now stale.
+        pinned_symbols = {
+            sym
+            for qname, syms in axis_registry.eval_symbols_per_input.items()
+            if qname.startswith(f"{subnet_name}.")
+            for sym in syms
+        }
+        custom_ext.update(
+            drop_assertions_referencing_symbols(
+                rewrite_assertions_with_renames(
+                    axis_registry.extensions_per_subnet.get(subnet_name, []),
+                    rename_map,
+                ),
+                pinned_symbols,
+            )
         )
 
     return PreparedSubnet(

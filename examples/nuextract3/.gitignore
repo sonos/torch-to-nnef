@@ -1,0 +1,9 @@
+exp/
+exp_*/
+*.nnef.tgz
+*.dat
+nuextract3.json
+tokenizer.json
+__pycache__/
+
+nuextract3-rs/target/

@@ -16,6 +16,11 @@ on:
       - "uv.lock"
       - ".github/workflows/ci-nemo.yml"
   workflow_dispatch:
+    inputs:
+      tract-version:
+        description: "Optional tract version for compatibility testing"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -36,6 +41,7 @@ jobs:
           matrix: |
             python-version {3.12}, tox-env {"nemo_tract_2_5_3"}
             python-version {3.13}, tox-env {"nemo_tract_2_7_2"}
+            python-version {3.13}, tox-env {"nemo_tract_3_0_0"}
 
     outputs:
       matrix: ${{ steps.create_matrix.outputs.matrix }}
@@ -62,4 +68,6 @@ jobs:
           pip install tox==4.23.2
 
       - name: test with tox
+        env:
+          T2N_TEST_TRACT_VERSION: ${{ inputs.tract-version || '0.23.0-dev.3' }}
         run: cd packages/nemo-asr && tox run -e ${{ matrix.tox-env }}

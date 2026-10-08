@@ -12,7 +12,6 @@ from __future__ import annotations
 import logging
 import typing as T
 
-import numpy as np
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
@@ -22,21 +21,12 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.extras import register
-from torch_to_nnef.utils import warn_once
+from torch_to_nnef.op.gated_delta import (
+    emit_native_gdn_recurrent,
+    native_gdn_reject_reason,
+)
 
 LOGGER = logging.getLogger(__name__)
-
-# tract's fused gated-delta-net decode operator only accepts this key/value
-# head dim, and only these dtypes (it upcasts the recurrence to f32 inside).
-NATIVE_GDN_HEAD_DIM = 128
-NATIVE_GDN_DTYPES = {
-    "q": np.float16,
-    "k": np.float16,
-    "v": np.float16,
-    "g": np.float32,
-    "beta": np.float16,
-    "s0": np.float32,
-}
 
 
 def _emit_ssm_scan_common(
@@ -195,132 +185,6 @@ def ssm_scan_y(
     )
 
 
-def _native_gdn_reject_reason(
-    inference_target, q, k, v, gg, beta, s0
-) -> T.Optional[str]:
-    """Why this `gated_delta_scan` can NOT become tract's fused operator.
-
-    `tract_transformers_gdn_recurrent` is a fused SINGLE decode step (it also
-    folds the q/k l2-norm and the `1 / sqrt(head_dim)` output scale), with
-    hard constraints checked by tract at load time. Returns `None` when the
-    traced tensors satisfy all of them, else a short reason used for logging
-    before falling back to the portable `tract_core_scan` lowering.
-    """
-    if not inference_target.native_gated_delta_op:
-        return "disabled on this inference target"
-    if q.shape[2] != 1:
-        return f"time axis is {q.shape[2]} (fused op decodes one step)"
-    # NNEF tensor shapes are lists or tuples depending on the producer, so
-    # normalize before comparing (a type mismatch would silently reject).
-    batch_head_time = {
-        name: tuple(tensor.shape[:3])
-        for name, tensor in [
-            ("q", q),
-            ("k", k),
-            ("v", v),
-            ("g", gg),
-            ("beta", beta),
-        ]
-    }
-    if len(set(batch_head_time.values())) != 1:
-        # tract would read mismatched head counts as GQA and repeat q/k
-        # itself, while this op takes the repeat already applied.
-        return f"operands disagree on (B, H, T): {batch_head_time}"
-    head_dims = [q.shape[-1], k.shape[-1], v.shape[-1], *s0.shape[-2:]]
-    if any(dim != NATIVE_GDN_HEAD_DIM for dim in head_dims):
-        return (
-            f"head dims {head_dims} are not all {NATIVE_GDN_HEAD_DIM} "
-            "(fused op is specialized)"
-        )
-    dtypes = {"q": q, "k": k, "v": v, "g": gg, "beta": beta, "s0": s0}
-    bad = {
-        name: tensor.dtype
-        for name, tensor in dtypes.items()
-        if tensor.dtype != NATIVE_GDN_DTYPES[name]
-    }
-    if bad:
-        return f"dtypes {bad} do not match the fused op signature"
-    return None
-
-
-def _emit_native_gdn_recurrent(
-    g, node, op_helper, name_to_tensor, inputs
-) -> T.List[str]:
-    """Emit `tract_transformers_gdn_recurrent(q, k, v, g, beta, s0)`.
-
-    tract's operand layout puts the sequence axis at 1 and the head axis at 2
-    (`[B, S, H, W]` for q/k/v, `[B, S, H]` for log-decay and beta), while the
-    state keeps our own `[B, H, W, W]`, so transpose the per-step operands on
-    the way in and the output on the way out. For `S == 1` those transposes
-    are pure shape changes, but they are what makes the emitted graph match
-    the operator's documented layout rather than its flat-index reading of a
-    single step.
-    """
-    q, k, v, gg, beta, s0 = inputs
-
-    def _seq_second_4d(src):  # (B, H, S, D) -> (B, S, H, D)
-        return op_helper.add_intermediate_op(
-            src=src,
-            op_type="transpose",
-            attrs={"axes": [0, 2, 1, 3]},
-            new_shape=[src.shape[0], src.shape[2], src.shape[1], src.shape[3]],
-            suffix="gdn_seq_second",
-        )
-
-    def _seq_second_3d(src):  # (B, H, S) -> (B, S, H)
-        return op_helper.add_intermediate_op(
-            src=src,
-            op_type="transpose",
-            attrs={"axes": [0, 2, 1]},
-            new_shape=[src.shape[0], src.shape[2], src.shape[1]],
-            suffix="gdn_seq_second",
-        )
-
-    b, h, t = q.shape[:3]
-    hv = v.shape[-1]
-    y_native = NTensor(
-        g,
-        name=f"{node.outputs[0].export_name}_gdn_seq_second",
-        dtype=q.dtype,
-        shape=(b, t, h, hv),
-    )
-    s_final = NTensor(
-        g,
-        name=node.outputs[1].export_name,
-        dtype=s0.dtype,
-        shape=tuple(s0.shape),
-    )
-    name_to_tensor[node.outputs[1].export_name] = s_final
-    NOperation(
-        g,
-        type="tract_transformers_gdn_recurrent",
-        inputs=(
-            _seq_second_4d(q),
-            _seq_second_4d(k),
-            _seq_second_4d(v),
-            _seq_second_3d(gg),
-            _seq_second_3d(beta),
-            s0,
-        ),
-        outputs=(y_native, s_final),
-    )
-    y_final = NTensor(
-        g,
-        name=node.outputs[0].export_name,
-        dtype=q.dtype,
-        shape=(b, h, t, hv),
-    )
-    name_to_tensor[node.outputs[0].export_name] = y_final
-    NOperation(
-        g,
-        type="transpose",
-        attribs={"axes": [0, 2, 1, 3]},
-        inputs=(y_native,),
-        outputs=(y_final,),
-    )
-    return ["tract_transformers"]
-
-
 @register("gated_delta_scan")
 def gated_delta_scan(
     g, node, name_to_tensor, op_helper, inference_target, **kwargs
@@ -375,18 +239,32 @@ def gated_delta_scan(
             "'s0' must be rank-4 (B, H, key_head_dim, value_head_dim)"
         )
 
-    reject = _native_gdn_reject_reason(inference_target, q, k, v, gg, beta, s0)
+    operands = (q, k, v, gg, beta, s0)
+    reject = native_gdn_reject_reason(
+        inference_target, operands, head_major=True
+    )
     if reject is None:
-        if inference_target.dynamic_axes:
-            # once per export, not once per gated-delta layer
-            warn_once(
-                LOGGER,
-                "emitting tract's fused gated-delta operator, which decodes "
-                "exactly ONE step: keep the time axis static at 1 in this "
-                f"graph (dynamic_axes={inference_target.dynamic_axes})",
-            )
-        return _emit_native_gdn_recurrent(
-            g, node, op_helper, name_to_tensor, (q, k, v, gg, beta, s0)
+        b, h, t = q.shape[:3]
+        y_final = NTensor(
+            g,
+            name=node.outputs[0].export_name,
+            dtype=q.dtype,
+            shape=(b, h, t, v.shape[-1]),
+        )
+        name_to_tensor[node.outputs[0].export_name] = y_final
+        s_final = NTensor(
+            g,
+            name=node.outputs[1].export_name,
+            dtype=s0.dtype,
+            shape=tuple(s0.shape),
+        )
+        name_to_tensor[node.outputs[1].export_name] = s_final
+        return emit_native_gdn_recurrent(
+            g,
+            op_helper,
+            operands,
+            (y_final, s_final),
+            head_major=True,
         )
     LOGGER.debug(
         "gated_delta_scan keeps the tract_core_scan lowering: %s", reject

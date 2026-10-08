@@ -34,6 +34,11 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.tract import (
     NATIVE_GDN_RECURRENT_MIN_VERSION,
 )
+from torch_to_nnef.op.gated_delta import (
+    gated_delta_fake,
+    gated_delta_reference,
+    l2norm,
+)
 from torch_to_nnef.utils import SemanticVersion
 
 
@@ -61,23 +66,11 @@ if not _op_already_defined():
     )
     def _gated_delta_scan(q, k, v, g, beta, s0):
         """Pure-torch reference: the gated-delta recurrence over T (axis 2)."""
-        state = s0
-        ys = []
-        for t in range(q.shape[2]):
-            q_t, k_t, v_t = q[:, :, t], k[:, :, t], v[:, :, t]
-            g_t = g[:, :, t].exp()[..., None, None]
-            beta_t = beta[:, :, t][..., None]
-            state = state * g_t
-            kv = (state * k_t.unsqueeze(-1)).sum(-2)
-            delta = (v_t - kv) * beta_t
-            state = state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
-            ys.append((state * q_t.unsqueeze(-1)).sum(-2))
-        return torch.stack(ys, dim=2), state
+        return gated_delta_reference(q, k, v, g, beta, s0)
 
     @_gated_delta_scan.register_fake
     def _meta(q, k, v, g, beta, s0):
-        b, h, t, _ = q.shape
-        return q.new_empty((b, h, t, v.shape[-1])), s0.new_empty(s0.shape)
+        return gated_delta_fake(q, k, v, g, beta, s0)
 
 
 class _ScanMod(torch.nn.Module):
@@ -134,8 +127,8 @@ def test_gated_delta_scan_export(_id, test_input, model, inference_target):
 
 
 # --- tract's fused decode operator (`tract_transformers_gdn_recurrent`) ------
-# Auto-enabled from tract 0.23.5; until that release exists the emission is
-# exercised by forcing the flag, with check_io off (no binary knows the op).
+# Auto-enabled from tract 0.23.5; graph checks below cover the fused emission
+# and the conditions that retain the portable scan lowering.
 
 
 def _decode_inputs(T_=1, head=128, dtype=torch.float16):
@@ -165,13 +158,18 @@ def _export_graph_nnef(inputs, inference_target, tmp_path) -> str:
         return tf.extractfile("graph.nnef").read().decode("utf8")
 
 
-def test_native_gdn_recurrent_emitted(tmp_path):
+@pytest.mark.parametrize("native", [None, True], ids=["auto", "forced"])
+def test_native_gdn_recurrent_emitted(tmp_path, native):
+    q, k, v, g, beta, state = _decode_inputs()
+    # Match the custom op's contract: q/k are normalized before the
+    # recurrence and q includes the attention scale.
+    inputs = (l2norm(q) / q.shape[-1] ** 0.5, l2norm(k), v, g, beta, state)
     graph = _export_graph_nnef(
-        _decode_inputs(),
+        inputs,
         TractNNEF(
             TractNNEF.latest_version(),
-            check_io=False,
-            native_gated_delta_op=True,
+            check_io=True,
+            native_gated_delta_op=native,
         ),
         tmp_path,
     )
@@ -215,13 +213,33 @@ def test_native_gdn_recurrent_auto_activation():
     assert (
         SemanticVersion.from_str("0.23.5") >= NATIVE_GDN_RECURRENT_MIN_VERSION
     )
-    # Tripwire, not a tautology: no supported release carries the operator
-    # yet, so auto-activation is off. Whoever adds 0.23.5 to
-    # OFFICIAL_SUPPORTED_VERSIONS flips this on and updates these two lines.
-    assert TractNNEF.latest_version() < NATIVE_GDN_RECURRENT_MIN_VERSION
-    assert not TractNNEF(
+    # The latest supported release carries the fused operator, so it is
+    # enabled by default while callers can still explicitly opt out.
+    assert TractNNEF.latest_version() >= NATIVE_GDN_RECURRENT_MIN_VERSION
+    assert TractNNEF(
         TractNNEF.latest_version(), check_io=False
     ).native_gated_delta_op
     assert not TractNNEF(
         TractNNEF.latest_version(), check_io=False, native_gated_delta_op=False
     ).native_gated_delta_op
+
+
+def test_native_gdn_recurrent_refused_under_dynamic_axes(tmp_path):
+    """A declared-dynamic graph keeps the scan even at a traced T of 1.
+
+    The fused operator decodes exactly one step, and a handler cannot tell a
+    symbolic time axis from a static one (dynamic_axes reach the graph inputs
+    only at the end of export), so a T=1 trace with `S` declared must NOT be
+    specialized to it.
+    """
+    target = TractNNEF(
+        TractNNEF.latest_version(),
+        check_io=False,
+        native_gated_delta_op=True,
+        dynamic_axes={"q": {2: "S"}, "k": {2: "S"}, "v": {2: "S"}},
+    )
+    graph = _export_graph_nnef(_decode_inputs(), target, tmp_path)
+    assert "tract_transformers_gdn_recurrent" not in graph
+    assert "gated_delta_scan" in graph
+    # the sequence axis really is symbolic in the emitted graph
+    assert "shape = [1, 2, S, 128]" in graph

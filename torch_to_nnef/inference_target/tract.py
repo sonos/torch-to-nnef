@@ -91,7 +91,7 @@ class TractNNEF(InferenceTarget):
     OFFICIAL_SUPPORTED_VERSIONS = [
         SemanticVersion.from_str(version)
         for version in [
-            "0.23.3",
+            "0.23.8",
             "0.22.1",
         ]
     ]
@@ -647,30 +647,35 @@ class TractCli:
         return True
 
 
+# Each entry is a set of substrings that must ALL appear in a stderr line
+# for it to be considered a known-harmless tract warning.
+# NOTE: discuss with @kali about migration
+_BENIGN_TRACT_STDERR_PATTERNS: T.List[T.List[str]] = [
+    ["Ignore unknown extension"],
+    ["tract_pulse_streaming_symbol", "deprecated", "WARN"],
+    ["Flattening the shape will be deprecated.", "Reshape", "WARN"],
+    [
+        "constrains symbol(s) absent from every tensor shape",
+        "it has no effect",
+        "WARN",
+    ],
+]
+
+
 def tract_err_filter(serr: str) -> str:
+    """Drop stderr lines known to be tract warnings that are harmless to t2n.
+
+    Each dropped line is still surfaced via ``LOGGER.warning`` so it
+    remains visible (e.g. in CI logs) instead of vanishing silently:
+    filtering only means "don't fail the export on this", not "hide it".
+    """
     err_filtered = ""
     for serrline in serr.split("\n"):
-        if any(_ in serrline for _ in ["Ignore unknown extension"]):
-            continue
-
-        if all(  # NOTE: discuss with @kali about migration
-            _ in serrline
-            for _ in [
-                "tract_pulse_streaming_symbol",
-                "deprecated",
-                "WARN",
-            ]
+        if any(
+            all(needle in serrline for needle in pattern)
+            for pattern in _BENIGN_TRACT_STDERR_PATTERNS
         ):
-            continue
-
-        if all(  # NOTE: discuss with @kali about migration
-            _ in serrline
-            for _ in [
-                "Flattening the shape will be deprecated.",
-                "Reshape",
-                "WARN",
-            ]
-        ):
+            LOGGER.warning("tract (filtered, harmless): %s", serrline.strip())
             continue
 
         serrline = serrline.strip()
@@ -852,7 +857,11 @@ def pytorch_to_onnx_to_tract_to_nnef(
                 opset_version=17,
             )
         # parametrized failure exception emission
-        except (RuntimeError, ValueError, TypeError) as exp:
+        # ImportError included on purpose: `torch.onnx.export` pulls in
+        # onnxscript lazily, and this dumper usually runs BECAUSE check_io
+        # already failed. Letting a missing optional dependency escape would
+        # replace the mismatch report with a ModuleNotFoundError.
+        except (RuntimeError, ValueError, TypeError, ImportError) as exp:
             if raise_export_error:
                 raise T2NErrorOnnxExport(exp.args) from exp
             LOGGER.warning("ONNX export error: %s", exp)

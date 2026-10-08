@@ -5,10 +5,13 @@ These utilities operate on the generic ``dyn`` mapping
 strings.  They are used by NeMo and can be reused by any provider.
 """
 
+import logging
 import re
 import typing as T
 
 import torch
+
+LOGGER = logging.getLogger(__name__)
 
 # -- symbol renames ----------------------------------------------------------
 
@@ -140,6 +143,78 @@ def rewrite_assertions_with_renames(
     return [ident.sub(_sub, str(a)) for a in assertions]
 
 
+def filter_assertions_present_in_dyn(
+    assertions: list[str],
+    dyn: T.Optional[dict[str, dict[int, str]]],
+) -> list[str]:
+    """Drop assertions that reference a symbol absent from every axis.
+
+    An assertion whose symbol(s) never appear in ``dyn`` (renamed away,
+    collapsed, or bound) can never be evaluated against a real dimension:
+    it is dead weight in the exported NNEF that tract itself flags as a
+    "mislabeled symbol name" warning. Requires *every* identifier the
+    assertion mentions to be a known axis symbol, so it only fits the
+    single-symbol, machine-generated shape (e.g. ``tract_assert S >= 1``)
+    that :func:`torch_to_nnef_nemo.dynaxes.build_dynamic_axes` produces --
+    a free-form, user-declared assertion may use syntax this does not
+    parse (a label, a function call) and should go through
+    :func:`drop_assertions_referencing_symbols` instead.
+
+    Returns de-duplicated assertions.
+    """
+    present: set[str] = set()
+    for axes in (dyn or {}).values():
+        for s in (axes or {}).values():
+            present.add(str(s).upper())
+
+    ident = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+    filtered = [
+        a
+        for a in assertions
+        if all(
+            t.upper() in present
+            for t in ident.findall(a)
+            if t.upper() not in {"TRACT_ASSERT"}
+        )
+    ]
+    return list(dict.fromkeys(filtered))
+
+
+def drop_assertions_referencing_symbols(
+    assertions: list[str],
+    removed_symbols: T.Optional[T.Iterable[str]],
+) -> list[str]:
+    """Drop assertions that name one of ``removed_symbols`` verbatim.
+
+    Unlike :func:`filter_assertions_present_in_dyn`, this does not require
+    every identifier in the assertion to be a known axis symbol: a
+    hand-written or slug/derived-declared assertion may legitimately use a
+    label (e.g. ``tract_assert tg: S==1``) or reference something outside
+    ``dyn`` entirely, and must not be discarded for that alone. It only
+    drops an assertion when it references a symbol known to have just been
+    pinned static (e.g. via ``eval_symbols``), i.e. one that used to exist
+    but provably no longer does.
+
+    Returns de-duplicated assertions.
+    """
+    removed = {str(s).upper() for s in (removed_symbols or [])}
+    if not removed:
+        return list(assertions)
+
+    ident = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+    kept = []
+    for a in assertions:
+        if any(t.upper() in removed for t in ident.findall(a)):
+            LOGGER.warning(
+                "dropping now-vestigial assertion %r: references a symbol "
+                "pinned static by eval_symbols",
+                a,
+            )
+            continue
+        kept.append(a)
+    return list(dict.fromkeys(kept))
+
+
 def rewrite_and_filter_assertions(
     assertions: list[str],
     rename_map: T.Optional[dict[str, list[str]]],
@@ -154,19 +229,4 @@ def rewrite_and_filter_assertions(
     - Returns de-duplicated assertions.
     """
     rewritten = rewrite_assertions_with_renames(assertions, rename_map)
-    present: set[str] = set()
-    for axes in (dyn or {}).values():
-        for s in (axes or {}).values():
-            present.add(str(s).upper())
-
-    ident = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
-    filtered = [
-        a
-        for a in rewritten
-        if all(
-            t.upper() in present
-            for t in ident.findall(a)
-            if t.upper() not in {"TRACT_ASSERT"}
-        )
-    ]
-    return list(dict.fromkeys(filtered))
+    return filter_assertions_present_in_dyn(rewritten, dyn)

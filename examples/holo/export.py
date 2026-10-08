@@ -65,6 +65,19 @@ def _first_not_none(*values):
     return next((v for v in values if v is not None), None)
 
 
+def _eos_token_id(*values):
+    """Single eos id for the manifest, since HF configs may carry a list.
+
+    The Rust demo compares one id (`Option<i64>`), and a list reaching the
+    manifest fails its parse outright, so unwrap to the first entry. HF's own
+    generation stops on any of them; the first is the canonical one.
+    """
+    value = _first_not_none(*values)
+    if isinstance(value, (list, tuple)):
+        return value[0] if value else None
+    return value
+
+
 def _dummy_config() -> Qwen3_5Config:
     return Qwen3_5Config(
         image_token_id=1,
@@ -330,7 +343,7 @@ def _write_manifest_and_inputs(args, model, s, layout, dec_in, dec_out):
         "vocab_size": tc.vocab_size,
         "image_token_id": conf.image_token_id,
         "vision_start_token_id": conf.vision_start_token_id,
-        "eos_token_id": _first_not_none(
+        "eos_token_id": _eos_token_id(
             getattr(conf, "eos_token_id", None),
             getattr(tc, "eos_token_id", None),
         ),

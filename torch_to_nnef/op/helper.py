@@ -795,6 +795,11 @@ def get_list_of_int(
     accepted_none = 0
 
     def cast_element(node, accepted_none):
+        if isinstance(node, PythonConstant):
+            # Static size queries may already have been used as tensor
+            # operands. Their scalar tensors are inlined by the writer and
+            # have no graph assignment, so keep shape attributes literal.
+            return int(node.data)
         tensor = name_to_tensor.get(node.export_name)
         if tensor is not None and (
             force_none_as_tensor_ref or has_dynamic_axes
