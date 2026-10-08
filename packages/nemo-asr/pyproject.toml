@@ -21,6 +21,9 @@ keywords = ["nnef", "pytorch", "torch", "nemo", "asr", "export"]
 dependencies = [
     "torch_to_nnef>=0.22.0",
     "nemo_toolkit[asr]>=2.0.0,<4.0.0",
+    # nemo_toolkit 3.0.0 dropped the transformers floor that 2.x carried, so
+    # an unlocked resolve backtracks to transformers 4.12 / tokenizers 0.10.
+    "transformers>=4.44.0",
     "torchaudio",
     "questionary",
     "rich",
