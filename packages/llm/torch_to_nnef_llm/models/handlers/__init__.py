@@ -16,6 +16,7 @@ from .gemma4_vl import (
     Gemma4VideoEncoderHandler,
     Gemma4VisionEncoderHandler,
 )
+from .gpt_oss import GptOssArchitectureHandler
 from .idefics3_vl import (
     Idefics3ArchitectureHandler,
     Idefics3VisionEncoderHandler,
@@ -30,6 +31,7 @@ from .qwen3_5_vl import (
     Qwen35ArchitectureHandler,
     Qwen35VisionEncoderHandler,
 )
+from .qwen3_next import Qwen3NextArchitectureHandler
 from .qwen3_vl import (
     Qwen3VLArchitectureHandler,
     Qwen3VLVisionEncoderHandler,
@@ -57,6 +59,7 @@ __all__ = [
     "Gemma4ArchitectureHandler",
     "Gemma4VideoEncoderHandler",
     "Gemma4VisionEncoderHandler",
+    "GptOssArchitectureHandler",
     "IOSpec",
     "Idefics3ArchitectureHandler",
     "Idefics3VisionEncoderHandler",
@@ -67,6 +70,7 @@ __all__ = [
     "Qwen25VLVisionEncoderHandler",
     "Qwen35ArchitectureHandler",
     "Qwen35MoeArchitectureHandler",
+    "Qwen3NextArchitectureHandler",
     "Qwen35VisionEncoderHandler",
     "Qwen3VLArchitectureHandler",
     "Qwen3VLVisionEncoderHandler",

@@ -655,6 +655,7 @@ def _from_pretrained(
 
 
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
+# pylint: disable-next=too-many-branches
 def load_model(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,

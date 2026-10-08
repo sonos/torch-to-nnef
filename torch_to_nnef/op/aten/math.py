@@ -125,6 +125,13 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
             divisor_tensor,
         ),
         output_tensor_name_suffix=suffix_div_op_output,
+        # When the traced output is integer we deliberately keep the
+        # division (and its rounding fragment) in float and cast the
+        # result back to int below. Letting the generic implicit-cast
+        # realign the f32 operands to the int output dtype would run the
+        # rounding fragment (e.g. `trunc`'s `select(x < 0.0, ...)`) on
+        # integers, which tract cannot type-resolve.
+        maybe_cast_align_tract=io_casting_with_dtype is None,
     )
 
     if rounding_mode:
@@ -489,11 +496,9 @@ def rsub(node, op_helper, torch_graph, **kwargs):
         for _ in [input_node, other_node]
     ]
     for idx, inp in enumerate(inputs):
-        inputs[idx] = op_helper.add_single_output_op_from_nnef_tensors(
-            node,
-            "tract_core_cast",
-            inputs=[inp],
-            attrs={"to": "f32"},
+        inputs[idx] = op_helper.add_cast_nnef_tensor(
+            inp,
+            cast_to=np.float32,
             force_full_output_tensor_name=f"{inp.name}_as_f32",
         )
 

@@ -1,5 +1,7 @@
 import abc
+import contextlib
 import logging
+import os
 import typing as T
 import warnings
 
@@ -28,7 +30,50 @@ IR_OPAQUE_NAME = "t2n::opaque_tensor_expand"
 # this legacy is less optimal since it duplicate
 # weights at export time between with Opaque and
 # OpaqueTensorRef.
-NEW_OPAQUE_TRACING_STRATEGY = torch_version() >= "2.4.0"
+#
+# T2N_LEGACY_OPAQUE_TRACING=1 forces the legacy strategy: every opaque
+# param materializes per-use during trace (streamed through the
+# opaque_t2n_expand custom op, so the traced graph does not retain the
+# values). Needed for STATEFUL models under disk offload: the meta/fake
+# strategy makes the whole activation stream fake, and every op mixing
+# it with the (real) handler-fed cache tensors (cat/copy_ on KV, conv or
+# recurrent states) trips jit tracer internal asserts at the real/fake
+# boundary.
+NEW_OPAQUE_TRACING_STRATEGY = (
+    torch_version() >= "2.4.0"
+    and os.environ.get("T2N_LEGACY_OPAQUE_TRACING", "0") != "1"
+)
+_TRACE_FAKE_MODE = None
+
+
+def _fake_trace_tensor(
+    shape: T.Tuple[int, ...],
+    dtype: torch.dtype,
+    device: torch.device,
+) -> torch.Tensor:
+    """Create a non-materialized tensor with real device semantics."""
+    global _TRACE_FAKE_MODE  # pylint: disable=global-statement
+    try:
+        from torch._subclasses.fake_tensor import (  # pylint: disable=import-outside-toplevel
+            FakeTensorMode,
+        )
+    except ImportError:
+        return torch.empty(shape, dtype=dtype, device="meta")
+    if _TRACE_FAKE_MODE is None:
+        # ``allow_non_fake_inputs`` lets a fake placeholder compose with the
+        # real tensors it meets during trace. Older torch (e.g. 1.13) does
+        # not accept it as a constructor kwarg, so fall back to setting it
+        # after construction, and to a plain mode if even that is absent.
+        try:
+            _TRACE_FAKE_MODE = FakeTensorMode(allow_non_fake_inputs=True)
+        except TypeError:
+            _TRACE_FAKE_MODE = FakeTensorMode()
+            with contextlib.suppress(AttributeError):
+                _TRACE_FAKE_MODE.allow_non_fake_inputs = True
+    if device.type == "meta":
+        device = torch.device("cpu")
+    with _TRACE_FAKE_MODE:
+        return torch.empty(shape, dtype=dtype, device=device)
 
 
 def maybe_custom_op(f):
@@ -152,8 +197,10 @@ class OpaqueTensor(torch.Tensor):
         # index_select) also request materialization to avoid baking
         # uninitialized memory as NNEF constants.
         if device == "meta" and not dtype_is_whole_number(self.dtype):
-            return torch.empty(
-                tuple(self.shape), dtype=self.dtype, device=device
+            return _fake_trace_tensor(
+                tuple(self.shape),
+                dtype=self.dtype,
+                device=self.device,
             )
         # Materialize on the parameter's native device rather than forcing one,
         # so a GPU-resident trace keeps the weight co-located with its runtime
@@ -333,6 +380,9 @@ class OpaqueTensorRef(torch.Tensor):
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.tensor import NamedTensor
 
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.tensor.named import find_fake_mode
+
         if not all(
             issubclass(cls, t) or issubclass(NamedTensor, t) for t in types
         ):
@@ -368,7 +418,29 @@ class OpaqueTensorRef(torch.Tensor):
                     for k, v in kwargs.items()
                 }
 
-            ret = func(*args, **kwargs)
+            # If expansion produced a fake placeholder, any sibling operand
+            # that is still a ``NamedTensor`` (e.g. an un-quantized bias) would
+            # reach fake ``__torch_dispatch__`` as an unknown subclass and fail
+            # with "Multiple dispatch failed". Hand ``func`` the plain tensors
+            # and re-activate the fake mode so the op resolves.
+            fake_mode = find_fake_mode(args, kwargs.values())
+            if fake_mode is not None:
+                args = [
+                    a.as_subclass(torch.Tensor)
+                    if isinstance(a, NamedTensor)
+                    else a
+                    for a in args
+                ]
+                kwargs = {
+                    k: v.as_subclass(torch.Tensor)
+                    if isinstance(v, NamedTensor)
+                    else v
+                    for k, v in kwargs.items()
+                }
+                with fake_mode:
+                    ret = func(*args, **kwargs)
+            else:
+                ret = func(*args, **kwargs)
             if skip_expansion:
                 return ret
             # important modification
