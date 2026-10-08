@@ -96,9 +96,13 @@ T2N_TEST_TRACT_VERSION = "{env:T2N_TEST_TRACT_VERSION:0.23.0-dev.3}"
 
 [tool.tox.env.nemo_tract_2_5_3]
 basepython = ["python3.12"]
+skip_install = true
 dependency_groups = ["test"]
 allowlist_externals = ["uv"]
 commands_pre = [
+    # Resolve both local packages and the version pins together. Tox's
+    # unpinned package-deps install otherwise resolves latest nemo/torch first
+    # and can backtrack into unbuildable sdists (e.g. tokenizers 0.10.3).
     [
         "uv",
         "pip",
@@ -109,6 +113,8 @@ commands_pre = [
         "torchvision==0.20.*",
         "torchaudio==2.5.*",
         "nemo_toolkit[asr]==2.5.3",
+        "{toxinidir}/../..",
+        "{toxinidir}",
     ],
 ]
 commands = [["pytest", "-s", "-m", "not ci_skip", "tests/test_nemo_asr.py"]]
