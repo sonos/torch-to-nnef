@@ -6730,6 +6730,7 @@ dependencies = [
     { name = "rich" },
     { name = "torch-to-nnef" },
     { name = "torchaudio" },
+    { name = "transformers" },
 ]
 
 [package.dev-dependencies]
@@ -6750,6 +6751,7 @@ requires-dist = [
     { name = "rich" },
     { name = "torch-to-nnef", editable = "." },
     { name = "torchaudio" },
+    { name = "transformers", specifier = ">=4.44.0" },
 ]
 
 [package.metadata.requires-dev]
