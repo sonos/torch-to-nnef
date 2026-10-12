@@ -35,11 +35,13 @@ import typing as T
 import torch
 from torch import nn
 
+from torch_to_nnef import torch_graph as tg
 from torch_to_nnef.exceptions import (
     T2NErrorNotImplemented,
     T2NErrorStrictNNEFSpec,
 )
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.op import helper
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 
 LOGGER = logging.getLogger(__name__)
@@ -191,12 +193,6 @@ class CausalConvUpdateExtractor(ModuleInfoExtractor):
             raise T2NErrorStrictNNEFSpec(
                 "causal conv export requires tract inference target"
             )
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef import torch_graph as tg
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op import helper
-
         tensor_inputs = [
             inp for inp in node.inputs if isinstance(inp, tg.TensorVariable)
         ]
@@ -297,12 +293,6 @@ class GatedDeltaNetRecurrentExtractor(ModuleInfoExtractor):
                 "GDN export requires tract inference target "
                 "(tract_transformers_gdn_recurrent is a tract extension)"
             )
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef import torch_graph as tg
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op import helper
-
         # The two trailing python bools are output_final_state and
         # use_qk_l2norm_in_kernel; the op's semantics require the L2 norm,
         # and Qwen3.5 always enables it. Reject a traced False loudly.

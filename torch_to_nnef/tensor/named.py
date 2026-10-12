@@ -25,6 +25,7 @@ def find_fake_mode(*containers):
     dispatch) the bare op raises ``TypeError: unsupported operand``. We
     re-activate the mode around the op to let the two compose.
     """
+    # Older supported torch versions do not provide FakeTensor.
     try:
         from torch._subclasses.fake_tensor import (  # pylint: disable=import-outside-toplevel
             FakeTensor,

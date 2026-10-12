@@ -32,6 +32,12 @@ import logging
 
 import torch
 
+from torch_to_nnef.op.custom_extractors.gdn import (
+    CausalConvUpdateReified,
+    GatedDeltaNetRecurrentReified,
+)
+from torch_to_nnef.tensor.offload import OffloadedTensor
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -43,9 +49,6 @@ def _materialize_offloaded(module, attr) -> int:
     that the offload meta-tracing strategy does not support; they
     are a few KB per layer, so materializing them is free.
     """
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.tensor.offload import OffloadedTensor
-
     tensor = getattr(module, attr, None)
     if tensor is None:
         return 0
@@ -71,6 +74,8 @@ def patch_linear_cache_for_export() -> None:
     internal asserts); plain rebinds trace cleanly and are
     semantically identical for export.
     """
+    # Load the HF cache implementation only when preparing a GDN model.
+    # Other handlers remain importable without this transformers API.
     # pylint: disable-next=import-outside-toplevel
     from transformers import cache_utils
 
@@ -171,12 +176,6 @@ def reify_gated_delta_net(model, *, neutralize_gqa_repeat: bool) -> int:
     already-repeated q/k and the op resolves GQA groups to 1, which is
     correct but materializes the broadcast in the graph.
     """
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op.custom_extractors.gdn import (
-        CausalConvUpdateReified,
-        GatedDeltaNetRecurrentReified,
-    )
-
     patch_linear_cache_for_export()
 
     n_reified = 0

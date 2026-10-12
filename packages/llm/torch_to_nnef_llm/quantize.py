@@ -1,4 +1,12 @@
-"""Shared post-load q4_0 weight-quantization passes for LLM exports.
+"""Post-load q4_0 weight quantization for LLM inference testing.
+
+Warning:
+    These helpers are intended for export/inference correctness tests and
+    performance experiments. Naive min-max quantization can severely degrade
+    model quality, especially when applied to the output head. Successful
+    export and execution do not establish acceptable generation quality.
+    Do not use these passes for production models without independent
+    task-level quality evaluation against the unquantized model.
 
 These helpers promote the export-script pattern "quantize a hand-picked
 set of dense projections to tract q4_0 min-max before tracing" into
@@ -34,6 +42,10 @@ DEFAULT_MIN_DENSE_QUANT_NUMEL = 1_000_000
 
 def quantize_lm_head_q40(model) -> None:
     """Replace ``lm_head.weight`` with a tract q4_0 min-max QTensor param.
+
+    Warning:
+        Intended for inference testing. Min-max quantization of the output
+        head can severely degrade generation quality; see the module warning.
 
     The lm_head weight is read in full for every generated token, so
     quantizing it cuts decode bandwidth substantially; it also perturbs
@@ -75,6 +87,10 @@ def quantize_dense_projections_q40(
     min_numel: int = DEFAULT_MIN_DENSE_QUANT_NUMEL,
 ) -> T.Dict[str, int]:
     """Quantize dense projection weights to tract q4_0 min-max QTensors.
+
+    Warning:
+        Intended for inference testing. Min-max quantization can severely
+        degrade model quality; see the module warning.
 
     ``groups`` maps a weight-class name to parameter-name SUFFIXES
     (matched against ``model.named_parameters()``), so a quality

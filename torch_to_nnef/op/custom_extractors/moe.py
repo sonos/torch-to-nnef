@@ -22,19 +22,25 @@ A shared expert (Qwen2 / Qwen3.5) is emitted as a standard NNEF subgraph
 added on top of the routed output, not baked into the op.
 """
 
+import gc
+import importlib
 import logging
 import os
 import typing as T
 
+import numpy as np
 import torch
+from nnef_tools.model import Tensor as NTensor
 from torch import nn
 
+from torch_to_nnef import torch_graph as tg
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import (
     T2NErrorNotImplemented,
     T2NErrorStrictNNEFSpec,
 )
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.op import helper
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.opaque import OpaqueTensorRef, opaque_to_final_tensor
@@ -638,15 +644,6 @@ def _emit_shared_expert(
     All weights are raw nn.Linear [out, in], used as NNEF linear filters
     (linear computes x @ filter^T) so no transpose is needed.
     """
-    # pylint: disable-next=import-outside-toplevel
-    import numpy as np
-
-    # pylint: disable-next=import-outside-toplevel
-    from nnef_tools.model import Tensor as NTensor
-
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     # Respect the module dtype: tract materializes einsum operands in the
     # accumulation dtype (a cast on a constant weight is folded into an
     # upcast copy of the weight), so a hardcoded f32 acc silently turned
@@ -803,9 +800,6 @@ def _maybe_quantize_expert_weight(
         # MoE conversion does not accumulate every QTensor in RAM: the
         # NNEF writer re-materializes them one at a time at archive
         # write. ~40 x 0.45GB held -> ~1 at a time.
-        # pylint: disable-next=import-outside-toplevel
-        import gc
-
         offloaded = OffloadedTensor.from_original_tensor(
             q_data,
             name=q_data.nnef_name,
@@ -914,12 +908,6 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
             "(tract_moe_ffn is a tract extension)"
         )
 
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef import torch_graph as tg
-
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     moe = node.op_ref
     adapter = _get_adapter(moe)
     is_swiglu = adapter.activation(moe) == "swiglu"
@@ -983,9 +971,6 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
             type(moe).__name__,
             len(node.outputs),
         )
-
-    # pylint: disable-next=import-outside-toplevel
-    from nnef_tools.model import Tensor as NTensor
 
     shared = adapter.shared_expert(moe)
 
@@ -1071,9 +1056,6 @@ class MoEFFNExtractor(ModuleInfoExtractor):
 def _try_register(import_path: str, class_name: str):
     """Try to import a transformers MoE class and register an extractor."""
     try:
-        # pylint: disable-next=import-outside-toplevel
-        import importlib
-
         mod = importlib.import_module(import_path)
         moe_cls = getattr(mod, class_name)
 

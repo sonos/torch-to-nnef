@@ -26,6 +26,9 @@ from torch_to_nnef.inference_target.tract import (
     TractNNEF,
     build_io,
 )
+from torch_to_nnef.op.custom_extractors.moe import (
+    mark_moe_experts_for_q40,
+)
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import (
     INJECTED,
@@ -359,11 +362,6 @@ class LLMExporter:
         stores them in the requested ``layout``. Returns the number of
         MoE modules marked; raises if none matched.
         """
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.custom_extractors.moe import (
-            mark_moe_experts_for_q40,
-        )
-
         return mark_moe_experts_for_q40(
             self.hf_model_causal,
             quantize_q40=quantize_q40,

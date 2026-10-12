@@ -15,6 +15,7 @@ from torch_to_nnef.exceptions import (
     T2NErrorNotImplemented,
     T2NErrorTorchJitTraceFailed,
 )
+from torch_to_nnef.tensor.named import NamedTensor, find_fake_mode
 from torch_to_nnef.tensor.utils import get_named_parameters
 from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
@@ -53,6 +54,7 @@ def _fake_trace_tensor(
 ) -> torch.Tensor:
     """Create a non-materialized tensor with real device semantics."""
     global _TRACE_FAKE_MODE  # pylint: disable=global-statement
+    # Older supported torch versions need the meta-tensor fallback below.
     try:
         from torch._subclasses.fake_tensor import (  # pylint: disable=import-outside-toplevel
             FakeTensorMode,
@@ -376,12 +378,6 @@ class OpaqueTensorRef(torch.Tensor):
         """
         if kwargs is None:
             kwargs = {}
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.tensor import NamedTensor
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.tensor.named import find_fake_mode
 
         if not all(
             issubclass(cls, t) or issubclass(NamedTensor, t) for t in types
