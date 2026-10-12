@@ -767,8 +767,6 @@ class OffloadedTensor(OpaqueTensor):
             ),
         )
 
-    _t2n_reload_total_bytes = [0]
-
     def reload(self, device: T.Optional[TDEVICE] = None):
         """Reload the stored value on ``device``.
 
@@ -796,16 +794,13 @@ class OffloadedTensor(OpaqueTensor):
         self, device: T.Optional[TDEVICE] = None
     ) -> torch.Tensor:
         """Reload without consulting the active residency scope."""
-        if os.environ.get("T2N_LOG_RELOADS") == "1":
+        if LOGGER.isEnabledFor(logging.DEBUG):
             nbytes = self.numel() * self.dtype.itemsize
-            OffloadedTensor._t2n_reload_total_bytes[0] += nbytes
-            if nbytes > 50 * 1024 * 1024:
-                LOGGER.warning(
-                    "reload %.2fGB (cumulative %.2fGB) for %s",
-                    nbytes / (1 << 30),
-                    OffloadedTensor._t2n_reload_total_bytes[0] / (1 << 30),
-                    getattr(self, "_name", "?"),
-                )
+            LOGGER.debug(
+                "reload %.2f MiB for %s",
+                nbytes / (1 << 20),
+                self._name,
+            )
         target_device = (
             self.target_device if device is None else torch.device(device)
         )

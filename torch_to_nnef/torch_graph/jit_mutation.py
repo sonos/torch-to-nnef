@@ -26,9 +26,18 @@ import typing as T
 
 import torch
 
+from torch_to_nnef.torch_graph.torch_const import (
+    ATEN_COPY_,
+    ATEN_SELECT,
+    ATEN_SELECT_SCATTER,
+    ATEN_SLICE,
+    ATEN_SLICE_SCATTER,
+    CONSTANT_KIND,
+)
+
 LOGGER = logging.getLogger(__name__)
 
-_SCATTERABLE_VIEW_KINDS = ("aten::slice", "aten::select")
+_SCATTERABLE_VIEW_KINDS = (ATEN_SLICE, ATEN_SELECT)
 
 
 def _node_order(graph) -> T.Dict[T.Any, int]:
@@ -53,7 +62,7 @@ def _later_uses(value, node, order, fresh=frozenset()):
 
 
 def _const_int(value) -> T.Optional[int]:
-    if value.node().kind() != "prim::Constant":
+    if value.node().kind() != CONSTANT_KIND:
         return None
     ivalue = value.toIValue()
     return ivalue if isinstance(ivalue, int) else None
@@ -61,7 +70,7 @@ def _const_int(value) -> T.Optional[int]:
 
 def _chain_is_scatterable(views) -> bool:
     for view in views:
-        if view.kind() == "aten::slice" and _const_int(view.inputsAt(4)) != 1:
+        if view.kind() == ATEN_SLICE and _const_int(view.inputsAt(4)) != 1:
             return False
     return True
 
@@ -80,14 +89,14 @@ def _rewrite_one(graph, node, views, root, src, order) -> None:
     updated = src
     for view in views:
         parent_val = view.inputsAt(0)
-        if view.kind() == "aten::select":
+        if view.kind() == ATEN_SELECT:
             new_node = graph.create(
-                "aten::select_scatter",
+                ATEN_SELECT_SCATTER,
                 [parent_val, updated, view.inputsAt(1), view.inputsAt(2)],
             )
         else:  # aten::slice
             new_node = graph.create(
-                "aten::slice_scatter",
+                ATEN_SLICE_SCATTER,
                 [
                     parent_val,
                     updated,
@@ -144,7 +153,7 @@ def functionalize_view_inplace_copy(graph) -> int:
         order = _node_order(graph)
         target = None
         for node in graph.nodes():
-            if node.kind() != "aten::copy_":
+            if node.kind() != ATEN_COPY_:
                 continue
             dst = node.inputsAt(0)
             views = []
