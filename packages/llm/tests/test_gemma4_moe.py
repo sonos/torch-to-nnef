@@ -14,6 +14,7 @@ from transformers import Gemma4ForConditionalGeneration
 
 from torch_to_nnef import export_model_to_nnef
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
+from torch_to_nnef.op.custom_extractors.moe import MOE_FFN_MIN_TRACT_VERSION
 from torch_to_nnef_llm.exporter import LM_VAR_SCHEME, LLMExporter
 from torch_to_nnef_llm.models.handlers.gemma4_vl import (
     Gemma4MoEFFN,
@@ -77,11 +78,10 @@ def _target(exporter):
         tract_specific_path=os.environ.get("T2N_TEST_TRACT_PATH"),
         tract_specific_version=os.environ.get("T2N_TEST_TRACT_VERSION"),
     )
-    if target.version < "0.23.9" and not (
-        os.environ.get("T2N_TEST_TRACT_PATH")
-        or os.environ.get("T2N_TEST_TRACT_VERSION")
-    ):
-        pytest.skip("tract_moe_ffn needs tract 0.23.9 or an explicit binary")
+    if target.version < MOE_FFN_MIN_TRACT_VERSION:
+        pytest.skip(
+            f"tract_moe_ffn requires tract >= {MOE_FFN_MIN_TRACT_VERSION}"
+        )
     return target
 
 

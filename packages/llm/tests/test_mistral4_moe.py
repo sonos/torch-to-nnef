@@ -1,6 +1,5 @@
 """Mistral4 MoE and text-only export of the tiny Mistral Small 4 checkpoint."""
 
-import os
 import tarfile
 from types import SimpleNamespace
 
@@ -11,7 +10,10 @@ from torch import nn
 
 from torch_to_nnef import export_model_to_nnef
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
-from torch_to_nnef.op.custom_extractors.moe import _Mistral4Adapter
+from torch_to_nnef.op.custom_extractors.moe import (
+    MOE_FFN_MIN_TRACT_VERSION,
+    _Mistral4Adapter,
+)
 from torch_to_nnef_llm.loader import load_model
 from torch_to_nnef_llm.models.handlers.default import DefaultArchitectureHandler
 
@@ -81,13 +83,9 @@ class TextLogits(nn.Module):
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_tiny_mistral4_text_export(tmp_path, tiny_mistral4, inference_target):
-    if (
-        inference_target.version < "0.23.9"
-        and not os.environ.get("T2N_TEST_TRACT_PATH")
-        and not os.environ.get("T2N_TEST_TRACT_VERSION")
-    ):
+    if inference_target.version < MOE_FFN_MIN_TRACT_VERSION:
         pytest.skip(
-            "tract_moe_ffn requires tract 0.23.9 or an explicit test binary"
+            f"tract_moe_ffn requires tract >= {MOE_FFN_MIN_TRACT_VERSION}"
         )
     model = TextLogits(tiny_mistral4).eval()
     artifact = export_model_to_nnef(

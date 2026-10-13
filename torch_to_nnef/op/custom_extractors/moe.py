@@ -52,6 +52,7 @@ from torch_to_nnef.tensor.quant import (
 )
 
 LOGGER = logging.getLogger(__name__)
+MOE_FFN_MIN_TRACT_VERSION = "0.23.9"
 
 
 def _require_silu(activation, context: str) -> None:
@@ -1081,6 +1082,13 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
         raise T2NErrorStrictNNEFSpec(
             "MoE FFN export requires tract inference target "
             "(tract_moe_ffn is a tract extension)"
+        )
+    if inference_target.version < MOE_FFN_MIN_TRACT_VERSION:
+        raise T2NErrorNotImplemented(
+            "tract_moe_ffn requires tract >= "
+            f"{MOE_FFN_MIN_TRACT_VERSION}; targeted version is "
+            f"{inference_target.version}. Select a supported tract target "
+            "before exporting MoE modules."
         )
 
     moe = node.op_ref

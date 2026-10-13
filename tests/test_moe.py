@@ -1,6 +1,5 @@
 """Tests for MoE FFN export to tract_moe_ffn operator."""
 
-import os
 import tarfile
 import tempfile
 from copy import deepcopy
@@ -15,9 +14,11 @@ from torch import nn
 from torch_to_nnef import export_model_to_nnef
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.tract import TractCli
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.op.custom_extractors import MoEFFN
 from torch_to_nnef.op.custom_extractors.moe import (
+    MOE_FFN_MIN_TRACT_VERSION,
     _convert_moe_to_nnef,
     _get_adapter,
     _GraniteMoEAdapter,
@@ -69,24 +70,54 @@ class MoEFFNWithBiasWrapper(nn.Module):
 
 
 def _skip_if_unsupported(inference_target):
-    # tract_moe_ffn (sonos/tract#2911) first ships in tract 0.23.9; releases up
-    # to 0.23.8 are already out without it, so default CI (official versions)
-    # must skip.
-    # An explicitly provided tract (T2N_TEST_TRACT_PATH /
-    # T2N_TEST_TRACT_VERSION) is trusted to have the op regardless of its
-    # reported version, so the locally built dev binary (e.g. 0.23.2-pre)
-    # still runs these.
     if not isinstance(inference_target, TractNNEF):
         pytest.skip("MoE export requires a tract inference target")
-    explicit = (
-        "T2N_TEST_TRACT_PATH" in os.environ
-        or "T2N_TEST_TRACT_VERSION" in os.environ
-    )
-    if not explicit and inference_target.version < "0.23.9":
+    if inference_target.version < MOE_FFN_MIN_TRACT_VERSION:
         pytest.skip(
-            "tract_moe_ffn first ships in tract 0.23.9; set "
-            "T2N_TEST_TRACT_PATH to a build that has the op to run these"
+            f"tract_moe_ffn requires tract >= {MOE_FFN_MIN_TRACT_VERSION}"
         )
+
+
+@pytest.fixture
+def export_only_target(monkeypatch):
+    """Exercise emission/version checks without downloading future releases."""
+    monkeypatch.setattr(
+        TractCli,
+        "download",
+        lambda version: SimpleNamespace(
+            version=version, tract_path=Path("unused-export-only-tract")
+        ),
+    )
+    return lambda version=MOE_FFN_MIN_TRACT_VERSION: TractNNEF(
+        version, check_io=False
+    )
+
+
+@pytest.mark.parametrize("version", ["0.22.1", "0.23.8", "0.23.9-pre"])
+def test_moe_rejects_unsupported_target(version, export_only_target, tmp_path):
+    """Even export without IO checking must not emit an unsupported op."""
+    artifact = tmp_path / "unsupported.nnef.tgz"
+    with pytest.raises(
+        T2NErrorNotImplemented, match="requires tract >= 0.23.9"
+    ):
+        export_model_to_nnef(
+            MoEFFNWrapper(4, 16, 32).eval(),
+            (torch.randn(3, 16),),
+            artifact,
+            export_only_target(version),
+        )
+    assert not artifact.exists()
+
+
+@pytest.mark.parametrize("version", ["0.23.9", "0.23.10", "0.24.0"])
+def test_moe_emits_for_supported_target(version, export_only_target, tmp_path):
+    artifact = export_model_to_nnef(
+        MoEFFNWrapper(4, 16, 32).eval(),
+        (torch.randn(3, 16),),
+        tmp_path / "supported.nnef.tgz",
+        export_only_target(version),
+    )
+    assert "= tract_moe_ffn(" in _read_graph_from_archive(artifact)
 
 
 def _init_moe_weights(module, seed=0):
@@ -407,7 +438,7 @@ def test_moe_ffn_custom_q40_quantizer(inference_target):
 
 
 @pytest.mark.parametrize("bias_name", ["b1", "b2", "both"])
-def test_moe_ffn_with_bias_rejected(tmp_path, bias_name):
+def test_moe_ffn_with_bias_rejected(tmp_path, bias_name, export_only_target):
     """Nonzero reference biases must never be silently dropped by export."""
     model = MoEFFNWithBiasWrapper(num_experts=4, d_model=16, d_hidden=32, k=2)
     model.eval()
@@ -420,7 +451,7 @@ def test_moe_ffn_with_bias_rejected(tmp_path, bias_name):
             model,
             (torch.randn(8, 16),),
             tmp_path / "biased.nnef.tgz",
-            TractNNEF(version=TractNNEF.latest_version(), check_io=False),
+            export_only_target(),
         )
 
 
@@ -460,7 +491,7 @@ def test_granite_routed_activation(activation):
 
 
 @pytest.mark.parametrize("hidden_act", ["silu", "gelu"])
-def test_mixtral_configured_activation(hidden_act):
+def test_mixtral_configured_activation(hidden_act, export_only_target):
     """Reject configured GELU before emitting a SwiGLU operator."""
     mixtral = pytest.importorskip(
         "transformers.models.mixtral.modeling_mixtral"
@@ -483,7 +514,7 @@ def test_mixtral_configured_activation(hidden_act):
                 None,
                 SimpleNamespace(op_ref=module),
                 {},
-                TractNNEF(version=TractNNEF.latest_version(), check_io=False),
+                export_only_target(),
             )
 
 
