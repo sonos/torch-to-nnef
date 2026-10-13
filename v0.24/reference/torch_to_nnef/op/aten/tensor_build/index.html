@@ -2559,6 +2559,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../custom_extractors/gdn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>gdn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../custom_extractors/moe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>moe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../custom_extractors/rnn/" class="md-nav__link">
         
   
@@ -3822,6 +3878,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_mutation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_mutation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../torch_graph/jit_passes/" class="md-nav__link">
         
   
@@ -4749,7 +4833,7 @@
               <td><code><a class="autorefs autorefs-internal" title="            copy (torch_to_nnef.op.aten.tensor_build.copy)" href="#torch_to_nnef.op.aten.tensor_build.copy">copy</a></code></td>
               <td>
                 <div class="doc-md-description">
-                  <p>Map PyTorch: 'aten:copy', 'aten:clone' to NNEF.</p>
+                  <p>Map PyTorch: 'aten:copy', 'aten:copy_', 'aten:clone' to NNEF.</p>
                 </div>
               </td>
             </tr>
@@ -5070,12 +5154,19 @@ reshape to <code>(N, D, H, W, 3)</code>.</p>
 
 
 </h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">copy</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">torch_graph</span><span class="p">,</span> <span class="n">null_ref</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">copy</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">torch_graph</span><span class="p">,</span> <span class="n">null_ref</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Map PyTorch: 'aten:copy', 'aten:clone' to NNEF.</p>
+        <p>Map PyTorch: 'aten:copy', 'aten:copy_', 'aten:clone' to NNEF.</p>
+<p><code>clone(self)</code> reads its single tensor input: alias the output to
+inputs[0]. <code>copy(dst, src)</code> / <code>copy_(dst, src)</code> write <code>src</code> INTO
+<code>dst</code>; the tracer SSA-renames every later read of <code>dst</code> to this
+node's output, so the value that must flow out is <code>src</code> (inputs[1]),
+cast to the destination dtype. Aliasing to inputs[0] instead would
+resurrect the destination's pre-write value (e.g. the lazily
+created zeros buffer behind HF linear-attention caches).</p>
 
 
     </div>

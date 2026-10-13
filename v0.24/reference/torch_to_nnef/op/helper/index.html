@@ -2180,6 +2180,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../custom_extractors/gdn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>gdn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom_extractors/moe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>moe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../custom_extractors/rnn/" class="md-nav__link">
         
   
@@ -2606,6 +2662,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.helper.add_cast_nnef_tensor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;add_cast_nnef_tensor
+      
+    </span>
+  </a>
   
 </li>
       
@@ -3717,6 +3784,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../torch_graph/jit_mutation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_mutation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../torch_graph/jit_passes/" class="md-nav__link">
         
   
@@ -4369,6 +4464,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.helper.add_cast_nnef_tensor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;add_cast_nnef_tensor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.op.helper.add_tensor_variable_node_as_nnef_tensor" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4534,6 +4640,14 @@
         </tr>
       </thead>
       <tbody>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            add_cast_nnef_tensor (torch_to_nnef.op.helper.add_cast_nnef_tensor)" href="#torch_to_nnef.op.helper.add_cast_nnef_tensor">add_cast_nnef_tensor</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Emit a tract dtype cast preserving the input tensor shape.</p>
+                </div>
+              </td>
+            </tr>
             <tr class="doc-section-item">
               <td><code><a class="autorefs autorefs-internal" title="            add_tensor_variable_node_as_nnef_tensor (torch_to_nnef.op.helper.add_tensor_variable_node_as_nnef_tensor)" href="#torch_to_nnef.op.helper.add_tensor_variable_node_as_nnef_tensor">add_tensor_variable_node_as_nnef_tensor</a></code></td>
               <td>
@@ -4990,6 +5104,26 @@ shape so every emitted cast is faithful regardless of the parent node.</p>
 
 </div>
 
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="torch_to_nnef.op.helper.add_cast_nnef_tensor" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">add_cast_nnef_tensor</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">add_cast_nnef_tensor</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">nnef_tensor</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span> <span class="n">cast_to</span><span class="p">:</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">force_full_output_tensor_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NTensor</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Emit a tract dtype cast preserving the input tensor shape.</p>
+
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 

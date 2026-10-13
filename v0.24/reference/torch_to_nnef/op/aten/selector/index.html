@@ -2581,6 +2581,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../custom_extractors/gdn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>gdn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../custom_extractors/moe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>moe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../custom_extractors/rnn/" class="md-nav__link">
         
   
@@ -3824,6 +3880,34 @@
     
   
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_mutation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_mutation
   
 
     
@@ -5602,7 +5686,12 @@ string overload supersedes <code>right</code> when present.</p>
 <p><code>out = input.clone(); out.select(dim, index).copy_(src)</code> -- the
 functional select-write. Decomposes to <code>slice</code> + <code>unsqueeze</code> +
 <code>concat</code>: replace the (size-1) slab at position <code>index</code> along <code>dim</code>
-with <code>src</code> (which has rank <code>input.rank - 1</code>). Static-shape only.</p>
+with <code>src</code> (which has rank <code>input.rank - 1</code>).</p>
+<p>Under dynamic axes the right slab uses <code>dyn_slice_begin</code> so an axis
+whose TRACED size ended at <code>index + 1</code> still contributes its
+(possibly symbolic) tail: the traced static size is not trusted as
+the runtime size. The slab is empty when the runtime size really is
+<code>index + 1</code>, which concat handles.</p>
 
 
     </div>
