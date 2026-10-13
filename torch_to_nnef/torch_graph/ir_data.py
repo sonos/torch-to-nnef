@@ -277,14 +277,19 @@ class TensorVariable(Data):
         return self.data is not None
 
     @property
+    def needs_trace_values(self) -> bool:
+        """Indices and masks must retain values during shape inference."""
+        return self.dtype == torch.bool or dtype_is_whole_number(self.dtype)
+
+    @property
     def tracable(self) -> bool:
         if is_quantized_dtype(self.dtype) and self.quant is None:
             return False
         st = self.shaped_and_typed
-        # whole number can be used for indexing or tensor gen ...
-        # those may be significan for subsequent op in network ...
+        # Integer indices and boolean masks determine downstream indexing;
+        # shape/dtype placeholders cannot substitute for their real values.
         need_data_realisation = (
-            dtype_is_whole_number(self.dtype)
+            self.needs_trace_values
             and self._traced_data is None
             and self.data is None
         )
@@ -303,8 +308,8 @@ class TensorVariable(Data):
         if self.data is not None:
             return self.data
         if self._traced_data is None:
-            if dtype_is_whole_number(self.dtype):
-                raise T2NErrorConsistency(f"whole number need {self}")
+            if self.needs_trace_values:
+                raise T2NErrorConsistency(f"missing index/mask values: {self}")
         else:
             return self._traced_data
 

@@ -17,7 +17,6 @@ from enum import Enum
 import torch
 
 from torch_to_nnef.dtypes import (
-    dtype_is_whole_number,
     is_quantized_dtype,
     str_to_torch_dtype,
 )
@@ -988,7 +987,7 @@ class TorchOp:
                     data_node.dtype = result.dtype
                     data_node.shape = list(result.shape)
                     if (
-                        dtype_is_whole_number(result.dtype)
+                        data_node.needs_trace_values
                         and not result_is_meta_tensor
                     ):
                         data_node._traced_data = result

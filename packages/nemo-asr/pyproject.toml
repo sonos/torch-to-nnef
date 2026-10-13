@@ -116,6 +116,8 @@ commands_pre = [
         "torchvision==0.20.*",
         "torchaudio==2.5.*",
         "nemo_toolkit[asr]==2.5.3",
+        # NeMo 2.5 requires numpy<2; PyArrow 26 requires numpy>=2 at import.
+        "pyarrow<26",
         "{toxinidir}/../..",
         "{toxinidir}",
     ],
