@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+## [0.24.12] - 2026-10-13
+
 ### Added
 
 - **MoE export through `tract_moe_ffn`** (core / LLM): adapters for Mixtral, GPT-OSS, Qwen2/3/3.5/3-Next, OLMoE, Granite, Mistral4, and Gemma4 routed experts, including supported shared-expert branches, routing modes, biases, and gated activations. Unsupported configurations and tract targets older than 0.23.9 are rejected explicitly, including when IO verification is disabled. ([#55](https://github.com/sonos/torch-to-nnef/pull/55))
