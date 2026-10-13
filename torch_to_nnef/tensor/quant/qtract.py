@@ -163,13 +163,13 @@ class QTensorTractScaleOnly(QTensorTract, SupportsOffloadState):
         u8_blob: torch.Tensor,
         scale: torch.Tensor,
         post_tract_21_11: bool = False,
-        chunk_groups: int = 1 << 20,
+        chunk_groups: int = 1 << 16,
     ):
         n_bytes_per_group = 18
-        tensor_flat = u8_blob.flatten()
+        tensor_flat = u8_blob.detach().cpu().flatten()
         assert tensor_flat.numel() % 32 == 0, tensor_flat.shape
         group_count = tensor_flat.numel() // 32
-        scale_flat = scale.reshape(group_count)
+        scale_flat = scale.detach().cpu().reshape(group_count)
 
         for start in range(0, group_count, chunk_groups):
             end = min(start + chunk_groups, group_count)

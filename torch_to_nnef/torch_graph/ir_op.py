@@ -17,7 +17,6 @@ from enum import Enum
 import torch
 
 from torch_to_nnef.dtypes import (
-    dtype_is_whole_number,
     is_quantized_dtype,
     str_to_torch_dtype,
 )
@@ -75,6 +74,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_GELU,
     ATEN_GROUPED_MM,
     ATEN_INT,
+    ATEN_ISIN,
     ATEN_LINALG_NORM,
     ATEN_LINALG_VECTOR_NORM,
     ATEN_LINEAR,
@@ -153,6 +153,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_FULL_LIKE: cls.aten_full_like,
             ATEN_GATHER: cls.aten_gather,
             ATEN_GELU: cls.aten_gelu,
+            ATEN_ISIN: cls.aten_isin,
             ATEN_LINALG_NORM: cls.aten_linalg_norm,
             ATEN_LINALG_VECTOR_NORM: cls.aten_linalg_norm,
             ATEN_LOGSPACE: cls.aten_logspace,
@@ -185,6 +186,15 @@ class InputsAlignBetweenAtenAndTorch:
         if len(args) > 2:
             args = (args[0], (args[1], args[2]))
         return args, kwargs
+
+    @staticmethod
+    def aten_isin(args, kwargs):
+        """Pass JIT's positional membership flags as keyword-only arguments."""
+        for name, value in zip(
+            ("assume_unique", "invert"), args[2:], strict=False
+        ):
+            kwargs[name] = value
+        return args[:2], kwargs
 
     @staticmethod
     def aten_where(args, kwargs):
@@ -988,7 +998,7 @@ class TorchOp:
                     data_node.dtype = result.dtype
                     data_node.shape = list(result.shape)
                     if (
-                        dtype_is_whole_number(result.dtype)
+                        data_node.needs_trace_values
                         and not result_is_meta_tensor
                     ):
                         data_node._traced_data = result

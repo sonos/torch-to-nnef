@@ -16,10 +16,12 @@ from .gemma4_vl import (
     Gemma4VideoEncoderHandler,
     Gemma4VisionEncoderHandler,
 )
+from .gpt_oss import GptOssArchitectureHandler
 from .idefics3_vl import (
     Idefics3ArchitectureHandler,
     Idefics3VisionEncoderHandler,
 )
+from .mistral3 import Mistral3TextArchitectureHandler
 from .openelm import OpenELMArchitectureHandler
 from .phi import PhiArchitectureHandler
 from .qwen2_5_vl import (
@@ -30,6 +32,7 @@ from .qwen3_5_vl import (
     Qwen35ArchitectureHandler,
     Qwen35VisionEncoderHandler,
 )
+from .qwen3_next import Qwen3NextArchitectureHandler
 from .qwen3_vl import (
     Qwen3VLArchitectureHandler,
     Qwen3VLVisionEncoderHandler,
@@ -50,6 +53,7 @@ from .voxtral import (
 __all__ = [
     "ArchitectureHandler",
     "DefaultArchitectureHandler",
+    "Mistral3TextArchitectureHandler",
     "EmbeddingContract",
     "EncoderHandler",
     "Gemma3ArchitectureHandler",
@@ -57,6 +61,7 @@ __all__ = [
     "Gemma4ArchitectureHandler",
     "Gemma4VideoEncoderHandler",
     "Gemma4VisionEncoderHandler",
+    "GptOssArchitectureHandler",
     "IOSpec",
     "Idefics3ArchitectureHandler",
     "Idefics3VisionEncoderHandler",
@@ -67,6 +72,7 @@ __all__ = [
     "Qwen25VLVisionEncoderHandler",
     "Qwen35ArchitectureHandler",
     "Qwen35MoeArchitectureHandler",
+    "Qwen3NextArchitectureHandler",
     "Qwen35VisionEncoderHandler",
     "Qwen3VLArchitectureHandler",
     "Qwen3VLVisionEncoderHandler",

@@ -139,6 +139,7 @@ class TractNNEF(InferenceTarget):
         force_linear_accumulation_in_f32: bool = False,
         force_norm_in_f32: bool = False,
         reify_sdpa_operator: T.Optional[bool] = None,
+        upcast_reified_sdpa_inputs_to_f32: bool = True,
         upsample_with_debox: bool = False,
         native_gated_delta_op: T.Optional[bool] = None,
     ):
@@ -193,6 +194,12 @@ class TractNNEF(InferenceTarget):
                 as a tract operator (intead of a NNEF fragment), default false
                 until tract v0.22.0 included then true, except if specified.
                 Experimental feature.
+            upcast_reified_sdpa_inputs_to_f32:
+                when reifying scaled_dot_product_attention and forcing f32
+                attention internals, insert f32 casts at the SDPA boundary for
+                f16 inputs. Disable this only when the target tract runtime can
+                run tract_transformers_sdpa with f16 inputs and f32
+                accumulators.
             upsample_with_debox:
                 use debox upsample operator instead of deconvolution.
                 This should be faster.
@@ -240,6 +247,9 @@ class TractNNEF(InferenceTarget):
         if reify_sdpa_operator is None:
             reify_sdpa_operator = self.version > "0.22.0"
         self.reify_sdpa_operator = reify_sdpa_operator
+        self.upcast_reified_sdpa_inputs_to_f32 = (
+            upcast_reified_sdpa_inputs_to_f32
+        )
         if native_gated_delta_op is None:
             native_gated_delta_op = (
                 self.version >= NATIVE_GDN_RECURRENT_MIN_VERSION

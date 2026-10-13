@@ -153,7 +153,38 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
             gouts = list(gouts[0].node().inputs())
         elif not all(go.type().kind() == "TensorType" for go in gouts):
             raise T2NErrorNotImplemented([go.type().kind() for go in gouts])
-        used_outputs_order = [_.offset() for _ in gouts]
+        if len({go.node() for go in gouts}) == 1:
+            # All outputs come from one multi-output producer (e.g.
+            # `aten::lstm`): `offset()` identifies which of its outputs
+            # survived (jit prunes tuple items the caller ignores).
+            used_outputs_order = [_.offset() for _ in gouts]
+        else:
+            # Independent producers packed into a python tuple. The
+            # tracer's module-boundary tuple is in value ESCAPE order,
+            # not python return order, and `offset()` is each value's
+            # index within its own producer (typically all 0). Align by
+            # traced shapes: used_outputs_order[j] = the eager-result
+            # index matching boundary position j.
+            g_sizes = [
+                tuple(go.type().sizes()) if go.type().sizes() else None
+                for go in gouts
+            ]
+            r_sizes = [tuple(r.shape) for r in expanded_results]
+            if g_sizes == r_sizes or any(s is None for s in g_sizes):
+                used_outputs_order = list(range(len(gouts)))
+            else:
+                remaining = list(range(len(expanded_results)))
+                used_outputs_order = []
+                for g_size in g_sizes:
+                    match = [i for i in remaining if r_sizes[i] == g_size]
+                    if len(match) != 1:
+                        raise T2NErrorNotImplemented(
+                            "cannot align traced module-boundary outputs "
+                            f"{g_sizes} with eager results {r_sizes}: "
+                            "ambiguous or missing shape match"
+                        )
+                    used_outputs_order.append(match[0])
+                    remaining.remove(match[0])
         # When `len(gouts) > len(provided_outputs)` the submodule's IR
         # exposes more outputs than the caller binds. Common shape: an
         # `nn.GRU` returns `(output, h_n)` and the caller writes

@@ -106,6 +106,20 @@ class _MixedAtan2(torch.nn.Module):
         return torch.atan2(ys, self.xs)
 
 
+class _MixedDtypeBroadcastedAffine(torch.nn.Module):
+    """RMSNorm-style `weight[D] * hidden[B, S, D]` after dtype promotion."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.weight = torch.nn.Parameter(
+            torch.linspace(0.5, 1.5, steps=8).to(torch.float16)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x * torch.rsqrt((x * x).mean(dim=-1, keepdim=True) + 1e-5)
+        return self.weight * x
+
+
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_add_sub_mixed_dtype(inference_target):
     """`float + int_buf` and `float - int_buf`."""
@@ -147,3 +161,10 @@ def test_atan2_mixed_dtype(inference_target):
     """`atan2(float, int_buf)`."""
     ys = torch.randn(4)
     check_model_io_test(_MixedAtan2(), ys, inference_target)
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_promoted_operand_broadcast_keeps_operand_shape(inference_target):
+    """A casted rank-1 operand must still broadcast on trailing axes."""
+    x = torch.randn(1, 3, 8)
+    check_model_io_test(_MixedDtypeBroadcastedAffine(), x, inference_target)

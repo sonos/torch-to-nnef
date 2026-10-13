@@ -5,7 +5,6 @@ from collections import defaultdict
 import torch
 
 from torch_to_nnef.console import Console
-from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (
     T2NError,
     T2NErrorDataNodeValue,
@@ -214,7 +213,7 @@ class TorchModuleIRGraph:
                     if isinstance(arg, torch.Tensor):
                         tv.shape = list(arg.shape)
                         tv.dtype = arg.dtype
-                        if dtype_is_whole_number(arg.dtype):
+                        if tv.needs_trace_values:
                             tv._traced_data = arg
                     else:
                         raise T2NErrorNotImplemented(type(arg))
@@ -224,7 +223,7 @@ class TorchModuleIRGraph:
                     tv.quant = original_input.quant
                     if (
                         original_input._traced_data is None
-                        and dtype_is_whole_number(arg.dtype)
+                        and tv.needs_trace_values
                     ):
                         tv._traced_data = arg
                     else:

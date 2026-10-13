@@ -186,8 +186,14 @@ class HFConfigHelper:
             return self.conf.text_config
         return self.conf
 
-    def get_head_dim(self):
+    def get_head_dim(self, layer_idx: T.Optional[int] = None):
         decoder_conf = self.decoder_conf
+        if (
+            decoder_conf.model_type == "gemma4_text"
+            and layer_idx is not None
+            and decoder_conf.layer_types[layer_idx] == "full_attention"
+        ):
+            return int(decoder_conf.global_head_dim or decoder_conf.head_dim)
         head_dim = getattr(decoder_conf, "head_dim", None)
         if head_dim is not None:
             return int(head_dim)
@@ -195,6 +201,14 @@ class HFConfigHelper:
 
     def get_num_kv_heads(self, layer_idx: int):
         decoder_conf = self.decoder_conf
+        if (
+            decoder_conf.model_type == "gemma4_text"
+            and decoder_conf.layer_types[layer_idx] == "full_attention"
+        ):
+            return (
+                decoder_conf.num_global_key_value_heads
+                or decoder_conf.num_key_value_heads
+            )
         if hasattr(decoder_conf, "num_kv_heads"):
             return decoder_conf.num_kv_heads[layer_idx]
         return decoder_conf.num_key_value_heads
@@ -212,7 +226,7 @@ class HFConfigHelper:
                     1,
                     self.get_num_kv_heads(layer_idx),
                     n_past_input_tokens,
-                    self.get_head_dim(),
+                    self.get_head_dim(layer_idx),
                 )
                 for layer_idx in range(self.get_num_transformer_layers())
                 for _ in range(2)  # k and v
@@ -236,18 +250,18 @@ class HFConfigHelper:
         in_cache_names = []
         out_cache_names = []
         for idx in range(past_values_cache_conf["n_kv"] * 2):
-            layer_idx = idx % 2
-            if layer_idx == 0:
+            layer_idx = idx // 2
+            if idx % 2 == 0:
                 node_name = f"cache_key_{int(idx / 2)}"
             else:
                 node_name = f"cache_value_{int((idx - 1) / 2)}"
 
             if real_kv_cache:
-                kv_dims = real_kv_cache[0].shape
+                kv_dims = real_kv_cache[idx].shape
                 assert kv_dims[0] == 1
                 assert kv_dims[1] == self.get_num_kv_heads(layer_idx)
                 assert kv_dims[2] >= n_past_input_tokens
-                assert kv_dims[3] == self.get_head_dim()
+                assert kv_dims[3] == self.get_head_dim(layer_idx)
                 k_or_v = torch.from_numpy(
                     real_kv_cache[idx][:, :, :n_past_input_tokens, :]
                 ).float()
