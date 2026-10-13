@@ -3,6 +3,18 @@
 
 ## Unreleased
 
+### Added
+
+- **MoE export through `tract_moe_ffn`** (core / LLM): adapters for Mixtral, GPT-OSS, Qwen2/3/3.5/3-Next, OLMoE, Granite, Mistral4, and Gemma4 routed experts, including supported shared-expert branches, routing modes, biases, and gated activations. Unsupported configurations are rejected explicitly. Requires tract 0.23.9 or a custom build containing the operator. ([#55](https://github.com/sonos/torch-to-nnef/pull/55))
+- **Mistral Small 4 text export and Gemma4 MoE multimodal export** (LLM): tiny FP32 models validate Mistral text output and Gemma text, image/video, and optional audio paths. Gemma export preserves vision-span attention, per-branch normalization, routing scales, logit softcapping, and heterogeneous KV caches; exported encoder-to-decoder chains are checked against Transformers, including cached decoding.
+- **GPT-OSS and Qwen3-Next export handlers**, plus reified gated-delta recurrence for Qwen3.5-MoE / Qwen3-Next hybrid attention, with explicit cache inputs and outputs.
+- **Optional q4_0 expert quantization and expert weight layouts**, with offload-aware helpers for dense projections and the language-model head. Min-max quantization is intended for inference testing and performance experiments: it can severely degrade generation quality.
+
+### Fixed
+
+- **Intermittent NuExtract export failures**: preserve boolean mask values during shape inference so derived image-token indices cannot read uninitialized placeholders and exceed the embedding bounds.
+- **NeMo 2.5.3 CI dependency compatibility**: constrain PyArrow to versions below 26, which support the environment's NumPy 1.x requirement.
+
 ## [0.24.10] - 2026-09-28
 
 ### Changed
