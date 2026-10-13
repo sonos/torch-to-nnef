@@ -353,6 +353,11 @@ class EncoderHandler(ABC):
     #: method for a multi-input encoder.
     MODEL_INPUT_NAME: str = ""
 
+    @classmethod
+    def is_available(cls, config) -> bool:
+        """Whether this checkpoint has the optional encoder tower."""
+        return True
+
     @staticmethod
     def get_auto_model_class(transformers):
         """Return the HF model class to load for this architecture."""

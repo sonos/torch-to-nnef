@@ -4,6 +4,7 @@ Supports (transformers):
 - MoEFFN (reference wrapper)
 - MixtralSparseMoeBlock / MistralSparseMoeBlock
 - Mistral4MoE (single-group routing, ungated shared expert)
+- Gemma4RoutedExperts (gated GELU, folded router/input/output scales)
 - GptOssMLP (router + expert biases, interleaved gate/up, clamped SwiGLU)
 - Qwen2/Qwen3/Qwen3.5/Qwen3-Next MoE (shared expert decomposed outside)
 - OlmoeSparseMoeBlock
@@ -140,6 +141,10 @@ class _MoEWeightAdapter:
         "sigmoid" (per-expert sigmoid), "raw" (raw top-k logits).
         """
         return "softmax_topk"
+
+    def has_w3(self, m: nn.Module) -> bool:
+        """Whether this is a gated activation (independent of its name)."""
+        return self.activation(m) == "swiglu"
 
     # Optional biases (None unless the arch has them, e.g. gpt-oss).
     def gate_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
@@ -465,6 +470,95 @@ class _Mistral4Adapter(_QwenMoEAdapter):
         return weights
 
 
+class Gemma4RoutedExperts(nn.Module):
+    """Gemma4 routing and experts on an unweighted RMS-normalized input.
+
+    The decoder handler groups the original FFN into this export boundary.
+    Keep the PyTorch reference unfused; the adapter folds the router scale,
+    expert input norm weight, and per-expert output scale during conversion.
+    """
+
+    def __init__(self, router, experts, expert_norm):
+        super().__init__()
+        if router.norm.eps != expert_norm.eps:
+            raise T2NErrorNotImplemented("Gemma4 router/expert RMS eps differ")
+        self.router = router
+        self.experts = experts
+        self.expert_norm = expert_norm
+
+    def forward(self, normalized):
+        scores = self.router.proj(
+            normalized * self.router.scale * self.router.scalar_root_size
+        )
+        weights, indices = scores.softmax(-1).topk(
+            self.router.config.top_k_experts, dim=-1
+        )
+        weights = weights / weights.sum(-1, keepdim=True)
+        weights = weights * self.router.per_expert_scale[indices]
+        expert_input = (
+            normalized.float() * self.expert_norm.weight.float()
+        ).to(normalized.dtype)
+        return self.experts(expert_input, indices, weights)
+
+
+class _Gemma4Adapter(_QwenMoEAdapter):
+    """Fold Gemma4's channel/expert scales before optional quantization."""
+
+    def gate_weight(self, m):
+        return (
+            self._constant(m.router.proj.weight)
+            * self._constant(m.router.scale)
+            * m.router.scalar_root_size
+        )
+
+    def _input_scale(self, m):
+        if any(_is_qtensor_like(w) for w in self.expert_sources(m)):
+            raise T2NErrorNotImplemented(
+                "Gemma4 scale folding requires floating-point expert weights; "
+                "use export-time MoE quantization after folding"
+            )
+        return self._constant(m.expert_norm.weight).view(1, -1, 1)
+
+    def expert_w1(self, m):
+        scale = self._input_scale(m)
+        return super().expert_w1(m) * scale
+
+    def expert_w3(self, m):
+        scale = self._input_scale(m)
+        return super().expert_w3(m) * scale
+
+    def expert_w2(self, m):
+        return super().expert_w2(m) * self._constant(
+            m.router.per_expert_scale
+        ).view(-1, 1, 1)
+
+    def expert_sources(self, m):
+        return (m.experts.gate_up_proj, m.experts.down_proj)
+
+    def top_k(self, m):
+        return m.router.config.top_k_experts
+
+    def activation(self, m):
+        activation = m.experts.act_fn
+        if not (
+            (
+                isinstance(activation, nn.GELU)
+                and activation.approximate == "tanh"
+            )
+            or (
+                type(activation).__module__ == "transformers.activations"
+                and type(activation).__name__ == "GELUTanh"
+            )
+        ):
+            raise T2NErrorNotImplemented(
+                "Gemma4 experts require tanh-approximate GELU"
+            )
+        return "gelu"
+
+    def has_w3(self, m):
+        return True
+
+
 class _GraniteMoEAdapter(_MoEWeightAdapter):
     """Adapter for transformers GraniteMoeMoE (IBM Granite MoE).
 
@@ -527,6 +621,7 @@ _ADAPTER_BY_CLASSNAME: T.Dict[str, T.Type[_MoEWeightAdapter]] = {
     "MixtralSparseMoeBlock": _MixtralAdapter,
     "MistralSparseMoeBlock": _MixtralAdapter,
     "Mistral4MoE": _Mistral4Adapter,
+    "Gemma4RoutedExperts": _Gemma4Adapter,
     # GPT-OSS (transformers >=4.55 renamed the block to GptOssMLP)
     "GptOssMLP": _GptOssAdapter,
     "GptOssSparseMoeBlock": _GptOssAdapter,
@@ -954,7 +1049,7 @@ def _moe_attrs(adapter, moe):
     return attrs
 
 
-def _append_optional_moe_biases(moe, adapter, is_swiglu, inputs, add_weight):
+def _append_optional_moe_biases(moe, adapter, has_w3, inputs, add_weight):
     # tract maps positional inputs as:
     # x, wg, w1, w2, w3, wg_bias, w1_bias, w3_bias, w2_bias.
     biases = (
@@ -965,9 +1060,9 @@ def _append_optional_moe_biases(moe, adapter, is_swiglu, inputs, add_weight):
     )
     if not any(bias is not None for bias, _ in biases):
         return
-    if not is_swiglu:
+    if not has_w3:
         raise T2NErrorNotImplemented(
-            "MoE biases are only supported alongside a SwiGLU (w3) gate; "
+            "MoE biases are only supported alongside a gated activation (w3); "
             f"got biases without w3 for {type(moe).__name__}"
         )
     for bias, label in biases:
@@ -990,7 +1085,7 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
 
     moe = node.op_ref
     adapter = _get_adapter(moe)
-    is_swiglu = adapter.activation(moe) == "swiglu"
+    has_w3 = adapter.has_w3(moe)
 
     quantize_experts_q40 = _should_quantize_expert_weights(moe, adapter)
     quantize_experts_q40_percentile = float(
@@ -1031,13 +1126,13 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
 
     inputs = [input_tensor, wg, w1, w2]
 
-    if is_swiglu:
+    if has_w3:
         w3 = _add_weight("w3", adapter.expert_w3(moe))
         inputs.append(w3)
 
     attrs = _moe_attrs(adapter, moe)
 
-    _append_optional_moe_biases(moe, adapter, is_swiglu, inputs, _add_weight)
+    _append_optional_moe_biases(moe, adapter, has_w3, inputs, _add_weight)
 
     # tract_moe_ffn is single-output (the routed hidden states). Some modules
     # (e.g. gpt-oss GptOssMLP) also return router_scores as a second output,
@@ -1126,6 +1221,12 @@ class MoEFFNExtractor(ModuleInfoExtractor):
         **kw,
     ):
         return _convert_moe_to_nnef(g, node, name_to_tensor, inference_target)
+
+
+class Gemma4RoutedExpertsExtractor(MoEFFNExtractor):
+    """Export the Gemma4 boundary installed by the decoder handler."""
+
+    MODULE_CLASS = Gemma4RoutedExperts
 
 
 # ---------------------------------------------------------------------------

@@ -212,7 +212,9 @@ class MultiModalExporter:
         model_type = self.config_helper.conf.model_type
         encoder_handler_classes = get_encoder_handlers(model_type)
         self.encoder_handlers: T.List[EncoderHandler] = [
-            cls() for cls in encoder_handler_classes
+            cls()
+            for cls in encoder_handler_classes
+            if cls.is_available(self.config_helper.conf)
         ]
         self.handler = MultiModalArchitectureHandler(
             decoder_handler=self.config_helper.handler,

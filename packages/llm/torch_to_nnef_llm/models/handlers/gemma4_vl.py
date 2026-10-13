@@ -1,29 +1,30 @@
 """Joint-export handlers for Gemma 4 vision-language models.
 
-Gemma 4 is a three-branch multimodal model (vision + audio + video towers over
-a per-layer-input, MoE-capable text decoder). This module implements the
-**vision** branch; audio/video/MoE are handled separately.
+Exports image/video encoders, an optional audio encoder, and the text decoder
+with either dense or MoE feed-forward layers. Towers absent from a checkpoint
+are omitted from both the decoder inputs and the multimodal manifest.
 
 - :class:`Gemma4VisionEncoderHandler`: the vision tower + ``embed_vision``
-  projector. The tower consumes flattened patches plus 2D patch positions and a
-  padding mask; for a fixed (baked) full square grid those positions are
-  constant, so we bake them and expose only ``pixel_values`` (same trick as the
-  Qwen towers).
+  projector, with a dynamic square patch grid and derived 2D positions.
 - :class:`Gemma4ArchitectureHandler`: the decoder graph. Gemma 4 needs two
   things a plain splice does not: (1) *per-layer input embeddings* computed from
   the original token ids (image ids mapped to ``pad``) **before** the image
   soft tokens are spliced in: otherwise the language model would try to
   reverse the embedding of a spliced token and fail; (2) a direct call into
   ``language_model`` (not the top-level model) so those pre-computed per-layer
-  inputs can be passed through. Small models use a conventional causal mask
-  (only the larger ``use_bidirectional_attention == "vision"`` variants need the
-  Gemma 3 style image-span bidirectional mask).
+  inputs can be passed through when configured. Larger models also use
+  bidirectional sliding attention within each image/video span, heterogeneous
+  KV shapes, and output-logit softcapping.
+- :class:`Gemma4MoEFFN`: groups the dense and routed branches while retaining
+  their separate norms. Channel/expert scales are folded by the MoE extractor
+  before optional export-time quantization.
 """
 
 import typing as T
 
 import torch
 
+from torch_to_nnef.op.custom_extractors.moe import Gemma4RoutedExperts
 from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
 
 from .base import (
@@ -142,6 +143,10 @@ class Gemma4VisionEncoderHandler(EncoderHandler):
     MODALITY = "vision"
     ARCH_NAMES = ("gemma4",)
     MODEL_INPUT_NAME = "pixel_values"
+
+    @classmethod
+    def is_available(cls, config) -> bool:
+        return config.vision_config is not None
 
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         return Gemma4VisionEncoder(
@@ -333,6 +338,10 @@ class Gemma4AudioEncoderHandler(EncoderHandler):
     USES_SDPA_ATTENTION = False
     F16_FORCE_LINEAR_ACCUM_IN_F32 = False
 
+    @classmethod
+    def is_available(cls, config) -> bool:
+        return config.audio_config is not None
+
     def get_encoder_module(self, hf_model) -> torch.nn.Module:
         audio_conf = hf_model.config.audio_config
         frames = _sample_audio_frames(audio_conf)
@@ -375,6 +384,27 @@ class Gemma4AudioEncoderHandler(EncoderHandler):
         ]
 
 
+class Gemma4MoEFFN(torch.nn.Module):
+    """Group dense and routed branches without rewriting decoder attention."""
+
+    def __init__(self, layer):
+        super().__init__()
+        self.dense_norm = layer.pre_feedforward_layernorm
+        self.dense = layer.mlp
+        self.dense_post_norm = layer.post_feedforward_layernorm_1
+        self.router_norm = layer.router.norm
+        self.routed = Gemma4RoutedExperts(
+            layer.router, layer.experts, layer.pre_feedforward_layernorm_2
+        )
+        self.expert_post_norm = layer.post_feedforward_layernorm_2
+
+    def forward(self, hidden):
+        dense = self.dense_post_norm(self.dense(self.dense_norm(hidden)))
+        flat = hidden.reshape(-1, hidden.shape[-1])
+        routed = self.routed(self.router_norm(flat)).reshape(hidden.shape)
+        return dense + self.expert_post_norm(routed)
+
+
 @register_handler
 class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
     """Decoder handler for Gemma 4: modality embeddings + per-layer inputs.
@@ -399,6 +429,30 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         return transformers.Gemma4ForConditionalGeneration
 
     def prepare_model_for_export(self, model) -> None:
+        self.MODALITIES = tuple(
+            (modality, attr)
+            for modality, attr in type(self).MODALITIES
+            if (
+                model.config.audio_config is not None
+                if modality == "audio"
+                else model.config.vision_config is not None
+            )
+        )
+        for layer in model.model.language_model.layers:
+            if layer.enable_moe_block:
+                layer.mlp = Gemma4MoEFFN(layer)
+                layer.pre_feedforward_layernorm = torch.nn.Identity()
+                # The grouped MLP now owns both branches. Keep HF's attention,
+                # residuals, final norm and per-layer inputs unchanged.
+                layer.enable_moe_block = False
+                for name in (
+                    "router",
+                    "experts",
+                    "pre_feedforward_layernorm_2",
+                    "post_feedforward_layernorm_1",
+                    "post_feedforward_layernorm_2",
+                ):
+                    delattr(layer, name)
         for conf in (
             model.config,
             getattr(model.config, "text_config", None),
@@ -421,7 +475,11 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         del tokenizer, sample_text
         conf = config_helper.conf
         # image + video both come from the vision tower -> same soft-token count
-        num_tokens = _num_soft_tokens(conf.vision_config)
+        num_tokens = (
+            _num_soft_tokens(conf.vision_config)
+            if conf.vision_config is not None
+            else 4
+        )
         total_mm = num_tokens * len(self.MODALITIES)
         effective_seq_len = max(n_input_tokens, total_mm + 2)
         (
@@ -472,14 +530,9 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         sliding_window: int,
         dtype: torch.dtype,
         device: torch.device,
+        vision_mask: T.Optional[torch.Tensor] = None,
     ) -> T.Dict[str, torch.Tensor]:
-        """Conventional causal + sliding-window masks, causal-with-past.
-
-        Built from token positions with arange comparisons so it stays correct
-        for any (query, past) at inference and exports to tract. Small Gemma 4
-        models are plain causal (no image-span bidirectionality: that only
-        applies to ``use_bidirectional_attention == "vision"`` variants).
-        """
+        """Causal and sliding masks, with optional vision-span unmasking."""
         total = past_length + query_length
         q_pos = (past_length + torch.arange(query_length, device=device)).view(
             query_length, 1
@@ -488,10 +541,36 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         causal = (k_pos <= q_pos).to(dtype)
         within_window = (k_pos > (q_pos - sliding_window)).to(dtype)
         sliding = causal * within_window
+        if vision_mask is not None:
+            # HF unblocks only sliding attention within each contiguous
+            # image/video span. Cached tokens retain conventional causality.
+            previous = torch.cat(
+                [torch.zeros_like(vision_mask[:, :1]), vision_mask[:, :-1]],
+                dim=1,
+            )
+            groups = (vision_mask & ~previous).long().cumsum(1)
+            same_span = (
+                (groups.unsqueeze(2) == groups.unsqueeze(1))
+                & vision_mask.unsqueeze(2)
+                & vision_mask.unsqueeze(1)
+            )
+            cached = torch.zeros(
+                (vision_mask.shape[0], query_length, past_length),
+                dtype=torch.bool,
+                device=device,
+            )
+            sliding = torch.maximum(
+                sliding, torch.cat([cached, same_span], dim=-1).to(dtype)
+            )
         neg = torch.finfo(dtype).min
 
         def to_additive(visible: torch.Tensor) -> torch.Tensor:
-            return ((1.0 - visible) * neg).unsqueeze(0).unsqueeze(0)
+            additive = (1.0 - visible) * neg
+            return (
+                additive.unsqueeze(1)
+                if additive.ndim == 3
+                else additive.unsqueeze(0).unsqueeze(0)
+            )
 
         return {
             "full_attention": to_additive(causal),
@@ -501,9 +580,9 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
     def build_forward_inputs(self, *, inputs, wrapper) -> StateContext:
         hf_model = wrapper.model
         n_mod = len(self.MODALITIES)
-        modality_embeds = list(inputs[-n_mod:])
+        modality_embeds = list(inputs[-n_mod:]) if n_mod else []
         input_ids = inputs[0]
-        cache_tensors = inputs[1:-n_mod]
+        cache_tensors = inputs[1:-n_mod] if n_mod else inputs[1:]
 
         language_model = hf_model.model.language_model
         conf = hf_model.config
@@ -513,8 +592,8 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         masks = [
             input_ids == getattr(conf, attr) for _, attr in self.MODALITIES
         ]
-        multimodal_mask = masks[0]
-        for mask in masks[1:]:
+        multimodal_mask = torch.zeros_like(input_ids, dtype=torch.bool)
+        for mask in masks:
             multimodal_mask = multimodal_mask | mask
         # placeholder ids are out of the text vocab used for embedding /
         # per-layer lookup; map them to pad first (matches Gemma4Model.forward).
@@ -526,8 +605,10 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
         inputs_embeds = hf_model.model.get_input_embeddings()(llm_input_ids)
         # per-layer inputs MUST come from the token ids, before the splice: the
         # language model cannot recover ids from a spliced soft-token embedding.
-        per_layer_inputs = language_model.get_per_layer_inputs(
-            llm_input_ids, None
+        per_layer_inputs = (
+            language_model.get_per_layer_inputs(llm_input_ids, None)
+            if text_config.hidden_size_per_layer_input
+            else None
         )
         for mask, features in zip(masks, modality_embeds, strict=True):
             inputs_embeds = scatter_features_by_mask(
@@ -546,6 +627,12 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
             sliding_window=sliding_window or (past_length + query_length),
             dtype=inputs_embeds.dtype,
             device=input_ids.device,
+            vision_mask=(
+                (input_ids == conf.image_token_id)
+                | (input_ids == conf.video_token_id)
+                if text_config.use_bidirectional_attention == "vision"
+                else None
+            ),
         )
         position_ids = (
             past_length + torch.arange(query_length, device=input_ids.device)
@@ -566,6 +653,9 @@ class Gemma4ArchitectureHandler(DefaultArchitectureHandler):
     def call_model(self, *, model, state_context, wrapper) -> T.Any:
         outputs = model.model.language_model(**state_context.model_inputs)
         logits = model.lm_head(outputs.last_hidden_state)
+        softcap = model.config.text_config.final_logit_softcapping
+        if softcap is not None:
+            logits = torch.tanh(logits / softcap) * softcap
         return {"logits": logits, "past_key_values": outputs.past_key_values}
 
     def build_forward_outputs(
