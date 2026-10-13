@@ -21,6 +21,7 @@ from .idefics3_vl import (
     Idefics3ArchitectureHandler,
     Idefics3VisionEncoderHandler,
 )
+from .mistral3 import Mistral3TextArchitectureHandler
 from .openelm import OpenELMArchitectureHandler
 from .phi import PhiArchitectureHandler
 from .qwen2_5_vl import (
@@ -52,6 +53,7 @@ from .voxtral import (
 __all__ = [
     "ArchitectureHandler",
     "DefaultArchitectureHandler",
+    "Mistral3TextArchitectureHandler",
     "EmbeddingContract",
     "EncoderHandler",
     "Gemma3ArchitectureHandler",

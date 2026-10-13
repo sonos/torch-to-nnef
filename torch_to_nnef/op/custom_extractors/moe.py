@@ -3,6 +3,7 @@
 Supports (transformers):
 - MoEFFN (reference wrapper)
 - MixtralSparseMoeBlock / MistralSparseMoeBlock
+- Mistral4MoE (single-group routing, ungated shared expert)
 - GptOssMLP (router + expert biases, interleaved gate/up, clamped SwiGLU)
 - Qwen2/Qwen3/Qwen3.5/Qwen3-Next MoE (shared expert decomposed outside)
 - OlmoeSparseMoeBlock
@@ -425,6 +426,45 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
         return "softmax_topk" if norm else "softmax_all"
 
 
+class _Mistral4Adapter(_QwenMoEAdapter):
+    """Mistral4 routed SwiGLU experts plus an ungated shared expert.
+
+    Group-limited routing and non-unit routed scaling require additional
+    operator support; reject them rather than changing the routing math.
+    """
+
+    def gate(self, m: nn.Module) -> str:
+        config = m.config
+        if config.n_group != 1 or config.topk_group != 1:
+            raise T2NErrorNotImplemented(
+                "Mistral4 grouped routing is unsupported"
+            )
+        if config.routed_scaling_factor != 1.0:
+            raise T2NErrorNotImplemented(
+                "Mistral4 routed_scaling_factor must be 1.0"
+            )
+        return "softmax_topk" if config.norm_topk_prob else "softmax_all"
+
+    def top_k(self, m: nn.Module) -> int:
+        return m.config.num_experts_per_tok
+
+    def shared_expert(self, m: nn.Module) -> T.Dict[str, torch.Tensor]:
+        shared = m.shared_experts
+        _require_silu(getattr(shared, "act_fn", None), "shared expert")
+        weights = {}
+        for name in ("gate_proj", "up_proj", "down_proj"):
+            projection = getattr(shared, name)
+            if projection.bias is not None:
+                raise T2NErrorNotImplemented(
+                    "Mistral4 shared expert biases are unsupported"
+                )
+            weight = projection.weight
+            weights[name] = (
+                weight if _is_qtensor_like(weight) else weight.detach()
+            )
+        return weights
+
+
 class _GraniteMoEAdapter(_MoEWeightAdapter):
     """Adapter for transformers GraniteMoeMoE (IBM Granite MoE).
 
@@ -486,6 +526,7 @@ _ADAPTER_BY_CLASSNAME: T.Dict[str, T.Type[_MoEWeightAdapter]] = {
     # Mixtral / Mistral
     "MixtralSparseMoeBlock": _MixtralAdapter,
     "MistralSparseMoeBlock": _MixtralAdapter,
+    "Mistral4MoE": _Mistral4Adapter,
     # GPT-OSS (transformers >=4.55 renamed the block to GptOssMLP)
     "GptOssMLP": _GptOssAdapter,
     "GptOssSparseMoeBlock": _GptOssAdapter,
@@ -675,9 +716,10 @@ def _emit_shared_expert(
     mk,
     inference_target,
 ):
-    """Graft a shared expert on top of the routed MoE output (Qwen2 / Qwen3.5).
+    """Add a shared expert, optionally sigmoid-gated, to the routed output.
 
     out = routed + sigmoid(x @ Wr^T) * down(silu(x @ Wg^T) * (x @ Wu^T)).
+    Without a router weight (Mistral4), add the shared MLP output directly.
     All weights are raw nn.Linear [out, in], used as NNEF linear filters
     (linear computes x @ filter^T) so no transpose is needed.
     """
@@ -772,7 +814,6 @@ def _emit_shared_expert(
     w_gate = add_weight("se_gate_proj", shared["gate_proj"])
     w_up = add_weight("se_up_proj", shared["up_proj"])
     w_down = add_weight("se_down_proj", shared["down_proj"])
-    w_router = add_weight("se_router", shared["router"])
 
     gate_h = linear(
         input_tensor, shared["gate_proj"], w_gate, mk("se_gate_h", hs_shape)
@@ -786,12 +827,14 @@ def _emit_shared_expert(
     shared_out = linear(
         inter, shared["down_proj"], w_down, mk("se_out", d_shape)
     )
-    logit = linear(
-        input_tensor, shared["router"], w_router, mk("se_logit", one_shape)
-    )
-    gate = emit("sigmoid", (logit,), mk("se_gate", one_shape))
-    gated = emit("mul", (gate, shared_out), mk("se_gated", d_shape))
-    emit("add", (routed, gated), out0)
+    if "router" in shared:
+        w_router = add_weight("se_router", shared["router"])
+        logit = linear(
+            input_tensor, shared["router"], w_router, mk("se_logit", one_shape)
+        )
+        gate = emit("sigmoid", (logit,), mk("se_gate", one_shape))
+        shared_out = emit("mul", (gate, shared_out), mk("se_gated", d_shape))
+    emit("add", (routed, shared_out), out0)
 
 
 def _is_qtensor_like(tensor: torch.Tensor) -> bool:
@@ -1014,7 +1057,7 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
     out0 = helper.add_tensor_variable_node_as_nnef_tensor(
         g, node.outputs[0], name_to_tensor, prevent_variable=True
     )
-    base = node.outputs[0].name
+    base = out0.name
     np_dtype = input_tensor.dtype
     x_shape = list(input_tensor.shape)
 
@@ -1140,6 +1183,7 @@ def _try_register(import_path: str, class_name: str):
 
 def _register_all_transformers_moe():
     _candidates = [
+        ("transformers.models.mistral4.modeling_mistral4", "Mistral4MoE"),
         (
             "transformers.models.mixtral.modeling_mixtral",
             "MixtralSparseMoeBlock",
