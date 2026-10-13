@@ -3917,7 +3917,7 @@ wheels = [
 
 [[package]]
 name = "torch-to-nnef"
-version = "0.24.10"
+version = "0.24.12"
 source = { editable = "../../" }
 dependencies = [
     { name = "mako" },
@@ -3986,7 +3986,7 @@ test = [
 
 [[package]]
 name = "torch-to-nnef-nemo-asr"
-version = "0.24.10"
+version = "0.24.12"
 source = { editable = "../../packages/nemo-asr" }
 dependencies = [
     { name = "nemo-toolkit", extra = ["asr"] },
