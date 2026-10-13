@@ -12,10 +12,18 @@ import pytest
 import torch
 from torch import nn
 
+from torch_to_nnef import export_model_to_nnef
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.op.custom_extractors import MoEFFN
-from torch_to_nnef.op.custom_extractors.moe import _GraniteMoEAdapter
+from torch_to_nnef.op.custom_extractors.moe import (
+    _convert_moe_to_nnef,
+    _get_adapter,
+    _GraniteMoEAdapter,
+    _MixtralAdapter,
+    _QwenMoEAdapter,
+)
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.opaque import OpaqueTensorRef
 from torch_to_nnef.tensor.quant import (
@@ -398,19 +406,85 @@ def test_moe_ffn_custom_q40_quantizer(inference_target):
     ]
 
 
-@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
-def test_moe_ffn_with_bias(inference_target):
-    """Export MoEFFN with bias terms."""
-    _skip_if_unsupported(inference_target)
+@pytest.mark.parametrize("bias_name", ["b1", "b2", "both"])
+def test_moe_ffn_with_bias_rejected(tmp_path, bias_name):
+    """Nonzero reference biases must never be silently dropped by export."""
     model = MoEFFNWithBiasWrapper(num_experts=4, d_model=16, d_hidden=32, k=2)
     model.eval()
-    check_model_io_test(
-        model=model,
-        test_input=(torch.randn(8, 16),),
-        input_names=["tokens"],
-        output_names=["output"],
-        inference_target=inference_target,
+    with torch.no_grad():
+        for name in ("b1", "b2"):
+            if bias_name in (name, "both"):
+                getattr(model.moe, name).fill_(0.5)
+    with pytest.raises(T2NErrorNotImplemented, match="biases without w3"):
+        export_model_to_nnef(
+            model,
+            (torch.randn(8, 16),),
+            tmp_path / "biased.nnef.tgz",
+            TractNNEF(version=TractNNEF.latest_version(), check_io=False),
+        )
+
+
+@pytest.mark.parametrize("adapter_cls", [_MixtralAdapter, _QwenMoEAdapter])
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("activation", [nn.SiLU, nn.GELU, nn.ReLU])
+def test_routed_expert_activation(adapter_cls, legacy, activation):
+    """Validate every legacy expert as well as the fused activation."""
+    expert = nn.Module()
+    expert.act_fn = activation()
+    experts = expert
+    if legacy:
+        first = nn.Module()
+        first.act_fn = nn.SiLU()
+        experts = nn.ModuleList([first, expert])
+    module = SimpleNamespace(experts=experts)
+    adapter = adapter_cls()
+    if activation is nn.SiLU:
+        assert adapter.activation(module) == "swiglu"
+    else:
+        with pytest.raises(
+            T2NErrorNotImplemented, match="routed expert activation"
+        ):
+            adapter.activation(module)
+
+
+@pytest.mark.parametrize("activation", [nn.SiLU, nn.GELU])
+def test_granite_routed_activation(activation):
+    module = SimpleNamespace(input_linear=object(), activation=activation())
+    if activation is nn.SiLU:
+        assert _GraniteMoEAdapter().activation(module) == "swiglu"
+    else:
+        with pytest.raises(
+            T2NErrorNotImplemented, match="routed expert activation"
+        ):
+            _GraniteMoEAdapter().activation(module)
+
+
+@pytest.mark.parametrize("hidden_act", ["silu", "gelu"])
+def test_mixtral_configured_activation(hidden_act):
+    """Reject configured GELU before emitting a SwiGLU operator."""
+    mixtral = pytest.importorskip(
+        "transformers.models.mixtral.modeling_mixtral"
     )
+    config = mixtral.MixtralConfig(
+        hidden_size=16,
+        intermediate_size=32,
+        num_local_experts=2,
+        num_experts_per_tok=1,
+        hidden_act=hidden_act,
+    )
+    module = mixtral.MixtralSparseMoeBlock(config)
+    if hidden_act == "silu":
+        assert _get_adapter(module).activation(module) == "swiglu"
+    else:
+        with pytest.raises(
+            T2NErrorNotImplemented, match="routed expert activation"
+        ):
+            _convert_moe_to_nnef(
+                None,
+                SimpleNamespace(op_ref=module),
+                {},
+                TractNNEF(version=TractNNEF.latest_version(), check_io=False),
+            )
 
 
 @pytest.mark.parametrize("activation", ["silu", "gelu", "relu"])

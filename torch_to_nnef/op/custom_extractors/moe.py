@@ -52,6 +52,24 @@ from torch_to_nnef.tensor.quant import (
 LOGGER = logging.getLogger(__name__)
 
 
+def _require_silu(activation, context: str) -> None:
+    # HF also provides its own SiLU wrapper. Recognize that exact class
+    # without making transformers a required import for core-only users.
+    activation_type = type(activation)
+    if not (
+        isinstance(activation, nn.SiLU)
+        or activation is torch.nn.functional.silu
+        or (
+            activation_type.__module__ == "transformers.activations"
+            and activation_type.__name__ == "SiLUActivation"
+        )
+    ):
+        raise T2NErrorNotImplemented(
+            f"{context} activation {type(activation).__name__} is unsupported "
+            "(only SiLU/SwiGLU)"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Weight adapters: normalize diverse layouts into unified tensors
 # ---------------------------------------------------------------------------
@@ -105,6 +123,12 @@ class _MoEWeightAdapter:
         raise T2NErrorNotImplemented()
 
     def activation(self, m: nn.Module) -> str:
+        experts = m.experts
+        if isinstance(experts, (nn.ModuleList, list, tuple)):
+            for expert in experts:
+                _require_silu(getattr(expert, "act_fn", None), "routed expert")
+        else:
+            _require_silu(getattr(experts, "act_fn", None), "routed expert")
         return "swiglu"
 
     def gate(self, m: nn.Module) -> str:
@@ -163,6 +187,12 @@ class _MoEFFNAdapter(_MoEWeightAdapter):
 
     def expert_w2(self, m: nn.Module) -> torch.Tensor:
         return m.w2.detach()
+
+    def expert_w1_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        return self._constant(m.b1) if m.b1 is not None else None
+
+    def expert_w2_bias(self, m: nn.Module) -> T.Optional[torch.Tensor]:
+        return self._constant(m.b2) if m.b2 is not None else None
 
     def expert_w3(self, m: nn.Module) -> torch.Tensor:
         # MoEFFN has no w3, so duplicate w1 shape as zeros
@@ -314,6 +344,10 @@ class _GptOssAdapter(_MoEWeightAdapter):
     def act_alpha(self, m: nn.Module) -> T.Optional[float]:
         return float(getattr(m.experts, "alpha", 1.702))
 
+    def activation(self, m: nn.Module) -> str:
+        # GPT-OSS implements clamped SwiGLU directly, without an act_fn.
+        return "swiglu"
+
     def act_limit(self, m: nn.Module) -> T.Optional[float]:
         return float(getattr(m.experts, "limit", 7.0))
 
@@ -360,12 +394,7 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
         se = m.shared_expert
         # The converter emits the shared expert as silu-SwiGLU; reject any
         # other activation rather than silently exporting wrong maths.
-        act = getattr(se, "act_fn", None)
-        if act is not None and "silu" not in type(act).__name__.lower():
-            raise T2NErrorNotImplemented(
-                "shared expert activation "
-                f"{type(act).__name__} is unsupported (only SiLU/SwiGLU)"
-            )
+        _require_silu(getattr(se, "act_fn", None), "shared expert")
 
         def _raw(weight: torch.Tensor) -> torch.Tensor:
             # detach() on a QTensor-like weight decompresses it back to a
@@ -440,6 +469,12 @@ class _GraniteMoEAdapter(_MoEWeightAdapter):
 
     def top_k(self, m: nn.Module) -> int:
         return m.router.top_k
+
+    def activation(self, m: nn.Module) -> str:
+        if hasattr(m, "input_linear"):
+            _require_silu(getattr(m, "activation", None), "routed expert")
+            return "swiglu"
+        return super().activation(m)
 
 
 # ---------------------------------------------------------------------------
@@ -542,6 +577,8 @@ class MoEFFN(nn.Module):
     """Reference MoE FFN block for export testing.
 
     For production models use the transformers extractors directly.
+    Expert biases are supported in eager execution but rejected on export:
+    the operator's positional bias inputs require a SwiGLU expert layout.
     """
 
     def __init__(
