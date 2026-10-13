@@ -50,3 +50,27 @@ def test_mask_indices_retain_sample_values(monkeypatch, bool_input):
         cumulative.outputs[0].tracing_data, torch.tensor([0, 1, 1, 2, 2])
     )
     assert graph.outputs[0].shape == [5, 4]
+
+
+class _Membership(torch.nn.Module):
+    def __init__(self, assume_unique, invert):
+        super().__init__()
+        self.assume_unique = assume_unique
+        self.invert = invert
+
+    def forward(self, elements, candidates):
+        return torch.isin(
+            elements,
+            candidates,
+            assume_unique=self.assume_unique,
+            invert=self.invert,
+        )
+
+
+@pytest.mark.parametrize("assume_unique", [False, True])
+@pytest.mark.parametrize("invert", [False, True])
+def test_isin_traces_keyword_only_flags(assume_unique, invert):
+    model = _Membership(assume_unique, invert)
+    inputs = (torch.tensor([1, 4, 7]), torch.tensor([1, 3, 7]))
+    graph = module_tracer_into_ir_graph(TorchModuleTracer(model, args=inputs))
+    torch.testing.assert_close(graph.outputs[0].tracing_data, model(*inputs))
