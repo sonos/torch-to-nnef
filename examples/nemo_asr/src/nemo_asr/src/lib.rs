@@ -6,10 +6,12 @@
 /// class ONNXGreedyBatchedRNNTInfer
 use anyhow::ensure;
 use itertools::Itertools;
+use ndarray::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tract_rs::prelude::tract_ndarray::prelude::*;
 use tract_rs::{prelude::*, runtime_for_name};
+
+tract_rs::impl_ndarray_interop!();
 
 type Res<T> = anyhow::Result<T>;
 
@@ -141,14 +143,14 @@ struct Lane {
     encoder_len: usize,
     current_frame: usize,
     last_token: usize,
-    states: Vec<Value>,
+    states: Vec<Tensor>,
     transcript: Vec<TranscriptItem>,
     symbols_added: usize,
     need_loop: bool,
 }
 
 /// dump tensor to a npy file
-fn dump_value_vec_to_file(values: &[Value], dir_path: PathBuf) -> anyhow::Result<()> {
+fn dump_value_vec_to_file(values: &[Tensor], dir_path: PathBuf) -> anyhow::Result<()> {
     std::fs::create_dir_all(&dir_path)?;
 
     for (i, value) in values.iter().enumerate() {
@@ -164,12 +166,12 @@ fn dump_value_vec_to_file(values: &[Value], dir_path: PathBuf) -> anyhow::Result
         };
 
         match value.datum_type()? {
-            DatumType::TRACT_DATUM_TYPE_F32 => {
-                let view = value.view::<f32>()?;
+            DatumType::F32 => {
+                let view = value.ndarray::<f32>()?;
                 ndarray_npy::write_npy(&file_path, &view.to_owned())?;
             }
-            DatumType::TRACT_DATUM_TYPE_I64 => {
-                let view = value.view::<i64>()?;
+            DatumType::I64 => {
+                let view = value.ndarray::<i64>()?;
                 ndarray_npy::write_npy(&file_path, &view.to_owned())?;
             }
             other => {
@@ -185,7 +187,7 @@ impl NemoAsrModel {
     fn load_submodel(bytes: &[u8]) -> Res<Model> {
         let nnef = tract_rs::nnef()?.with_tract_transformers()?;
         let mut nn = nnef.load_buffer(bytes)?;
-        nn.transform("transformers-detect-all")?;
+        nn.transform("transformers_detect_all")?;
         Ok(nn)
     }
 
@@ -228,8 +230,7 @@ impl NemoAsrModel {
         for ix in 0..decoder_joint_model.output_count()? {
             if decoder_joint_model.output_name(ix)?.contains("states") {
                 decoder_joint_state_output_indices.push(ix);
-            } else if decoder_joint_model.output_fact(ix)?.datum_type()?
-                == DatumType::TRACT_DATUM_TYPE_F32
+            } else if decoder_joint_model.output_fact(ix)?.datum_type()? == DatumType::F32
                 && decoder_joint_logits_output_index.is_none()
             {
                 decoder_joint_logits_output_index = Some(ix);
@@ -262,7 +263,7 @@ impl NemoAsrModel {
         // "Undetermined symbol: BATCH". Harmless when the symbol is absent
         // (e.g. Parakeet) or already concrete.
         if !runtime_config.encoder_per_batch {
-            encoder_model.concretize_symbols([("BATCH", 1i64)])?;
+            encoder_model.transform(SetSymbols::new().value("BATCH", 1))?;
         }
 
         let mut rt = runtime_for_name("default")?;
@@ -346,7 +347,7 @@ impl NemoAsrModel {
     }
 
     /// Convert a single wav file path to a single input tensor
-    fn wav_path_to_tensor(&self, wav_path: &PathBuf) -> Res<Value> {
+    fn wav_path_to_tensor(&self, wav_path: &PathBuf) -> Res<Tensor> {
         let mut reader = hound::WavReader::open(wav_path).expect("Failed to open WAV file");
         let spec = reader.spec();
         assert_eq!(
@@ -358,7 +359,7 @@ impl NemoAsrModel {
             .map(|s| s.unwrap() as f32 / i16::MAX as f32)
             .collect();
         let input_tensor = Array2::from_shape_vec((1, samples.len()), samples).unwrap();
-        input_tensor.try_into()
+        input_tensor.tract()
     }
 
     /// Infer from a wav file path all at once
@@ -367,7 +368,7 @@ impl NemoAsrModel {
         let input_tensor_vec = wav_paths
             .iter()
             .map(|wp| self.wav_path_to_tensor(wp).unwrap())
-            .collect::<Vec<Value>>();
+            .collect::<Vec<Tensor>>();
         log::debug!("wav loaded correctly, starting inference");
 
         log::debug!("prepare input tensor batch");
@@ -386,29 +387,29 @@ impl NemoAsrModel {
             let sample_len = itensor.shape()?[1];
             input_tensor
                 .slice_mut(s![ix, 0..sample_len])
-                .assign(&itensor.view()?.index_axis(Axis(0), 0));
+                .assign(&itensor.ndarray::<f32>()?.index_axis(Axis(0), 0));
         }
         // }
 
-        let lengths_tensor: Value =
-            Array1::<i64>::from_shape_vec((wav_paths.len(),), lengths)?.try_into()?;
+        let lengths_tensor: Tensor =
+            Array1::<i64>::from_shape_vec((wav_paths.len(),), lengths)?.tract()?;
         log::debug!("ready input tensor batch");
-        let transcripts = self.infer_from_tensor(input_tensor.try_into()?, lengths_tensor)?;
+        let transcripts = self.infer_from_tensor(input_tensor.tract()?, lengths_tensor)?;
         Ok(transcripts)
     }
 
     /// Build the `lang_id` input tensor ([1] i64) when the encoder is
     /// prompt-fused, else `None`.
-    fn lang_id_value(&self) -> Res<Option<Value>> {
+    fn lang_id_value(&self) -> Res<Option<Tensor>> {
         match self.encoder_lang_id {
             Some(id) => Ok(Some(
-                Array1::<i64>::from_shape_vec((1,), vec![id])?.try_into()?,
+                Array1::<i64>::from_shape_vec((1,), vec![id])?.tract()?,
             )),
             None => Ok(None),
         }
     }
 
-    fn run_encoder(&self, preprocessor_output: Vec<Value>) -> Res<Vec<Value>> {
+    fn run_encoder(&self, preprocessor_output: Vec<Tensor>) -> Res<Vec<Tensor>> {
         if let Some(dump_dir) = &self.runtime_config.dump_intermediate_io_path {
             dump_value_vec_to_file(
                 &preprocessor_output.to_vec(),
@@ -425,37 +426,37 @@ impl NemoAsrModel {
             self.encoder_model.run(inputs)?
         } else {
             log::debug!("running encoder in batch mode");
-            let features = preprocessor_output[0].view::<f32>()?;
-            let lengths = preprocessor_output[1].view::<i64>()?;
+            let features = preprocessor_output[0].ndarray::<f32>()?;
+            let lengths = preprocessor_output[1].ndarray::<i64>()?;
             let batch_size = features.shape()[0];
             let mut encoder_out = vec![];
             let mut encoder_len = vec![];
             for b in 0..batch_size {
                 // Slice one sample
-                let feat_b: Value = features.slice_axis(Axis(0), (b..b + 1).into()).try_into()?;
+                let feat_b: Tensor = features.slice_axis(Axis(0), (b..b + 1).into()).tract()?;
 
-                let len_b: Value = lengths.slice_axis(Axis(0), (b..b + 1).into()).try_into()?;
+                let len_b: Tensor = lengths.slice_axis(Axis(0), (b..b + 1).into()).tract()?;
                 // Run encoder for a single sample (append lang_id when fused)
                 let mut inputs = vec![feat_b, len_b];
                 if let Some(lang) = self.lang_id_value()? {
                     inputs.push(lang);
                 }
                 let encoder_output_sample = self.encoder_model.run(inputs)?;
-                encoder_out.push(encoder_output_sample[0].view::<f32>()?.to_owned());
-                encoder_len.push(encoder_output_sample[1].view::<i64>()?.to_owned());
+                encoder_out.push(encoder_output_sample[0].ndarray::<f32>()?.to_owned());
+                encoder_len.push(encoder_output_sample[1].ndarray::<i64>()?.to_owned());
             }
 
             vec![
-                tract_ndarray::concatenate(
+                ndarray::concatenate(
                     Axis(0),
                     &encoder_out.iter().map(|a| a.view()).collect::<Vec<_>>(),
                 )?
-                .try_into()?,
-                tract_ndarray::concatenate(
+                .tract()?,
+                ndarray::concatenate(
                     Axis(0),
                     &encoder_len.iter().map(|a| a.view()).collect::<Vec<_>>(),
                 )?
-                .try_into()?,
+                .tract()?,
             ]
         };
         if let Some(dump_dir) = &self.runtime_config.dump_intermediate_io_path {
@@ -467,8 +468,8 @@ impl NemoAsrModel {
 
     fn infer_from_tensor(
         &self,
-        input_tensor: Value,
-        length_tensor: Value,
+        input_tensor: Tensor,
+        length_tensor: Tensor,
     ) -> Res<Vec<Transcription>> {
         log::debug!("start inference preprocessor");
 
@@ -511,10 +512,10 @@ impl NemoAsrModel {
 
     pub fn decode_transcripts_from_encoder_output(
         &self,
-        encoder_out: Vec<Value>,
+        encoder_out: Vec<Tensor>,
     ) -> Res<Vec<Transcription>> {
-        let feats = encoder_out[0].view::<f32>()?;
-        let lens = encoder_out[1].view::<i64>()?;
+        let feats = encoder_out[0].ndarray::<f32>()?;
+        let lens = encoder_out[1].ndarray::<i64>()?;
         let bsz = feats.shape()[0];
 
         let blank = self.model_config.get_blank_index();
@@ -527,7 +528,7 @@ impl NemoAsrModel {
                 let states = self
                     .get_initial_decoder_states(1)?
                     .into_iter()
-                    .map(|shape| Array3::<f32>::zeros(shape).try_into())
+                    .map(|shape| Array3::<f32>::zeros(shape).tract())
                     .collect::<Res<_>>()?;
                 Ok(Lane {
                     encoder_len: lens[b] as usize,
@@ -569,7 +570,7 @@ impl NemoAsrModel {
             }
 
             // Encoder frames [B, C, 1]
-            let enc_frames = tract_ndarray::concatenate(
+            let enc_frames = ndarray::concatenate(
                 Axis(0),
                 &active
                     .iter()
@@ -582,26 +583,26 @@ impl NemoAsrModel {
                     })
                     .collect::<Vec<_>>(),
             )?
-            .try_into()?;
+            .tract()?;
 
             let labels = Array2::<i32>::from_shape_vec(
                 (active.len(), 1),
                 active.iter().map(|&i| lanes[i].last_token as i32).collect(),
             )?
-            .try_into()?;
+            .tract()?;
 
             let packed_states = Self::state_pack_lanes(&lanes, &active)?;
             let mut inputs = vec![enc_frames, labels];
             if self.decoder_joint_wants_target_length {
                 // one predicted token per lane -> length 1
-                let target_length: Value =
-                    Array1::<i32>::from_elem((active.len(),), 1i32).try_into()?;
+                let target_length: Tensor =
+                    Array1::<i32>::from_elem((active.len(),), 1i32).tract()?;
                 inputs.push(target_length);
             }
             inputs.extend(packed_states);
 
             let outs = self.decoder_joint_model.run(inputs)?;
-            let logits = outs[self.decoder_joint_logits_output_index].view::<f32>()?;
+            let logits = outs[self.decoder_joint_logits_output_index].ndarray::<f32>()?;
             log::debug!("Decoder joint step done");
 
             for (k, &lane_ix) in active.iter().enumerate() {
@@ -678,21 +679,21 @@ impl NemoAsrModel {
             .collect())
     }
 
-    fn state_take_lane(state: &Value, b: usize) -> Res<Value> {
-        let v = state.view::<f32>()?;
-        v.index_axis(Axis(1), b).insert_axis(Axis(1)).try_into()
+    fn state_take_lane(state: &Tensor, b: usize) -> Res<Tensor> {
+        let v = state.ndarray::<f32>()?;
+        v.index_axis(Axis(1), b).insert_axis(Axis(1)).tract()
     }
 
-    fn state_pack_lanes(lanes: &[Lane], active: &[usize]) -> Res<Vec<Value>> {
+    fn state_pack_lanes(lanes: &[Lane], active: &[usize]) -> Res<Vec<Tensor>> {
         let n_states = lanes[active[0]].states.len();
         let mut packed = vec![];
         for sid in 0..n_states {
             let views: Vec<_> = active
                 .iter()
-                .map(|&lx| lanes[lx].states[sid].view::<f32>())
+                .map(|&lx| lanes[lx].states[sid].ndarray::<f32>())
                 .collect::<Res<_>>()?;
-            let cat = tract_ndarray::concatenate(Axis(1), &views)?;
-            packed.push(cat.try_into()?);
+            let cat = ndarray::concatenate(Axis(1), &views)?;
+            packed.push(cat.tract()?);
         }
         Ok(packed)
     }
@@ -703,6 +704,34 @@ mod test {
     use super::*;
     use std::path::Path;
     use test_log::test;
+
+    #[test]
+    fn decoder_state_lanes_round_trip() -> Res<()> {
+        let values = Array3::from_shape_fn((2, 3, 4), |(layer, lane, hidden)| {
+            (layer * 100 + lane * 10 + hidden) as f32
+        });
+        let state = values.clone().tract()?;
+        let lanes = (0..3)
+            .map(|b| {
+                Ok(Lane {
+                    encoder_len: 0,
+                    current_frame: 0,
+                    last_token: 0,
+                    states: vec![NemoAsrModel::state_take_lane(&state, b)?],
+                    transcript: vec![],
+                    symbols_added: 0,
+                    need_loop: true,
+                })
+            })
+            .collect::<Res<Vec<_>>>()?;
+        let packed = NemoAsrModel::state_pack_lanes(&lanes, &[2, 0])?;
+        assert_eq!(packed.len(), 1);
+        assert_eq!(
+            packed[0].ndarray::<f32>()?,
+            values.select(Axis(1), &[2, 0]).into_dyn()
+        );
+        Ok(())
+    }
 
     fn workspace_root() -> PathBuf {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));

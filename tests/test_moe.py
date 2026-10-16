@@ -1,5 +1,6 @@
 """Tests for MoE FFN export to tract_moe_ffn operator."""
 
+import re
 import tarfile
 import tempfile
 from copy import deepcopy
@@ -143,6 +144,15 @@ def _read_graph_from_archive(path):
     raise AssertionError("graph.nnef not found in NNEF archive")
 
 
+def _moe_expert_weight_members(archive):
+    """Find original parameter labels and generated split-weight labels."""
+    return [
+        (match[1], member)
+        for member in archive.getmembers()
+        if (match := re.search(r"[._](w[123])\.dat$", member.name))
+    ]
+
+
 def _assert_moe_expert_weights_q40(
     inference_target,
     path,
@@ -158,19 +168,14 @@ def _assert_moe_expert_weights_q40(
         else DatBinHeader.TractCustomTypes.Q40_LEGACY
     )
     with tempfile.TemporaryDirectory() as td, tarfile.open(path, "r:*") as tf:
-        members = [
-            m
-            for m in tf.getmembers()
-            if m.name.endswith(("_w1.dat", "_w2.dat", "_w3.dat"))
-        ]
-        assert len(members) == expected_count, [m.name for m in members]
-        for member in members:
+        members = _moe_expert_weight_members(tf)
+        assert len(members) == expected_count, [m.name for _, m in members]
+        for name, member in members:
             tf.extract(member, td)
             header = DatBinHeader.from_dat(Path(td) / member.name)
             assert header.torch_dtype_or_custom == expected_dtype
             if expected_shapes is not None:
-                suffix = member.name.rsplit("_", 1)[-1].removesuffix(".dat")
-                assert header.dims == expected_shapes[suffix]
+                assert header.dims == expected_shapes[name]
 
 
 def _assert_moe_expert_weight_shapes(
@@ -183,17 +188,12 @@ def _assert_moe_expert_weight_shapes(
     if not isinstance(inference_target, TractNNEF):
         return
     with tempfile.TemporaryDirectory() as td, tarfile.open(path, "r:*") as tf:
-        members = [
-            m
-            for m in tf.getmembers()
-            if m.name.endswith(("_w1.dat", "_w2.dat", "_w3.dat"))
-        ]
-        assert len(members) == expected_count, [m.name for m in members]
-        for member in members:
+        members = _moe_expert_weight_members(tf)
+        assert len(members) == expected_count, [m.name for _, m in members]
+        for name, member in members:
             tf.extract(member, td)
             header = DatBinHeader.from_dat(Path(td) / member.name)
-            suffix = member.name.rsplit("_", 1)[-1].removesuffix(".dat")
-            assert header.dims == expected_shapes[suffix]
+            assert header.dims == expected_shapes[name]
 
 
 def _assert_graph_contains(inference_target, path, fragment):
