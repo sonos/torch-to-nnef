@@ -19,3 +19,4 @@ serde_json = { workspace = true }
 test-log = { workspace = true }
 tract-rs = { workspace = true }
 ndarray-npy = { workspace = true }
+ndarray = { workspace = true }
