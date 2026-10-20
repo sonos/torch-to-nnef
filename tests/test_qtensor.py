@@ -13,7 +13,14 @@ import pytest
 import torch
 from torch import nn
 
+from torch_to_nnef.compress import (
+    DEFAULT_COMPRESSION_REGISTRY,
+    dynamic_load_registry,
+    quantize_weights_min_max_Q8_1,
+)
 from torch_to_nnef.exceptions import (
+    T2NErrorMisuse,
+    T2NErrorNotImplemented,
     T2NErrorTestFailed,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
@@ -21,9 +28,12 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.opaque import set_opaque_tensor_in_params_as_ref
 from torch_to_nnef.tensor.quant import (
+    QTensor,
+    QTensorTractQ8_1,
     QTensorTractScaleOnly,
     U8Compressor,
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q8_1_with_min_max_calibration,
     qscale_per_group_f16_min_max_calibration,
 )
 from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
@@ -145,7 +155,10 @@ def test_q40_dat_content_uses_bitpacking_without_sum(
 
     monkeypatch.setattr(torch.Tensor, "sum", fail_if_sum_is_used)
 
-    assert qtensor._build_binary_dat_content(post_tract_21_11) == expected
+    inference_target = TractNNEF(
+        "0.21.11" if post_tract_21_11 else "0.21.10", check_io=False
+    )
+    assert qtensor._build_binary_dat_content(inference_target) == expected
     assert torch.equal(qtensor.u8_blob, u8_before)
 
 
@@ -661,6 +674,180 @@ def test_quantize_with_tract_q4_0_embedding(inference_target):
                 },
             ),
         )
+
+
+@skipif_unsupported_qtensor
+def test_q81_dat_content_layout(tmp_path):
+    fp_tensor = torch.arange(-64, 64).reshape(2, 64).float()
+    qtensor = fp_to_tract_q8_1_with_min_max_calibration(fp_tensor)
+    qtensor.write_in_file(tmp_path, "weight", TractNNEF.latest())
+
+    with (tmp_path / "weight.dat").open("rb") as fh:
+        header = DatBinHeader.from_dat_file(fh)
+        content = fh.read()
+    assert header.torch_dtype_or_custom == DatBinHeader.TractCustomTypes.Q81
+    assert header.dims[: header.rank] == [2, 64]
+    assert header.data_size_bytes == len(content) == 4 * 36
+
+    blocks = np.frombuffer(content, dtype=np.uint8).reshape(4, 36)
+    scale = blocks[:, :2].copy().view(np.float16).reshape(4, 1)
+    block_sum = blocks[:, 2:4].copy().view(np.float16).reshape(4)
+    i8_vals = blocks[:, 4:].copy().view(np.int8)
+    assert np.allclose(scale.flatten(), qtensor.qscheme.scale.numpy().flatten())
+    dequant = i8_vals.astype(np.float32) * scale.astype(np.float32)
+    # like tract Q8_1 gather: dequantized in target dtype on all platforms
+    assert np.array_equal(dequant.reshape(2, 64), qtensor.decompress().numpy())
+    assert np.allclose(block_sum, dequant.sum(axis=1), rtol=1e-3)
+    assert i8_vals.min() >= -127
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("percentile", [1.0, 0.9])
+def test_q81_values_in_restricted_range(percentile):
+    fp_tensor = torch.randn(64, 64)
+    fp_tensor[:, 0] = -10.0  # outliers clamped if percentile < 1
+    fp_tensor[:, 1] = 10.0
+    qtensor = fp_to_tract_q8_1_with_min_max_calibration(
+        fp_tensor, percentile=percentile
+    )
+    u8_vals = qtensor.decompress_to_u8()
+    # u8 offset by 128: int8 in [-127, 127]
+    assert u8_vals.min() >= 1 and u8_vals.max() <= 255
+    deq = qtensor.decompress()
+    assert torch.equal(deq[:, 0], -deq[:, 1])
+
+
+@skipif_unsupported_qtensor
+def test_q81_and_q40_are_distinct_formats():
+    q81 = fp_to_tract_q8_1_with_min_max_calibration(torch.randn(2, 32))
+    q40 = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(2, 32))
+    assert not isinstance(q81, QTensorTractScaleOnly)
+    assert not isinstance(q40, QTensorTractQ8_1)
+
+
+@skipif_unsupported_qtensor
+def test_q81_write_streams_without_building_full_content(monkeypatch, tmp_path):
+    qtensor = fp_to_tract_q8_1_with_min_max_calibration(
+        torch.randn(6, 64), percentile=1.0
+    )
+    ref_dir = tmp_path / "ref"
+    out_dir = tmp_path / "out"
+    ref_dir.mkdir()
+    out_dir.mkdir()
+    qtensor.write_in_file(ref_dir, "weight", TractNNEF.latest())
+    QTensorTractQ8_1.write_offload_state_in_file(
+        qtensor.to_offload_state(),
+        out_dir,
+        "weight",
+        inference_target=TractNNEF.latest(),
+    )
+
+    def fail_if_full_content_is_built(*args, **kwargs):
+        raise AssertionError("Q81 write should stream content")
+
+    monkeypatch.setattr(
+        QTensorTractQ8_1,
+        "_build_binary_dat_content",
+        fail_if_full_content_is_built,
+    )
+    stream_dir = tmp_path / "stream"
+    stream_dir.mkdir()
+    qtensor.write_in_file(stream_dir, "weight", TractNNEF.latest())
+    expected = (ref_dir / "weight.dat").read_bytes()
+    assert (out_dir / "weight.dat").read_bytes() == expected
+    assert (stream_dir / "weight.dat").read_bytes() == expected
+
+
+@skipif_unsupported_qtensor
+def test_q81_unsupported_before_tract_0_23(tmp_path):
+    qtensor = fp_to_tract_q8_1_with_min_max_calibration(torch.randn(2, 32))
+    with pytest.raises(T2NErrorNotImplemented):
+        qtensor.write_in_file(
+            tmp_path, "weight", TractNNEF("0.22.1", check_io=False)
+        )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "inference_target,dtype",
+    [
+        (i, dt)
+        for i in TRACT_INFERENCES_TO_TESTS_EXACT
+        if i.version >= "0.23.0"
+        for dt in [torch.float32, torch.float16]
+    ],
+)
+def test_quantize_with_tract_q8_1_embedding(inference_target, dtype):
+    """Q8_1 is only supported by tract on embedding/gathering."""
+    with torch.no_grad():
+        test_input = torch.arange(6)
+        test_input[:3] = 3
+        x = 6
+        y = 64
+        model = nn.Embedding(x, y).eval().to(dtype)
+        original_weight = torch.randn(x, y).to(dtype)
+
+        q_tensor = fp_to_tract_q8_1_with_min_max_calibration(original_weight)
+        deq_weight = q_tensor.qscheme.dequantize(
+            q_tensor.decompress_to_u8(), target_dtype=torch.float32
+        )
+        # restricted range: no clamping, error within half a step
+        # (codes computed in f32 even for f16 weights)
+        diff = (original_weight.float() - deq_weight).abs().reshape(-1, 32)
+        scale = q_tensor.qscheme.scale.abs().float()
+        assert (diff <= scale * 0.501).all(), (diff / scale).max()
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={"weight": {"dtype": DatBinHeader.TractCustomTypes.Q81}},
+            ),
+        )
+
+
+@skipif_unsupported_qtensor
+def test_compress_min_max_q8_1_embeddings_only_quantize_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 32))
+    tied = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 10, bias=False))
+    tied[1].weight = tied[0].weight
+    registry = dynamic_load_registry(DEFAULT_COMPRESSION_REGISTRY)
+
+    registry["min_max_q8_1_embeddings"](model)
+    assert isinstance(model[0].weight, QTensorTractQ8_1)
+    assert not isinstance(model[1].weight, QTensor)
+
+    # weight shared with a Linear must stay float (no tract Q8_1 matmul)
+    registry["min_max_q8_1_embeddings"](tied)
+    assert not isinstance(tied[0].weight, QTensor)
+
+
+@skipif_unsupported_qtensor
+def test_compress_min_max_q8_1_rejects_non_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 32))
+    with pytest.raises(T2NErrorMisuse):
+        quantize_weights_min_max_Q8_1(
+            model, to_quantize_module_classes=(nn.Linear, nn.Embedding)
+        )
+    assert not isinstance(model[0].weight, QTensor)
+
+
+@skipif_unsupported_qtensor
+def test_q81_group_sum_clamped_to_f16_range(tmp_path, caplog):
+    qtensor = fp_to_tract_q8_1_with_min_max_calibration(
+        torch.full((2, 32), 3000.0)
+    )
+    with caplog.at_level("WARNING"):
+        qtensor.write_in_file(tmp_path, "weight", TractNNEF.latest())
+    assert "group sum exceed f16 range" in caplog.text
+    with (tmp_path / "weight.dat").open("rb") as fh:
+        DatBinHeader.from_dat_file(fh)
+        blocks = np.frombuffer(fh.read(), dtype=np.uint8).reshape(2, 36)
+    group_sum = blocks[:, 2:4].copy().view(np.float16)
+    assert np.isfinite(group_sum).all(), group_sum
 
 
 # conv1d: linear (aka kernel=1)

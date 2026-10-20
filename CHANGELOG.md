@@ -6,6 +6,10 @@
 ### Changed
 - **Latest officially supported tract version is now 0.23.9**, up from 0.23.8. Default exports target 0.23.9.
 
+### Added
+
+- **tract `Q8_1` (GGML style) weight export for embeddings**: new `QTensorTractQ8_1` and `fp_to_tract_q8_1_with_min_max_calibration` (8bit per group of 32, 9bpw, GGML `absmax / 127` scale), plus the `min_max_q8_1_embeddings` compression registry entry. Requires tract >= 0.23.0, which only supports `Q8_1` weights on embedding/gathering operations (no matmul or convolution kernel yet).
+
 ## [0.24.12] - 2026-10-13
 
 ### Added

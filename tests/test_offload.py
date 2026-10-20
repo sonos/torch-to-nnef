@@ -25,6 +25,7 @@ from torch_to_nnef.tensor.opaque import (
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q8_1_with_min_max_calibration,
 )
 from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
@@ -171,10 +172,17 @@ def test_offload_qtensor_export():
 
 
 @skipif_unsupported_qtensor
-def test_offload_qtensor_uses_compact_serialized_state():
+@pytest.mark.parametrize(
+    "fp_to_qtensor_fn",
+    [
+        fp_to_tract_q4_0_with_min_max_calibration,
+        fp_to_tract_q8_1_with_min_max_calibration,
+    ],
+)
+def test_offload_qtensor_uses_compact_serialized_state(fp_to_qtensor_fn):
     with tempfile.TemporaryDirectory() as td:
         original_weight = torch.randn(8192, 32, dtype=torch.float16)
-        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+        q_tensor = fp_to_qtensor_fn(original_weight)
         offloaded_value = OffloadedTensor.from_original_tensor(
             q_tensor, "my_offloaded_qweight", offload_dir=Path(td)
         )

@@ -55,12 +55,15 @@ class QScalePerGroupF16(QScheme):
         group_size: int,
         scale: torch.Tensor,
         n_bits: int,
+        restricted_range: bool = False,
     ):
         scale = scale.to(torch.float16)
         # assert (scale != 0).all(), scale
         self.group_size: int = group_size
         self.scale = scale
         self.n_bits = n_bits  # needed for bit-shift before packing
+        # skip lowest value: symmetric [-(2**(n-1) - 1), 2**(n-1) - 1]
+        self.restricted_range = restricted_range
 
     def quantize_as_torch(self, fp_tensor):
         raise T2NErrorNotImplemented("native torch does not suport per chunk")
@@ -77,7 +80,12 @@ class QScalePerGroupF16(QScheme):
             len(fp_tensor_per_group.shape) == 2
             and fp_tensor_per_group.shape[1] == self.group_size
         )
-        recip_scale = torch.where(self.scale == 0, self.scale, 1.0 / self.scale)
+        scale = self.scale
+        if self.n_bits > 4:
+            # f16 is too coarse for 8bit codes (0.125 spacing in [128, 256))
+            fp_tensor_per_group = fp_tensor_per_group.to(torch.float32)
+            scale = scale.to(torch.float32)
+        recip_scale = torch.where(scale == 0, scale, 1.0 / scale)
         fu8_tensor_per_group = (fp_tensor_per_group * recip_scale) + (
             2**self.n_bits + 1
         ) / 2
@@ -89,8 +97,10 @@ class QScalePerGroupF16(QScheme):
         )
         if legacy_cpu_mode:
             fu8_tensor_per_group = fu8_tensor_per_group.to(torch.float32)
+        # getattr: support QScheme pickled before restricted_range existed
+        q_min = 1 if getattr(self, "restricted_range", False) else 0
         fu8_tensor_per_group = fu8_tensor_per_group.floor().clamp(
-            0, 2**self.n_bits - 1
+            q_min, 2**self.n_bits - 1
         )
         if legacy_cpu_mode:
             fu8_tensor_per_group = fu8_tensor_per_group.to(torch.float16)
@@ -124,6 +134,7 @@ class QScalePerGroupF16(QScheme):
             scale=(self.scale / scale_factor).to(dtype=self.scale.dtype),
             group_size=self.group_size,
             n_bits=self.n_bits,
+            restricted_range=getattr(self, "restricted_range", False),
         )
 
     def __repr__(self) -> str:
@@ -387,12 +398,21 @@ class QTensor(OpaqueTensor):
 
 
 def qscale_per_group_f16_min_max_calibration(
-    fp_tensor,
+    fp_tensor: torch.Tensor,
     n_bits: int,
     group_size: int,
     percentile: float = 1.0,
+    restricted_range: bool = False,
 ) -> "QScalePerGroupF16":
     """Build QScalePerGroupF16 and calibrate requested float tensor.
+
+    Args:
+        fp_tensor: float tensor to calibrate.
+        n_bits: number of bits per quantized element.
+        group_size: number of elements sharing a scale.
+        percentile: absolute value percentile used as max per group.
+        restricted_range: use [-(2**(n_bits-1) - 1), 2**(n_bits-1) - 1]
+            instead of full range (GGML Q8 convention).
 
     Return:
         Tuple(
@@ -413,7 +433,7 @@ def qscale_per_group_f16_min_max_calibration(
         fp_tensor, group_size
     )
 
-    # we use full-range symmetric
+    # by default we use full-range symmetric
     # like torch, ONNX, but oposed to restricted range from
     # TensorFlow, NVIDIA TensorRT and Intel DNNL
     if percentile == 1:
@@ -421,7 +441,10 @@ def qscale_per_group_f16_min_max_calibration(
     else:
         # torch.quantile only support f32 (2024-09-10, torch 2.2.2)
         x = torch.quantile(fp_tensor_per_group.abs().float(), percentile, dim=1)
-    scale = x / (-(2**n_bits) / 2)
+    q_max = 2 ** (n_bits - 1)
+    if restricted_range:
+        q_max -= 1
+    scale = x / -q_max
 
     assert scale.shape[0] == fp_tensor_per_group.shape[0]
     qshape = [scale.shape[0]] + [1]
@@ -429,4 +452,5 @@ def qscale_per_group_f16_min_max_calibration(
         group_size=group_size,
         scale=scale.reshape(qshape).half(),
         n_bits=n_bits,
+        restricted_range=restricted_range,
     )

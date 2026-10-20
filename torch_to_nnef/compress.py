@@ -5,24 +5,29 @@ Examplify: how to implement quantization
 
 import logging
 import typing as T
+from collections import defaultdict
 from functools import partial
 
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import T2NErrorImpossibleQuantization
+from torch_to_nnef.exceptions import (
+    T2NErrorImpossibleQuantization,
+    T2NErrorMisuse,
+)
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q8_1_with_min_max_calibration,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _calib_q40_fn(weight, name, kwargs):
-    q_weight = fp_to_tract_q4_0_with_min_max_calibration(
+def _calib_min_max_fn(weight, name, kwargs, fp_to_qtensor_fn):
+    q_weight = fp_to_qtensor_fn(
         weight,
         **{k: v for k, v in kwargs.items() if k in ["percentile"]},
     )
@@ -30,10 +35,15 @@ def _calib_q40_fn(weight, name, kwargs):
     return q_weight
 
 
-def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
-    """Example of quantization function for a model to Q40."""
+def _quantize_weights_min_max(
+    model: nn.Module,
+    fp_to_qtensor_fn: T.Callable,
+    suffix_name: str,
+    default_module_classes: T.Tuple[T.Type[nn.Module], ...],
+    **kwargs,
+):
     to_quantize_module_classes = kwargs.get(
-        "to_quantize_module_classes", (nn.Linear,)
+        "to_quantize_module_classes", default_module_classes
     )
     assert isinstance(to_quantize_module_classes, tuple), (
         to_quantize_module_classes
@@ -46,6 +56,13 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
         # try to avoid quant if used in other operators like mix of
         # embedding/linear if linear only quant
         mod_tensor_updater = ModTensorUpdater(model)
+        # direct scan: torch < 2.0 named_parameters drops tied duplicates
+        # so ModTensorUpdater.id_to_modules would miss shared usages
+        id_to_modules: T.Dict[int, T.List[nn.Module]] = defaultdict(list)
+        for owner in model.modules():
+            for param in owner._parameters.values():
+                if param is not None:
+                    id_to_modules[id(param)].append(owner)
 
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
@@ -60,12 +77,9 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
                     continue
                 if not all(
                     isinstance(m, to_quantize_module_classes)
-                    for m in mod_tensor_updater.id_to_modules[weight_id]
+                    for m in id_to_modules[weight_id]
                 ):
-                    clss = [
-                        m.__class__
-                        for m in mod_tensor_updater.id_to_modules[weight_id]
-                    ]
+                    clss = [m.__class__ for m in id_to_modules[weight_id]]
                     LOGGER.warning(
                         "detected shared weight: '%s' candidate "
                         "has incompatible layer usage: %s, "
@@ -77,9 +91,14 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
                     continue
                 try:
                     q_weight = offloaded_tensor_qtensor(
-                        partial(_calib_q40_fn, name=name, kwargs=kwargs),
+                        partial(
+                            _calib_min_max_fn,
+                            name=name,
+                            kwargs=kwargs,
+                            fp_to_qtensor_fn=fp_to_qtensor_fn,
+                        ),
                         mod.weight,
-                        "q40_min_max",
+                        suffix_name,
                     )
                 except T2NErrorImpossibleQuantization as exp:
                     LOGGER.error("quant layer: %s error: %s", name, exp)
@@ -91,6 +110,40 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
                 )
                 ids_to_qtensor[id(q_weight)] = q_weight
     return model
+
+
+def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
+    """Example of quantization function for a model to Q40."""
+    return _quantize_weights_min_max(
+        model,
+        fp_to_tract_q4_0_with_min_max_calibration,
+        "q40_min_max",
+        (nn.Linear,),
+        **kwargs,
+    )
+
+
+def quantize_weights_min_max_Q8_1(model: nn.Module, **kwargs):  # noqa: N802
+    """Example of quantization function for a model to Q8_1.
+
+    tract only supports Q8_1 weights for embedding/gathering operations
+    so only `nn.Embedding` (or subclasses) can be quantized.
+    """
+    to_quantize_module_classes = kwargs.get(
+        "to_quantize_module_classes", (nn.Embedding,)
+    )
+    if not all(issubclass(c, nn.Embedding) for c in to_quantize_module_classes):
+        raise T2NErrorMisuse(
+            "tract only supports Q8_1 on embeddings, "
+            f"but requested: {to_quantize_module_classes}"
+        )
+    return _quantize_weights_min_max(
+        model,
+        fp_to_tract_q8_1_with_min_max_calibration,
+        "q81_min_max",
+        (nn.Embedding,),
+        **kwargs,
+    )
 
 
 def offloaded_tensor_qtensor(
@@ -142,4 +195,5 @@ DEFAULT_COMPRESSION = {
             nn.Conv2d,
         ),
     ),
+    "min_max_q8_1_embeddings": quantize_weights_min_max_Q8_1,
 }

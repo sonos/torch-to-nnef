@@ -42,7 +42,7 @@ usage: t2n_export_llm_to_tract [-h] -e EXPORT_DIRPATH [-s MODEL_SLUG] [-dt {f32,
                                [-f32-attn] [-f32-lin-acc] [-f32-norm] [--num-logits-to-keep NUM_LOGITS_TO_KEEP] [--device-map DEVICE_MAP] [-tt {exact,approximate,close,very,super,ultra}]
                                [-n {raw,natural_verbose,natural_verbose_camel,numeric}] [--tract-specific-path TRACT_SPECIFIC_PATH] [--tract-specific-version TRACT_SPECIFIC_VERSION] [-td]
                                [-dwtac] [-sgts SAMPLE_GENERATION_TOTAL_SIZE] [-iaed] [-nv] [-v]
-                               [-c {min_max_q4_0,min_max_q4_0_with_embeddings,min_max_q4_0_with_embeddings_99,min_max_q4_0_all}]
+                               [-c {min_max_q4_0,min_max_q4_0_with_embeddings,min_max_q4_0_with_embeddings_99,min_max_q4_0_all,min_max_q8_1_embeddings}]
 ...
 ```
 

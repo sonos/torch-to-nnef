@@ -1,11 +1,13 @@
 import pickle
 
+import pytest
 import torch
 
 from tests.test_qtensor import skipif_unsupported_qtensor
 from torch_to_nnef.tensor import NamedTensor
 from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q8_1_with_min_max_calibration,
 )
 
 
@@ -17,11 +19,16 @@ def test_pickle_named_tensor():
 
 
 @skipif_unsupported_qtensor
-def test_pickle_qtensor():
+@pytest.mark.parametrize(
+    "fp_to_qtensor_fn",
+    [
+        fp_to_tract_q4_0_with_min_max_calibration,
+        fp_to_tract_q8_1_with_min_max_calibration,
+    ],
+)
+def test_pickle_qtensor(fp_to_qtensor_fn):
     fp_tensor = torch.rand(2, 32)
-    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(
-        fp_tensor, percentile=1.0
-    )
+    q_tensor = fp_to_qtensor_fn(fp_tensor, percentile=1.0)
     q_tensor.nnef_name = "test_b"
     bits = pickle.dumps(q_tensor)
     restored_q_tensor = pickle.loads(bits)
