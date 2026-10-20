@@ -80,7 +80,12 @@ class QScalePerGroupF16(QScheme):
             len(fp_tensor_per_group.shape) == 2
             and fp_tensor_per_group.shape[1] == self.group_size
         )
-        recip_scale = torch.where(self.scale == 0, self.scale, 1.0 / self.scale)
+        scale = self.scale
+        if self.n_bits > 4:
+            # f16 is too coarse for 8bit codes (0.125 spacing in [128, 256))
+            fp_tensor_per_group = fp_tensor_per_group.to(torch.float32)
+            scale = scale.to(torch.float32)
+        recip_scale = torch.where(scale == 0, scale, 1.0 / scale)
         fu8_tensor_per_group = (fp_tensor_per_group * recip_scale) + (
             2**self.n_bits + 1
         ) / 2

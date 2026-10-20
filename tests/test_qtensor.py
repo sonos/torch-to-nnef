@@ -16,8 +16,10 @@ from torch import nn
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
+    quantize_weights_min_max_Q8_1,
 )
 from torch_to_nnef.exceptions import (
+    T2NErrorMisuse,
     T2NErrorNotImplemented,
     T2NErrorTestFailed,
 )
@@ -790,10 +792,10 @@ def test_quantize_with_tract_q8_1_embedding(inference_target, dtype):
             q_tensor.decompress_to_u8(), target_dtype=torch.float32
         )
         # restricted range: no clamping, error within half a step
-        # (+ f16 scale rounding)
+        # (codes computed in f32 even for f16 weights)
         diff = (original_weight.float() - deq_weight).abs().reshape(-1, 32)
         scale = q_tensor.qscheme.scale.abs().float()
-        assert (diff <= scale * 0.6).all(), (diff / scale).max()
+        assert (diff <= scale * 0.501).all(), (diff / scale).max()
 
         model.weight = nn.Parameter(q_tensor, requires_grad=False)
         check_model_io_test(
@@ -821,6 +823,31 @@ def test_compress_min_max_q8_1_embeddings_only_quantize_embeddings():
     # weight shared with a Linear must stay float (no tract Q8_1 matmul)
     registry["min_max_q8_1_embeddings"](tied)
     assert not isinstance(tied[0].weight, QTensor)
+
+
+@skipif_unsupported_qtensor
+def test_compress_min_max_q8_1_rejects_non_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 32))
+    with pytest.raises(T2NErrorMisuse):
+        quantize_weights_min_max_Q8_1(
+            model, to_quantize_module_classes=(nn.Linear, nn.Embedding)
+        )
+    assert not isinstance(model[0].weight, QTensor)
+
+
+@skipif_unsupported_qtensor
+def test_q81_group_sum_clamped_to_f16_range(tmp_path, caplog):
+    qtensor = fp_to_tract_q8_1_with_min_max_calibration(
+        torch.full((2, 32), 3000.0)
+    )
+    with caplog.at_level("WARNING"):
+        qtensor.write_in_file(tmp_path, "weight", TractNNEF.latest())
+    assert "group sum exceed f16 range" in caplog.text
+    with (tmp_path / "weight.dat").open("rb") as fh:
+        DatBinHeader.from_dat_file(fh)
+        blocks = np.frombuffer(fh.read(), dtype=np.uint8).reshape(2, 36)
+    group_sum = blocks[:, 2:4].copy().view(np.float16)
+    assert np.isfinite(group_sum).all(), group_sum
 
 
 # conv1d: linear (aka kernel=1)

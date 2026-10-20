@@ -10,7 +10,10 @@ from functools import partial
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import T2NErrorImpossibleQuantization
+from torch_to_nnef.exceptions import (
+    T2NErrorImpossibleQuantization,
+    T2NErrorMisuse,
+)
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
     QTensor,
@@ -119,8 +122,16 @@ def quantize_weights_min_max_Q8_1(model: nn.Module, **kwargs):  # noqa: N802
     """Example of quantization function for a model to Q8_1.
 
     tract only supports Q8_1 weights for embedding/gathering operations
-    so by default only `nn.Embedding` are quantized.
+    so only `nn.Embedding` (or subclasses) can be quantized.
     """
+    to_quantize_module_classes = kwargs.get(
+        "to_quantize_module_classes", (nn.Embedding,)
+    )
+    if not all(issubclass(c, nn.Embedding) for c in to_quantize_module_classes):
+        raise T2NErrorMisuse(
+            "tract only supports Q8_1 on embeddings, "
+            f"but requested: {to_quantize_module_classes}"
+        )
     return _quantize_weights_min_max(
         model,
         fp_to_tract_q8_1_with_min_max_calibration,

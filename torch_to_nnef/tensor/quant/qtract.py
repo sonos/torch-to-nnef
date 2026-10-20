@@ -1,4 +1,5 @@
 import filecmp
+import logging
 import operator
 import platform
 import tempfile
@@ -25,6 +26,8 @@ from torch_to_nnef.tensor.quant.base import (
     QTensor,
     qscale_per_group_f16_min_max_calibration,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 class QTensorTract(QTensor):
@@ -203,15 +206,15 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
                 fh.write(chunk)
 
     @staticmethod
-    def _is_same_as_existing_dat(path: Path, write_fn) -> bool:
-        """Check `write_fn(dirpath)` would produce the existing `path`."""
+    def _assert_same_as_existing_dat(path: Path, write_fn) -> None:
+        """Raise if `write_fn(dirpath)` would not reproduce existing `path`."""
         with tempfile.TemporaryDirectory() as _td:
             td = Path(_td)
             write_fn(td)
             new_path = td / path.name
             assert new_path.exists(), new_path
             if filecmp.cmp(path, new_path):
-                return True
+                return
         raise T2NErrorNotImplemented(
             "At least 2 variables in the NNEF graph, "
             f"share same Parameters: '{path.stem}' but they try "
@@ -231,12 +234,13 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
         if inference_target is None:
             inference_target = TractNNEF.latest()
         path = Path(dirpath) / f"{label}.dat"
-        if path.exists() and cls._is_same_as_existing_dat(
-            path,
-            lambda td: cls.write_offload_state_in_file(
-                state, td, label, inference_target=inference_target
-            ),
-        ):
+        if path.exists():
+            cls._assert_same_as_existing_dat(
+                path,
+                lambda td: cls.write_offload_state_in_file(
+                    state, td, label, inference_target=inference_target
+                ),
+            )
             return
         assert isinstance(inference_target, TractNNEF), inference_target
         cls._check_inference_target_support(inference_target)
@@ -260,12 +264,13 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
         path = Path(dirpath) / f"{label}.dat"
         # already created a variable dump with that name:
         # check we would produce identical serialized data
-        if path.exists() and self._is_same_as_existing_dat(
-            path,
-            lambda td: self.write_in_file(
-                td, label, inference_target=inference_target
-            ),
-        ):
+        if path.exists():
+            self._assert_same_as_existing_dat(
+                path,
+                lambda td: self.write_in_file(
+                    td, label, inference_target=inference_target
+                ),
+            )
             return
         assert isinstance(inference_target, TractNNEF), inference_target
         self._check_inference_target_support(inference_target)
@@ -403,9 +408,17 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
         i8_vals = (u8_groups.to(torch.int16) - 2 ** (cls.N_BITS - 1)).to(
             torch.int8
         )
-        group_sum = (
-            i8_vals.sum(dim=1).to(torch.float32) * scale.to(torch.float32)
-        ).to(torch.float16)
+        group_sum = i8_vals.sum(dim=1).to(torch.float32) * scale.to(
+            torch.float32
+        )
+        f16_max = torch.finfo(torch.float16).max
+        if group_sum.abs().max() > f16_max:
+            # tract does not read it, but avoid writing inf in the .dat
+            LOGGER.warning(
+                "Q8_1 group sum exceed f16 range: clamped to +/-%s", f16_max
+            )
+            group_sum = group_sum.clamp(-f16_max, f16_max)
+        group_sum = group_sum.to(torch.float16)
         b_all = np.empty((n_groups, 4 + cls.GROUP_SIZE), dtype=np.uint8)
         b_all[:, :2] = scale.numpy().view(np.uint8).reshape(n_groups, 2)
         b_all[:, 2:4] = group_sum.numpy().view(np.uint8).reshape(n_groups, 2)
