@@ -35,6 +35,7 @@ class DatBinHeader:
 
         Q40 = "4030"
         Q40_LEGACY = "4020"
+        Q81 = "8030"
 
     def __init__(
         self,
@@ -114,7 +115,12 @@ class DatBinHeader:
         vol = 1
         for s in shape:
             vol *= s
-        data_size_bytes = int((vol * 4 + vol / 32 * 16) / 8)
+        if item_type == cls.TractCustomTypes.Q81:
+            # per group of 32: f16 scale + f16 sum + 32 int8
+            data_size_bytes = vol // 32 * 36
+        else:
+            # per group of 32: f16 scale + 32 nibbles
+            data_size_bytes = int((vol * 4 + vol / 32 * 16) / 8)
 
         return DatBinHeader(
             data_size_bytes=data_size_bytes,

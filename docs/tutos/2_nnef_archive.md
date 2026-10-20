@@ -153,3 +153,5 @@ We also leverage the flexibility left to define new formats, for example:
 `Q4_0` .dat files in a format that is close to isolated [GGML_TYPE_Q4_0](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md),
 and can be exported to tract with our package as explained
 in the [quantization tutorial](../6_quantization).
+Likewise `Q8_1` .dat files (tract item type `0x3080`) store per group of 32 elements:
+a f16 scale, a f16 sum and 32 int8 values (36 bytes), like `GGML_TYPE_Q8_1`.

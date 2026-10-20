@@ -30,9 +30,10 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-To date tract support 2 kind of quantization:
+To date tract support 3 kind of quantization:
 
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
+- Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
 Let's take a look at each in turn starting by Q40.
@@ -96,9 +97,12 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 <div class="grid cards" markdown>
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractScaleOnly
     handler: python
+- ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
+    handler: python
 </div>
 
-QTensor today only support export to [`Q40`](https://huggingface.co/docs/hub/en/gguf) (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw).
+QTensor today support export to [`Q40`](https://huggingface.co/docs/hub/en/gguf) (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw)
+and `Q8_1` (8bit symmetric quantization with a granularity per group of 32 elements, totaling 9bpw).
 
 A `QTensor` is a Python object that behaves and should be used as a
 classical `torch.Tensor` with few exceptions: it can not hold any gradient, it can not be modified, it contains internals objects necessary to its definition like:
@@ -138,6 +142,42 @@ model.
 By reading the previous section you should now understand that beyond specific calibration
 which is not part of this library all of what was explained apply to all neural network parameters used in matmul (nn.Linear, F.linear, ...), conv (Conv1d, Conv2d), and embeddings (gather operator).
 In fact you can just reuse as is the [compress method](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/compress.py#L20) we referenced upper on any neural network defined in PyTorch it should just work.
+
+### Q8_1 for embeddings
+
+tract (>= 0.23.0) can also load `Q8_1` weights: each group of 32 elements is stored
+as a f16 scale, a f16 sum of the dequantized values and 32 int8 values (9bpw).
+Scale follows the GGML convention `d = absmax / 127` (int8 values in `[-127, 127]`).
+
+!!! warning
+
+    tract has no matmul or convolution kernel for `Q8_1` weights yet: a `nn.Linear`
+    or `nn.Conv*` with `Q8_1` weights will fail at tract model optimization.
+    Only use it for embeddings (gather operator).
+
+This makes it a good fit for embeddings that you want to keep with a better precision than Q40,
+the `min_max_q8_1_embeddings` registry entry quantizes only `nn.Embedding` weights
+(weights tied with other modules like an LLM `lm_head` are left in float):
+
+```bash
+t2n_export_llm_to_tract \
+    -s "meta-llama/Llama-3.2-1B-Instruct" \
+    -dt f16 \
+    -e $HOME/llama32_1B_q81_embeddings \
+    -c "min_max_q8_1_embeddings"
+```
+
+Or directly on a tensor with [fp_to_tract_q8_1_with_min_max_calibration](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract.py):
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_q8_1_with_min_max_calibration
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_q8_1_with_min_max_calibration(embedding.weight),
+        requires_grad=False,
+    )
+```
 
 ### Q40 Use specific quantization method
 

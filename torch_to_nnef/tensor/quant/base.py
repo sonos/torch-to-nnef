@@ -387,12 +387,21 @@ class QTensor(OpaqueTensor):
 
 
 def qscale_per_group_f16_min_max_calibration(
-    fp_tensor,
+    fp_tensor: torch.Tensor,
     n_bits: int,
     group_size: int,
     percentile: float = 1.0,
+    restricted_range: bool = False,
 ) -> "QScalePerGroupF16":
     """Build QScalePerGroupF16 and calibrate requested float tensor.
+
+    Args:
+        fp_tensor: float tensor to calibrate.
+        n_bits: number of bits per quantized element.
+        group_size: number of elements sharing a scale.
+        percentile: absolute value percentile used as max per group.
+        restricted_range: use [-(2**(n_bits-1) - 1), 2**(n_bits-1) - 1]
+            instead of full range (GGML Q8 convention).
 
     Return:
         Tuple(
@@ -413,7 +422,7 @@ def qscale_per_group_f16_min_max_calibration(
         fp_tensor, group_size
     )
 
-    # we use full-range symmetric
+    # by default we use full-range symmetric
     # like torch, ONNX, but oposed to restricted range from
     # TensorFlow, NVIDIA TensorRT and Intel DNNL
     if percentile == 1:
@@ -421,7 +430,10 @@ def qscale_per_group_f16_min_max_calibration(
     else:
         # torch.quantile only support f32 (2024-09-10, torch 2.2.2)
         x = torch.quantile(fp_tensor_per_group.abs().float(), percentile, dim=1)
-    scale = x / (-(2**n_bits) / 2)
+    q_max = 2 ** (n_bits - 1)
+    if restricted_range:
+        q_max -= 1
+    scale = x / -q_max
 
     assert scale.shape[0] == fp_tensor_per_group.shape[0]
     qshape = [scale.shape[0]] + [1]
