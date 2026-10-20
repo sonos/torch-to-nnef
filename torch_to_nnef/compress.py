@@ -5,6 +5,7 @@ Examplify: how to implement quantization
 
 import logging
 import typing as T
+from collections import defaultdict
 from functools import partial
 
 import torch
@@ -55,6 +56,13 @@ def _quantize_weights_min_max(
         # try to avoid quant if used in other operators like mix of
         # embedding/linear if linear only quant
         mod_tensor_updater = ModTensorUpdater(model)
+        # direct scan: torch < 2.0 named_parameters drops tied duplicates
+        # so ModTensorUpdater.id_to_modules would miss shared usages
+        id_to_modules: T.Dict[int, T.List[nn.Module]] = defaultdict(list)
+        for owner in model.modules():
+            for param in owner._parameters.values():
+                if param is not None:
+                    id_to_modules[id(param)].append(owner)
 
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
@@ -69,12 +77,9 @@ def _quantize_weights_min_max(
                     continue
                 if not all(
                     isinstance(m, to_quantize_module_classes)
-                    for m in mod_tensor_updater.id_to_modules[weight_id]
+                    for m in id_to_modules[weight_id]
                 ):
-                    clss = [
-                        m.__class__
-                        for m in mod_tensor_updater.id_to_modules[weight_id]
-                    ]
+                    clss = [m.__class__ for m in id_to_modules[weight_id]]
                     LOGGER.warning(
                         "detected shared weight: '%s' candidate "
                         "has incompatible layer usage: %s, "
