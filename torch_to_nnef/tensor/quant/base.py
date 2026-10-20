@@ -55,12 +55,15 @@ class QScalePerGroupF16(QScheme):
         group_size: int,
         scale: torch.Tensor,
         n_bits: int,
+        restricted_range: bool = False,
     ):
         scale = scale.to(torch.float16)
         # assert (scale != 0).all(), scale
         self.group_size: int = group_size
         self.scale = scale
         self.n_bits = n_bits  # needed for bit-shift before packing
+        # skip lowest value: symmetric [-(2**(n-1) - 1), 2**(n-1) - 1]
+        self.restricted_range = restricted_range
 
     def quantize_as_torch(self, fp_tensor):
         raise T2NErrorNotImplemented("native torch does not suport per chunk")
@@ -89,8 +92,10 @@ class QScalePerGroupF16(QScheme):
         )
         if legacy_cpu_mode:
             fu8_tensor_per_group = fu8_tensor_per_group.to(torch.float32)
+        # getattr: support QScheme pickled before restricted_range existed
+        q_min = 1 if getattr(self, "restricted_range", False) else 0
         fu8_tensor_per_group = fu8_tensor_per_group.floor().clamp(
-            0, 2**self.n_bits - 1
+            q_min, 2**self.n_bits - 1
         )
         if legacy_cpu_mode:
             fu8_tensor_per_group = fu8_tensor_per_group.to(torch.float16)
@@ -124,6 +129,7 @@ class QScalePerGroupF16(QScheme):
             scale=(self.scale / scale_factor).to(dtype=self.scale.dtype),
             group_size=self.group_size,
             n_bits=self.n_bits,
+            restricted_range=getattr(self, "restricted_range", False),
         )
 
     def __repr__(self) -> str:
@@ -441,4 +447,5 @@ def qscale_per_group_f16_min_max_calibration(
         group_size=group_size,
         scale=scale.reshape(qshape).half(),
         n_bits=n_bits,
+        restricted_range=restricted_range,
     )

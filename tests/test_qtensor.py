@@ -153,7 +153,10 @@ def test_q40_dat_content_uses_bitpacking_without_sum(
 
     monkeypatch.setattr(torch.Tensor, "sum", fail_if_sum_is_used)
 
-    assert qtensor._build_binary_dat_content(post_tract_21_11) == expected
+    inference_target = TractNNEF(
+        "0.21.11" if post_tract_21_11 else "0.21.10", check_io=False
+    )
+    assert qtensor._build_binary_dat_content(inference_target) == expected
     assert torch.equal(qtensor.u8_blob, u8_before)
 
 
@@ -690,11 +693,34 @@ def test_q81_dat_content_layout(tmp_path):
     i8_vals = blocks[:, 4:].copy().view(np.int8)
     assert np.allclose(scale.flatten(), qtensor.qscheme.scale.numpy().flatten())
     dequant = i8_vals.astype(np.float32) * scale.astype(np.float32)
-    expected = qtensor.qscheme.dequantize(
-        qtensor.decompress_to_u8(), target_dtype=torch.float32
-    )
-    assert np.allclose(dequant.reshape(2, 64), expected.numpy())
+    # like tract Q8_1 gather: dequantized in target dtype on all platforms
+    assert np.array_equal(dequant.reshape(2, 64), qtensor.decompress().numpy())
     assert np.allclose(block_sum, dequant.sum(axis=1), rtol=1e-3)
+    assert i8_vals.min() >= -127
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("percentile", [1.0, 0.9])
+def test_q81_values_in_restricted_range(percentile):
+    fp_tensor = torch.randn(64, 64)
+    fp_tensor[:, 0] = -10.0  # outliers clamped if percentile < 1
+    fp_tensor[:, 1] = 10.0
+    qtensor = fp_to_tract_q8_1_with_min_max_calibration(
+        fp_tensor, percentile=percentile
+    )
+    u8_vals = qtensor.decompress_to_u8()
+    # u8 offset by 128: int8 in [-127, 127]
+    assert u8_vals.min() >= 1 and u8_vals.max() <= 255
+    deq = qtensor.decompress()
+    assert torch.equal(deq[:, 0], -deq[:, 1])
+
+
+@skipif_unsupported_qtensor
+def test_q81_and_q40_are_distinct_formats():
+    q81 = fp_to_tract_q8_1_with_min_max_calibration(torch.randn(2, 32))
+    q40 = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(2, 32))
+    assert not isinstance(q81, QTensorTractScaleOnly)
+    assert not isinstance(q40, QTensorTractQ8_1)
 
 
 @skipif_unsupported_qtensor
@@ -741,18 +767,23 @@ def test_q81_unsupported_before_tract_0_23(tmp_path):
 
 @skipif_unsupported_qtensor
 @pytest.mark.parametrize(
-    "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version >= "0.23.0"],
+    "inference_target,dtype",
+    [
+        (i, dt)
+        for i in TRACT_INFERENCES_TO_TESTS_EXACT
+        if i.version >= "0.23.0"
+        for dt in [torch.float32, torch.float16]
+    ],
 )
-def test_quantize_with_tract_q8_1_embedding(inference_target):
+def test_quantize_with_tract_q8_1_embedding(inference_target, dtype):
     """Q8_1 is only supported by tract on embedding/gathering."""
     with torch.no_grad():
         test_input = torch.arange(6)
         test_input[:3] = 3
         x = 6
         y = 64
-        model = nn.Embedding(x, y).eval()
-        original_weight = torch.randn(x, y)
+        model = nn.Embedding(x, y).eval().to(dtype)
+        original_weight = torch.randn(x, y).to(dtype)
 
         q_tensor = fp_to_tract_q8_1_with_min_max_calibration(original_weight)
         deq_weight = q_tensor.qscheme.dequantize(
@@ -760,11 +791,9 @@ def test_quantize_with_tract_q8_1_embedding(inference_target):
         )
         # restricted range: no clamping, error within half a step
         # (+ f16 scale rounding)
-        diff = (original_weight - deq_weight).abs().reshape(-1, 32)
+        diff = (original_weight.float() - deq_weight).abs().reshape(-1, 32)
         scale = q_tensor.qscheme.scale.abs().float()
         assert (diff <= scale * 0.6).all(), (diff / scale).max()
-        u8_vals = q_tensor.decompress_to_u8()
-        assert u8_vals.min() >= 1 and u8_vals.max() <= 255
 
         model.weight = nn.Parameter(q_tensor, requires_grad=False)
         check_model_io_test(
