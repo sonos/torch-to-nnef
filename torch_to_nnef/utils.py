@@ -900,14 +900,25 @@ def check_torch_ecosystem():
         compatible = True
         hint = None
         if name == "torchaudio":
-            # torchaudio follows torch major.minor
-            compatible = (
+            # TorchAudio 2.11 supports torch 2.11 and later releases.
+            # Older TorchAudio binaries require matching major.minor.
+            forward_compatible = (
+                mod_version.major == 2
+                and mod_version.minor == 11
+                and (torch_mm.major, torch_mm.minor) >= (2, 11)
+            )
+            compatible = forward_compatible or (
                 mod_version.major == torch_mm.major
                 and mod_version.minor == torch_mm.minor
             )
+            audio_minor = (
+                11
+                if (torch_mm.major, torch_mm.minor) >= (2, 11)
+                else torch_mm.minor
+            )
             hint = (
                 f"pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
-                f"torchaudio=={torch_mm.major}.{torch_mm.minor}.*"
+                f"torchaudio=={torch_mm.major}.{audio_minor}.*"
             )
         elif name == "torchvision":
             # torchvision 0.(15 + torch_minor).x pairs with
