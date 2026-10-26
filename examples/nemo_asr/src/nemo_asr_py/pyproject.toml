@@ -2,7 +2,7 @@
 version = "0.1.0"
 name = "nemo_asr_tract"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["stringcase>=1.2,<2", "pydantic>=2,<3"]
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 

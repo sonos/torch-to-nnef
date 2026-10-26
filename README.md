@@ -70,6 +70,8 @@ Any `nn.Module` whose `forward` takes and returns tensors can be exported out of
 
 PyTorch >= 1.10.0 on Linux and macOS, against the last two major tract releases (>= 0.20.22). Supported Python versions track those that are [not end of life nor pre-release](https://devguide.python.org/versions/). Latest releases give the best operator coverage.
 
+The NeMo ASR add-on requires Python >= 3.11 to use patched Pillow releases.
+
 ## Learn more
 
 The full documentation has step by step tutorials (from a first image classifier to LLM export), the export API reference, and the list of supported operators:

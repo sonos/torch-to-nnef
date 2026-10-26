@@ -6,7 +6,7 @@ dependencies = [
     "torch_to_nnef[llm-tract]",
     "rich==15.0.0",
     "transformers==5.14.1",
-    "torch==2.12.*",
+    "torch==2.13.0",
 ]
 
 [tool.uv]

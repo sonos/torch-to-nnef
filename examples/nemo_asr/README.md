@@ -12,6 +12,7 @@
 !!! example "Prerequisite"
 
     - [ ] Basic Python knowledge
+    - [ ] Python >= 3.11 for NeMo ASR export and evaluation
     - [ ] Basic Rust knowledge
     - [ ] Approximately 10 minutes to read this page
 

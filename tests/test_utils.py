@@ -1,12 +1,44 @@
+import sys
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import pytest
+import torch
 
+from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef.utils import (
     NamedItem,
     ReactiveNamedItemDict,
+    check_torch_ecosystem,
     flatten_dict_tuple_or_list,
 )
+
+
+@pytest.mark.parametrize(
+    "torch_version,audio_version,compatible",
+    [
+        ("2.7.0", "2.7.0", True),
+        ("2.7.0", "2.6.0", False),
+        ("2.10.0", "2.11.0", False),
+        ("2.11.0", "2.11.0", True),
+        ("2.13.0", "2.11.0", True),
+        ("2.14.1", "2.11.0", True),
+        ("2.13.0", "2.10.0", False),
+    ],
+)
+def test_torchaudio_compatibility(
+    monkeypatch, torch_version, audio_version, compatible
+):
+    monkeypatch.setattr(torch, "__version__", torch_version)
+    monkeypatch.setitem(
+        sys.modules, "torchaudio", SimpleNamespace(__version__=audio_version)
+    )
+    monkeypatch.setitem(sys.modules, "torchvision", None)
+    if compatible:
+        check_torch_ecosystem()
+    else:
+        with pytest.raises(T2NErrorMisuse, match="incompatible with torch"):
+            check_torch_ecosystem()
 
 
 @dataclass

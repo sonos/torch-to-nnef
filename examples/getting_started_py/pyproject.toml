@@ -5,8 +5,8 @@ description = "torch-to-nnef example: export ViT_B_16 to NNEF."
 requires-python = ">=3.11"
 dependencies = [
     "torch_to_nnef",
-    "torch==2.7.0",
-    "torchvision==0.22.0",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
 ]
 
 [tool.uv]
