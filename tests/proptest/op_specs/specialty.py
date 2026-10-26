@@ -6,7 +6,6 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from hypothesis import assume
 from hypothesis import strategies as st
 
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
@@ -888,26 +887,11 @@ def _cross_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _tensordot_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.tensordot(a, b, dims)`: contract one or two axes.
+    """`torch.tensordot(a, b, dims)`: contract arbitrary paired axes.
 
-    All axis sizes are drawn in `[2, 3]`. The dyn-axes proptest variant
-    marks each input's axis 0 as a runtime dim; tract's einsum
-    optimizer's reshape pass then bails out with "Removing non-trivial
-    axis #0 of dim: d_axis0_size1" when axis 0 is symbolic-but-1 (it
-    can't statically prove the dim is 1, but the post-fold expectation
-    is that it should be). Keeping every axis >= 2 sidesteps that
-    edge case without hiding any meaningful coverage.
-
-    We additionally forbid contracting axis 0 on BOTH inputs at once:
-    the dyn-axes setup pins each input's axis 0 to the same symbolic
-    `d_axis0_sizeN` name when the sizes match, so contracting both
-    makes the einsum's reduction dim `K` a symbol. Tract's einsum
-    codegen then folds K into the input reshape with the symbolic
-    identifier instead of the resolved static value, and the reshape
-    verifier rejects it as "Incompatible reshape for shape [Sym(...),
-    Val(2), Val(2)] and Reshape(1, [d_axis0_sizeN, 2], [2*d_axis0_sizeN])".
-    Contracting axis 0 on only one side leaves K static (the other
-    side's matching size, set by the loop below), which works.
+    Include size-one axes and full contractions yielding scalar outputs.
+    The dynamic variant is disabled separately: tract's einsum codegen
+    cannot fold symbolic contraction dimensions into an input reshape.
     """
 
     @st.composite
@@ -916,8 +900,8 @@ def _tensordot_sample_st() -> st.SearchStrategy[OpSample]:
         rb = draw(st.integers(min_value=1, max_value=3))
         n_contract = draw(st.integers(min_value=0, max_value=min(ra, rb)))
         # Pick the contracted axes on each side and a shared size for each.
-        sa = [draw(st.integers(min_value=2, max_value=3)) for _ in range(ra)]
-        sb = [draw(st.integers(min_value=2, max_value=3)) for _ in range(rb)]
+        sa = [draw(st.integers(min_value=1, max_value=3)) for _ in range(ra)]
+        sb = [draw(st.integers(min_value=1, max_value=3)) for _ in range(rb)]
         dims_a = sorted(
             draw(
                 st.lists(
@@ -938,12 +922,6 @@ def _tensordot_sample_st() -> st.SearchStrategy[OpSample]:
                 )
             )
         )
-        # Forbid contracting axis 0 on BOTH sides at once: under the
-        # dyn-axes proptest variant the two axis-0 dims share a single
-        # symbolic name `d_axis0_sizeN` (same size -> same dim), and
-        # contracting both makes the reduction dim K symbolic, which
-        # trips tract's einsum codegen.
-        assume(not (0 in dims_a and 0 in dims_b))
         # Match the shared size on each contracted-axis pair.
         for da, db in zip(dims_a, dims_b, strict=True):
             sb[db] = sa[da]
@@ -1060,7 +1038,11 @@ def _distance_specs() -> T.List[OpSpec]:
             aten_ops=("tensordot",),
             sample_st=_tensordot_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
-            dynamic_axes_compatible=True,
+            dynamic_axes_skip_reason=(
+                "tract EinSum codegen cannot fold symbolic contraction "
+                "dimensions; covered by the strict symbolic-contraction "
+                "regression test"
+            ),
         ),
         OpSpec(
             name="cdist",

@@ -13,13 +13,18 @@ Run with::
 """
 
 import pytest
+import torch
 from hypothesis import given
 
 from torch_to_nnef.inference_target import TractNNEF
 
-from .proptest.comparator import assert_outputs_close_nan_aware
+from .proptest.comparator import (
+    ProptestComparatorError,
+    assert_outputs_close_nan_aware,
+)
 from .proptest.nnef_gap import assert_nnef_gap
 from .proptest.op_specs import REGISTRY, OpSample, OpSpec
+from .wrapper import BinaryPrimitive
 
 pytestmark = pytest.mark.proptest
 
@@ -64,6 +69,28 @@ def test_op_property(spec: OpSpec) -> None:
         )
 
     _inner()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=ProptestComparatorError,
+    reason="tract EinSum codegen rejects symbolic contraction reshapes",
+)
+def test_tensordot_symbolic_contraction_codegen():
+    """Retain the CI counterexample until tract supports this reshape."""
+    inputs = (torch.zeros(2, 2), torch.zeros(2, 2, 2))
+    model = BinaryPrimitive(
+        lambda x, y: torch.tensordot(x, y, dims=([0, 1], [1, 2]))
+    )
+    target = TractNNEF.latest().with_dynamic_axes(
+        _dynamic_axes_for_inputs(inputs)
+    )
+    try:
+        assert_outputs_close_nan_aware(model, inputs, target)
+    except ProptestComparatorError as error:
+        assert "fold_k_in_input_1: Reshape" in str(error)
+        assert "Incompatible reshape" in str(error)
+        raise
 
 
 def _dynamic_axes_for_inputs(inputs):
