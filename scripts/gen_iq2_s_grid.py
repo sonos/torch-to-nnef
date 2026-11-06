@@ -3,7 +3,7 @@
 Usage: python scripts/gen_iq2_s_grid.py <tract_repo> [<git_ref>]
 
 Reads tract `linalg/src/frame/block_quant/iq2_s_kgrid.rs` at `git_ref`
-(default `v0.23.10`) and writes ggml `kgrid_2bit_1024` as a numpy table.
+(default `v0.23.10`) and writes ggml `kgrid_2bit_1024` as a python tuple.
 """
 
 import re
@@ -45,16 +45,13 @@ def main():
         f"`{KGRID_PATH}`: do not edit.",
         '"""',
         "",
-        "import numpy as np",
-        "",
         "# fmt: off",
-        "KGRID_2BIT_1024 = np.array(",
-        "    [",
+        "KGRID_2BIT_1024 = (",
     ]
     for start in range(0, len(values), PER_LINE):
         chunk = values[start : start + PER_LINE]
-        lines.append("        " + ", ".join(str(v) for v in chunk) + ",")
-    lines += ["    ],", "    dtype=np.uint16,", ")", "# fmt: on", ""]
+        lines.append("    " + ", ".join(str(v) for v in chunk) + ",")
+    lines += [")", "# fmt: on", ""]
     OUT.write_text("\n".join(lines))
 
 
