@@ -9,9 +9,9 @@ u8 storage holds one quantized code per value, its qscheme the block
 parameters as torch tensors, and tract bytes are only packed when written.
 This module holds the formats with one f16 scale per block of 32 values
 (Q4_0, Q8_1, Q2_0_T, `QScalePerGroupF16` that a torch calibration sets:
-min max, percentile, or external methods like GPTQ), and Q8_0 whose
-calibration reproduces the llama.cpp reference quantizer. K-quants and IQ
-formats live in `qtract_ggml`.
+min max, percentile, or external methods like GPTQ). Formats whose
+calibration reproduces a llama.cpp reference quantizer (Q8_0, K-quants,
+IQ formats) live in `qtract_ggml`.
 """
 
 import filecmp
@@ -778,95 +778,6 @@ class QTensorTractQ8_1(QTensorTractScalePerGroupF16):  # noqa: N801
         return b_all
 
 
-def round_half_away(arr: torch.Tensor) -> torch.Tensor:
-    """C `roundf` (and rust `f32::round`): round half away from zero.
-
-    Exact in f32, unlike `floor(|x| + 0.5)` (0.49999997 rounds to 1).
-    """
-    mag = arr.abs()
-    rounded = mag.floor()
-    rounded = rounded + ((mag - rounded) >= 0.5).to(rounded.dtype)
-    return torch.copysign(rounded, arr)
-
-
-class _Q8_0ScalePerGroupF16(QScalePerGroupF16):  # noqa: N801
-    """Q8_0 positive f16 scale `d = absmax / 127` per block of 32.
-
-    Codes are `q + 128` with `q` in [-127, 127], dequantized as `d * q`.
-    Like llama.cpp `quantize_row_q8_0_ref`, `q = roundf(x / d_f32)` with
-    the f32 `d` of the block absmax, before its f16 rounding: it is
-    recomputed from each block of the given tensor, and only blocks whose
-    f32 `d` does not round to the stored scale use the f16 scale itself.
-    """
-
-    def quantize_as_u8(self, fp_tensor):
-        blocks = (
-            fp_tensor.detach().reshape(-1, self.group_size).to(torch.float32)
-        )
-        scale = self.scale.to(device=blocks.device).reshape(-1, 1)
-        d_ggml = blocks.abs().amax(dim=1, keepdim=True) / 127.0
-        d_f32 = torch.where(
-            d_ggml.to(torch.float16) == scale, d_ggml, scale.to(torch.float32)
-        )
-        inv_d = torch.where(d_f32 == 0, torch.zeros_like(d_f32), 1.0 / d_f32)
-        codes = round_half_away(blocks * inv_d).clamp(-127, 127) + 128
-        return codes.to(torch.uint8).reshape(fp_tensor.shape)
-
-    def dequantize(self, u8_tensor, target_dtype):
-        """f32 `d * q` like tract, then cast."""
-        scale = self.scale.to(torch.float32).reshape(-1, 1)
-        codes = u8_tensor.reshape(-1, self.group_size).to(
-            device=scale.device, dtype=torch.float32
-        )
-        return (
-            ((codes - 128.0) * scale).reshape(u8_tensor.shape).to(target_dtype)
-        )
-
-
-class QTensorTractQ8_0(QTensorTractScalePerGroupF16):  # noqa: N801
-    """Tract data format it serializes to: Q8_0 (ggml `block_q8_0`).
-
-    Each group of 32 values is stored as 34 bytes:
-    f16 scale `d = absmax / 127`, then 32 int8 (8.5bpw).
-    Value is `d * q`.
-
-    Use `fp_to_tract_q8_0_with_min_max_calibration` to construct it:
-    quantization matches llama.cpp `quantize_row_q8_0_ref` bytes,
-    dequantization matches tract bit exactly.
-
-    Warning:
-        tract (<= 0.23.10) only supports Q8_0 weights in embedding/gathering
-        operations: there is no matmul or convolution kernel for it yet.
-        Export requires tract >= 0.23.10; older targets warn and are rejected.
-
-    """
-
-    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q8_0.v3"
-    FORMAT_NAME = "Q8_0"
-    N_BITS = 8
-    BLOCK_BYTES = 34
-    RESTRICTED_RANGE = True
-    QSCHEME_CLS = _Q8_0ScalePerGroupF16
-    MIN_TRACT_VERSION = "0.23.10"
-    VERSION_GATE_NOTE = "Older tract reads item type 0x3080 as Q8_1."
-
-    @classmethod
-    def _item_type(cls, inference_target):
-        return DatBinHeader.TractCustomTypes.Q80
-
-    @classmethod
-    def _pack_blocks(cls, codes, params, inference_target):
-        n_blocks = codes.shape[0]
-        b_all = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
-        b_all[:, :2] = (
-            params["scale"].numpy().astype("<f2").view(np.uint8).reshape(-1, 2)
-        )
-        b_all[:, 2:] = (
-            (codes.to(torch.int16) - 128).to(torch.int8).numpy().view(np.uint8)
-        )
-        return b_all
-
-
 TQTensorTractBlockQuant = T.TypeVar(
     "TQTensorTractBlockQuant", bound=QTensorTractScalePerGroupF16
 )
@@ -929,50 +840,3 @@ def fp_to_tract_q8_1_with_min_max_calibration(
     return _fp_to_tract_block_quant_with_min_max_calibration(
         fp_tensor, QTensorTractQ8_1, percentile
     )
-
-
-def fp_to_tract_q8_0_with_min_max_calibration(
-    fp_tensor: torch.Tensor, percentile: float = 1.0
-) -> QTensorTractQ8_0:
-    """Min-Max method to quantize float tensor to tract supported Q8_0.
-
-    Block scale is `absmax / 127` (ggml reference). With `percentile < 1`
-    each block is first clamped to its `percentile` absolute value.
-    Only use it on embedding weights (see `QTensorTractQ8_0`).
-
-    Raises:
-        T2NErrorImpossibleQuantization: invalid dtype or shape, non finite
-            values, block scales that overflow f16, or that underflow it
-            for weights not negligible against the tensor largest one.
-    """
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.tensor.quant.qtract_ggml import GGMLUnderflowCheck
-
-    assert 0.0 < percentile <= 1.0, percentile
-    if isinstance(fp_tensor, torch.nn.Parameter):
-        fp_tensor = fp_tensor.data
-    block_len = QTensorTractQ8_0.BLOCK_LEN
-    format_name = QTensorTractQ8_0.FORMAT_NAME
-    check_block_quant_input(fp_tensor, block_len, format_name)
-    with torch.no_grad():
-        to_quantize = fp_tensor.detach()
-        blocks = to_quantize.to(torch.float32).reshape((-1, block_len))
-        if percentile < 1.0:
-            bound = torch.quantile(blocks.abs(), percentile, dim=1)[:, None]
-            blocks = torch.maximum(torch.minimum(blocks, bound), -bound)
-            to_quantize = blocks.reshape(fp_tensor.shape)
-        qscheme = _Q8_0ScalePerGroupF16(
-            group_size=block_len,
-            scale=blocks.abs().amax(dim=1, keepdim=True) / 127.0,
-            n_bits=QTensorTractQ8_0.N_BITS,
-            restricted_range=QTensorTractQ8_0.RESTRICTED_RANGE,
-        )
-        check_f16_scales(qscheme.scale, format_name, scale_name="`d`")
-        qtensor = QTensorTractQ8_0(
-            to_quantize, qscheme=qscheme, dequant_to_dtype=fp_tensor.dtype
-        )
-        deq = qscheme.dequantize(qtensor.decompress_to_u8(), torch.float32)
-        underflow = GGMLUnderflowCheck(format_name)
-        underflow.update(blocks, deq.reshape(blocks.shape))
-        underflow.check()
-        return qtensor
