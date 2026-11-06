@@ -19,6 +19,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
+from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
     QTensor,
     QTensorTractIQ2_S,
@@ -26,6 +27,7 @@ from torch_to_nnef.tensor.quant import (
     fp_to_tract_iq2_s,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
+    qtract_ggml,
 )
 from torch_to_nnef.tensor.quant._iq2_s_grid import KGRID_2BIT_1024
 from torch_to_nnef.tensor.quant.qtract_ggml import (
@@ -41,6 +43,7 @@ from .utils import (
     check_offload_state_write,
     check_rejects_old_tract,
     old_tract_versions,
+    skipif_limited_offload_support,
     skipif_unsupported_qtensor,
     supported_tract_versions,
     tract_target,
@@ -329,8 +332,12 @@ def test_q4k_keeps_fp_tensor_device():
 
 @pytest.mark.parametrize(
     "fp_to_qtensor",
-    [fp_to_tract_q4_k, fp_to_tract_q4_0_with_min_max_calibration],
-    ids=["q4_k", "q4_0"],
+    [
+        fp_to_tract_q4_k,
+        fp_to_tract_iq2_s,
+        fp_to_tract_q4_0_with_min_max_calibration,
+    ],
+    ids=["q4_k", "iq2_s", "q4_0"],
 )
 def test_qtensor_to_keeps_codes_and_source(fp_to_qtensor):
     fp_tensor = torch.randn(4, 256, generator=torch.Generator().manual_seed(0))
@@ -615,6 +622,39 @@ def test_iq2s_keeps_fp_tensor_device():
     assert _tract_bytes(qtensor) == _tract_bytes(fp_to_tract_iq2_s(fp_tensor))
     out = nn.functional.embedding(torch.tensor([0, 3], device=device), qtensor)
     assert torch.equal(out.cpu(), deq.cpu()[[0, 3]])
+
+
+def test_iq2s_runs_the_ggml_search_once(monkeypatch):
+    calls = []
+    quant = qtract_ggml.ggml_quant_iq2_s
+
+    def counting_quant(x):
+        calls.append(x.shape[0])
+        return quant(x)
+
+    monkeypatch.setattr(qtract_ggml, "ggml_quant_iq2_s", counting_quant)
+    fp_tensor = torch.randn(4, 512)
+    qtensor = fp_to_tract_iq2_s(fp_tensor)
+    # one call per chunk: codes come from the calibration search
+    assert calls == [8]
+    _tract_bytes(qtensor)
+    qtensor.to(torch.float16).decompress()
+    assert calls == [8]
+
+
+@skipif_limited_offload_support
+def test_iq2s_offloaded_to_dtype_keeps_codes(tmp_path):
+    qtensor = fp_to_tract_iq2_s(torch.randn(4, 256))
+    offloaded = OffloadedTensor.from_original_tensor(
+        qtensor, "iq2s", offload_dir=tmp_path
+    )
+    offloaded.to(torch.float16)
+    reloaded = offloaded.reload()
+    assert type(reloaded) is QTensorTractIQ2_S
+    assert torch.equal(reloaded.decompress_to_u8(), qtensor.decompress_to_u8())
+    assert torch.equal(
+        reloaded.decompress(), qtensor.decompress().to(torch.float16)
+    )
 
 
 def test_iq2s_scheme_rejects_other_tensor():
