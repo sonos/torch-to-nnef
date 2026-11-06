@@ -562,7 +562,8 @@ class QTensorTractGGMLKMin(QTensorTractGGMLK):
     NMAX: int
     RMIN: float
     NSTEP: int
-    qscheme: QScaleGGMLKMin  # type notation for mypy
+    # instance attribute: type notation for mypy
+    qscheme: QScaleGGMLKMin
 
     @classmethod
     def _scheme_settings(cls):
