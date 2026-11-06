@@ -646,6 +646,7 @@ def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
 
 # IQ2_S ####################################################################
 
+IQ2_S_FORMAT_NAME = "IQ2_S"
 # ggml `GROUP_MAX_EPS_IQ2_S`
 IQ2_S_GROUP_MAX_EPS = 1e-8
 # packed 2bit codes whose digits are at most 2 (43690 is eight 2 digits)
@@ -936,7 +937,7 @@ def ggml_quant_iq2_s(
     return d_f16, nibbles, codes.to(torch.uint8)
 
 
-class QScaleGGMLIQ2S(QScheme):
+class QScaleGGMLIQ2S(QScaleGGMLK):
     """ggml IQ2_S super-block scheme.
 
     Per super-block of 256 values: f16 `d` (n,), and per group of 16
@@ -944,14 +945,17 @@ class QScaleGGMLIQ2S(QScheme):
     level of its value in bits 1-0 (0, 1 or 2 for magnitudes 8, 25 and
     43) and its sign in bit 2 (set for negative), so codes are in
     {0, 1, 2, 4, 5, 6}. A code dequantizes to
-    `d * (0.5 + scale) * 0.25 * magnitude * sign`.
+    `(d * (0.5 + scale) * 0.25) * (magnitude * sign)`.
 
     Each octet of 8 levels is a point of the ggml `kgrid_2bit_1024` grid
     (its index is looked up when packed). Levels come from a search that
-    the parameters alone do not determine: `quantize_as_u8` runs the
+    the parameters alone do not determine: `quantize_blocks` runs the
     deterministic ggml quantizer again and checks it finds these
     parameters.
     """
+
+    SUB_LEN = 16
+    PARAM_NAMES = ("d", "scales")
 
     def __init__(self, d: torch.Tensor, scales: torch.Tensor):
         assert d.dtype == torch.float16, d.dtype
@@ -961,83 +965,45 @@ class QScaleGGMLIQ2S(QScheme):
         self.scales = scales
 
     @classmethod
-    def calibrate(cls, fp_tensor: torch.Tensor) -> "QScaleGGMLIQ2S":
-        """Fit ggml reference parameters of `fp_tensor` super-blocks.
+    def fit_blocks(cls, x, **settings):
+        d, scales, codes = ggml_quant_iq2_s(x)
+        return cls(d, scales), codes
+
+    def quantize_blocks(self, x):
+        """Codes of the ggml quantizer, checked against these parameters.
 
         Raises:
-            T2NErrorImpossibleQuantization: on f16 overflow of `d`, or not
-                negligible f16 underflow.
+            T2NErrorMisuse: `x` quantizes to other parameters.
         """
-        params = []
-        underflow = GGMLUnderflowCheck(QTensorTractIQ2_S.FORMAT_NAME)
-        for _, x in ggml_iter_blocks(fp_tensor, QK_K):
-            d, scales, codes = ggml_quant_iq2_s(x)
-            check_f16_scales(d, QTensorTractIQ2_S.FORMAT_NAME, scale_name="`d`")
-            chunk = cls(d, scales)
-            underflow.update(x, chunk.dequantize(codes, torch.float32))
-            params.append(chunk)
-        underflow.check()
-        return cls(
-            d=torch.cat([c.d for c in params]),
-            scales=torch.cat([c.scales for c in params]),
-        )
+        d, scales, codes = ggml_quant_iq2_s(x)
+        if not (
+            torch.equal(d.view(torch.int16), self.d.view(torch.int16))
+            and torch.equal(scales, self.scales)
+        ):
+            raise T2NErrorMisuse(
+                f"{IQ2_S_FORMAT_NAME} scheme parameters were not calibrated "
+                "on this tensor"
+            )
+        return codes
 
-    def quantize_as_torch(self, fp_tensor):
-        raise T2NErrorNotImplemented("native torch does not support IQ2_S")
-
-    def quantize_as_u8(self, fp_tensor: torch.Tensor) -> torch.Tensor:
-        """Codes of `fp_tensor` (ggml quantizer, checked against params).
-
-        Raises:
-            T2NErrorMisuse: `fp_tensor` quantizes to other parameters.
-        """
-        codes = []
-        start = 0
-        for _, x in ggml_iter_blocks(fp_tensor, QK_K):
-            end = start + x.shape[0]
-            d, scales, chunk_codes = ggml_quant_iq2_s(x)
-            if not (
-                torch.equal(
-                    d.view(torch.int16), self.d[start:end].view(torch.int16)
-                )
-                and torch.equal(scales, self.scales[start:end])
-            ):
-                raise T2NErrorMisuse(
-                    "IQ2_S scheme parameters were not calibrated on this tensor"
-                )
-            codes.append(chunk_codes)
-            start = end
-        assert start == self.d.shape[0], (start, self.d.shape)
-        return torch.cat(codes).reshape(fp_tensor.shape)
-
-    def dequantize(self, u8_tensor: torch.Tensor, target_dtype):
-        """f32 `(d * (0.5 + scale) * 0.25) * magnitude * sign` like tract."""
-        n_blocks = u8_tensor.numel() // QK_K
-        assert n_blocks == self.d.shape[0], (u8_tensor.shape, self.d.shape)
-        codes = u8_tensor.reshape((n_blocks, 16, 16))
-        db = (
+    def sub_scales(self):
+        """F32 group scales `d * (0.5 + scale) * 0.25` like tract."""
+        return (
             self.d.to(torch.float32)[:, None]
             * (ggml_f32(0.5) + self.scales.to(torch.float32))
             * ggml_f32(0.25)
         )
+
+    def levels(self, codes):
+        """F32 signed grid magnitudes (multiplying by +-1 is exact)."""
         code_bytes = torch.tensor(
             IQ2_S_CODE_BYTE, dtype=torch.float32, device=codes.device
         )
         mags = code_bytes[(codes & IQ2_S_LEVEL_MASK).to(torch.int64)]
-        sign = torch.where(
-            (codes >> IQ2_S_SIGN_SHIFT) != 0,
-            ggml_f32(-1.0).to(codes.device),
-            ggml_f32(1.0).to(codes.device),
-        )
-        # (dl * magnitude) * sign, dl being the group scale
-        out = db[:, :, None] * mags * sign
-        return out.reshape(u8_tensor.shape).to(target_dtype)
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(n_blocks={self.d.shape[0]})"
+        return torch.where((codes >> IQ2_S_SIGN_SHIFT) != 0, -mags, mags)
 
 
-class QTensorTractIQ2_S(QTensorTractBlockQuant):  # noqa: N801
+class QTensorTractIQ2_S(QTensorTractGGMLK):  # noqa: N801
     """Tract data format it serializes to: IQ2_S (ggml `block_iq2_s`).
 
     Each super-block of 256 values is stored as 82 bytes (2.5625bpw):
@@ -1063,33 +1029,11 @@ class QTensorTractIQ2_S(QTensorTractBlockQuant):  # noqa: N801
     """
 
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_iq2_s.v1"
-    FORMAT_NAME = "IQ2_S"
-    BLOCK_LEN = QK_K
+    FORMAT_NAME = IQ2_S_FORMAT_NAME
     BLOCK_BYTES = 82
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.IQ2S
     QSCHEME_CLS = QScaleGGMLIQ2S
-    MIN_TRACT_VERSION: T.Optional[str] = "0.23.10"
     qscheme: QScaleGGMLIQ2S  # type notation for mypy
-
-    @classmethod
-    def from_fp(cls, fp_tensor: torch.Tensor) -> "QTensorTractIQ2_S":
-        """Quantize a float tensor with the ggml reference quantizer."""
-        if isinstance(fp_tensor, torch.nn.Parameter):
-            fp_tensor = fp_tensor.data
-        check_block_quant_input(fp_tensor, cls.BLOCK_LEN, cls.FORMAT_NAME)
-        with torch.no_grad():
-            qscheme = QScaleGGMLIQ2S.calibrate(fp_tensor)
-            return cls(
-                fp_tensor, qscheme=qscheme, dequant_to_dtype=fp_tensor.dtype
-            )
-
-    @classmethod
-    def _item_type(cls, inference_target):
-        return DatBinHeader.TractCustomTypes.IQ2S
-
-    @classmethod
-    def _block_params(cls, qscheme, n_blocks):
-        assert qscheme.d.shape[0] == n_blocks, (qscheme.d.shape, n_blocks)
-        return {"d": qscheme.d, "scales": qscheme.scales}
 
     @classmethod
     def _pack_blocks(cls, codes, params, inference_target) -> np.ndarray:
