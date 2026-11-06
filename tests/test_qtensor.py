@@ -45,7 +45,7 @@ from torch_to_nnef.tensor.quant import (
 )
 from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
-from torch_to_nnef.utils import cd, torch_version
+from torch_to_nnef.utils import SemanticVersion, cd, torch_version
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -912,26 +912,97 @@ def _check_ggml_dat_content_layout(tmp_path, qtensor, item_type):
     assert np.array_equal(deq, qtensor.decompress().float().numpy())
 
 
-def _check_ggml_offload_state_write(tmp_path, qtensor):
+def _tract_target(version: str) -> TractNNEF:
+    """Latest tract target relabeled with `version` (prereleases allowed)."""
+    target = deepcopy(TractNNEF.latest())
+    target.version = SemanticVersion.from_str(version)
+    return target
+
+
+def _check_ggml_offload_state_write(tmp_path, qtensor, target):
     """Offload state reload and direct write match the in-memory qtensor."""
     qtensor_cls = type(qtensor)
     ref_dir = tmp_path / "ref"
     out_dir = tmp_path / "out"
     ref_dir.mkdir()
     out_dir.mkdir()
-    qtensor.write_in_file(ref_dir, "weight", TractNNEF.latest())
+    qtensor.write_in_file(ref_dir, "weight", target)
     state = qtensor.to_offload_state()
     assert qtensor_cls.is_offload_state(state)
     qtensor_cls.write_offload_state_in_file(
-        state, out_dir, "weight", inference_target=TractNNEF.latest()
+        state, out_dir, "weight", inference_target=target
     )
     expected = (ref_dir / "weight.dat").read_bytes()
     assert (out_dir / "weight.dat").read_bytes() == expected
     reloaded = qtensor_cls.from_offload_state(state)
     assert type(reloaded) is qtensor_cls
     assert torch.equal(reloaded.decompress(), qtensor.decompress())
+    # reloaded qtensor writes the same bytes
+    reload_dir = tmp_path / "reload"
+    reload_dir.mkdir()
+    reloaded.write_in_file(reload_dir, "weight", target)
+    assert (reload_dir / "weight.dat").read_bytes() == expected
     # same label written twice with same content is accepted
-    qtensor.write_in_file(ref_dir, "weight", TractNNEF.latest())
+    qtensor.write_in_file(ref_dir, "weight", target)
+
+
+def _check_ggml_rejects_old_tract(tmp_path, caplog, qtensor, version):
+    """Both write paths warn with an upgrade hint and write no data."""
+    qtensor_cls = type(qtensor)
+    target = _tract_target(version)
+    match = (
+        rf"{qtensor_cls.FORMAT_NAME} export requires tract >= "
+        + qtensor_cls.MIN_TRACT_VERSION.replace(".", r"\.")
+    )
+    with caplog.at_level("WARNING"):
+        with pytest.raises(T2NErrorNotImplemented, match=match):
+            qtensor.write_in_file(tmp_path, "weight", target)
+        with pytest.raises(T2NErrorNotImplemented, match=match):
+            qtensor_cls.write_offload_state_in_file(
+                qtensor.to_offload_state(), tmp_path, "offloaded", target
+            )
+    hint = (
+        f"{qtensor_cls.FORMAT_NAME} export requires tract >= "
+        f"{qtensor_cls.MIN_TRACT_VERSION}; target is {version}. "
+        f"Upgrade tract before exporting {qtensor_cls.FORMAT_NAME} weights."
+    )
+    assert caplog.text.count(hint) == 2, caplog.text
+    assert not list(tmp_path.glob("*.dat"))
+
+
+def _check_ggml_decompress_matches_reference(qtensor_cls, fp_tensor):
+    """Check decompress is the numpy reference dequant in source dtype."""
+    qtensor = qtensor_cls.from_fp(fp_tensor)
+    assert qtensor.shape == fp_tensor.shape
+    assert qtensor.numel() == fp_tensor.numel()
+    n_blocks = fp_tensor.numel() // qtensor_cls.BLOCK_LEN
+    u8_blocks = qtensor.decompress_to_u8().numpy()
+    assert u8_blocks.shape == (n_blocks, qtensor_cls.BLOCK_BYTES)
+    fp32_blocks = fp_tensor.float().numpy().reshape((n_blocks, -1))
+    assert np.array_equal(u8_blocks, qtensor_cls.quantize_blocks(fp32_blocks))
+    expected = (
+        torch.from_numpy(qtensor_cls.dequantize_blocks(u8_blocks))
+        .reshape(fp_tensor.shape)
+        .to(fp_tensor.dtype)
+    )
+    deq = qtensor.decompress()
+    assert deq.dtype == fp_tensor.dtype
+    assert torch.equal(deq, expected)
+
+
+def _ggml_invalid_weights(block_len: int):
+    """Weights any ggml block format must reject (shape, dtype, values)."""
+    return [
+        pytest.param(torch.ones(block_len), id="rank1"),
+        pytest.param(torch.ones(1, 1, 1, 1, block_len), id="rank5"),
+        pytest.param(torch.ones(2, block_len // 2), id="incomplete_block"),
+        pytest.param(
+            torch.ones(2, block_len, dtype=torch.int32), id="non_floating"
+        ),
+        pytest.param(torch.empty(0, block_len), id="empty"),
+        pytest.param(torch.full((2, block_len), float("nan")), id="nan"),
+        pytest.param(torch.full((2, block_len), float("inf")), id="inf"),
+    ]
 
 
 # llama.cpp quantize_row_q4_K_ref / dequantize_row_q4_K vectors
@@ -977,67 +1048,90 @@ def test_q4k_dat_content_layout(tmp_path):
 
 
 @skipif_unsupported_qtensor
-def test_q4k_dequant_round_trip_error_bounded():
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_q4k_dequant_round_trip_error_bounded(seed):
     # same bound as tract q4_k_roundtrip
     ramp = torch.from_numpy(_ggml_ramp(512, 0)).reshape(2, 256)
     qtensor = fp_to_tract_q4_k(ramp)
     assert (qtensor.decompress() - ramp).abs().max() < 0.35
     zeros = fp_to_tract_q4_k(torch.zeros(2, 256))
     assert torch.equal(zeros.decompress(), torch.zeros(2, 256))
-    # gaussian: error within a level step of each sub-block range
-    fp_tensor = torch.randn(16, 1024)
+    gen = torch.Generator().manual_seed(seed)
+    # rows of very different magnitudes
+    fp_tensor = torch.randn(16, 1024, generator=gen) * 10 ** torch.linspace(
+        -3, 3, 16
+    ).reshape(16, 1)
     deq = fp_to_tract_q4_k(fp_tensor).decompress()
-    sub_fp = fp_tensor.reshape(-1, 32)
-    sub_range = sub_fp.max(dim=1).values - sub_fp.min(dim=1).values
-    sub_err = (deq - fp_tensor).abs().reshape(-1, 32).max(dim=1).values
-    assert (sub_err <= sub_range / 15).all()
-    # relative error of a 4.5bpw format
+    # Bound per super-block, not per sub-block: the 6bit quantized
+    # sub-block scales and mins (relative to the super-block d and dmin)
+    # can exceed one sub-block step (measured up to 1.06). Per super-block
+    # the error stays below 0.81 step (range / 15) over 300 seeds,
+    # 2 steps leaves a robust margin.
+    sb_fp = fp_tensor.reshape(-1, 256)
+    sb_range = sb_fp.max(dim=1).values - sb_fp.min(dim=1).values
+    sb_err = (deq - fp_tensor).abs().reshape(-1, 256).max(dim=1).values
+    assert (sb_err <= 2 * sb_range / 15).all(), (sb_err / sb_range).max()
+    # relative error of a 4.5bpw format (measured below 0.075)
     assert (deq - fp_tensor).norm() / fp_tensor.norm() < 0.1
 
 
 @skipif_unsupported_qtensor
-def test_q4k_rejects_incomplete_super_blocks():
-    with pytest.raises(T2NErrorImpossibleQuantization):
-        fp_to_tract_q4_k(torch.randn(4, 128))
-    with pytest.raises(T2NErrorImpossibleQuantization):
-        fp_to_tract_q4_k(torch.randn(256))
+@pytest.mark.parametrize("shape", [(2, 256), (2, 2, 256), (2, 2, 2, 256)])
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.float32, torch.bfloat16]
+)
+def test_q4k_decompress_matches_reference(shape, dtype):
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(shape, generator=gen).to(dtype)
+    _check_ggml_decompress_matches_reference(QTensorTractQ4_K, fp_tensor)
 
 
 @skipif_unsupported_qtensor
-def test_q4k_unsupported_before_tract_0_23_10(tmp_path):
-    qtensor = fp_to_tract_q4_k(torch.randn(2, 256))
-    for version in ["0.22.1", "0.23.8"]:
-        with pytest.raises(T2NErrorNotImplemented):
-            qtensor.write_in_file(
-                tmp_path, "weight", TractNNEF(version, check_io=False)
-            )
-        with pytest.raises(T2NErrorNotImplemented):
-            QTensorTractQ4_K.write_offload_state_in_file(
-                qtensor.to_offload_state(),
-                tmp_path,
-                "weight",
-                inference_target=TractNNEF(version, check_io=False),
-            )
-    assert not (tmp_path / "weight.dat").exists()
+@pytest.mark.parametrize(
+    "weight",
+    _ggml_invalid_weights(256)
+    + [
+        # f16 overflow of d (positive range) and dmin (negative offset)
+        pytest.param(torch.full((2, 256), 1e9), id="d_overflow"),
+        pytest.param(torch.full((2, 256), -1e9), id="dmin_overflow"),
+        # nonzero super-block whose d and dmin round to 0 in f16
+        pytest.param(torch.full((2, 256), 1e-10), id="underflow"),
+    ],
+)
+def test_q4k_rejects_invalid_weights(weight):
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_q4_k(weight)
 
 
 @skipif_unsupported_qtensor
-def test_q4k_offload_state_write(tmp_path):
-    _check_ggml_offload_state_write(
-        tmp_path, fp_to_tract_q4_k(torch.randn(4, 512))
+@pytest.mark.parametrize("version", ["0.23.9", "0.23.10-pre", "0.23.10-rc.1"])
+def test_q4k_rejects_old_tract(tmp_path, caplog, version):
+    _check_ggml_rejects_old_tract(
+        tmp_path, caplog, fp_to_tract_q4_k(torch.randn(2, 256)), version
     )
 
 
 @skipif_unsupported_qtensor
 @pytest.mark.parametrize(
-    "inference_target,dtype",
+    "version", ["0.23.10", "0.23.10+build.1", "0.23.11-pre", "0.23.11"]
+)
+def test_q4k_offload_state_write(tmp_path, version):
+    _check_ggml_offload_state_write(
+        tmp_path, fp_to_tract_q4_k(torch.randn(4, 512)), _tract_target(version)
+    )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "inference_target",
     [
-        (i, dt)
+        i
         for i in TRACT_INFERENCES_TO_TESTS_EXACT
-        if i.version >= "0.23.10"
-        for dt in [torch.float32, torch.float16]
+        if i.version >= QTensorTractQ4_K.MIN_TRACT_VERSION
     ],
 )
+# f16 CPU embedding (index_select) works on torch 1.x: like Q4_0/Q8_1 tests
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
 def test_quantize_with_tract_q4_k_embedding(inference_target, dtype):
     """Q4_K is only supported by tract on embedding/gathering."""
     with torch.no_grad():

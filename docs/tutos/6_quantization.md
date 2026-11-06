@@ -30,7 +30,7 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-To date tract support those kinds of quantization:
+The exporter supports these tract quantization formats:
 
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
@@ -208,6 +208,75 @@ with torch.no_grad():
         fp_to_tract_q4_k(embedding.weight), requires_grad=False
     )
 ```
+
+The input must be a nonempty, finite, floating tensor (f32, f16 or bf16) of rank
+2 to 4, with the product of dimensions after the first divisible by 256. Weights
+whose super-block scales overflow f16, or nonzero super-blocks that would
+dequantize to zeros because their scales underflow f16, are rejected.
+Streaming export and tensor offloading are supported.
+
+!!! warning "Requires tract 0.23.10 or newer"
+
+    Q4_K export is rejected for older targets, including prerelease builds
+    below 0.23.10. Both normal and offloaded exports emit an explicit warning
+    before failing, and no tensor data is written.
+
+#### Q4_K block layout
+
+Q4_K stores 256 weights per super-block, split into 8 sub-blocks of 32 weights.
+The super-block holds two f16 scales, `d` and `dmin`, and each sub-block `j` a
+6-bit scale `sc[j]` and a 6-bit min `m[j]` (relative to `d` and `dmin`). Each
+weight has a 4-bit level `q[i]` in `[0, 15]` and reconstructs as:
+
+```text
+w[i] = d * sc[j] * q[i] - dmin * m[j],  j = i / 32
+```
+
+Levels are unsigned, the min term gives each sub-block an asymmetric range.
+The super-block occupies 144 bytes, or `(16 + 16 + 16 * 6 + 256 * 4) / 256 = 4.5 bpw`:
+the same payload as Q4_0, but with 6-bit sub-block scales and mins instead of
+one f16 scale per 32 weights. This is llama.cpp `block_q4_K`, NNEF item type `0x3140`.
+
+```mermaid
+flowchart LR
+    accTitle: Q4_K super-block layout
+    accDescr: After the NNEF tensor header, each super-block stores an f16 d in bytes 0 and 1, an f16 dmin in bytes 2 and 3, eight packed 6-bit scales and mins in bytes 4 through 15, and 256 four-bit levels in bytes 16 through 143.
+    subgraph block["256 weights / 144 bytes / 4.5 bpw"]
+        direction LR
+        d["Bytes 0-1<br/>f16 d"]
+        dmin["Bytes 2-3<br/>f16 dmin"]
+        scales["Bytes 4-15<br/>8 x 6-bit scales<br/>8 x 6-bit mins"]
+        levels["Bytes 16-143<br/>256 x 4-bit levels<br/>4 chunks of 32 bytes"]
+        d --- dmin --- scales --- levels
+    end
+```
+
+**Inside the 12 bytes of scales and mins** (block bytes 4 to 15), sub-blocks
+0 to 3 use 6 contiguous bits, sub-blocks 4 to 7 are split across bytes:
+
+```mermaid
+flowchart LR
+    accTitle: Q4_K packed 6-bit scales and mins
+    accDescr: Bytes 4 to 7 hold scales 0 to 3 in their low 6 bits and the 2 high bits of scales 4 to 7. Bytes 8 to 11 hold mins 0 to 3 in their low 6 bits and the 2 high bits of mins 4 to 7. Bytes 12 to 15 hold the low 4 bits of scales 4 to 7 and of mins 4 to 7.
+    s["Bytes 4-7<br/>bits 5-0: sc0..sc3<br/>bits 7-6: sc4..sc7 high"]
+    m["Bytes 8-11<br/>bits 5-0: m0..m3<br/>bits 7-6: m4..m7 high"]
+    lo["Bytes 12-15<br/>bits 3-0: sc4..sc7 low<br/>bits 7-4: m4..m7 low"]
+    s --- m --- lo
+```
+
+**Levels**: each 32-byte chunk `p` (bytes `16 + 32 * p` onwards) covers 64
+weights, sub-blocks `2p` and `2p + 1`. Byte `i` of the chunk stores weight
+`64p + i` in its low nibble and weight `64p + 32 + i` in its high nibble:
+
+```mermaid
+flowchart LR
+    accTitle: Q4_K nibble order in byte 16
+    accDescr: Bits 7 through 4 contain level 32; bits 3 through 0 contain level 0.
+    high["Bits 7-4<br/>q32"] --- low["Bits 3-0<br/>q0"]
+```
+
+For example, `q0 = 2` and `q32 = 9` produce byte 16 = `0x92`. As in Q4_0, paired
+levels are not adjacent: here they are 32 weights apart.
 
 ### Q5_K for embeddings
 
