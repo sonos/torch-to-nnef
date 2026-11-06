@@ -1039,7 +1039,8 @@ class QTensorTractIQ2_S(QTensorTractGGMLK):  # noqa: N801
 
     Quantization ports llama.cpp `quantize_row_iq2_s_ref` without
     importance matrix (grid nearest neighbour search with a weighted
-    scale fit), dequantization matches tract bit exactly.
+    scale fit, about 2s per 16384 super-blocks on CPU), dequantization
+    matches tract bit exactly.
 
     Warning:
         tract (<= 0.23.10) only supports IQ2_S weights in

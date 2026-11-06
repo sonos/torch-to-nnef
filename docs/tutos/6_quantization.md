@@ -404,10 +404,15 @@ w[8o + k] = d * (0.5 + s[o / 2]) * 0.25 * grid[idx[o]][k] * (sign bit k of o ? -
 Signs are stored exactly, so only magnitudes are approximated: each octet of
 magnitudes snaps to one of the 1024 grid points. The quantizer is a port of
 GGML's reference `quantize_row_iq2_s_ref` (19 step scale search, grid nearest
-neighbour search and a weighted scale refit, without importance matrix): it
-reproduces GGML's bytes, and the exported dequantization matches tract bit
-exactly. Expect a much larger error than Q4_K (around 26% relative L2 error on
-gaussian weights).
+neighbour search and a weighted scale refit, without importance matrix): on
+CPU its bytes match the tract `IQ2_S` quantizer, and llama.cpp
+`quantize_iq2_s` built without floating point contraction (`-ffp-contract=off`),
+and the exported dequantization matches tract bit exactly. Expect a much larger
+error than Q4_K (around 26% relative L2 error on gaussian weights).
+
+The grid search makes quantization slower than Q4_K: on an Apple M4 Pro CPU it
+takes about 2 seconds per 16384 super-blocks (4M weights), so around 4 to 5
+minutes for a 150k x 4096 embedding (about 1 minute with Q4_K).
 
 ```mermaid
 flowchart LR
