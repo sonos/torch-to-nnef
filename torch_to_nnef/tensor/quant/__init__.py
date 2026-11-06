@@ -19,8 +19,11 @@ from torch_to_nnef.tensor.quant.qtract import (
 from torch_to_nnef.tensor.quant.qtract_ggml import (
     QScaleGGMLK,
     QScaleGGMLKMin,
+    QScaleQ8_0,
     QTensorTractQ4_K,
+    QTensorTractQ8_0,
     fp_to_tract_q4_k,
+    fp_to_tract_q8_0_with_min_max_calibration,
 )
 
 __all__ = [
@@ -35,6 +38,9 @@ __all__ = [
     "QScaleGGMLKMin",
     "QTensorTractQ4_K",
     "fp_to_tract_q4_k",
+    "QScaleQ8_0",
+    "QTensorTractQ8_0",
+    "fp_to_tract_q8_0_with_min_max_calibration",
     "QTensorTractQ8_1",
     "QTensorTractScaleOnly",
     "fp_to_tract_q4_0_with_min_max_calibration",

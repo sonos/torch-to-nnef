@@ -20,6 +20,7 @@ from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
+    fp_to_tract_q8_0_with_min_max_calibration,
     fp_to_tract_q8_1_with_min_max_calibration,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
@@ -155,6 +156,22 @@ def quantize_weights_min_max_Q8_1(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
+def quantize_weights_min_max_Q8_0(model: nn.Module, **kwargs):  # noqa: N802
+    """Example of quantization function for a model to Q8_0.
+
+    tract only supports Q8_0 weights for embedding/gathering operations
+    so only `nn.Embedding` (or subclasses) can be quantized.
+    Requires tract >= 0.23.10.
+    """
+    return _quantize_embeddings(
+        model,
+        fp_to_tract_q8_0_with_min_max_calibration,
+        "q80_min_max",
+        "Q8_0",
+        **kwargs,
+    )
+
+
 def _quantize_embeddings_ggml(
     model: nn.Module, q_fn, suffix_name: str, format_name: str, **kwargs
 ):
@@ -228,6 +245,7 @@ DEFAULT_COMPRESSION = {
             nn.Conv2d,
         ),
     ),
+    "min_max_q8_0_embeddings": quantize_weights_min_max_Q8_0,
     "min_max_q8_1_embeddings": quantize_weights_min_max_Q8_1,
     "ggml_q4_k_embeddings": quantize_weights_ggml_Q4_K,
 }
