@@ -162,7 +162,7 @@ By reading the previous section you should now understand that beyond specific c
 which is not part of this library all of what was explained apply to all neural network parameters used in matmul (nn.Linear, F.linear, ...), conv (Conv1d, Conv2d), and embeddings (gather operator).
 In fact you can just reuse as is the [compress method](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/compress.py#L20) we referenced upper on any neural network defined in PyTorch it should just work.
 
-## Weight quantization formats
+## Supported weight quantization formats
 
 ### Q4_0 block layout
 
