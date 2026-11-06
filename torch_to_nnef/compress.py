@@ -19,6 +19,7 @@ from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q4_k,
     fp_to_tract_q8_1_with_min_max_calibration,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
@@ -123,26 +124,58 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
+def _quantize_embeddings(
+    model: nn.Module, q_fn, suffix_name: str, format_name: str, **kwargs
+):
+    to_quantize_module_classes = kwargs.get(
+        "to_quantize_module_classes", (nn.Embedding,)
+    )
+    if not all(issubclass(c, nn.Embedding) for c in to_quantize_module_classes):
+        raise T2NErrorMisuse(
+            f"tract only supports {format_name} on embeddings, "
+            f"but requested: {to_quantize_module_classes}"
+        )
+    return _quantize_weights_min_max(
+        model, q_fn, suffix_name, (nn.Embedding,), **kwargs
+    )
+
+
 def quantize_weights_min_max_Q8_1(model: nn.Module, **kwargs):  # noqa: N802
     """Example of quantization function for a model to Q8_1.
 
     tract only supports Q8_1 weights for embedding/gathering operations
     so only `nn.Embedding` (or subclasses) can be quantized.
     """
-    to_quantize_module_classes = kwargs.get(
-        "to_quantize_module_classes", (nn.Embedding,)
-    )
-    if not all(issubclass(c, nn.Embedding) for c in to_quantize_module_classes):
-        raise T2NErrorMisuse(
-            "tract only supports Q8_1 on embeddings, "
-            f"but requested: {to_quantize_module_classes}"
-        )
-    return _quantize_weights_min_max(
+    return _quantize_embeddings(
         model,
         fp_to_tract_q8_1_with_min_max_calibration,
         "q81_min_max",
-        (nn.Embedding,),
+        "Q8_1",
         **kwargs,
+    )
+
+
+def _quantize_embeddings_ggml(
+    model: nn.Module, q_fn, suffix_name: str, format_name: str, **kwargs
+):
+    """Quantize embeddings with a ggml reference quantizer (no calibration)."""
+    if "percentile" in kwargs:
+        raise T2NErrorMisuse(
+            f"the ggml {format_name} quantizer has no percentile calibration"
+        )
+    return _quantize_embeddings(model, q_fn, suffix_name, format_name, **kwargs)
+
+
+def quantize_weights_ggml_Q4_K(model: nn.Module, **kwargs):  # noqa: N802
+    """Example of quantization function for a model to Q4_K.
+
+    Uses the ggml reference quantizer (`make_qkx2_quants` search per
+    sub-block, no importance matrix).
+    tract only supports Q4_K weights for embedding/gathering operations
+    so only `nn.Embedding` (or subclasses) can be quantized.
+    """
+    return _quantize_embeddings_ggml(
+        model, fp_to_tract_q4_k, "q4k_ggml", "Q4_K", **kwargs
     )
 
 
@@ -196,4 +229,5 @@ DEFAULT_COMPRESSION = {
         ),
     ),
     "min_max_q8_1_embeddings": quantize_weights_min_max_Q8_1,
+    "ggml_q4_k_embeddings": quantize_weights_ggml_Q4_K,
 }

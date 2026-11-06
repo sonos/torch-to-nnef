@@ -38,6 +38,7 @@ class DatBinHeader:
         Q40_LEGACY = "4020"
         Q81 = "8130"  # 0x3081: tract >= 0.23.10
         Q81_LEGACY = "8030"  # 0x3080: tract < 0.23.10 (now Q8_0 in tract)
+        Q4K = "4031"  # 0x3140: tract >= 0.23.10
 
     def __init__(
         self,
@@ -103,32 +104,24 @@ class DatBinHeader:
 
     @classmethod
     def build_tract_qtensor(
-        cls, item_type: TractCustomTypes, shape: T.Tuple[int]
+        cls,
+        item_type: TractCustomTypes,
+        shape: T.Tuple[int, ...],
+        *,
+        data_size_bytes: int,
     ) -> "DatBinHeader":
         """Build a binary header for tract custom types.
 
         Args:
             item_type (TractCustomTypes): Tract custom quantisation type.
             shape (Tuple[int]): Shape of the tensor.
+            data_size_bytes (int): serialized data size, computed by each
+                qtensor format: an item type alone does not always tell it
+                (like "8030": Q8_0 or legacy Q8_1).
 
         Returns:
             DatBinHeader: Constructed header instance.
         """
-        vol = 1
-        for s in shape:
-            vol *= s
-        if item_type in (
-            cls.TractCustomTypes.Q81,
-            cls.TractCustomTypes.Q81_LEGACY,
-        ):
-            # per group of 32: f16 scale + f16 sum + 32 int8
-            data_size_bytes = vol // 32 * 36
-        elif item_type == cls.TractCustomTypes.Q20T:
-            data_size_bytes = vol // 32 * 10
-        else:
-            # per group of 32: f16 scale + 32 nibbles
-            data_size_bytes = int((vol * 4 + vol / 32 * 16) / 8)
-
         return DatBinHeader(
             data_size_bytes=data_size_bytes,
             bits_per_item=2**32 - 1,
