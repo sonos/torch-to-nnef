@@ -475,14 +475,14 @@ Each block occupies 10 bytes: an f16 scale and eight bytes of packed two-bit
 codes. Codes 0, 1 and 2 mean -scale, zero and +scale. NNEF uses tract's custom
 item type `0x3020`. Streaming export and tensor offloading are supported.
 
-This requires tract's Q2_0_T NNEF support, introduced by
-[tract PR #3305](https://github.com/sonos/tract/pull/3305) in the
-`0.23.10-pre` development series. When using that prerelease, supply a binary
-built after that change via `TractNNEF(specific_tract_binary_path=...,
-version="0.23.10-pre")`. Older prerelease builds can share the same version
-string and cannot be distinguished by the version guard.
+!!! warning "Requires tract 0.23.11 or newer"
 
-To run the Linear export tests against such a build:
+    Q2_0_T export is rejected for older targets, including 0.23.10 and
+    prerelease builds below 0.23.11. Both normal and offloaded exports emit
+    an explicit warning before failing. Upgrade tract before exporting
+    ternary weights.
+
+To run the Linear export tests against a supported tract binary:
 
 ```bash
 T2N_TEST_TRACT_PATH=/path/to/tract uv run pytest tests/test_q2_0_t.py

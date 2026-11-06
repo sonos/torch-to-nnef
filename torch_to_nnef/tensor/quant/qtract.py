@@ -404,12 +404,23 @@ class QTensorTractQ2_0_T(QTensorTractBlockQuant):  # noqa: N801
     Use `ternary_to_tract_q2_0_t` to construct from existing ternary weights.
     Codes 0, 1 and 2 represent -scale, zero and +scale. Each block occupies
     10 bytes, with four consecutive codes packed low bits first per byte.
+    Export requires tract >= 0.23.11; older targets warn and are rejected.
     """
 
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q2_0_t.v1"
     FORMAT_NAME = "Q2_0_T"
     N_BITS = 2
-    MIN_TRACT_VERSION = "0.23.10-pre"
+    MIN_TRACT_VERSION = "0.23.11"
+
+    @classmethod
+    def _check_inference_target_support(cls, inference_target):
+        if inference_target.version < cls.MIN_TRACT_VERSION:
+            LOGGER.warning(
+                "Q2_0_T export requires tract >= 0.23.11; target is %s. "
+                "Upgrade tract before exporting ternary weights.",
+                inference_target.version,
+            )
+        super()._check_inference_target_support(inference_target)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

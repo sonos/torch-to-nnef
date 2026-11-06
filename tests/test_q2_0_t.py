@@ -17,7 +17,7 @@ from torch_to_nnef.tensor.quant import (
     QTensorTractQ2_0_T,
     ternary_to_tract_q2_0_t,
 )
-from torch_to_nnef.utils import SemanticVersion
+from torch_to_nnef.utils import SemanticVersion, torch_version
 
 from .test_qtensor import check_tensor_in_nnef_archive
 from .utils import (
@@ -29,9 +29,10 @@ from .utils import (
 pytestmark = skipif_unsupported_qtensor
 
 
-def test_q20t_binary_layout_and_offload(tmp_path):
+@pytest.mark.parametrize("version", ["0.23.11", "0.23.12"])
+def test_q20t_binary_layout_and_offload(tmp_path, version):
     target = deepcopy(TractNNEF.latest())
-    target.version = SemanticVersion.from_str("0.23.10-pre")
+    target.version = SemanticVersion.from_str(version)
     weight = torch.tensor([-0.5, 0, 0.5, -0.5]).repeat(8).reshape(1, 32)
     weight = torch.cat([weight, torch.zeros_like(weight)])
     qtensor = ternary_to_tract_q2_0_t(weight)
@@ -102,15 +103,26 @@ def test_q20t_rejects_invalid_weights(weight):
         ternary_to_tract_q2_0_t(weight)
 
 
-def test_q20t_rejects_old_tract(tmp_path):
+@pytest.mark.parametrize(
+    "version", ["0.23.9", "0.23.10-pre", "0.23.10", "0.23.11-pre"]
+)
+def test_q20t_rejects_old_tract(tmp_path, caplog, version):
     qtensor = ternary_to_tract_q2_0_t(torch.ones(2, 32))
-    target = TractNNEF("0.23.9", check_io=False)
-    with pytest.raises(T2NErrorNotImplemented, match="requires tract"):
+    target = deepcopy(TractNNEF.latest())
+    target.version = SemanticVersion.from_str(version)
+    with pytest.raises(
+        T2NErrorNotImplemented, match=r"requires tract >= 0\.23\.11"
+    ):
         qtensor.write_in_file(tmp_path, "weight", target)
-    with pytest.raises(T2NErrorNotImplemented, match="requires tract"):
+    with pytest.raises(
+        T2NErrorNotImplemented, match=r"requires tract >= 0\.23\.11"
+    ):
         QTensorTractQ2_0_T.write_offload_state_in_file(
             qtensor.to_offload_state(), tmp_path, "offloaded", target
         )
+
+    assert "Upgrade tract before exporting ternary weights" in caplog.text
+    assert not list(tmp_path.glob("*.dat"))
 
 
 @pytest.mark.parametrize(
@@ -121,7 +133,19 @@ def test_q20t_rejects_old_tract(tmp_path):
         if target.version >= QTensorTractQ2_0_T.MIN_TRACT_VERSION
     ],
 )
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        torch.float32,
+        pytest.param(
+            torch.float16,
+            marks=pytest.mark.skipif(
+                torch_version() < "2.0.0",
+                reason="PyTorch 1.x does not support float16 CPU Linear",
+            ),
+        ),
+    ],
+)
 @pytest.mark.parametrize("tokens", [1, 5])
 def test_q20t_linear_check_io(inference_target, dtype, tokens):
     with torch.no_grad():
