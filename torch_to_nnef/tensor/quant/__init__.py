@@ -17,8 +17,8 @@ from torch_to_nnef.tensor.quant.qtract import (
     ternary_to_tract_q2_0_t,
 )
 from torch_to_nnef.tensor.quant.qtract_ggml import (
+    QScaleGGMLK,
     QScaleGGMLKMin,
-    QTensorTractGGMLKMin,
     QTensorTractQ4_K,
     QTensorTractQ5_K,
     fp_to_tract_q4_k,
@@ -33,8 +33,8 @@ __all__ = [
     "QScalePerGroupF16",
     "QTensorTract",
     "QTensorTractQ2_0_T",
+    "QScaleGGMLK",
     "QScaleGGMLKMin",
-    "QTensorTractGGMLKMin",
     "QTensorTractQ4_K",
     "fp_to_tract_q4_k",
     "QTensorTractQ5_K",

@@ -338,16 +338,15 @@ class QTensorTractBlockQuant(QTensorTractDat):
 
     """
 
-    BLOCK_LEN: int = 32
+    BLOCK_LEN: int
     BLOCK_BYTES: int
-    QSCHEME_CLS: T.Type[QScheme] = QScalePerGroupF16
-    # QScalePerGroupF16 formats: bits per code and calibration default
-    # (see qscale_per_group_f16_min_max_calibration)
-    N_BITS: int
-    RESTRICTED_RANGE = False
+    QSCHEME_CLS: T.Type[QScheme]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._init_block_layout()
+
+    def _init_block_layout(self):
         self._check_qscheme(self.qscheme)
         self.decompressed_shape = tuple(self.decompress_to_u8().shape)
         assert len(self.decompressed_shape) in [2, 3, 4], (
@@ -357,6 +356,43 @@ class QTensorTractBlockQuant(QTensorTractDat):
             reduce(operator.mul, self.decompressed_shape[1:]) % self.BLOCK_LEN
             == 0
         ), self.decompressed_shape
+
+    @classmethod
+    def _from_codes(
+        cls,
+        fp_tensor: torch.Tensor,
+        codes: torch.Tensor,
+        qscheme: QScheme,
+        dequant_to_dtype: torch.dtype,
+    ):
+        """Build from the u8 codes a calibration already computed.
+
+        Same result as `cls(fp_tensor, qscheme, ...)`, without running
+        `qscheme.quantize_as_u8` again (costly for search based formats).
+        Only for formats without extra constructor state.
+        """
+        assert codes.dtype == torch.uint8, codes.dtype
+        assert codes.shape == fp_tensor.shape, (codes.shape, fp_tensor.shape)
+        qtensor = cls.__new__(
+            cls, fp_tensor, qscheme, dequant_to_dtype=dequant_to_dtype
+        )
+        qtensor.u8_compressors = []
+        qtensor.u8_blob = codes
+        qtensor.qscheme = qscheme
+        qtensor.dequant_to_dtype = dequant_to_dtype
+        qtensor.nnef_name = None
+        qtensor.requires_grad = False
+        qtensor._init_block_layout()
+        return qtensor
+
+    def _rebuild_with(self, fp_tensor, qscheme, dequant_to_dtype):
+        """Reuse the u8 codes without quantizing again (see `QTensor.to`).
+
+        Formats with extra constructor state copy it in their override.
+        """
+        return self._from_codes(
+            fp_tensor, self.decompress_to_u8(), qscheme, dequant_to_dtype
+        )
 
     @classmethod
     def data_size_bytes(cls, shape: T.Tuple[int, ...]) -> int:
@@ -372,10 +408,6 @@ class QTensorTractBlockQuant(QTensorTractDat):
     @classmethod
     def _check_qscheme(cls, qscheme: QScheme) -> None:
         assert isinstance(qscheme, cls.QSCHEME_CLS), qscheme
-        if isinstance(qscheme, QScalePerGroupF16):
-            # tract limited support of packing
-            assert qscheme.n_bits == cls.N_BITS, qscheme.n_bits
-            assert qscheme.group_size == cls.BLOCK_LEN, qscheme.group_size
 
     @classmethod
     def _item_type(
@@ -387,12 +419,8 @@ class QTensorTractBlockQuant(QTensorTractDat):
     def _block_params(
         cls, qscheme: QScheme, n_blocks: int
     ) -> T.Dict[str, torch.Tensor]:
-        """Block parameters of `qscheme`, each with a leading `n_blocks` dim.
-
-        Default: the f16 `scale` of a `QScalePerGroupF16`.
-        """
-        assert isinstance(qscheme, QScalePerGroupF16), qscheme
-        return {"scale": qscheme.scale.reshape(n_blocks)}
+        """Block parameters of `qscheme`, each with a leading `n_blocks` dim."""
+        raise T2NErrorNotImplemented()
 
     @classmethod
     def _pack_blocks(
@@ -464,7 +492,6 @@ class QTensorTractBlockQuant(QTensorTractDat):
         qscheme: QScheme,
         inference_target: TractNNEF,
     ):
-        cls._check_qscheme(qscheme)
         with path.open("wb") as fh:
             fh.write(
                 cls._build_binary_dat_header_for_shape(
@@ -477,7 +504,38 @@ class QTensorTractBlockQuant(QTensorTractDat):
                 fh.write(chunk)
 
 
-class QTensorTractScaleOnly(QTensorTractBlockQuant):
+class QTensorTractScalePerGroupF16(QTensorTractBlockQuant):
+    """Common base of formats with one f16 scale per block of 32 codes.
+
+    Its qscheme is a `QScalePerGroupF16` (Q4_0, Q8_1, Q2_0_T) that a torch
+    calibration sets: min max, percentile, or external methods like GPTQ.
+    """
+
+    BLOCK_LEN = 32
+    # former name of `BLOCK_LEN`
+    GROUP_SIZE = BLOCK_LEN
+    QSCHEME_CLS: T.Type[QScheme] = QScalePerGroupF16
+    # bits per code and calibration default
+    # (see qscale_per_group_f16_min_max_calibration)
+    N_BITS: int
+    RESTRICTED_RANGE = False
+    qscheme: QScalePerGroupF16  # type notation for mypy
+
+    @classmethod
+    def _check_qscheme(cls, qscheme: QScheme) -> None:
+        super()._check_qscheme(qscheme)
+        assert isinstance(qscheme, QScalePerGroupF16), qscheme
+        # tract limited support of packing
+        assert qscheme.n_bits == cls.N_BITS, qscheme.n_bits
+        assert qscheme.group_size == cls.BLOCK_LEN, qscheme.group_size
+
+    @classmethod
+    def _block_params(cls, qscheme, n_blocks):
+        assert isinstance(qscheme, QScalePerGroupF16), qscheme
+        return {"scale": qscheme.scale.reshape(n_blocks)}
+
+
+class QTensorTractScaleOnly(QTensorTractScalePerGroupF16):
     """Tract data format it serializes to: Q4_0.
 
     Each group of 32 values is stored as 18 bytes:
@@ -516,6 +574,11 @@ class QTensorTractScaleOnly(QTensorTractBlockQuant):
         return self.qscheme.dequantize(
             decompress_u8, target_dtype=self.dequant_to_dtype
         )
+
+    def _rebuild_with(self, fp_tensor, qscheme, dequant_to_dtype):
+        new_obj = super()._rebuild_with(fp_tensor, qscheme, dequant_to_dtype)
+        new_obj.specific_machine = self.specific_machine
+        return new_obj
 
     def to_offload_state(self) -> T.Dict[str, T.Any]:
         state = super().to_offload_state()
@@ -588,7 +651,7 @@ class _TernaryScalePerGroupF16(QScalePerGroupF16):
         return (values * self.scale.to(target_dtype)).reshape(u8_tensor.shape)
 
 
-class QTensorTractQ2_0_T(QTensorTractBlockQuant):  # noqa: N801
+class QTensorTractQ2_0_T(QTensorTractScalePerGroupF16):  # noqa: N801
     """Tract ternary weights: f16 scale and 32 two-bit codes per block.
 
     Use `ternary_to_tract_q2_0_t` to construct from existing ternary weights.
@@ -655,7 +718,7 @@ def ternary_to_tract_q2_0_t(fp_tensor: torch.Tensor) -> QTensorTractQ2_0_T:
         )
 
 
-class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
+class QTensorTractQ8_1(QTensorTractScalePerGroupF16):  # noqa: N801
     """Tract data format it serializes to: Q8_1 (GGML style).
 
     Each group of 32 values is stored as 36 bytes:
@@ -715,7 +778,7 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
 
 
 TQTensorTractBlockQuant = T.TypeVar(
-    "TQTensorTractBlockQuant", bound=QTensorTractBlockQuant
+    "TQTensorTractBlockQuant", bound=QTensorTractScalePerGroupF16
 )
 
 
