@@ -30,9 +30,10 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-To date tract support 3 kind of quantization:
+The exporter supports these tract quantization formats:
 
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
+- Q2_0_T: ternary weights stored in blocks of 32 with an f16 scale (see [ternary weights](#q2_0_t-for-ternary-weights)).
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
@@ -446,3 +447,43 @@ You should observe that operators are correctly understood as Quantized with QU8
 
     You exported your first quantized network with `torch_to_nnef` in 8bit
     and learned how to create and manage your own quantization registry !
+
+
+### Q2_0_T for ternary weights
+
+`ternary_to_tract_q2_0_t` packs weights that already contain only zero and
+plus/minus a shared scale within each group of 32 consecutive values. It
+rejects ordinary float weights instead of quantizing them to ternary values.
+Weights trained with larger groups, such as 128, also satisfy this condition.
+
+```python
+from torch import nn
+from torch_to_nnef.tensor.quant import ternary_to_tract_q2_0_t
+
+linear.weight = nn.Parameter(
+    ternary_to_tract_q2_0_t(linear.weight), requires_grad=False
+)
+```
+
+The input must be a nonempty floating tensor of rank 2 to 4, with the product
+of dimensions after the first divisible by 32. Scales are rounded to f16;
+nonzero scales that overflow or underflow are rejected. All-zero blocks are
+allowed. The helper preserves the ternary codes, not necessarily the exact
+original float scale.
+
+Each block occupies 10 bytes: an f16 scale and eight bytes of packed two-bit
+codes. Codes 0, 1 and 2 mean -scale, zero and +scale. NNEF uses tract's custom
+item type `0x3020`. Streaming export and tensor offloading are supported.
+
+This requires tract's Q2_0_T NNEF support, introduced by
+[tract PR #3305](https://github.com/sonos/tract/pull/3305) in the
+`0.23.10-pre` development series. When using that prerelease, supply a binary
+built after that change via `TractNNEF(specific_tract_binary_path=...,
+version="0.23.10-pre")`. Older prerelease builds can share the same version
+string and cannot be distinguished by the version guard.
+
+To run the Linear export tests against such a build:
+
+```bash
+T2N_TEST_TRACT_PATH=/path/to/tract uv run pytest tests/test_q2_0_t.py
+```
