@@ -33,6 +33,7 @@ class DatBinHeader:
         Custom tract quantisation types used in NNEF headers.
         """
 
+        Q20T = "2030"
         Q40 = "4030"
         Q40_LEGACY = "4020"
         Q81 = "8130"  # 0x3081: tract >= 0.23.10
@@ -131,6 +132,9 @@ class DatBinHeader:
             ):
                 # per group of 32: f16 scale + f16 sum + 32 int8
                 block_bytes = 36
+            elif item_type == cls.TractCustomTypes.Q20T:
+                # per group of 32: f16 scale + 8 bytes of 2bit codes
+                block_bytes = 10
             else:
                 # per group of 32: f16 scale + 32 nibbles
                 block_bytes = 18

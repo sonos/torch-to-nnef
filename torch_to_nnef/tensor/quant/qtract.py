@@ -418,6 +418,115 @@ class QTensorTractScaleOnly(QTensorTractBlockQuant):
         return b_all
 
 
+class _TernaryScalePerGroupF16(QScalePerGroupF16):
+    def quantize_as_u8(self, fp_tensor):
+        groups = fp_tensor.detach().reshape(-1, 32)
+        magnitudes = groups.abs().amax(dim=1, keepdim=True)
+        if (
+            not torch.isfinite(groups).all()
+            or not ((groups == 0) | (groups.abs() == magnitudes)).all()
+        ):
+            raise T2NErrorImpossibleQuantization(
+                "Q2_0_T requires finite ternary weights per group of 32"
+            )
+        if not torch.equal(magnitudes.to(torch.float16), self.scale):
+            raise T2NErrorImpossibleQuantization("Q2_0_T scale mismatch")
+        if (
+            not torch.isfinite(self.scale).all()
+            or ((magnitudes != 0) & (self.scale == 0)).any()
+        ):
+            raise T2NErrorImpossibleQuantization(
+                "Q2_0_T nonzero scales must remain finite and nonzero in f16"
+            )
+        return (fp_tensor.sign() + 1).to(torch.uint8)
+
+    def dequantize(self, u8_tensor, target_dtype):
+        values = u8_tensor.reshape(-1, 32).to(target_dtype) - 1
+        return (values * self.scale.to(target_dtype)).reshape(u8_tensor.shape)
+
+
+class QTensorTractQ2_0_T(QTensorTractBlockQuant):  # noqa: N801
+    """Tract ternary weights: f16 scale and 32 two-bit codes per block.
+
+    Use `ternary_to_tract_q2_0_t` to construct from existing ternary weights.
+    Codes 0, 1 and 2 represent -scale, zero and +scale. Each block occupies
+    10 bytes, with four consecutive codes packed low bits first per byte.
+    Export requires tract >= 0.23.11; older targets warn and are rejected.
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q2_0_t.v1"
+    FORMAT_NAME = "Q2_0_T"
+    N_BITS = 2
+    MIN_TRACT_VERSION = "0.23.11"
+
+    @classmethod
+    def _check_inference_target_support(cls, inference_target):
+        if inference_target.version < cls.MIN_TRACT_VERSION:
+            LOGGER.warning(
+                "Q2_0_T export requires tract >= 0.23.11; target is %s. "
+                "Upgrade tract before exporting ternary weights.",
+                inference_target.version,
+            )
+        super()._check_inference_target_support(inference_target)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not isinstance(self.qscheme, _TernaryScalePerGroupF16):
+            raise T2NErrorImpossibleQuantization(
+                "Q2_0_T requires its ternary scale scheme"
+            )
+
+    @classmethod
+    def _item_type(cls, inference_target):
+        return DatBinHeader.TractCustomTypes.Q20T
+
+    @classmethod
+    def _pack_groups(cls, u8_groups, scale, inference_target):
+        codes = u8_groups.numpy().reshape(-1, 8, 4)
+        blocks = np.empty((len(codes), 10), dtype=np.uint8)
+        blocks[:, :2] = (
+            scale.numpy().astype("<f2").view(np.uint8).reshape(-1, 2)
+        )
+        blocks[:, 2:] = (
+            codes[:, :, 0]
+            | (codes[:, :, 1] << 2)
+            | (codes[:, :, 2] << 4)
+            | (codes[:, :, 3] << 6)
+        )
+        return blocks
+
+
+def ternary_to_tract_q2_0_t(fp_tensor: torch.Tensor) -> QTensorTractQ2_0_T:
+    """Pack existing ternary weights, rounding only their scales to f16.
+
+    Accepts floating tensors of rank 2 to 4 whose flattened rows are a
+    multiple of 32. Each consecutive group of 32 must contain only zero
+    and a single absolute nonzero value. Larger source groups (e.g. 128)
+    naturally split into blocks of 32. All-zero blocks are supported.
+
+    Raises:
+        T2NErrorImpossibleQuantization: Invalid shape, non-ternary values,
+            or nonzero scales that overflow or underflow in f16.
+    """
+    if (
+        not fp_tensor.is_floating_point()
+        or fp_tensor.ndim not in (2, 3, 4)
+        or fp_tensor.numel() == 0
+        or reduce(operator.mul, fp_tensor.shape[1:]) % 32
+    ):
+        raise T2NErrorImpossibleQuantization(
+            "Q2_0_T requires nonempty floating weights of rank 2 to 4 "
+            "with flattened rows divisible by 32"
+        )
+    with torch.no_grad():
+        fp_tensor = fp_tensor.detach()
+        scale = fp_tensor.reshape(-1, 32).abs().amax(dim=1, keepdim=True)
+        scheme = _TernaryScalePerGroupF16(32, scale, 2)
+        return QTensorTractQ2_0_T(
+            fp_tensor, qscheme=scheme, dequant_to_dtype=fp_tensor.dtype
+        )
+
+
 class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
     """Tract data format it serializes to: Q8_1 (GGML style).
 
