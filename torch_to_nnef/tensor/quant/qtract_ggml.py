@@ -639,6 +639,7 @@ class QTensorTractQ6_K(QTensorTractGGMLBlock):  # noqa: N801
     BLOCK_LEN = QK_K
     BLOCK_BYTES = 210
     ITEM_TYPE = DatBinHeader.TractCustomTypes.Q6K
+    F16_SCALE_FIELDS = {"d": 208}
 
     @classmethod
     def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:

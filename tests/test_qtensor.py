@@ -1221,67 +1221,90 @@ def test_q6k_dat_content_layout(tmp_path):
 
 
 @skipif_unsupported_qtensor
-def test_q6k_dequant_round_trip_error_bounded():
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_q6k_dequant_round_trip_error_bounded(seed):
     # same bound as tract q6_k_roundtrip
     ramp = torch.from_numpy(_ggml_ramp(512, 0)).reshape(2, 256)
     qtensor = fp_to_tract_q6_k(ramp)
     assert (qtensor.decompress() - ramp).abs().max() < 0.1
     zeros = fp_to_tract_q6_k(torch.zeros(2, 256))
     assert torch.equal(zeros.decompress(), torch.zeros(2, 256))
-    # gaussian: error within a level step of each sub-block absmax
-    fp_tensor = torch.randn(16, 1024)
+    gen = torch.Generator().manual_seed(seed)
+    # rows of very different magnitudes
+    fp_tensor = torch.randn(16, 1024, generator=gen) * 10 ** torch.linspace(
+        -3, 3, 16
+    ).reshape(16, 1)
     deq = fp_to_tract_q6_k(fp_tensor).decompress()
-    sub_fp = fp_tensor.reshape(-1, 16)
-    sub_absmax = sub_fp.abs().max(dim=1).values
-    sub_err = (deq - fp_tensor).abs().reshape(-1, 16).max(dim=1).values
-    assert (sub_err <= sub_absmax / 16).all()
-    # relative error of a 6.5625bpw format
+    # Bound per super-block in steps of absmax / 32: the reference search
+    # clamps levels to [-32, 31] and the i8 sub-block scales are rounded
+    # relative to d, so errors exceed half a step (measured up to 1.65
+    # step over 300 seeds), 2.5 steps leaves a robust margin.
+    sb_fp = fp_tensor.reshape(-1, 256)
+    sb_step = sb_fp.abs().max(dim=1).values / 32
+    sb_err = (deq - fp_tensor).abs().reshape(-1, 256).max(dim=1).values
+    assert (sb_err <= 2.5 * sb_step).all(), (sb_err / sb_step).max()
+    # relative error of a 6.5625bpw format (measured below 0.019)
     assert (deq - fp_tensor).norm() / fp_tensor.norm() < 0.03
 
 
 @skipif_unsupported_qtensor
-def test_q6k_rejects_incomplete_super_blocks():
-    with pytest.raises(T2NErrorImpossibleQuantization):
-        fp_to_tract_q6_k(torch.randn(4, 128))
-    with pytest.raises(T2NErrorImpossibleQuantization):
-        fp_to_tract_q6_k(torch.randn(256))
+@pytest.mark.parametrize("shape", [(2, 256), (2, 2, 256), (2, 2, 2, 256)])
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.float32, torch.bfloat16]
+)
+def test_q6k_decompress_matches_reference(shape, dtype):
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(shape, generator=gen).to(dtype)
+    _check_ggml_decompress_matches_reference(QTensorTractQ6_K, fp_tensor)
 
 
 @skipif_unsupported_qtensor
-def test_q6k_unsupported_before_tract_0_23_10(tmp_path):
-    qtensor = fp_to_tract_q6_k(torch.randn(2, 256))
-    for version in ["0.22.1", "0.23.8"]:
-        with pytest.raises(T2NErrorNotImplemented):
-            qtensor.write_in_file(
-                tmp_path, "weight", TractNNEF(version, check_io=False)
-            )
-        with pytest.raises(T2NErrorNotImplemented):
-            QTensorTractQ6_K.write_offload_state_in_file(
-                qtensor.to_offload_state(),
-                tmp_path,
-                "weight",
-                inference_target=TractNNEF(version, check_io=False),
-            )
-    assert not (tmp_path / "weight.dat").exists()
+@pytest.mark.parametrize(
+    "weight",
+    _ggml_invalid_weights(256)
+    + [
+        # |d| = absmax / 4096 (sub-block scale absmax / 32, then / 128):
+        # f16 overflow above 65504 * 4096 ~ 2.7e8, for both signs
+        pytest.param(torch.full((2, 256), 1e9), id="d_overflow"),
+        pytest.param(torch.full((2, 256), -1e9), id="d_overflow_negative"),
+        # nonzero super-block whose d rounds to 0 in f16 (~2.4e-14)
+        pytest.param(torch.full((2, 256), 1e-10), id="underflow"),
+    ],
+)
+def test_q6k_rejects_invalid_weights(weight):
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_q6_k(weight)
 
 
 @skipif_unsupported_qtensor
-def test_q6k_offload_state_write(tmp_path):
-    _check_ggml_offload_state_write(
-        tmp_path, fp_to_tract_q6_k(torch.randn(4, 512))
+@pytest.mark.parametrize("version", ["0.23.9", "0.23.10-pre", "0.23.10-rc.1"])
+def test_q6k_rejects_old_tract(tmp_path, caplog, version):
+    _check_ggml_rejects_old_tract(
+        tmp_path, caplog, fp_to_tract_q6_k(torch.randn(2, 256)), version
     )
 
 
 @skipif_unsupported_qtensor
 @pytest.mark.parametrize(
-    "inference_target,dtype",
+    "version", ["0.23.10", "0.23.10+build.1", "0.23.11-pre", "0.23.11"]
+)
+def test_q6k_offload_state_write(tmp_path, version):
+    _check_ggml_offload_state_write(
+        tmp_path, fp_to_tract_q6_k(torch.randn(4, 512)), _tract_target(version)
+    )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "inference_target",
     [
-        (i, dt)
+        i
         for i in TRACT_INFERENCES_TO_TESTS_EXACT
-        if i.version >= "0.23.10"
-        for dt in [torch.float32, torch.float16]
+        if i.version >= QTensorTractQ6_K.MIN_TRACT_VERSION
     ],
 )
+# f16 CPU embedding (index_select) works on torch 1.x: like Q4_0/Q8_1 tests
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
 def test_quantize_with_tract_q6_k_embedding(inference_target, dtype):
     """Q6_K is only supported by tract on embedding/gathering."""
     with torch.no_grad():

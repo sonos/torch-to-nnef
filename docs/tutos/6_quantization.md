@@ -286,6 +286,61 @@ volume divisible by 256) with higher precision: each super-block is stored as ll
 6.5625bpw. It is symmetric (no mins) and the quantizer is a port of llama.cpp
 `quantize_row_q6_K_ref` (`make_qx_quants` search). Use the `min_max_q6_k_embeddings`
 registry entry or `torch_to_nnef.tensor.quant.fp_to_tract_q6_k`.
+Input validation (including f16 overflow or underflow of `d`), streaming export,
+tensor offloading and the tract 0.23.10 gate behave exactly as for `Q4_K`.
+
+#### Q6_K block layout
+
+Q6_K stores 256 weights per super-block, split into 16 sub-blocks of 16 weights.
+The super-block holds one f16 scale `d`, and each sub-block `j` a signed 8-bit
+scale `sc[j]` (relative to `d`). Each weight has a 6-bit level `q[i]` in
+`[0, 63]` and reconstructs as:
+
+```text
+w[i] = d * sc[j] * (q[i] - 32),  j = i / 16
+```
+
+The format is symmetric: there is no min term, the signed level `q[i] - 32`
+lies in `[-32, 31]`. The super-block occupies 210 bytes, or
+`(256 * 6 + 16 * 8 + 16) / 256 = 6.5625 bpw`. This is llama.cpp `block_q6_K`,
+NNEF item type `0x3160`.
+
+```mermaid
+flowchart LR
+    accTitle: Q6_K super-block layout
+    accDescr: After the NNEF tensor header, each super-block stores the low 4 bits of 256 levels in bytes 0 through 127, their high 2 bits in bytes 128 through 191, sixteen signed 8-bit sub-block scales in bytes 192 through 207, and an f16 d in bytes 208 and 209.
+    subgraph block["256 weights / 210 bytes / 6.5625 bpw"]
+        direction LR
+        ql["Bytes 0-127<br/>ql: 256 x low 4 bits<br/>2 halves of 64 bytes"]
+        qh["Bytes 128-191<br/>qh: 256 x high 2 bits<br/>2 halves of 32 bytes"]
+        scales["Bytes 192-207<br/>16 x i8 scales"]
+        d["Bytes 208-209<br/>f16 d"]
+        ql --- qh --- scales --- d
+    end
+```
+
+**Levels**: each 6-bit level is split into its low 4 bits (in `ql`) and its
+high 2 bits (in `qh`). Weights are processed in 2 halves `h` of 128 weights,
+using `ql` bytes `64h` to `64h + 63` and `qh` bytes `128 + 32h` to
+`128 + 32h + 31`. For `i` in `[0, 31]`, with `b = 128h + i`:
+
+- `ql` byte `64h + i` stores the low bits of weight `b` (low nibble) and
+  weight `b + 64` (high nibble)
+- `ql` byte `64h + 32 + i` stores the low bits of weight `b + 32` (low nibble)
+  and weight `b + 96` (high nibble)
+- `qh` byte `128 + 32h + i` stores the high 2 bits of weights `b`, `b + 32`,
+  `b + 64` and `b + 96`, from the least significant bits up
+
+```mermaid
+flowchart LR
+    accTitle: Q6_K high bits order in byte 128
+    accDescr: Bits 7 and 6 contain the high bits of level 96, bits 5 and 4 those of level 64, bits 3 and 2 those of level 32, bits 1 and 0 those of level 0.
+    b96["Bits 7-6<br/>q96 high"] --- b64["Bits 5-4<br/>q64 high"] --- b32["Bits 3-2<br/>q32 high"] --- b0["Bits 1-0<br/>q0 high"]
+```
+
+For example, `q0 = 37` (`0b100101`) and `q64 = 12` (`0b001100`) produce byte 0 =
+`0xC5` (low bits `0x5` and `0xC`), and set bits 1-0 of byte 128 to `0b10` and
+bits 5-4 to `0b00`.
 
 ### Q40 Use specific quantization method
 
