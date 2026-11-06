@@ -3,6 +3,9 @@
 
 ## Unreleased
 
+
+## [0.25.0] - 2026-11-06
+
 ### Changed
 - **Latest officially supported tract version is now 0.23.10**, up from 0.23.8. Default exports target 0.23.10. With this target, replication padding (`replication_pad1d/2d/3d`, `pad(mode="replicate")`) now runs in tract, and `Q8_1` weights are written with the `.dat` item type `0x3081` that tract 0.23.10 expects (older targets keep `0x3080`).
 
