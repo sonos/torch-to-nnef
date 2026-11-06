@@ -44,6 +44,8 @@ QK_K = 256
 # blocks erased by f16 scale underflow are tolerated (with a warning) when
 # their weights are below this fraction of the tensor largest weight
 GGML_UNDERFLOW_REL_TOL = torch.finfo(torch.float16).eps
+# ggml `GROUP_MAX_EPS`: groups below it are all zeros
+GGML_GROUP_MAX_EPS = 1e-15
 
 
 # ggml shared helpers ######################################################
@@ -643,9 +645,6 @@ def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
 
 # Q6_K ######################################################################
 
-# ggml `GROUP_MAX_EPS`
-GGML_GROUP_MAX_EPS = 1e-15
-
 
 def ggml_first_absmax(
     x: torch.Tensor,
@@ -740,16 +739,19 @@ def ggml_quant_q6_k_scales(
     return d_f16, sc
 
 
-class QScaleGGMLK6(QScheme):
+class QScaleGGMLK6(QScaleGGMLK):
     """ggml Q6_K symmetric super-block scheme.
 
     Per super-block of 256 values: f16 `d` (n,), and per sub-block of
     16 values i8 scales `sc` (n, 16). A code `q` in [0, 63] dequantizes
-    to `d * sc * (q - 32)`.
+    to `(d * sc) * (q - 32)`.
 
     ggml keeps its `make_qx_quants` search levels for sub-blocks whose
     `d * sc` is 0, and zeros for super-blocks without any scale.
     """
+
+    SUB_LEN = 16
+    PARAM_NAMES = ("d", "sc")
 
     def __init__(self, d: torch.Tensor, sc: torch.Tensor):
         assert d.dtype == torch.float16, d.dtype
@@ -759,88 +761,42 @@ class QScaleGGMLK6(QScheme):
         self.sc = sc
 
     @classmethod
-    def calibrate(
-        cls, fp_tensor: torch.Tensor, format_name: str
-    ) -> "QScaleGGMLK6":
-        """Fit ggml reference parameters of `fp_tensor` super-blocks.
+    def fit_blocks(cls, x, **settings):
+        scheme = cls(*ggml_quant_q6_k_scales(x))
+        return scheme, scheme.quantize_blocks(x)
 
-        Raises:
-            T2NErrorImpossibleQuantization: on f16 overflow of `d`, or not
-                negligible f16 underflow.
-        """
-        params = []
-        underflow = GGMLUnderflowCheck(format_name)
-        for _, x in ggml_iter_blocks(fp_tensor, QK_K):
-            chunk = cls(*ggml_quant_q6_k_scales(x))
-            check_f16_scales(chunk.d, format_name, scale_name="`d`")
-            underflow.update(
-                x,
-                chunk.dequantize(
-                    chunk.quantize_as_u8(x), torch.float32
-                ).reshape(x.shape),
-            )
-            params.append(chunk)
-        underflow.check()
-        return cls(
-            d=torch.cat([c.d for c in params]),
-            sc=torch.cat([c.sc for c in params]),
+    def sub_scales(self):
+        return self.d.to(torch.float32)[:, None] * self.sc.to(torch.float32)
+
+    def levels(self, codes):
+        return codes.to(torch.float32) - 32
+
+    def quantize_blocks(self, x):
+        """Final ggml levels with the f16 rounded super-block scale."""
+        n_blocks = x.shape[0]
+        d_sc = self.sub_scales()
+        x16 = x.reshape((n_blocks, 16, 16))
+        levels = (
+            torch.clamp(ggml_nearest_int(x16 / d_sc[:, :, None]), -32, 31) + 32
         )
-
-    def _d_sc(self, start: int, end: int) -> torch.Tensor:
-        return self.d[start:end].to(torch.float32)[:, None] * self.sc[
-            start:end
-        ].to(torch.float32)
-
-    def quantize_as_torch(self, fp_tensor):
-        raise T2NErrorNotImplemented("native torch does not support K-quants")
-
-    def quantize_as_u8(self, fp_tensor: torch.Tensor) -> torch.Tensor:
-        """Codes of `fp_tensor` with these parameters (ggml final levels)."""
-        codes = []
-        start = 0
-        for _, x in ggml_iter_blocks(fp_tensor, QK_K):
-            n_blocks = x.shape[0]
-            d = self.d[start : start + n_blocks]
-            d_sc = self._d_sc(start, start + n_blocks)
-            start += n_blocks
-            x16 = x.reshape((n_blocks, 16, 16))
-            levels = (
-                torch.clamp(ggml_nearest_int(x16 / d_sc[:, :, None]), -32, 31)
-                + 32
+        zero_d = d_sc == 0
+        if zero_d.any():
+            # ggml keeps `make_qx_quants` levels of these sub-blocks
+            search_scales, search_levels = ggml_make_qx_quants(x16[zero_d], 32)
+            levels[zero_d] = search_levels.to(levels.dtype)
+            # d == 0 super-blocks were fully searched: those without any
+            # scale are written as zeros
+            scales = torch.zeros_like(d_sc)
+            scales[zero_d] = search_scales
+            _, max_abs_scale = ggml_first_absmax(scales)
+            empty = (self.d == 0) & (
+                max_abs_scale < ggml_f32(GGML_GROUP_MAX_EPS)
             )
-            zero_d = d_sc == 0
-            if zero_d.any():
-                # ggml keeps `make_qx_quants` levels of these sub-blocks
-                search_scales, search_levels = ggml_make_qx_quants(
-                    x16[zero_d], 32
-                )
-                levels[zero_d] = search_levels.to(levels.dtype)
-                # d == 0 super-blocks were fully searched: those without
-                # any scale are written as zeros
-                scales = torch.zeros_like(d_sc)
-                scales[zero_d] = search_scales
-                _, max_abs_scale = ggml_first_absmax(scales)
-                empty = (d == 0) & (
-                    max_abs_scale < ggml_f32(GGML_GROUP_MAX_EPS)
-                )
-                levels[empty] = 0
-            codes.append(levels.reshape((n_blocks, QK_K)).to(torch.uint8))
-        assert start == self.d.shape[0], (start, self.d.shape)
-        return torch.cat(codes).reshape(fp_tensor.shape)
-
-    def dequantize(self, u8_tensor: torch.Tensor, target_dtype):
-        """f32 `(d * sc) * (q - 32)` like tract, then cast."""
-        n_blocks = u8_tensor.numel() // QK_K
-        assert n_blocks == self.d.shape[0], (u8_tensor.shape, self.d.shape)
-        levels = u8_tensor.reshape((n_blocks, 16, 16)).to(torch.float32) - 32
-        out = self._d_sc(0, n_blocks)[:, :, None] * levels
-        return out.reshape(u8_tensor.shape).to(target_dtype)
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(n_blocks={self.d.shape[0]})"
+            levels[empty] = 0
+        return levels.reshape((n_blocks, QK_K)).to(torch.uint8)
 
 
-class QTensorTractQ6_K(QTensorTractBlockQuant):  # noqa: N801
+class QTensorTractQ6_K(QTensorTractGGMLK):  # noqa: N801
     """Tract data format it serializes to: Q6_K (ggml `block_q6_K`).
 
     Each super-block of 256 values is stored as 210 bytes:
@@ -861,32 +817,10 @@ class QTensorTractQ6_K(QTensorTractBlockQuant):  # noqa: N801
 
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q6_k.v1"
     FORMAT_NAME = "Q6_K"
-    BLOCK_LEN = QK_K
     BLOCK_BYTES = 210
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.Q6K
     QSCHEME_CLS = QScaleGGMLK6
-    MIN_TRACT_VERSION: T.Optional[str] = "0.23.10"
     qscheme: QScaleGGMLK6  # type notation for mypy
-
-    @classmethod
-    def from_fp(cls, fp_tensor: torch.Tensor) -> "QTensorTractQ6_K":
-        """Quantize a float tensor with the ggml reference quantizer."""
-        if isinstance(fp_tensor, torch.nn.Parameter):
-            fp_tensor = fp_tensor.data
-        check_block_quant_input(fp_tensor, cls.BLOCK_LEN, cls.FORMAT_NAME)
-        with torch.no_grad():
-            qscheme = QScaleGGMLK6.calibrate(fp_tensor, cls.FORMAT_NAME)
-            return cls(
-                fp_tensor, qscheme=qscheme, dequant_to_dtype=fp_tensor.dtype
-            )
-
-    @classmethod
-    def _item_type(cls, inference_target):
-        return DatBinHeader.TractCustomTypes.Q6K
-
-    @classmethod
-    def _block_params(cls, qscheme, n_blocks):
-        assert qscheme.d.shape[0] == n_blocks, (qscheme.d.shape, n_blocks)
-        return {"d": qscheme.d, "sc": qscheme.sc}
 
     @classmethod
     def _pack_blocks(cls, codes, params, inference_target) -> np.ndarray:
