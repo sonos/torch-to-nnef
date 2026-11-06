@@ -17,6 +17,7 @@ from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
     quantize_weights_min_max_Q4_K,
+    quantize_weights_min_max_Q6_K,
     quantize_weights_min_max_Q8_1,
 )
 from torch_to_nnef.exceptions import (
@@ -32,11 +33,13 @@ from torch_to_nnef.tensor.opaque import set_opaque_tensor_in_params_as_ref
 from torch_to_nnef.tensor.quant import (
     QTensor,
     QTensorTractQ4_K,
+    QTensorTractQ6_K,
     QTensorTractQ8_1,
     QTensorTractScaleOnly,
     U8Compressor,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
+    fp_to_tract_q6_k,
     fp_to_tract_q8_1_with_min_max_calibration,
     qscale_per_group_f16_min_max_calibration,
 )
@@ -1072,6 +1075,156 @@ def test_compress_min_max_q4_k_embeddings_only_quantize_embeddings():
 
     with pytest.raises(T2NErrorMisuse):
         quantize_weights_min_max_Q4_K(
+            nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32)),
+            to_quantize_module_classes=(nn.Linear, nn.Embedding),
+        )
+
+
+# llama.cpp quantize_row_q6_K_ref / dequantize_row_q6_K vectors
+# (from tract v0.23.10 linalg/src/frame/block_quant/ggml_k.rs tests)
+Q6_K_GGML_REFS = [
+    (
+        0,
+        "8b10d58b10d66b20d66b22b66d02b67d0159bd0158bc0468bf0367bf236ade2266"
+        "d21b96d01b86c04b85f03b75f03aa520d66b22b66d02b66d01b85d01b85d03d76b"
+        "20d66b22b66d02b66d01b85d01b8b30d68b11d68c11d76c22d76c22b76d0158ac0"
+        "458bf0357bf036abe036abe2566e12b66d11b96d01a85cf4a85ff3a74f278e50fa"
+        "51278d24fa50fb8d278e50fab1db71ec06ac1b71db46ac06b1db71ec2b812cf65c"
+        "fb812b865cf6512b812cf6af1872d845af05b2d872af05afd872d87c78847b857c"
+        "79847b857c78847f79802290",
+        [(0, 0xBFD832A0), (16, 0x3F687880), (255, 0x3FA55000)],
+    ),
+    (
+        16,
+        "8010d08010d06020d06020b06000b0700159bd0158bc0468bf0367bf236ade2266"
+        "d21b96d01b86c04b85f03b75f03aa520d66b22b66d02b66d01b85d01b85d03d76b"
+        "20d66b22b66d02b66d01b85d01b8b30d68b11d68c11d76c22d76c22b76d0158ac0"
+        "458bf0357bf036abe036abe2566e12b66d11b96d01a85cf4a85ff3a74f248c50f8"
+        "50248c24f850f88c248c50f8b1db71ec06ac1b71db46ac06b1db71ec2b812cf65c"
+        "fb812b865cf6512b812cf6af1872d845af05b2d872af05afd872d80078847b857c"
+        "79847b857c78847f79802290",
+        [(0, 0), (16, 0x3F687880), (255, 0x3FA55000)],
+    ),
+    (256, "00" * 210, []),
+]
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("zeros,expected_hex,values", Q6_K_GGML_REFS)
+def test_q6k_matches_ggml_reference(zeros, expected_hex, values):
+    _check_ggml_reference(
+        QTensorTractQ6_K, _ggml_ramp(256, zeros), expected_hex, values
+    )
+
+
+@skipif_unsupported_qtensor
+def test_q6k_dat_content_layout(tmp_path):
+    qtensor = fp_to_tract_q6_k(torch.randn(3, 512))
+    assert qtensor.u8_blob.shape == (6, 210)
+    _check_ggml_dat_content_layout(
+        tmp_path, qtensor, DatBinHeader.TractCustomTypes.Q6K
+    )
+
+
+@skipif_unsupported_qtensor
+def test_q6k_dequant_round_trip_error_bounded():
+    # same bound as tract q6_k_roundtrip
+    ramp = torch.from_numpy(_ggml_ramp(512, 0)).reshape(2, 256)
+    qtensor = fp_to_tract_q6_k(ramp)
+    assert (qtensor.decompress() - ramp).abs().max() < 0.1
+    zeros = fp_to_tract_q6_k(torch.zeros(2, 256))
+    assert torch.equal(zeros.decompress(), torch.zeros(2, 256))
+    # gaussian: error within a level step of each sub-block absmax
+    fp_tensor = torch.randn(16, 1024)
+    deq = fp_to_tract_q6_k(fp_tensor).decompress()
+    sub_fp = fp_tensor.reshape(-1, 16)
+    sub_absmax = sub_fp.abs().max(dim=1).values
+    sub_err = (deq - fp_tensor).abs().reshape(-1, 16).max(dim=1).values
+    assert (sub_err <= sub_absmax / 16).all()
+    # relative error of a 6.5625bpw format
+    assert (deq - fp_tensor).norm() / fp_tensor.norm() < 0.03
+
+
+@skipif_unsupported_qtensor
+def test_q6k_rejects_incomplete_super_blocks():
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_q6_k(torch.randn(4, 128))
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_q6_k(torch.randn(256))
+
+
+@skipif_unsupported_qtensor
+def test_q6k_unsupported_before_tract_0_23_10(tmp_path):
+    qtensor = fp_to_tract_q6_k(torch.randn(2, 256))
+    for version in ["0.22.1", "0.23.8"]:
+        with pytest.raises(T2NErrorNotImplemented):
+            qtensor.write_in_file(
+                tmp_path, "weight", TractNNEF(version, check_io=False)
+            )
+        with pytest.raises(T2NErrorNotImplemented):
+            QTensorTractQ6_K.write_offload_state_in_file(
+                qtensor.to_offload_state(),
+                tmp_path,
+                "weight",
+                inference_target=TractNNEF(version, check_io=False),
+            )
+    assert not (tmp_path / "weight.dat").exists()
+
+
+@skipif_unsupported_qtensor
+def test_q6k_offload_state_write(tmp_path):
+    _check_ggml_offload_state_write(
+        tmp_path, fp_to_tract_q6_k(torch.randn(4, 512))
+    )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "inference_target,dtype",
+    [
+        (i, dt)
+        for i in TRACT_INFERENCES_TO_TESTS_EXACT
+        if i.version >= "0.23.10"
+        for dt in [torch.float32, torch.float16]
+    ],
+)
+def test_quantize_with_tract_q6_k_embedding(inference_target, dtype):
+    """Q6_K is only supported by tract on embedding/gathering."""
+    with torch.no_grad():
+        test_input = torch.arange(6)
+        test_input[:3] = 3
+        model = nn.Embedding(6, 512).eval().to(dtype)
+        q_tensor = fp_to_tract_q6_k(torch.randn(6, 512).to(dtype))
+        assert q_tensor.decompress().dtype == dtype
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={"weight": {"dtype": DatBinHeader.TractCustomTypes.Q6K}},
+            ),
+        )
+
+
+@skipif_unsupported_qtensor
+def test_compress_min_max_q6_k_embeddings_only_quantize_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32))
+    tied = nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 10, bias=False))
+    tied[1].weight = tied[0].weight
+    registry = dynamic_load_registry(DEFAULT_COMPRESSION_REGISTRY)
+
+    registry["min_max_q6_k_embeddings"](model)
+    assert isinstance(model[0].weight, QTensorTractQ6_K)
+    assert not isinstance(model[1].weight, QTensor)
+
+    # weight shared with a Linear must stay float (no tract Q6_K matmul)
+    registry["min_max_q6_k_embeddings"](tied)
+    assert not isinstance(tied[0].weight, QTensor)
+
+    with pytest.raises(T2NErrorMisuse):
+        quantize_weights_min_max_Q6_K(
             nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32)),
             to_quantize_module_classes=(nn.Linear, nn.Embedding),
         )

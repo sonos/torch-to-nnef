@@ -20,6 +20,7 @@ from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
+    fp_to_tract_q6_k,
     fp_to_tract_q8_1_with_min_max_calibration,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
@@ -167,6 +168,18 @@ def quantize_weights_min_max_Q4_K(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
+def quantize_weights_min_max_Q6_K(model: nn.Module, **kwargs):  # noqa: N802
+    """Example of quantization function for a model to Q6_K.
+
+    Uses the ggml reference quantizer (symmetric absmax search per
+    sub-block). tract only supports Q6_K weights for embedding/gathering
+    operations so only `nn.Embedding` (or subclasses) can be quantized.
+    """
+    return _quantize_embeddings_min_max(
+        model, fp_to_tract_q6_k, "q6k_min_max", "Q6_K", **kwargs
+    )
+
+
 def offloaded_tensor_qtensor(
     q_fn, tensor: torch.Tensor, suffix_name: str
 ) -> torch.Tensor:
@@ -218,4 +231,5 @@ DEFAULT_COMPRESSION = {
     ),
     "min_max_q8_1_embeddings": quantize_weights_min_max_Q8_1,
     "min_max_q4_k_embeddings": quantize_weights_min_max_Q4_K,
+    "min_max_q6_k_embeddings": quantize_weights_min_max_Q6_K,
 }

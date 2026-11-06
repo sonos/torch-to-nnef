@@ -35,6 +35,7 @@ To date tract support those kinds of quantization:
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
 - Q4_K: [llama.cpp](https://github.com/ggml-org/llama.cpp) K-quant super-blocks of 256 weights (4.5bpw), supported by tract (>= 0.23.10) **only on embedding/gathering operations** (see [Q4_K for embeddings](#q4_k-for-embeddings)).
+- Q6_K: [llama.cpp](https://github.com/ggml-org/llama.cpp) symmetric K-quant super-blocks of 256 weights (6.5625bpw), supported by tract (>= 0.23.10) **only on embedding/gathering operations** (see [Q6_K for embeddings](#q6_k-for-embeddings)).
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
 Let's take a look at each in turn starting by Q40.
@@ -101,6 +102,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ6_K
     handler: python
 </div>
 
@@ -205,6 +208,15 @@ with torch.no_grad():
         fp_to_tract_q4_k(embedding.weight), requires_grad=False
     )
 ```
+
+### Q6_K for embeddings
+
+`Q6_K` follows the same rules as `Q4_K` (tract >= 0.23.10, embeddings only, `shape[1:]`
+volume divisible by 256) with higher precision: each super-block is stored as llama.cpp
+`block_q6_K` (210 bytes: 256 6bit levels, sixteen i8 scales, then f16 `d`), totaling
+6.5625bpw. It is symmetric (no mins) and the quantizer is a port of llama.cpp
+`quantize_row_q6_K_ref` (`make_qx_quants` search). Use the `min_max_q6_k_embeddings`
+registry entry or `torch_to_nnef.tensor.quant.fp_to_tract_q6_k`.
 
 ### Q40 Use specific quantization method
 

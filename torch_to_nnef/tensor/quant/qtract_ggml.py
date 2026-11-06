@@ -459,3 +459,165 @@ def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
     qtensor = QTensorTractQ4_K.from_fp(fp_tensor)
     assert isinstance(qtensor, QTensorTractQ4_K)
     return qtensor
+
+
+# Q6_K ######################################################################
+
+# ggml `GROUP_MAX_EPS`
+GGML_GROUP_MAX_EPS = 1e-15
+
+
+def ggml_first_absmax(x: np.ndarray) -> T.Tuple[np.ndarray, np.ndarray]:
+    """Signed value of max |x| per row (first one on ties), and that |x|."""
+    idx = np.abs(x).argmax(axis=1)
+    signed = np.take_along_axis(x, idx[:, None], axis=1)[:, 0]
+    return signed, np.abs(signed)
+
+
+def ggml_make_qx_quants(
+    x: np.ndarray, nmax: int
+) -> T.Tuple[np.ndarray, np.ndarray]:
+    """Port of ggml `make_qx_quants` (`rmse_type` 1) over rows of `x`.
+
+    Each value is weighted by its square.
+
+    Returns:
+        (scale (n,), levels u8 (n, group) in [0, 2 * nmax))
+    """
+    f32 = np.float32
+    x = x.astype(f32, copy=False)
+    vmax, amax = ggml_first_absmax(x)
+    empty = amax < f32(GGML_GROUP_MAX_EPS)
+    w = x * x
+    wx = w * x
+
+    def levels_for(iscale):
+        return np.clip(ggml_nearest_int(iscale[:, None] * x), -nmax, nmax - 1)
+
+    def fit(lev):
+        sumlx = ggml_seq_sum(wx * lev.astype(f32))
+        suml2 = ggml_seq_sum(w * (lev * lev).astype(f32))
+        return sumlx, suml2
+
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        iscale = -f32(nmax) / vmax
+        levels = levels_for(iscale)
+        sumlx, suml2 = fit(levels)
+        scale = np.where(suml2 != 0, sumlx / suml2, f32(0))
+        best = scale * sumlx
+        for step in range(-9, 10):
+            if step == 0:
+                continue
+            iscale = -(f32(nmax) + f32(0.1) * f32(step)) / vmax
+            cand = levels_for(iscale)
+            sumlx, suml2 = fit(cand)
+            update = (suml2 > 0) & (sumlx * sumlx > best * suml2)
+            levels = np.where(update[:, None], cand, levels)
+            scale = np.where(update, sumlx / suml2, scale)
+            best = np.where(update, scale * sumlx, best)
+    levels = np.where(empty[:, None], 0, levels + nmax).astype(np.uint8)
+    scale = np.where(empty, f32(0), scale).astype(f32)
+    return scale, levels
+
+
+class QTensorTractQ6_K(QTensorTractGGMLBlock):  # noqa: N801
+    """Tract data format it serializes to: Q6_K (ggml `block_q6_K`).
+
+    Each super-block of 256 values is stored as 210 bytes:
+    128 bytes of low 4 bits and 64 bytes of high 2 bits of 256 6bit
+    levels, sixteen i8 scales (one per sub-block of 16 values), then
+    f16 `d` (6.5625bpw). It is symmetric: value is
+    `d * scale * (level - 32)`.
+
+    Quantization port llama.cpp `quantize_row_q6_K_ref` (no importance
+    matrix), dequantization matches tract bit exactly.
+
+    Warning:
+        tract (<= 0.23.10) only supports Q6_K weights in
+        embedding/gathering operations: there is no matmul or convolution
+        kernel for it yet.
+
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q6_k.v1"
+    FORMAT_NAME = "Q6_K"
+    BLOCK_LEN = QK_K
+    BLOCK_BYTES = 210
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.Q6K
+
+    @classmethod
+    def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:
+        f32 = np.float32
+        n_blocks = fp_blocks.shape[0]
+        x = fp_blocks.astype(f32, copy=False)
+        scales, levels = ggml_make_qx_quants(x.reshape(-1, 16), nmax=32)
+        scales = scales.reshape(n_blocks, 16)
+        levels = levels.reshape(n_blocks, 16, 16)
+        max_scale, max_abs_scale = ggml_first_absmax(scales)
+        valid = max_abs_scale >= f32(GGML_GROUP_MAX_EPS)
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            iscale = np.where(valid, f32(-128.0) / max_scale, f32(0))
+            d_f16 = np.where(valid, f32(1.0) / iscale, f32(0)).astype(
+                np.float16
+            )
+            sc = np.minimum(
+                ggml_nearest_int(iscale[:, None] * scales), 127
+            ).astype(np.int8)
+            sc = np.where(valid[:, None], sc, np.int8(0))
+            # final levels with f16 rounded super scale
+            d = d_f16.astype(f32)[:, None] * sc.astype(f32)
+            x16 = x.reshape(n_blocks, 16, 16)
+            new_levels = (
+                np.clip(ggml_nearest_int(x16 / d[:, :, None]), -32, 31) + 32
+            )
+        levels = np.where((d != 0)[:, :, None], new_levels, levels)
+        levels = np.where(valid[:, None, None], levels, 0).astype(np.uint8)
+        # per half of 128: l[k] = levels[i + 32 * k] for i in 0..32
+        lv = levels.reshape(n_blocks, 2, 4, 32)
+        ql = np.concatenate(
+            [
+                (lv[:, :, 0] & 0xF) | ((lv[:, :, 2] & 0xF) << 4),
+                (lv[:, :, 1] & 0xF) | ((lv[:, :, 3] & 0xF) << 4),
+            ],
+            axis=2,
+        )
+        qh = (
+            (lv[:, :, 0] >> 4)
+            | ((lv[:, :, 1] >> 4) << 2)
+            | ((lv[:, :, 2] >> 4) << 4)
+            | ((lv[:, :, 3] >> 4) << 6)
+        )
+        out = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
+        out[:, :128] = ql.reshape(n_blocks, 128)
+        out[:, 128:192] = qh.reshape(n_blocks, 64)
+        out[:, 192:208] = sc.view(np.uint8)
+        out[:, 208:210] = d_f16.reshape(n_blocks, 1).view(np.uint8)
+        return out
+
+    @classmethod
+    def dequantize_blocks(cls, u8_blocks: np.ndarray) -> np.ndarray:
+        f32 = np.float32
+        n_blocks = u8_blocks.shape[0]
+        ql = u8_blocks[:, :128].reshape(n_blocks, 2, 2, 32)
+        qh = u8_blocks[:, 128:192].reshape(n_blocks, 2, 1, 32)
+        sc = u8_blocks[:, 192:208].copy().view(np.int8).astype(f32)
+        d = u8_blocks[:, 208:210].copy().view(np.float16).astype(f32)
+        low = np.concatenate([ql & 0xF, ql >> 4], axis=2)  # q1, q2, q3, q4
+        high = np.concatenate(
+            [qh & 3, (qh >> 2) & 3, (qh >> 4) & 3, (qh >> 6) & 3], axis=2
+        )
+        levels = (low | (high << 4)).astype(np.int8) - np.int8(32)
+        levels = levels.reshape(n_blocks, 16, 16)
+        # same f32 ops order as tract: (d * sc) * q
+        out = (d * sc)[:, :, None] * levels.astype(f32)
+        return out.reshape(n_blocks, cls.BLOCK_LEN)
+
+
+def fp_to_tract_q6_k(fp_tensor: torch.Tensor) -> QTensorTractQ6_K:
+    """Quantize float tensor to tract supported Q6_K (ggml reference).
+
+    Only use it on embedding weights (see `QTensorTractQ6_K`).
+    """
+    qtensor = QTensorTractQ6_K.from_fp(fp_tensor)
+    assert isinstance(qtensor, QTensorTractQ6_K)
+    return qtensor
