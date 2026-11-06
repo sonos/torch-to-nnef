@@ -1,4 +1,5 @@
 import abc
+import copy
 import logging
 import typing as T
 from pathlib import Path
@@ -312,19 +313,27 @@ class QTensor(OpaqueTensor):
         if new_dtype is None and new_device is None:
             return self
 
-        new_obj = self.__class__(
+        # own scheme copy: `to_device` must not move the source parameters
+        new_obj = self._rebuild_with(
             self.dequantize(),
-            qscheme=self.qscheme,
-            dequant_to_dtype=new_dtype or self.dequant_to_dtype,
+            copy.copy(self.qscheme),
+            new_dtype or self.dequant_to_dtype,
         )
-        # safety assign
-        if not torch.all(new_obj.u8_blob == self.u8_blob):
-            new_obj.u8_blob = self.u8_blob
 
         if new_device is not None:
             new_obj.to_device(new_device)
         new_obj.nnef_name = self.nnef_name
         new_obj.requires_grad = False
+        return new_obj
+
+    def _rebuild_with(self, fp_tensor, qscheme, dequant_to_dtype):
+        """New qtensor of `fp_tensor` keeping these exact u8 codes."""
+        new_obj = self.__class__(
+            fp_tensor, qscheme=qscheme, dequant_to_dtype=dequant_to_dtype
+        )
+        # safety assign
+        if not torch.all(new_obj.u8_blob == self.u8_blob):
+            new_obj.u8_blob = self.u8_blob
         return new_obj
 
     def to_device(self, new_device):

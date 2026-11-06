@@ -1,5 +1,6 @@
 """Tract raw ggml block formats (K-quants): packing and tract execution."""
 
+import hashlib
 from functools import partial
 
 import pytest
@@ -22,6 +23,7 @@ from torch_to_nnef.tensor.quant import (
     QTensor,
     QTensorTractQ4_K,
     QTensorTractQ6_K,
+    fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
     fp_to_tract_q6_k,
 )
@@ -97,6 +99,11 @@ def _check_ggml_decompress_matches_reference(fp_to_qtensor, fp_tensor):
     assert qtensor.shape == fp_tensor.shape
     assert qtensor.numel() == fp_tensor.numel()
     assert qtensor.decompress_to_u8().shape == fp_tensor.shape
+    # calibration codes (kept by `_from_codes`) are the scheme codes
+    assert torch.equal(
+        qtensor.decompress_to_u8(),
+        qtensor.qscheme.quantize_as_u8(fp_tensor.float()),
+    )
     # always quantized from f32, then dequantized in f32 and casted
     f32_qtensor = fp_to_qtensor(fp_tensor.float())
     assert torch.equal(
@@ -105,6 +112,52 @@ def _check_ggml_decompress_matches_reference(fp_to_qtensor, fp_tensor):
     deq = qtensor.decompress()
     assert deq.dtype == fp_tensor.dtype
     assert torch.equal(deq, f32_qtensor.decompress().to(fp_tensor.dtype))
+
+
+def _ggml_lcg_cases(n_values: int, seed: int = 7):
+    """Deterministic inputs (no torch RNG) of the llama.cpp fixtures."""
+    state = seed
+    uni = []
+    for _ in range(n_values * 4):
+        state = (state * 1103515245 + 12345) % (1 << 31)
+        uni.append(state / (1 << 31))
+    u = torch.tensor(uni, dtype=torch.float64).reshape(4, n_values)
+    normal = (u[0] + u[1] + u[2] - 1.5) * 2.0
+    cases = {
+        "normal": normal,
+        "sparse": torch.where(u[3] < 0.1, normal, torch.zeros_like(normal)),
+        "positive": u[2],
+        "heavy": normal * normal * normal,
+    }
+    return {k: v.to(torch.float32) for k, v in cases.items()}
+
+
+# SHA-256 of llama.cpp `quantize_row_*_ref` bytes (ggml-quants.c built
+# with -ffp-contract=off) of `_ggml_lcg_cases(64 * 256)`: unlike the ramp
+# vectors, these cover ties of the scale searches
+GGML_LLAMA_CPP_SHA256 = {
+    "Q4_K": {
+        "normal": (
+            "298f743eccedd95ff88eb1c633eb2fdd0e11d6797e7cb8a4d893e6eea4739872"
+        ),
+        "sparse": (
+            "2b548c844ca0caf3fbe8de8a255c40779fb961421379e03e3c8bd4ec94fb78a5"
+        ),
+        "positive": (
+            "43c19b60612d4d86d042ef2501aff879cadc900023d37f9166caeafca1ae14e6"
+        ),
+        "heavy": (
+            "5dfcb461fb9367b40858fc2664809605b7a73abedcbe682402ab127ee8424449"
+        ),
+    },
+}
+
+
+def _check_ggml_llama_cpp_hashes(fp_to_qtensor, format_name: str):
+    for name, values in _ggml_lcg_cases(64 * 256).items():
+        qtensor = fp_to_qtensor(values.reshape(64, 256))
+        digest = hashlib.sha256(_tract_bytes(qtensor)).hexdigest()
+        assert digest == GGML_LLAMA_CPP_SHA256[format_name][name], name
 
 
 def _ggml_invalid_weights(block_len: int):
@@ -122,8 +175,8 @@ def _ggml_invalid_weights(block_len: int):
     ]
 
 
-# llama.cpp quantize_row_q4_K_ref / dequantize_row_q4_K vectors
-# (from tract v0.23.10 linalg/src/frame/block_quant/ggml_k.rs tests)
+# ramp vectors of tract v0.23.10 linalg/src/frame/block_quant/ggml_k.rs
+# tests (llama.cpp quantize_row_q4_K_ref / dequantize_row_q4_K)
 Q4_K_GGML_REFS = [
     (
         0,
@@ -152,6 +205,10 @@ def test_q4k_matches_ggml_reference(zeros, expected_hex, values):
     _check_ggml_reference(
         fp_to_tract_q4_k, _ggml_ramp(256, zeros), expected_hex, values
     )
+
+
+def test_q4k_matches_llama_cpp_on_random_super_blocks():
+    _check_ggml_llama_cpp_hashes(fp_to_tract_q4_k, "Q4_K")
 
 
 def test_q4k_dat_content_layout(tmp_path):
@@ -267,6 +324,48 @@ def test_q4k_keeps_fp_tensor_device():
     )
     out = nn.functional.embedding(torch.tensor([0, 3], device=device), qtensor)
     assert torch.equal(out.cpu(), deq.cpu()[[0, 3]])
+
+
+@pytest.mark.parametrize(
+    "fp_to_qtensor",
+    [fp_to_tract_q4_k, fp_to_tract_q4_0_with_min_max_calibration],
+    ids=["q4_k", "q4_0"],
+)
+def test_qtensor_to_keeps_codes_and_source(fp_to_qtensor):
+    fp_tensor = torch.randn(4, 256, generator=torch.Generator().manual_seed(0))
+    qtensor = fp_to_qtensor(fp_tensor)
+    codes = qtensor.decompress_to_u8().clone()
+    deq = qtensor.decompress()
+    targets = [torch.float16]
+    if _accelerator_device() is not None:
+        targets.append(_accelerator_device())
+    for target in targets:
+        moved = qtensor.to(target)
+        assert type(moved) is type(qtensor)
+        assert torch.equal(moved.decompress_to_u8().cpu(), codes)
+        if isinstance(target, torch.dtype):
+            assert moved.decompress().dtype == target
+        else:
+            assert moved.device.type == target.type
+            assert torch.equal(moved.decompress().cpu(), deq)
+        # the source qtensor is left untouched
+        assert qtensor.device.type == "cpu"
+        assert torch.equal(qtensor.decompress(), deq)
+
+
+def test_q4k_zero_sub_scales_keep_ggml_search_levels():
+    # a sub-block far below the others gets a 6bit scale of 0: ggml keeps
+    # its `make_qkx2_quants` levels, the scheme must reproduce them
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(2, 256, generator=gen)
+    fp_tensor[:, :32] *= 1e-4
+    qtensor = fp_to_tract_q4_k(fp_tensor)
+    qscheme = qtensor.qscheme
+    zero_sub = qscheme.sub_scales() == 0
+    assert zero_sub[:, 0].all() and not zero_sub[:, 1:].any()
+    codes = qtensor.decompress_to_u8()
+    assert codes[:, :32].any()
+    assert torch.equal(codes, qscheme.quantize_as_u8(fp_tensor))
 
 
 def test_ggml_nearest_int_matches_ggml():
