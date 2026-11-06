@@ -2,7 +2,6 @@
 
 from functools import partial
 
-import numpy as np
 import pytest
 import torch
 from torch import nn
@@ -26,7 +25,10 @@ from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_k,
     fp_to_tract_q5_k,
 )
-from torch_to_nnef.tensor.quant.qtract_ggml import ggml_nearest_int
+from torch_to_nnef.tensor.quant.qtract_ggml import (
+    ggml_nearest_int,
+    ggml_seq_sum,
+)
 
 from .test_qtensor import check_tensor_in_nnef_archive
 from .utils import (
@@ -43,31 +45,36 @@ from .utils import (
 pytestmark = skipif_unsupported_qtensor
 
 
-def _ggml_ramp(length: int, zeros: int) -> np.ndarray:
+def _ggml_ramp(length: int, zeros: int) -> torch.Tensor:
     """Ramp of tract `ggml_k` tests over [-2, 2] with leading zeros."""
-    return np.array(
+    return torch.tensor(
         [
             0.0 if i < zeros else (((i * 17 + 3) % 41) - 20.0) / 10.0
             for i in range(length)
         ],
-        dtype=np.float32,
+        dtype=torch.float32,
     )
 
 
-def _check_ggml_reference(
-    qtensor_cls, data: np.ndarray, expected_hex: str, values
-):
-    """Check quant bytes and dequant f32 bits against llama.cpp ones."""
-    blocks = qtensor_cls.quantize_blocks(data.reshape(1, -1))
-    assert blocks.tobytes().hex() == expected_hex
-    ref_blocks = np.frombuffer(bytes.fromhex(expected_hex), dtype=np.uint8)
-    deq = qtensor_cls.dequantize_blocks(ref_blocks.reshape(1, -1))
+def _f32_bits(value: torch.Tensor) -> int:
+    return int(value.reshape(1).view(torch.int32)) & 0xFFFFFFFF
+
+
+def _tract_bytes(qtensor) -> bytes:
+    return qtensor._build_binary_dat_content(TractNNEF.latest())
+
+
+def _check_ggml_reference(fp_to_qtensor, data, expected_hex: str, values):
+    """Check packed bytes and dequant f32 bits against llama.cpp ones."""
+    qtensor = fp_to_qtensor(data.reshape(1, -1))
+    assert _tract_bytes(qtensor).hex() == expected_hex
+    deq = qtensor.decompress()
     for ix, bits in values:
-        assert int(deq[0, ix].view(np.uint32)) == bits, ix
+        assert _f32_bits(deq[0, ix]) == bits, ix
 
 
 def _check_ggml_dat_content_layout(tmp_path, qtensor, item_type):
-    """Check a ggml block `.dat` is the header + raw ggml blocks."""
+    """Check a ggml block `.dat` is the header + packed ggml blocks."""
     qtensor_cls = type(qtensor)
     qtensor.write_in_file(tmp_path, "weight", TractNNEF.latest())
     with (tmp_path / "weight.dat").open("rb") as fh:
@@ -80,32 +87,23 @@ def _check_ggml_dat_content_layout(tmp_path, qtensor, item_type):
     assert header.bits_per_item == 2**32 - 1
     assert header.data_size_bytes == len(content)
     assert len(content) == n_blocks * qtensor_cls.BLOCK_BYTES
-    blocks = np.frombuffer(content, dtype=np.uint8).reshape(
-        n_blocks, qtensor_cls.BLOCK_BYTES
-    )
-    assert np.array_equal(blocks, qtensor.decompress_to_u8().numpy())
-    deq = qtensor_cls.dequantize_blocks(blocks).reshape(qtensor.shape)
-    assert np.array_equal(deq, qtensor.decompress().float().numpy())
+    assert content == _tract_bytes(qtensor)
 
 
-def _check_ggml_decompress_matches_reference(qtensor_cls, fp_tensor):
-    """Check decompress is the numpy reference dequant in source dtype."""
-    qtensor = qtensor_cls.from_fp(fp_tensor)
+def _check_ggml_decompress_matches_reference(fp_to_qtensor, fp_tensor):
+    """Codes have the float shape, decompress casts the f32 dequant."""
+    qtensor = fp_to_qtensor(fp_tensor)
     assert qtensor.shape == fp_tensor.shape
     assert qtensor.numel() == fp_tensor.numel()
-    n_blocks = fp_tensor.numel() // qtensor_cls.BLOCK_LEN
-    u8_blocks = qtensor.decompress_to_u8().numpy()
-    assert u8_blocks.shape == (n_blocks, qtensor_cls.BLOCK_BYTES)
-    fp32_blocks = fp_tensor.float().numpy().reshape((n_blocks, -1))
-    assert np.array_equal(u8_blocks, qtensor_cls.quantize_blocks(fp32_blocks))
-    expected = (
-        torch.from_numpy(qtensor_cls.dequantize_blocks(u8_blocks))
-        .reshape(fp_tensor.shape)
-        .to(fp_tensor.dtype)
+    assert qtensor.decompress_to_u8().shape == fp_tensor.shape
+    # always quantized from f32, then dequantized in f32 and casted
+    f32_qtensor = fp_to_qtensor(fp_tensor.float())
+    assert torch.equal(
+        qtensor.decompress_to_u8(), f32_qtensor.decompress_to_u8()
     )
     deq = qtensor.decompress()
     assert deq.dtype == fp_tensor.dtype
-    assert torch.equal(deq, expected)
+    assert torch.equal(deq, f32_qtensor.decompress().to(fp_tensor.dtype))
 
 
 def _ggml_invalid_weights(block_len: int):
@@ -151,13 +149,13 @@ Q4_K_GGML_REFS = [
 @pytest.mark.parametrize("zeros,expected_hex,values", Q4_K_GGML_REFS)
 def test_q4k_matches_ggml_reference(zeros, expected_hex, values):
     _check_ggml_reference(
-        QTensorTractQ4_K, _ggml_ramp(256, zeros), expected_hex, values
+        fp_to_tract_q4_k, _ggml_ramp(256, zeros), expected_hex, values
     )
 
 
 def test_q4k_dat_content_layout(tmp_path):
     qtensor = fp_to_tract_q4_k(torch.randn(3, 512))
-    assert qtensor.u8_blob.shape == (6, 144)
+    assert qtensor.u8_blob.shape == (3, 512)
     _check_ggml_dat_content_layout(
         tmp_path, qtensor, DatBinHeader.TractCustomTypes.Q4K
     )
@@ -166,7 +164,7 @@ def test_q4k_dat_content_layout(tmp_path):
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_q4k_dequant_round_trip_error_bounded(seed):
     # same bound as tract q4_k_roundtrip
-    ramp = torch.from_numpy(_ggml_ramp(512, 0)).reshape(2, 256)
+    ramp = _ggml_ramp(512, 0).reshape(2, 256)
     qtensor = fp_to_tract_q4_k(ramp)
     assert (qtensor.decompress() - ramp).abs().max() < 0.35
     zeros = fp_to_tract_q4_k(torch.zeros(2, 256))
@@ -197,7 +195,7 @@ def test_q4k_dequant_round_trip_error_bounded(seed):
 def test_q4k_decompress_matches_reference(shape, dtype):
     gen = torch.Generator().manual_seed(0)
     fp_tensor = torch.randn(shape, generator=gen).to(dtype)
-    _check_ggml_decompress_matches_reference(QTensorTractQ4_K, fp_tensor)
+    _check_ggml_decompress_matches_reference(fp_to_tract_q4_k, fp_tensor)
 
 
 @pytest.mark.parametrize(
@@ -271,17 +269,24 @@ def test_q4k_keeps_fp_tensor_device():
 
 
 def test_ggml_nearest_int_matches_ggml():
-    vals = np.array(
+    vals = torch.tensor(
         [0.5, 1.5, 2.5, -0.5, -1.5, 0.49999997, 3.7, -3.7, 4194303.0],
-        dtype=np.float32,
+        dtype=torch.float32,
     )
-    np.testing.assert_array_equal(ggml_nearest_int(vals), np.rint(vals))
+    assert torch.equal(ggml_nearest_int(vals), torch.round(vals).int())
     # beyond ggml range: same bits as ggml on every platform (a float to
     # int32 cast of out of range values is platform dependent)
-    big = np.array([2.0**23, 1e7], dtype=np.float32)
-    np.testing.assert_array_equal(
-        ggml_nearest_int(big), np.array([-2097152, -1291456], dtype=np.int32)
-    )
+    big = torch.tensor([2.0**23, 1e7], dtype=torch.float32)
+    assert ggml_nearest_int(big).tolist() == [-2097152, -1291456]
+
+
+def test_ggml_seq_sum_is_sequential_f32():
+    # each 1 + 2**-24 rounds back to 1 in f32 (a wider accumulator or
+    # another order gives 1 + 2**-22)
+    vals = torch.tensor([[1.0] + [2.0**-24] * 4], dtype=torch.float32)
+    assert ggml_seq_sum(vals).item() == 1.0
+    assert ggml_seq_sum(vals.flip(1)).item() == 1.0 + 2.0**-22
+    assert vals.double().sum().item() == 1.0 + 2.0**-22
 
 
 @pytest.mark.parametrize(
@@ -387,13 +392,13 @@ Q5_K_GGML_REFS = [
 @pytest.mark.parametrize("zeros,expected_hex,values", Q5_K_GGML_REFS)
 def test_q5k_matches_ggml_reference(zeros, expected_hex, values):
     _check_ggml_reference(
-        QTensorTractQ5_K, _ggml_ramp(256, zeros), expected_hex, values
+        fp_to_tract_q5_k, _ggml_ramp(256, zeros), expected_hex, values
     )
 
 
 def test_q5k_dat_content_layout(tmp_path):
     qtensor = fp_to_tract_q5_k(torch.randn(3, 512))
-    assert qtensor.u8_blob.shape == (6, 176)
+    assert qtensor.u8_blob.shape == (3, 512)
     _check_ggml_dat_content_layout(
         tmp_path, qtensor, DatBinHeader.TractCustomTypes.Q5K
     )
@@ -402,7 +407,7 @@ def test_q5k_dat_content_layout(tmp_path):
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_q5k_dequant_round_trip_error_bounded(seed):
     # same bound as tract q5_k_roundtrip
-    ramp = torch.from_numpy(_ggml_ramp(512, 0)).reshape(2, 256)
+    ramp = _ggml_ramp(512, 0).reshape(2, 256)
     qtensor = fp_to_tract_q5_k(ramp)
     assert (qtensor.decompress() - ramp).abs().max() < 0.2
     zeros = fp_to_tract_q5_k(torch.zeros(2, 256))
@@ -435,7 +440,7 @@ def test_q5k_dequant_round_trip_error_bounded(seed):
 def test_q5k_decompress_matches_reference(shape, dtype):
     gen = torch.Generator().manual_seed(0)
     fp_tensor = torch.randn(shape, generator=gen).to(dtype)
-    _check_ggml_decompress_matches_reference(QTensorTractQ5_K, fp_tensor)
+    _check_ggml_decompress_matches_reference(fp_to_tract_q5_k, fp_tensor)
 
 
 @pytest.mark.parametrize(

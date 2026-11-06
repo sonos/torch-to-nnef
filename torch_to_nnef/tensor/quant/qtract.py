@@ -2,18 +2,15 @@
 
 `QTensorTractDat` is the base of every tract custom `.dat` format: offload
 state, tract version gate and `.dat` writing workflow, with no assumption on
-the serialized layout. Formats made of fixed size blocks add the
-`TractBlockLayout` mixin (`BLOCK_LEN` values stored in `BLOCK_BYTES`).
+the serialized layout.
 
-This module holds the block formats with one f16 scale per group of 32 values
-(`QTensorTractBlockQuant`: Q4_0, Q8_1, Q2_0_T). Their scale is a
-`QScalePerGroupF16` that a torch calibration sets (min max, percentile, or
-external methods like GPTQ), and their u8 storage holds one quantized value
-per byte, packed into tract bytes only when written.
-
-Formats whose bytes come from a ggml reference quantizer (Q4_K and other
-K-quants, IQ formats) live in `qtract_ggml`: their u8 storage is the raw
-ggml block bytes.
+`QTensorTractBlockQuant` is the base of every ggml style block format: its
+u8 storage holds one quantized code per value, its qscheme the block
+parameters as torch tensors, and tract bytes are only packed when written.
+This module holds the formats with one f16 scale per block of 32 values
+(Q4_0, Q8_1, Q2_0_T, `QScalePerGroupF16` that a torch calibration sets:
+min max, percentile, or external methods like GPTQ). K-quants and IQ formats
+live in `qtract_ggml`.
 """
 
 import filecmp
@@ -95,9 +92,9 @@ def check_block_quant_input(
 
 
 def check_f16_scales(
-    scales: T.Union[torch.Tensor, np.ndarray],
+    scales: torch.Tensor,
     format_name: str,
-    nonzero_mask: T.Optional[T.Union[torch.Tensor, np.ndarray]] = None,
+    nonzero_mask: T.Optional[torch.Tensor] = None,
     scale_name: str = "scale",
 ) -> None:
     """Reject f16 rounded block scales out of f16 range.
@@ -113,45 +110,20 @@ def check_f16_scales(
     Raises:
         T2NErrorImpossibleQuantization: on f16 overflow (inf) or underflow.
     """
-    if isinstance(scales, torch.Tensor):
-        scales = scales.detach().cpu().float().numpy()
-    if isinstance(nonzero_mask, torch.Tensor):
-        nonzero_mask = nonzero_mask.detach().cpu().numpy()
-    if not np.isfinite(scales).all():
+    scales = scales.detach()
+    if not torch.isfinite(scales).all():
         raise T2NErrorImpossibleQuantization(
             f"tract {format_name} block {scale_name} overflows f16: "
             "weights magnitude is too large"
         )
     if nonzero_mask is not None:
-        underflow = np.asarray(nonzero_mask, dtype=bool) & (scales == 0)
+        underflow = nonzero_mask.to(torch.bool) & (scales == 0)
         if underflow.any():
             raise T2NErrorImpossibleQuantization(
                 f"tract {format_name} block {scale_name} underflows f16: "
                 f"{int(underflow.sum())} nonzero block(s) would dequantize "
                 "to zeros (weights magnitude is too small)"
             )
-
-
-class TractBlockLayout:
-    """Layout mixin of formats serialized as fixed size blocks.
-
-    Each block of `BLOCK_LEN` consecutive values (in row-major order) is
-    serialized as `BLOCK_BYTES` bytes.
-    """
-
-    BLOCK_LEN: int
-    BLOCK_BYTES: int
-
-    @classmethod
-    def data_size_bytes(cls, shape: T.Tuple[int, ...]) -> int:
-        """Serialized size of a tensor of `shape`."""
-        vol = reduce(operator.mul, shape, 1)
-        if vol % cls.BLOCK_LEN != 0:
-            raise T2NErrorMisuse(
-                f"tensor volume {vol} of shape {tuple(shape)} is not "
-                f"a multiple of block length {cls.BLOCK_LEN}"
-            )
-        return vol // cls.BLOCK_LEN * cls.BLOCK_BYTES
 
 
 class QTensorTractDat(QTensorTract, SupportsOffloadState):
@@ -341,43 +313,69 @@ class QTensorTractDat(QTensorTract, SupportsOffloadState):
         )
 
 
-class QTensorTractBlockQuant(TractBlockLayout, QTensorTractDat):
-    """Common base of tract GGML-like block quantization formats.
+class QTensorTractBlockQuant(QTensorTractDat):
+    """Common base of tract (ggml style) block quantization formats.
 
-    Values are quantized per group of `GROUP_SIZE` elements sharing a f16
-    scale. Each concrete format only defines its tract item type and how a
-    chunk of groups is packed into bytes.
+    Values are split in blocks of `BLOCK_LEN` consecutive values (in
+    row-major order), each serialized as `BLOCK_BYTES` bytes.
+
+    The u8 storage holds one quantized code per value (same shape as the
+    float tensor) and the qscheme holds the block parameters (scales, mins,
+    ...) as torch tensors. tract bytes are only made when written, by
+    `_pack_blocks`.
+
+    Subclass contract:
+        - `OFFLOAD_STATE_TAG`, `FORMAT_NAME`, `MIN_TRACT_VERSION`
+        - `BLOCK_LEN`, `BLOCK_BYTES`: serialized block layout
+        - `QSCHEME_CLS`: its qscheme class, checked by `_check_qscheme`
+          (`QScalePerGroupF16` by default: one f16 scale per block of
+          `N_BITS` codes)
+        - `_item_type(inference_target)`: tract `.dat` item type
+        - `_block_params(qscheme, n_blocks)`: qscheme tensors with a
+          leading `n_blocks` dimension, sliced per chunk of blocks
+        - `_pack_blocks(codes, params, inference_target)`: pack u8 codes
+          `(n, BLOCK_LEN)` and their params chunk into u8 `(n, BLOCK_BYTES)`
 
     """
 
+    BLOCK_LEN: int = 32
+    BLOCK_BYTES: int
+    QSCHEME_CLS: T.Type[QScheme] = QScalePerGroupF16
+    # QScalePerGroupF16 formats: bits per code and calibration default
+    # (see qscale_per_group_f16_min_max_calibration)
     N_BITS: int
-    GROUP_SIZE = 32
-    BLOCK_LEN = GROUP_SIZE
-    # calibration default, see qscale_per_group_f16_min_max_calibration
     RESTRICTED_RANGE = False
-    qscheme: QScalePerGroupF16  # type notation for mypy
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        # one serialized block per group
-        cls.BLOCK_LEN = cls.GROUP_SIZE
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
-        # tract limited support of packing
-        assert self.qscheme.n_bits == self.N_BITS, self.qscheme.n_bits
-        assert self.qscheme.group_size == self.GROUP_SIZE, (
-            self.qscheme.group_size
-        )
-        self.decompressed_shape = self.decompress_to_u8().shape
+        self._check_qscheme(self.qscheme)
+        self.decompressed_shape = tuple(self.decompress_to_u8().shape)
         assert len(self.decompressed_shape) in [2, 3, 4], (
             self.decompressed_shape
         )
         assert (
-            reduce(operator.mul, self.decompressed_shape[1:]) % self.GROUP_SIZE
+            reduce(operator.mul, self.decompressed_shape[1:]) % self.BLOCK_LEN
             == 0
         ), self.decompressed_shape
+
+    @classmethod
+    def data_size_bytes(cls, shape: T.Tuple[int, ...]) -> int:
+        """Serialized size of a tensor of `shape`."""
+        vol = reduce(operator.mul, shape, 1)
+        if vol % cls.BLOCK_LEN != 0:
+            raise T2NErrorMisuse(
+                f"tensor volume {vol} of shape {tuple(shape)} is not "
+                f"a multiple of block length {cls.BLOCK_LEN}"
+            )
+        return vol // cls.BLOCK_LEN * cls.BLOCK_BYTES
+
+    @classmethod
+    def _check_qscheme(cls, qscheme: QScheme) -> None:
+        assert isinstance(qscheme, cls.QSCHEME_CLS), qscheme
+        if isinstance(qscheme, QScalePerGroupF16):
+            # tract limited support of packing
+            assert qscheme.n_bits == cls.N_BITS, qscheme.n_bits
+            assert qscheme.group_size == cls.BLOCK_LEN, qscheme.group_size
 
     @classmethod
     def _item_type(
@@ -386,18 +384,29 @@ class QTensorTractBlockQuant(TractBlockLayout, QTensorTractDat):
         raise T2NErrorNotImplemented()
 
     @classmethod
-    def _pack_groups(
+    def _block_params(
+        cls, qscheme: QScheme, n_blocks: int
+    ) -> T.Dict[str, torch.Tensor]:
+        """Block parameters of `qscheme`, each with a leading `n_blocks` dim.
+
+        Default: the f16 `scale` of a `QScalePerGroupF16`.
+        """
+        assert isinstance(qscheme, QScalePerGroupF16), qscheme
+        return {"scale": qscheme.scale.reshape(n_blocks)}
+
+    @classmethod
+    def _pack_blocks(
         cls,
-        u8_groups: torch.Tensor,
-        scale: torch.Tensor,
+        codes: torch.Tensor,
+        params: T.Dict[str, torch.Tensor],
         inference_target: TractNNEF,
     ) -> np.ndarray:
-        """Pack (n_groups, GROUP_SIZE) u8 values + (n_groups,) f16 scales."""
+        """Pack (n, BLOCK_LEN) u8 codes and their block params into bytes."""
         raise T2NErrorNotImplemented()
 
     @classmethod
     def _check_offload_state(cls, state):
-        assert state["qscheme"].group_size == cls.GROUP_SIZE, state["qscheme"]
+        cls._check_qscheme(state["qscheme"])
 
     @classmethod
     def _build_binary_dat_header_for_shape(
@@ -405,30 +414,32 @@ class QTensorTractBlockQuant(TractBlockLayout, QTensorTractDat):
     ) -> bytes:
         return DatBinHeader.build_tract_qtensor(
             cls._item_type(inference_target),
-            decompressed_shape,
-            data_size_bytes=cls.data_size_bytes(decompressed_shape),
+            tuple(decompressed_shape),
+            data_size_bytes=cls.data_size_bytes(tuple(decompressed_shape)),
         ).to_bytes()
 
     @classmethod
     def _iter_binary_dat_content_chunks(
         cls,
         u8_blob: torch.Tensor,
-        scale: torch.Tensor,
+        qscheme: QScheme,
         inference_target: TractNNEF,
-        chunk_groups: int = 1 << 16,
+        chunk_blocks: int = 1 << 16,
     ):
-        group_size = cls.GROUP_SIZE
-        tensor_flat = u8_blob.detach().cpu().flatten()
-        assert tensor_flat.numel() % group_size == 0, tensor_flat.shape
-        group_count = tensor_flat.numel() // group_size
-        scale_flat = scale.detach().cpu().reshape(group_count)
-
-        for start in range(0, group_count, chunk_groups):
-            end = min(start + chunk_groups, group_count)
-            u8_groups = tensor_flat[start * group_size : end * group_size]
-            b_all = cls._pack_groups(
-                u8_groups.reshape(end - start, group_size),
-                scale_flat[start:end].contiguous(),
+        block_len = cls.BLOCK_LEN
+        codes = u8_blob.detach().cpu().flatten()
+        assert codes.numel() % block_len == 0, codes.shape
+        n_blocks = codes.numel() // block_len
+        codes = codes.reshape(n_blocks, block_len)
+        params = {
+            k: v.detach().cpu()
+            for k, v in cls._block_params(qscheme, n_blocks).items()
+        }
+        for start in range(0, n_blocks, chunk_blocks):
+            end = min(start + chunk_blocks, n_blocks)
+            b_all = cls._pack_blocks(
+                codes[start:end],
+                {k: v[start:end].contiguous() for k, v in params.items()},
                 inference_target,
             )
             assert b_all.dtype == np.uint8 and b_all.shape == (
@@ -440,7 +451,7 @@ class QTensorTractBlockQuant(TractBlockLayout, QTensorTractDat):
     def _build_binary_dat_content(self, inference_target: TractNNEF) -> bytes:
         return b"".join(
             self._iter_binary_dat_content_chunks(
-                self.decompress_to_u8(), self.qscheme.scale, inference_target
+                self.decompress_to_u8(), self.qscheme, inference_target
             )
         )
 
@@ -453,7 +464,7 @@ class QTensorTractBlockQuant(TractBlockLayout, QTensorTractDat):
         qscheme: QScheme,
         inference_target: TractNNEF,
     ):
-        assert isinstance(qscheme, QScalePerGroupF16), qscheme
+        cls._check_qscheme(qscheme)
         with path.open("wb") as fh:
             fh.write(
                 cls._build_binary_dat_header_for_shape(
@@ -461,7 +472,7 @@ class QTensorTractBlockQuant(TractBlockLayout, QTensorTractDat):
                 )
             )
             for chunk in cls._iter_binary_dat_content_chunks(
-                u8_blob, qscheme.scale, inference_target
+                u8_blob, qscheme, inference_target
             ):
                 fh.write(chunk)
 
@@ -537,12 +548,13 @@ class QTensorTractScaleOnly(QTensorTractBlockQuant):
         ).numpy()
 
     @classmethod
-    def _pack_groups(
+    def _pack_blocks(
         cls,
-        u8_groups: torch.Tensor,
-        scale: torch.Tensor,
+        codes: torch.Tensor,
+        params: T.Dict[str, torch.Tensor],
         inference_target: TractNNEF,
     ) -> np.ndarray:
+        u8_groups, scale = codes, params["scale"]
         n_groups = u8_groups.shape[0]
         post_tract_21_11 = inference_target.version >= "0.21.11"
         b_all = np.empty((n_groups, cls.BLOCK_BYTES), dtype=np.uint8)
@@ -550,7 +562,7 @@ class QTensorTractScaleOnly(QTensorTractBlockQuant):
         b_all[:, 2:] = (
             cls._pack_nibbles(u8_groups, post_tract_21_11)
             .view(np.uint8)
-            .reshape(n_groups, cls.GROUP_SIZE // 2)
+            .reshape(n_groups, cls.BLOCK_LEN // 2)
         )
         return b_all
 
@@ -603,8 +615,9 @@ class QTensorTractQ2_0_T(QTensorTractBlockQuant):  # noqa: N801
         return DatBinHeader.TractCustomTypes.Q20T
 
     @classmethod
-    def _pack_groups(cls, u8_groups, scale, inference_target):
-        codes = u8_groups.numpy().reshape(-1, 8, 4)
+    def _pack_blocks(cls, codes, params, inference_target):
+        scale = params["scale"]
+        codes = codes.numpy().reshape(-1, 8, 4)
         blocks = np.empty((len(codes), cls.BLOCK_BYTES), dtype=np.uint8)
         blocks[:, :2] = (
             scale.numpy().astype("<f2").view(np.uint8).reshape(-1, 2)
@@ -671,12 +684,13 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
         return DatBinHeader.TractCustomTypes.Q81_LEGACY
 
     @classmethod
-    def _pack_groups(
+    def _pack_blocks(
         cls,
-        u8_groups: torch.Tensor,
-        scale: torch.Tensor,
+        codes: torch.Tensor,
+        params: T.Dict[str, torch.Tensor],
         inference_target: TractNNEF,
     ) -> np.ndarray:
+        u8_groups, scale = codes, params["scale"]
         n_groups = u8_groups.shape[0]
         # u8 storage is offset by 2**(n_bits-1)
         i8_vals = (u8_groups.to(torch.int16) - 2 ** (cls.N_BITS - 1)).to(
@@ -711,7 +725,7 @@ def _fp_to_tract_block_quant_with_min_max_calibration(
     percentile: float,
 ) -> TQTensorTractBlockQuant:
     format_name = qtensor_cls.FORMAT_NAME
-    group_size = qtensor_cls.GROUP_SIZE
+    group_size = qtensor_cls.BLOCK_LEN
     if isinstance(fp_tensor, torch.nn.Parameter):
         fp_tensor = fp_tensor.data
 
