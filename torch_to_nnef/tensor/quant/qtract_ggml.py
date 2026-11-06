@@ -821,7 +821,8 @@ class QTensorTractQ6_K(QTensorTractGGMLK):  # noqa: N801
     BLOCK_BYTES = 210
     ITEM_TYPE = DatBinHeader.TractCustomTypes.Q6K
     QSCHEME_CLS = QScaleGGMLK6
-    qscheme: QScaleGGMLK6  # type notation for mypy
+    # instance attribute: type notation for mypy
+    qscheme: QScaleGGMLK6
 
     @classmethod
     def _pack_blocks(cls, codes, params, inference_target) -> np.ndarray:
