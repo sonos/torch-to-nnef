@@ -341,17 +341,29 @@ def tract_target(version: str) -> TractNNEF:
     return target
 
 
-def old_tract_versions(min_version: str) -> T.List[str]:
-    """Versions below `min_version` (SemVer: prereleases sort before)."""
+def tract_versions_just_below(min_version: str) -> T.List[str]:
+    """Version strings just below `min_version`, to test version gates.
+
+    The previous release (previous patch, or previous minor when the patch
+    is 0) and two prereleases of `min_version` itself, which SemVer sorts
+    before it. For "0.23.10": ["0.23.9", "0.23.10-pre", "0.23.10-rc.1"].
+    """
     major, minor, patch = (int(v) for v in min_version.split("."))
     versions = [f"{min_version}-pre", f"{min_version}-rc.1"]
     if patch > 0:
         versions.insert(0, f"{major}.{minor}.{patch - 1}")
+    elif minor > 0:
+        versions.insert(0, f"{major}.{minor - 1}.0")
     return versions
 
 
-def supported_tract_versions(min_version: str) -> T.List[str]:
-    """Versions at or above `min_version` (build metadata is ignored)."""
+def tract_versions_just_at_or_above(min_version: str) -> T.List[str]:
+    """Version strings at or just above `min_version`, to test version gates.
+
+    `min_version` itself, with build metadata (ignored by SemVer ordering),
+    a prerelease of the next patch and the next patch. For "0.23.10":
+    ["0.23.10", "0.23.10+build.1", "0.23.11-pre", "0.23.11"].
+    """
     major, minor, patch = (int(v) for v in min_version.split("."))
     next_patch = f"{major}.{minor}.{patch + 1}"
     return [
