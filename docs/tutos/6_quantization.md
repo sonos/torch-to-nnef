@@ -477,6 +477,32 @@ Each block stores an f16 scale followed by eight bytes of two-bit codes:
 are packed into each byte, lowest bits first. There is no stored zero point.
 NNEF identifies this layout with tract's custom item type `0x3020`.
 
+```text
+One block: 32 weights, 10 bytes (after the NNEF tensor header)
+
+Byte offset    0       1       2       3              9
+           +---------------+-------+-------+-----+---------+
+Contents   |   f16 scale   | c0-c3 | c4-c7 | ... | c28-c31 |
+           | little-endian |       |       |     |         |
+           +---------------+-------+-------+-----+---------+
+                2 bytes           8 bytes: 32 two-bit codes
+
+Zoom into byte 2 (high bits on the left):
+
+Bit         7   6     5   4     3   2     1   0
+           +---------+---------+---------+---------+
+Code       |   c3    |   c2    |   c1    |   c0    |
+           +---------+---------+---------+---------+
+                Each code describes one consecutive weight
+
+Code bits      00         01         10         11
+Weight       -scale       0       +scale    not emitted
+```
+
+For example, weights `[-0.5, 0, +0.5, -0.5]` have codes `[0, 1, 2, 0]`.
+Their packed byte is `00 10 01 00` in high-to-low bit order, or `0x24`.
+The block's scale is `0.5`, stored as the little-endian f16 bytes `00 38`.
+
 The payload is `(32 * 2 + 16) / 32 = 2.5 bpw`: 2 bpw for codes and 0.5 bpw
 for scales. Three possible values carry `log2(3) ~= 1.585` bits of
 information, but this format uses fixed two-bit packing rather than base-3
