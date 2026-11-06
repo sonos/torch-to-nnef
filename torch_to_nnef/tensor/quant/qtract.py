@@ -147,6 +147,9 @@ class QTensorTractDat(QTensorTract, SupportsOffloadState):
     MIN_TRACT_VERSION: T.Optional[str] = None
     # appended to the version gate warning when set
     VERSION_GATE_NOTE: T.Optional[str] = None
+
+    # instance attribute (float tensor shape), set at construction by
+    # subclasses and by `from_offload_state`
     decompressed_shape: T.Tuple[int, ...]
 
     def to_offload_state(self) -> T.Dict[str, T.Any]:
@@ -520,7 +523,8 @@ class QTensorTractScalePerGroupF16(QTensorTractBlockQuant):
     # (see qscale_per_group_f16_min_max_calibration)
     N_BITS: int
     RESTRICTED_RANGE = False
-    qscheme: QScalePerGroupF16  # type notation for mypy
+    # instance attribute: type notation for mypy
+    qscheme: QScalePerGroupF16
 
     @classmethod
     def _check_qscheme(cls, qscheme: QScheme) -> None:
