@@ -11,7 +11,6 @@ Warning:
 
 """
 
-import logging
 import operator
 import typing as T
 from functools import reduce
@@ -27,9 +26,11 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant.base import QScheme, U8Compressor
-from torch_to_nnef.tensor.quant.qtract import QTensorTractDat
-
-LOGGER = logging.getLogger(__name__)
+from torch_to_nnef.tensor.quant.qtract import (
+    QTensorTractDat,
+    check_block_quant_input,
+    check_f16_scales,
+)
 
 # numbers of blocks processed at once by numpy (bounds peak memory)
 GGML_CHUNK_BLOCKS = 1 << 14
@@ -126,8 +127,9 @@ class QTensorTractGGMLBlock(QTensorTractDat):
         - `check_fp_tensor`: input weights (called at construction)
         - `check_quantized_blocks`: f16 scales overflow and underflow
           (called on each quantized chunk)
-        - `_check_inference_target_support`: tract version gate, warns
-          with an upgrade hint then raises before any data is written
+        - `QTensorTractDat._check_inference_target_support`: tract version
+          gate, warns with an upgrade hint then raises before any data
+          is written
 
     Warning:
         tract (<= 0.23.10) only supports these formats in
@@ -164,41 +166,9 @@ class QTensorTractGGMLBlock(QTensorTractDat):
     def check_fp_tensor(cls, fp_tensor: torch.Tensor):
         """Reject weights this format can not represent.
 
-        Raises:
-            T2NErrorImpossibleQuantization: non floating, empty, rank not
-                in 2..4, flattened rows not a multiple of `BLOCK_LEN`
-                or non finite values.
+        See `check_block_quant_input`, subclasses may extend it.
         """
-        if not fp_tensor.is_floating_point():
-            raise T2NErrorImpossibleQuantization(
-                f"tract {cls.FORMAT_NAME} requires floating weights "
-                f"but found {fp_tensor.dtype}"
-            )
-        if fp_tensor.numel() == 0:
-            raise T2NErrorImpossibleQuantization(
-                f"tract {cls.FORMAT_NAME} requires nonempty weights "
-                f"but found shape {tuple(fp_tensor.shape)}"
-            )
-        cls.check_fp_shape(fp_tensor.shape)
-        if not torch.isfinite(fp_tensor).all():
-            raise T2NErrorImpossibleQuantization(
-                f"tract {cls.FORMAT_NAME} requires finite weights"
-            )
-
-    @classmethod
-    def check_fp_shape(cls, shape):
-        if len(shape) not in [2, 3, 4]:
-            raise T2NErrorImpossibleQuantization(
-                f"tract {cls.FORMAT_NAME} does only support weight "
-                f"of shape 2d, 3d or 4d but found {tuple(shape)}"
-            )
-        # tract splits the tensor into shape[0] rows of blocks
-        if reduce(operator.mul, shape[1:]) % cls.BLOCK_LEN != 0:
-            raise T2NErrorImpossibleQuantization(
-                f"tract {cls.FORMAT_NAME} does only support weight with "
-                f"dim=1.. volume divisible by {cls.BLOCK_LEN} but "
-                f"found {tuple(shape[1:])}"
-            )
+        check_block_quant_input(fp_tensor, cls.BLOCK_LEN, cls.FORMAT_NAME)
 
     @classmethod
     def from_fp(
@@ -229,42 +199,23 @@ class QTensorTractGGMLBlock(QTensorTractDat):
             T2NErrorImpossibleQuantization: on f16 overflow or underflow.
         """
         for name, offset in cls.F16_SCALE_FIELDS.items():
-            scale = u8_blocks[:, offset : offset + 2].copy().view(np.float16)
-            if not np.isfinite(scale).all():
-                raise T2NErrorImpossibleQuantization(
-                    f"tract {cls.FORMAT_NAME} block scale `{name}` "
-                    "overflows f16: weights magnitude is too large"
-                )
+            check_f16_scales(
+                u8_blocks[:, offset : offset + 2].copy().view(np.float16),
+                cls.FORMAT_NAME,
+                scale_name=f"scale `{name}`",
+            )
         with np.errstate(over="ignore", invalid="ignore"):
             deq = cls.dequantize_blocks(u8_blocks)
-        if not np.isfinite(deq).all():
-            raise T2NErrorImpossibleQuantization(
-                f"tract {cls.FORMAT_NAME} dequantized values are not finite: "
-                "weights magnitude is too large"
-            )
-        erased = (fp_blocks != 0).any(axis=1) & (deq == 0).all(axis=1)
-        if erased.any():
-            raise T2NErrorImpossibleQuantization(
-                f"tract {cls.FORMAT_NAME} block scales underflow f16: "
-                f"{int(erased.sum())} nonzero block(s) would dequantize "
-                "to zeros (weights magnitude is too small)"
-            )
-
-    @classmethod
-    def _check_inference_target_support(cls, inference_target: TractNNEF):
-        if (
-            cls.MIN_TRACT_VERSION is not None
-            and inference_target.version < cls.MIN_TRACT_VERSION
-        ):
-            LOGGER.warning(
-                "%s export requires tract >= %s; target is %s. "
-                "Upgrade tract before exporting %s weights.",
-                cls.FORMAT_NAME,
-                cls.MIN_TRACT_VERSION,
-                inference_target.version,
-                cls.FORMAT_NAME,
-            )
-        super()._check_inference_target_support(inference_target)
+        # per block dequantized magnitude: inf/nan on overflow, 0 when all
+        # the f16 scales of a nonzero block underflow
+        with np.errstate(invalid="ignore"):
+            block_absmax = np.abs(deq).max(axis=1)
+        check_f16_scales(
+            block_absmax,
+            cls.FORMAT_NAME,
+            nonzero_mask=(fp_blocks != 0).any(axis=1),
+            scale_name="scales",
+        )
 
     @classmethod
     def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:

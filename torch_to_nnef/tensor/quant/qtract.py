@@ -35,6 +35,84 @@ class QTensorTract(QTensor):
     """All QTensorTract implementations."""
 
 
+def check_block_quant_input(
+    fp_tensor: torch.Tensor, block_len: int, format_name: str
+) -> None:
+    """Reject weights a tract block quantization format can not store.
+
+    tract reads block quantized `.dat` as `shape[0]` rows of
+    `prod(shape[1:])` values split in blocks of `block_len`.
+
+    Raises:
+        T2NErrorImpossibleQuantization: non floating, empty, rank not in
+            2..4, `prod(shape[1:])` not a multiple of `block_len` or
+            non finite values.
+    """
+    if not fp_tensor.is_floating_point():
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} requires floating weights "
+            f"but found {fp_tensor.dtype}"
+        )
+    if fp_tensor.numel() == 0:
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} requires nonempty weights "
+            f"but found shape {tuple(fp_tensor.shape)}"
+        )
+    if fp_tensor.ndim not in (2, 3, 4):
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} does only support weight "
+            f"of rank 2 to 4 but found shape {tuple(fp_tensor.shape)}"
+        )
+    if reduce(operator.mul, fp_tensor.shape[1:]) % block_len != 0:
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} requires flattened rows "
+            f"(prod(shape[1:])) divisible by {block_len} but found "
+            f"shape {tuple(fp_tensor.shape)}"
+        )
+    if not torch.isfinite(fp_tensor).all():
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} requires finite weights"
+        )
+
+
+def check_f16_scales(
+    scales: T.Union[torch.Tensor, np.ndarray],
+    format_name: str,
+    nonzero_mask: T.Optional[T.Union[torch.Tensor, np.ndarray]] = None,
+    scale_name: str = "scale",
+) -> None:
+    """Reject f16 rounded block scales out of f16 range.
+
+    Args:
+        scales: block scales already rounded to f16.
+        format_name: format named in the error message.
+        nonzero_mask: same shape as `scales`, True where the scale
+            represents nonzero weights. When given, such scales rounded
+            to 0 are rejected (f16 underflow would erase those weights).
+        scale_name: scale named in the error message.
+
+    Raises:
+        T2NErrorImpossibleQuantization: on f16 overflow (inf) or underflow.
+    """
+    if isinstance(scales, torch.Tensor):
+        scales = scales.detach().cpu().float().numpy()
+    if isinstance(nonzero_mask, torch.Tensor):
+        nonzero_mask = nonzero_mask.detach().cpu().numpy()
+    if not np.isfinite(scales).all():
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} block {scale_name} overflows f16: "
+            "weights magnitude is too large"
+        )
+    if nonzero_mask is not None:
+        underflow = np.asarray(nonzero_mask, dtype=bool) & (scales == 0)
+        if underflow.any():
+            raise T2NErrorImpossibleQuantization(
+                f"tract {format_name} block {scale_name} underflows f16: "
+                f"{int(underflow.sum())} nonzero block(s) would dequantize "
+                "to zeros (weights magnitude is too small)"
+            )
+
+
 class QTensorTractDat(QTensorTract, SupportsOffloadState):
     """Common base of QTensor serialized as tract custom `.dat` item types.
 
@@ -46,7 +124,12 @@ class QTensorTractDat(QTensorTract, SupportsOffloadState):
     """
 
     FORMAT_NAME: str
+    # number of values and bytes of each serialized block
+    BLOCK_LEN: int
+    BLOCK_BYTES: int
     MIN_TRACT_VERSION: T.Optional[str] = None
+    # appended to the version gate warning when set
+    VERSION_GATE_NOTE: T.Optional[str] = None
     decompressed_shape: T.Tuple[int, ...]
 
     def to_offload_state(self) -> T.Dict[str, T.Any]:
@@ -98,10 +181,23 @@ class QTensorTractDat(QTensorTract, SupportsOffloadState):
 
     @classmethod
     def _check_inference_target_support(cls, inference_target: TractNNEF):
+        """Warn with an upgrade hint then raise below `MIN_TRACT_VERSION`.
+
+        Called before any tensor data is written.
+        """
         if (
             cls.MIN_TRACT_VERSION is not None
             and inference_target.version < cls.MIN_TRACT_VERSION
         ):
+            msg = (
+                f"{cls.FORMAT_NAME} export requires tract >= "
+                f"{cls.MIN_TRACT_VERSION}; target is "
+                f"{inference_target.version}. Upgrade tract before "
+                f"exporting {cls.FORMAT_NAME} weights."
+            )
+            if cls.VERSION_GATE_NOTE:
+                msg = f"{msg} {cls.VERSION_GATE_NOTE}"
+            LOGGER.warning(msg)
             raise T2NErrorNotImplemented(
                 f"tract {cls.FORMAT_NAME} export requires tract >= "
                 f"{cls.MIN_TRACT_VERSION} but got {inference_target.version}"
@@ -214,6 +310,7 @@ class QTensorTractBlockQuant(QTensorTractDat):
 
     N_BITS: int
     GROUP_SIZE = 32
+    BLOCK_LEN = GROUP_SIZE
     # calibration default, see qscale_per_group_f16_min_max_calibration
     RESTRICTED_RANGE = False
     qscheme: QScalePerGroupF16  # type notation for mypy
@@ -260,7 +357,10 @@ class QTensorTractBlockQuant(QTensorTractDat):
         cls, decompressed_shape, inference_target: TractNNEF
     ) -> bytes:
         return DatBinHeader.build_tract_qtensor(
-            cls._item_type(inference_target), decompressed_shape
+            cls._item_type(inference_target),
+            decompressed_shape,
+            block_bytes=cls.BLOCK_BYTES,
+            block_len=cls.BLOCK_LEN,
         ).to_bytes()
 
     @classmethod
@@ -285,7 +385,10 @@ class QTensorTractBlockQuant(QTensorTractDat):
                 scale_flat[start:end].contiguous(),
                 inference_target,
             )
-            assert b_all.dtype == np.uint8 and b_all.shape[0] == end - start
+            assert b_all.dtype == np.uint8 and b_all.shape == (
+                end - start,
+                cls.BLOCK_BYTES,
+            ), b_all.shape
             yield b_all.tobytes()
 
     def _build_binary_dat_content(self, inference_target: TractNNEF) -> bytes:
@@ -341,6 +444,7 @@ class QTensorTractScaleOnly(QTensorTractBlockQuant):
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_scale_only.v1"
     FORMAT_NAME = "Q4_0"
     N_BITS = 4
+    BLOCK_BYTES = 18
 
     def __init__(
         self, *args, specific_machine: T.Optional[str] = None, **kwargs
@@ -431,13 +535,7 @@ class _TernaryScalePerGroupF16(QScalePerGroupF16):
             )
         if not torch.equal(magnitudes.to(torch.float16), self.scale):
             raise T2NErrorImpossibleQuantization("Q2_0_T scale mismatch")
-        if (
-            not torch.isfinite(self.scale).all()
-            or ((magnitudes != 0) & (self.scale == 0)).any()
-        ):
-            raise T2NErrorImpossibleQuantization(
-                "Q2_0_T nonzero scales must remain finite and nonzero in f16"
-            )
+        check_f16_scales(self.scale, "Q2_0_T", nonzero_mask=magnitudes != 0)
         return (fp_tensor.sign() + 1).to(torch.uint8)
 
     def dequantize(self, u8_tensor, target_dtype):
@@ -457,17 +555,8 @@ class QTensorTractQ2_0_T(QTensorTractBlockQuant):  # noqa: N801
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q2_0_t.v1"
     FORMAT_NAME = "Q2_0_T"
     N_BITS = 2
+    BLOCK_BYTES = 10
     MIN_TRACT_VERSION = "0.23.11"
-
-    @classmethod
-    def _check_inference_target_support(cls, inference_target):
-        if inference_target.version < cls.MIN_TRACT_VERSION:
-            LOGGER.warning(
-                "Q2_0_T export requires tract >= 0.23.11; target is %s. "
-                "Upgrade tract before exporting ternary weights.",
-                inference_target.version,
-            )
-        super()._check_inference_target_support(inference_target)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -483,7 +572,7 @@ class QTensorTractQ2_0_T(QTensorTractBlockQuant):  # noqa: N801
     @classmethod
     def _pack_groups(cls, u8_groups, scale, inference_target):
         codes = u8_groups.numpy().reshape(-1, 8, 4)
-        blocks = np.empty((len(codes), 10), dtype=np.uint8)
+        blocks = np.empty((len(codes), cls.BLOCK_BYTES), dtype=np.uint8)
         blocks[:, :2] = (
             scale.numpy().astype("<f2").view(np.uint8).reshape(-1, 2)
         )
@@ -508,16 +597,9 @@ def ternary_to_tract_q2_0_t(fp_tensor: torch.Tensor) -> QTensorTractQ2_0_T:
         T2NErrorImpossibleQuantization: Invalid shape, non-ternary values,
             or nonzero scales that overflow or underflow in f16.
     """
-    if (
-        not fp_tensor.is_floating_point()
-        or fp_tensor.ndim not in (2, 3, 4)
-        or fp_tensor.numel() == 0
-        or reduce(operator.mul, fp_tensor.shape[1:]) % 32
-    ):
-        raise T2NErrorImpossibleQuantization(
-            "Q2_0_T requires nonempty floating weights of rank 2 to 4 "
-            "with flattened rows divisible by 32"
-        )
+    check_block_quant_input(
+        fp_tensor, QTensorTractQ2_0_T.BLOCK_LEN, QTensorTractQ2_0_T.FORMAT_NAME
+    )
     with torch.no_grad():
         fp_tensor = fp_tensor.detach()
         scale = fp_tensor.reshape(-1, 32).abs().amax(dim=1, keepdim=True)
@@ -542,6 +624,7 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q8_1.v1"
     FORMAT_NAME = "Q8_1"
     N_BITS = 8
+    BLOCK_BYTES = 36
     # GGML Q8 convention: d = absmax / 127, int8 values in [-127, 127]
     RESTRICTED_RANGE = True
     MIN_TRACT_VERSION = "0.23.0"

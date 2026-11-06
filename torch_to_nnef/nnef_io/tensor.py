@@ -116,7 +116,8 @@ class DatBinHeader:
             item_type (TractCustomTypes): Tract custom quantisation type.
             shape (Tuple[int]): Shape of the tensor.
             block_bytes (Optional[int]): bytes per block of `block_len`
-                elements. Defaults to Q4_0 (18) or Q8_1 (36) layout.
+                elements, required: an item type alone does not always
+                tell its size (like "8030": Q8_0 or legacy Q8_1).
             block_len (int): elements per block (256 for ggml K-quants).
 
         Returns:
@@ -126,18 +127,10 @@ class DatBinHeader:
         for s in shape:
             vol *= s
         if block_bytes is None:
-            if item_type in (
-                cls.TractCustomTypes.Q81,
-                cls.TractCustomTypes.Q81_LEGACY,
-            ):
-                # per group of 32: f16 scale + f16 sum + 32 int8
-                block_bytes = 36
-            elif item_type == cls.TractCustomTypes.Q20T:
-                # per group of 32: f16 scale + 8 bytes of 2bit codes
-                block_bytes = 10
-            else:
-                # per group of 32: f16 scale + 32 nibbles
-                block_bytes = 18
+            raise T2NErrorMisuse(
+                f"block_bytes is required to size tract {item_type} "
+                "(each qtensor class passes its BLOCK_BYTES)"
+            )
         if vol % block_len != 0:
             raise T2NErrorMisuse(
                 f"tensor volume {vol} of shape {shape} is not "

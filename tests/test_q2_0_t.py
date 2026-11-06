@@ -1,6 +1,5 @@
 """Ternary packing and execution through tract's NNEF reader."""
 
-from copy import deepcopy
 from functools import partial
 
 import pytest
@@ -11,19 +10,19 @@ from torch_to_nnef.exceptions import (
     T2NErrorImpossibleQuantization,
     T2NErrorNotImplemented,
 )
-from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant import (
     QTensorTractQ2_0_T,
     ternary_to_tract_q2_0_t,
 )
-from torch_to_nnef.utils import SemanticVersion, torch_version
+from torch_to_nnef.utils import torch_version
 
 from .test_qtensor import check_tensor_in_nnef_archive
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_EXACT,
     check_model_io_test,
     skipif_unsupported_qtensor,
+    tract_target,
 )
 
 pytestmark = skipif_unsupported_qtensor
@@ -31,8 +30,7 @@ pytestmark = skipif_unsupported_qtensor
 
 @pytest.mark.parametrize("version", ["0.23.11", "0.23.12"])
 def test_q20t_binary_layout_and_offload(tmp_path, version):
-    target = deepcopy(TractNNEF.latest())
-    target.version = SemanticVersion.from_str(version)
+    target = tract_target(version)
     weight = torch.tensor([-0.5, 0, 0.5, -0.5]).repeat(8).reshape(1, 32)
     weight = torch.cat([weight, torch.zeros_like(weight)])
     qtensor = ternary_to_tract_q2_0_t(weight)
@@ -108,8 +106,7 @@ def test_q20t_rejects_invalid_weights(weight):
 )
 def test_q20t_rejects_old_tract(tmp_path, caplog, version):
     qtensor = ternary_to_tract_q2_0_t(torch.ones(2, 32))
-    target = deepcopy(TractNNEF.latest())
-    target.version = SemanticVersion.from_str(version)
+    target = tract_target(version)
     with pytest.raises(
         T2NErrorNotImplemented, match=r"requires tract >= 0\.23\.11"
     ):
@@ -121,7 +118,10 @@ def test_q20t_rejects_old_tract(tmp_path, caplog, version):
             qtensor.to_offload_state(), tmp_path, "offloaded", target
         )
 
-    assert "Upgrade tract before exporting ternary weights" in caplog.text
+    assert (
+        f"Q2_0_T export requires tract >= 0.23.11; target is {version}. "
+        "Upgrade tract before exporting Q2_0_T weights." in caplog.text
+    )
     assert not list(tmp_path.glob("*.dat"))
 
 
