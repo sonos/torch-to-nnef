@@ -9,6 +9,7 @@
 ### Added
 
 - **tract `Q8_1` (GGML style) weight export for embeddings**: new `QTensorTractQ8_1` and `fp_to_tract_q8_1_with_min_max_calibration` (8bit per group of 32, 9bpw, GGML `absmax / 127` scale), plus the `min_max_q8_1_embeddings` compression registry entry. Requires tract >= 0.23.0, which only supports `Q8_1` weights on embedding/gathering operations (no matmul or convolution kernel yet).
+- **tract `Q8_0` (GGML style) weight export for embeddings**: new `QTensorTractQ8_0` and `fp_to_tract_q8_0_with_min_max_calibration` (8bit per group of 32, 8.5bpw, GGML `block_q8_0` layout with `absmax / 127` scale, byte identical to llama.cpp reference quantization), plus the `min_max_q8_0_embeddings` compression registry entry. Written with the `.dat` item type `0x3080`, so it requires tract >= 0.23.10 (older tract reads `0x3080` as `Q8_1`), which only supports `Q8_0` weights on embedding/gathering operations (no matmul or convolution kernel yet). `DatBinHeader.TractCustomTypes.Q80` is the canonical name of the `"8030"` header value, `Q81_LEGACY` stays an alias of it.
 
 ## [0.24.12] - 2026-10-13
 

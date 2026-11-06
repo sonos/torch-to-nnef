@@ -9,9 +9,11 @@ from torch_to_nnef.tensor.quant.base import (
 )
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTract,
+    QTensorTractQ8_0,
     QTensorTractQ8_1,
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q8_0_with_min_max_calibration,
     fp_to_tract_q8_1_with_min_max_calibration,
 )
 
@@ -22,8 +24,10 @@ __all__ = [
     "qscale_per_group_f16_min_max_calibration",
     "QScalePerGroupF16",
     "QTensorTract",
+    "QTensorTractQ8_0",
     "QTensorTractQ8_1",
     "QTensorTractScaleOnly",
     "fp_to_tract_q4_0_with_min_max_calibration",
+    "fp_to_tract_q8_0_with_min_max_calibration",
     "fp_to_tract_q8_1_with_min_max_calibration",
 ]

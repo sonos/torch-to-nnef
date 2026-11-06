@@ -30,10 +30,11 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-To date tract support 3 kind of quantization:
+To date tract support 4 kind of quantization:
 
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
+- Q8_0: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization without the group sum, supported by tract (>= 0.23.10) **only on embedding/gathering operations** (see [Q8_0 for embeddings](#q8_0-for-embeddings)).
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
 Let's take a look at each in turn starting by Q40.
@@ -99,10 +100,13 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
     handler: python
+- ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_0
+    handler: python
 </div>
 
 QTensor today support export to [`Q40`](https://huggingface.co/docs/hub/en/gguf) (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw)
-and `Q8_1` (8bit symmetric quantization with a granularity per group of 32 elements, totaling 9bpw).
+`Q8_1` (8bit symmetric quantization with a granularity per group of 32 elements, totaling 9bpw)
+and `Q8_0` (same as `Q8_1` without the group sum, totaling 8.5bpw).
 
 A `QTensor` is a Python object that behaves and should be used as a
 classical `torch.Tensor` with few exceptions: it can not hold any gradient, it can not be modified, it contains internals objects necessary to its definition like:
@@ -175,6 +179,32 @@ from torch_to_nnef.tensor.quant import fp_to_tract_q8_1_with_min_max_calibration
 with torch.no_grad():
     embedding.weight = nn.Parameter(
         fp_to_tract_q8_1_with_min_max_calibration(embedding.weight),
+        requires_grad=False,
+    )
+```
+
+### Q8_0 for embeddings
+
+tract (>= 0.23.10) can also load `Q8_0` weights (GGML `block_q8_0`): each group of 32
+elements is stored as a f16 scale and 32 int8 values (8.5bpw), with the same
+`d = absmax / 127` convention as `Q8_1` but without the group sum.
+
+!!! warning
+
+    Like `Q8_1`, tract has no matmul or convolution kernel for `Q8_0` weights yet:
+    only use it for embeddings (gather operator).
+    Before tract 0.23.10 the `.dat` item type `0x3080` meant `Q8_1`, so export
+    is rejected for older tract targets.
+
+The `min_max_q8_0_embeddings` registry entry quantizes only `nn.Embedding` weights,
+or directly on a tensor:
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_q8_0_with_min_max_calibration
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_q8_0_with_min_max_calibration(embedding.weight),
         requires_grad=False,
     )
 ```

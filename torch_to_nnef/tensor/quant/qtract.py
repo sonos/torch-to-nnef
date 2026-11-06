@@ -46,6 +46,8 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
     FORMAT_NAME: str
     N_BITS: int
     GROUP_SIZE = 32
+    # bytes per serialized group of GROUP_SIZE elements
+    BLOCK_BYTES: int
     # calibration default, see qscale_per_group_f16_min_max_calibration
     RESTRICTED_RANGE = False
     MIN_TRACT_VERSION: T.Optional[str] = None
@@ -143,7 +145,9 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
         cls, decompressed_shape, inference_target: TractNNEF
     ) -> bytes:
         return DatBinHeader.build_tract_qtensor(
-            cls._item_type(inference_target), decompressed_shape
+            cls._item_type(inference_target),
+            decompressed_shape,
+            block_bytes=cls.BLOCK_BYTES,
         ).to_bytes()
 
     @staticmethod
@@ -175,7 +179,10 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
                 scale_flat[start:end].contiguous(),
                 inference_target,
             )
-            assert b_all.dtype == np.uint8 and b_all.shape[0] == end - start
+            assert b_all.dtype == np.uint8 and b_all.shape == (
+                end - start,
+                cls.BLOCK_BYTES,
+            ), b_all.shape
             yield b_all.tobytes()
 
     def _build_binary_dat_content(self, inference_target: TractNNEF) -> bytes:
@@ -294,6 +301,7 @@ class QTensorTractScaleOnly(QTensorTractBlockQuant):
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_scale_only.v1"
     FORMAT_NAME = "Q4_0"
     N_BITS = 4
+    BLOCK_BYTES = 18
 
     def __init__(
         self, *args, specific_machine: T.Optional[str] = None, **kwargs
@@ -386,6 +394,7 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
     OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q8_1.v1"
     FORMAT_NAME = "Q8_1"
     N_BITS = 8
+    BLOCK_BYTES = 36
     # GGML Q8 convention: d = absmax / 127, int8 values in [-127, 127]
     RESTRICTED_RANGE = True
     MIN_TRACT_VERSION = "0.23.0"
@@ -425,6 +434,60 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
         b_all[:, :2] = scale.numpy().view(np.uint8).reshape(n_groups, 2)
         b_all[:, 2:4] = group_sum.numpy().view(np.uint8).reshape(n_groups, 2)
         b_all[:, 4:] = i8_vals.numpy().view(np.uint8)
+        return b_all
+
+
+class QTensorTractQ8_0(QTensorTractBlockQuant):  # noqa: N801
+    """Tract data format it serializes to: Q8_0 (GGML style).
+
+    Each group of 32 values is stored as 34 bytes:
+    f16 scale, then 32 int8 (GGML `block_q8_0`).
+
+    Warning:
+        tract (<= 0.23.10) only supports Q8_0 weights in embedding/gathering
+        operations: there is no matmul or convolution kernel for it yet.
+
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q8_0.v1"
+    FORMAT_NAME = "Q8_0"
+    N_BITS = 8
+    BLOCK_BYTES = 34
+    # GGML Q8 convention: d = absmax / 127, int8 values in [-127, 127]
+    RESTRICTED_RANGE = True
+    # before 0.23.10 tract item type 0x3080 meant Q8_1
+    MIN_TRACT_VERSION = "0.23.10"
+
+    def decompress(self):
+        """Dequantize like tract Q8_0: in f32, then cast to target dtype."""
+        assert self.qscheme is not None
+        return self.qscheme.dequantize(
+            self.decompress_to_u8(), target_dtype=torch.float32
+        ).to(self.dequant_to_dtype)
+
+    @classmethod
+    def _item_type(
+        cls, inference_target: TractNNEF
+    ) -> DatBinHeader.TractCustomTypes:
+        return DatBinHeader.TractCustomTypes.Q80
+
+    @classmethod
+    def _pack_groups(
+        cls,
+        u8_groups: torch.Tensor,
+        scale: torch.Tensor,
+        inference_target: TractNNEF,
+    ) -> np.ndarray:
+        n_groups = u8_groups.shape[0]
+        # u8 storage is offset by 2**(n_bits-1). Calibration scales are
+        # negative: flip both signs (exact, values in [-127, 127]) to write
+        # the positive GGML `d = absmax / 127` scale.
+        i8_vals = (2 ** (cls.N_BITS - 1) - u8_groups.to(torch.int16)).to(
+            torch.int8
+        )
+        b_all = np.empty((n_groups, cls.BLOCK_BYTES), dtype=np.uint8)
+        b_all[:, :2] = (-scale).numpy().view(np.uint8).reshape(n_groups, 2)
+        b_all[:, 2:] = i8_vals.numpy().view(np.uint8)
         return b_all
 
 
@@ -489,4 +552,16 @@ def fp_to_tract_q8_1_with_min_max_calibration(
     """
     return _fp_to_tract_block_quant_with_min_max_calibration(
         fp_tensor, QTensorTractQ8_1, percentile
+    )
+
+
+def fp_to_tract_q8_0_with_min_max_calibration(
+    fp_tensor, percentile: float = 1.0
+) -> QTensorTractQ8_0:
+    """Min-Max method to quantize float tensor to tract supported Q8_0.
+
+    Only use it on embedding weights (see `QTensorTractQ8_0`).
+    """
+    return _fp_to_tract_block_quant_with_min_max_calibration(
+        fp_tensor, QTensorTractQ8_0, percentile
     )

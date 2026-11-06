@@ -16,6 +16,7 @@ from torch import nn
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
+    quantize_weights_min_max_Q8_0,
     quantize_weights_min_max_Q8_1,
 )
 from torch_to_nnef.exceptions import (
@@ -29,10 +30,12 @@ from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.opaque import set_opaque_tensor_in_params_as_ref
 from torch_to_nnef.tensor.quant import (
     QTensor,
+    QTensorTractQ8_0,
     QTensorTractQ8_1,
     QTensorTractScaleOnly,
     U8Compressor,
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q8_0_with_min_max_calibration,
     fp_to_tract_q8_1_with_min_max_calibration,
     qscale_per_group_f16_min_max_calibration,
 )
@@ -858,6 +861,238 @@ def test_q81_group_sum_clamped_to_f16_range(tmp_path, caplog):
         blocks = np.frombuffer(fh.read(), dtype=np.uint8).reshape(2, 36)
     group_sum = blocks[:, 2:4].copy().view(np.float16)
     assert np.isfinite(group_sum).all(), group_sum
+
+
+def test_tract_custom_types_q80_shares_legacy_q81_header():
+    # tract 0.23.10 reassigned 0x3080 from Q8_1 to Q8_0
+    assert DatBinHeader.TractCustomTypes.Q81_LEGACY is (
+        DatBinHeader.TractCustomTypes.Q80
+    )
+    assert DatBinHeader.TractCustomTypes("8030").name == "Q80"
+    with pytest.raises(T2NErrorMisuse):
+        DatBinHeader.build_tract_qtensor(
+            DatBinHeader.TractCustomTypes.Q80, (2, 32)
+        )
+    for block_bytes in [34, 36]:
+        header = DatBinHeader.build_tract_qtensor(
+            DatBinHeader.TractCustomTypes.Q80, (2, 32), block_bytes=block_bytes
+        )
+        assert header.data_size_bytes == 2 * block_bytes
+
+
+@skipif_unsupported_qtensor
+def test_q80_dat_content_layout(tmp_path):
+    fp_tensor = torch.arange(-64, 64).reshape(2, 64).float()
+    fp_tensor[1, 32:] = 0.0  # all zero block
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(fp_tensor)
+    qtensor.write_in_file(tmp_path, "weight", TractNNEF.latest())
+
+    with (tmp_path / "weight.dat").open("rb") as fh:
+        header = DatBinHeader.from_dat_file(fh)
+        content = fh.read()
+    assert header.torch_dtype_or_custom == DatBinHeader.TractCustomTypes.Q80
+    assert header.item_type == "8030"
+    assert header.dims[: header.rank] == [2, 64]
+    assert header.data_size_bytes == len(content) == 4 * 34
+
+    blocks = np.frombuffer(content, dtype=np.uint8).reshape(4, 34)
+    scale = blocks[:, :2].copy().view(np.float16).reshape(4, 1)
+    i8_vals = blocks[:, 2:].copy().view(np.int8)
+    # GGML block_q8_0: positive d = absmax / 127
+    assert (scale >= 0).all(), scale
+    assert np.array_equal(
+        scale.flatten(), (-qtensor.qscheme.scale).numpy().flatten()
+    )
+    assert np.array_equal(
+        scale.flatten(),
+        (np.abs(fp_tensor.numpy()).reshape(4, 32).max(axis=1) / 127).astype(
+            np.float16
+        ),
+    )
+    # like tract dequant_q8_0: i8 * d in f32
+    dequant = i8_vals.astype(np.float32) * scale.astype(np.float32)
+    assert np.array_equal(dequant.reshape(2, 64), qtensor.decompress().numpy())
+    assert i8_vals.min() >= -127
+    assert (i8_vals[3] == 0).all()
+    assert np.allclose(dequant.reshape(2, 64), fp_tensor.numpy(), atol=0.26)
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "zeros,expected_hex",
+    [
+        (
+            0,
+            "082494006cd440a7137fe753ba268efa"
+            "66cd39a10d79e04cb42087f35fc7339a0672",
+        ),
+        (
+            8,
+            "a9230000000000000000e557b62888f9"
+            "6bcb3c9c0d7fdf50b02181f364c435950778",
+        ),
+    ],
+)
+def test_q80_matches_ggml_reference_bytes(tmp_path, zeros, expected_hex):
+    # reference blocks from tract `q8_0_matches_ggml_ref` test, themselves
+    # from llama.cpp `quantize_row_q8_0_ref`
+    ramp = [
+        0.0 if i < zeros else (((i * 17 + 3) % 41) - 20.0) / 10.0
+        for i in range(32)
+    ]
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(torch.tensor([ramp]))
+    qtensor.write_in_file(tmp_path, "weight", TractNNEF.latest())
+    content = (tmp_path / "weight.dat").read_bytes()[128:]
+    assert content.hex() == expected_hex
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("percentile", [1.0, 0.9])
+def test_q80_values_in_restricted_range(percentile):
+    fp_tensor = torch.randn(64, 64)
+    fp_tensor[:, 0] = -10.0  # outliers clamped if percentile < 1
+    fp_tensor[:, 1] = 10.0
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(
+        fp_tensor, percentile=percentile
+    )
+    u8_vals = qtensor.decompress_to_u8()
+    # u8 offset by 128: int8 in [-127, 127]
+    assert u8_vals.min() >= 1 and u8_vals.max() <= 255
+    deq = qtensor.decompress()
+    assert torch.equal(deq[:, 0], -deq[:, 1])
+
+
+@skipif_unsupported_qtensor
+def test_q80_and_q81_are_distinct_formats(tmp_path):
+    q80 = fp_to_tract_q8_0_with_min_max_calibration(torch.randn(2, 32))
+    q81 = fp_to_tract_q8_1_with_min_max_calibration(torch.randn(2, 32))
+    assert not isinstance(q80, QTensorTractQ8_1)
+    assert not isinstance(q81, QTensorTractQ8_0)
+    q80.write_in_file(tmp_path, "q80", TractNNEF.latest())
+    q81.write_in_file(tmp_path, "q81", TractNNEF.latest())
+    q80_header = (tmp_path / "q80.dat").read_bytes()[:128]
+    q81_header = (tmp_path / "q81.dat").read_bytes()[:128]
+    assert q80_header != q81_header
+
+
+@skipif_unsupported_qtensor
+def test_q80_write_streams_without_building_full_content(monkeypatch, tmp_path):
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(
+        torch.randn(6, 64), percentile=1.0
+    )
+    ref_dir = tmp_path / "ref"
+    out_dir = tmp_path / "out"
+    ref_dir.mkdir()
+    out_dir.mkdir()
+    qtensor.write_in_file(ref_dir, "weight", TractNNEF.latest())
+    QTensorTractQ8_0.write_offload_state_in_file(
+        qtensor.to_offload_state(),
+        out_dir,
+        "weight",
+        inference_target=TractNNEF.latest(),
+    )
+
+    def fail_if_full_content_is_built(*args, **kwargs):
+        raise AssertionError("Q80 write should stream content")
+
+    monkeypatch.setattr(
+        QTensorTractQ8_0,
+        "_build_binary_dat_content",
+        fail_if_full_content_is_built,
+    )
+    stream_dir = tmp_path / "stream"
+    stream_dir.mkdir()
+    qtensor.write_in_file(stream_dir, "weight", TractNNEF.latest())
+    expected = (ref_dir / "weight.dat").read_bytes()
+    assert (out_dir / "weight.dat").read_bytes() == expected
+    assert (stream_dir / "weight.dat").read_bytes() == expected
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("version", ["0.22.1", "0.23.0", "0.23.8"])
+def test_q80_unsupported_before_tract_0_23_10(tmp_path, version):
+    # before tract 0.23.10, item type 0x3080 meant Q8_1
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(torch.randn(2, 32))
+    with pytest.raises(T2NErrorNotImplemented):
+        qtensor.write_in_file(
+            tmp_path, "weight", TractNNEF(version, check_io=False)
+        )
+    with pytest.raises(T2NErrorNotImplemented):
+        QTensorTractQ8_0.write_offload_state_in_file(
+            qtensor.to_offload_state(),
+            tmp_path,
+            "weight",
+            inference_target=TractNNEF(version, check_io=False),
+        )
+    assert not (tmp_path / "weight.dat").exists()
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "inference_target,dtype",
+    [
+        (i, dt)
+        for i in TRACT_INFERENCES_TO_TESTS_EXACT
+        if i.version >= "0.23.10"
+        for dt in [torch.float32, torch.float16]
+    ],
+)
+def test_quantize_with_tract_q8_0_embedding(inference_target, dtype):
+    """Q8_0 is only supported by tract on embedding/gathering."""
+    with torch.no_grad():
+        test_input = torch.arange(6)
+        test_input[:3] = 3
+        x = 6
+        y = 64
+        model = nn.Embedding(x, y).eval().to(dtype)
+        original_weight = torch.randn(x, y).to(dtype)
+
+        q_tensor = fp_to_tract_q8_0_with_min_max_calibration(original_weight)
+        deq_weight = q_tensor.qscheme.dequantize(
+            q_tensor.decompress_to_u8(), target_dtype=torch.float32
+        )
+        # restricted range: no clamping, error within half a step
+        # (codes computed in f32 even for f16 weights)
+        diff = (original_weight.float() - deq_weight).abs().reshape(-1, 32)
+        scale = q_tensor.qscheme.scale.abs().float()
+        assert (diff <= scale * 0.501).all(), (diff / scale).max()
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={"weight": {"dtype": DatBinHeader.TractCustomTypes.Q80}},
+            ),
+        )
+
+
+@skipif_unsupported_qtensor
+def test_compress_min_max_q8_0_embeddings_only_quantize_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 32))
+    tied = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 10, bias=False))
+    tied[1].weight = tied[0].weight
+    registry = dynamic_load_registry(DEFAULT_COMPRESSION_REGISTRY)
+
+    registry["min_max_q8_0_embeddings"](model)
+    assert isinstance(model[0].weight, QTensorTractQ8_0)
+    assert not isinstance(model[1].weight, QTensor)
+
+    # weight shared with a Linear must stay float (no tract Q8_0 matmul)
+    registry["min_max_q8_0_embeddings"](tied)
+    assert not isinstance(tied[0].weight, QTensor)
+
+
+@skipif_unsupported_qtensor
+def test_compress_min_max_q8_0_rejects_non_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 32))
+    with pytest.raises(T2NErrorMisuse):
+        quantize_weights_min_max_Q8_0(
+            model, to_quantize_module_classes=(nn.Linear, nn.Embedding)
+        )
+    assert not isinstance(model[0].weight, QTensor)
 
 
 # conv1d: linear (aka kernel=1)
