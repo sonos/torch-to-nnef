@@ -401,7 +401,8 @@ w[i] = d * sc[j] * (q[i] - 32),  j = i / 16
 The format is symmetric: there is no min term, the signed level `q[i] - 32`
 lies in `[-32, 31]`. The quantizer is a port of GGML's reference
 `quantize_row_q6_K_ref` (a `make_qx_quants` search per sub-block, without
-importance matrix): it reproduces GGML's bytes, and the exported
+importance matrix): on CPU it reproduces GGML's bytes (as built without
+floating point contraction, `-ffp-contract=off`), and the exported
 dequantization matches tract bit exactly.
 
 ```mermaid
