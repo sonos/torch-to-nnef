@@ -1214,63 +1214,96 @@ def test_iq2s_dat_content_layout(tmp_path):
 
 
 @skipif_unsupported_qtensor
-def test_iq2s_dequant_round_trip_error_bounded():
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_iq2s_dequant_round_trip_error_bounded(seed):
     # same bound as tract iq2_s_roundtrip
     ramp = torch.from_numpy(_ggml_ramp(512, 0)).reshape((2, 256))
     qtensor = fp_to_tract_iq2_s(ramp)
     assert (qtensor.decompress() - ramp).abs().max() < 1.25
     zeros = fp_to_tract_iq2_s(torch.zeros(2, 256))
     assert torch.equal(zeros.decompress(), torch.zeros(2, 256))
-    # gaussian: signs are kept exactly, magnitudes within a 2.56bpw error
-    fp_tensor = torch.randn(16, 1024)
+    gen = torch.Generator().manual_seed(seed)
+    # rows of very different magnitudes
+    fp_tensor = torch.randn(16, 1024, generator=gen) * 10 ** torch.linspace(
+        -3, 3, 16
+    ).reshape((16, 1))
     deq = fp_to_tract_iq2_s(fp_tensor).decompress()
+    # signs are stored exactly, grid magnitudes are never 0
     assert torch.equal(deq.sign(), fp_tensor.sign())
-    assert (deq - fp_tensor).norm() / fp_tensor.norm() < 0.35
+    # relative error of a 2.5625bpw format, per row (measured near 0.26)
+    row_err = (deq - fp_tensor).norm(dim=1) / fp_tensor.norm(dim=1)
+    assert (row_err < 0.35).all(), row_err.max()
 
 
 @skipif_unsupported_qtensor
-def test_iq2s_rejects_incomplete_super_blocks():
+@pytest.mark.parametrize("shape", [(2, 256), (2, 2, 256), (2, 2, 2, 256)])
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.float32, torch.bfloat16]
+)
+def test_iq2s_decompress_matches_reference(shape, dtype):
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(shape, generator=gen).to(dtype)
+    _check_ggml_decompress_matches_reference(QTensorTractIQ2_S, fp_tensor)
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "weight",
+    _ggml_invalid_weights(256)
+    + [
+        # f16 overflow of d
+        pytest.param(torch.full((2, 256), 1e9), id="d_overflow"),
+        # nonzero super-block whose d rounds to 0 in f16
+        pytest.param(torch.full((2, 256), 1e-7), id="underflow"),
+        # below the ggml group epsilon: every group is skipped
+        pytest.param(torch.full((2, 256), 1e-10), id="below_group_eps"),
+    ],
+)
+def test_iq2s_rejects_invalid_weights(weight):
     with pytest.raises(T2NErrorImpossibleQuantization):
-        fp_to_tract_iq2_s(torch.randn(4, 128))
-    with pytest.raises(T2NErrorImpossibleQuantization):
-        fp_to_tract_iq2_s(torch.randn(256))
+        fp_to_tract_iq2_s(weight)
 
 
 @skipif_unsupported_qtensor
-def test_iq2s_unsupported_before_tract_0_23_10(tmp_path):
-    qtensor = fp_to_tract_iq2_s(torch.randn(2, 256))
-    for version in ["0.22.1", "0.23.8"]:
-        with pytest.raises(T2NErrorNotImplemented):
-            qtensor.write_in_file(
-                tmp_path, "weight", TractNNEF(version, check_io=False)
-            )
-        with pytest.raises(T2NErrorNotImplemented):
-            QTensorTractIQ2_S.write_offload_state_in_file(
-                qtensor.to_offload_state(),
-                tmp_path,
-                "weight",
-                inference_target=TractNNEF(version, check_io=False),
-            )
-    assert not (tmp_path / "weight.dat").exists()
+def test_iq2s_accepts_zero_groups_in_nonzero_block():
+    # skipped groups decode to small nonzero values: no underflow error
+    fp_tensor = torch.randn(2, 256)
+    fp_tensor[:, :32] = 0
+    deq = fp_to_tract_iq2_s(fp_tensor).decompress()
+    assert (deq[:, :32] > 0).all()
 
 
 @skipif_unsupported_qtensor
-def test_iq2s_offload_state_write(tmp_path):
-    _check_ggml_offload_state_write(
-        tmp_path, fp_to_tract_iq2_s(torch.randn(4, 512))
+@pytest.mark.parametrize("version", ["0.23.9", "0.23.10-pre", "0.23.10-rc.1"])
+def test_iq2s_rejects_old_tract(tmp_path, caplog, version):
+    _check_ggml_rejects_old_tract(
+        tmp_path, caplog, fp_to_tract_iq2_s(torch.randn(2, 256)), version
     )
 
 
 @skipif_unsupported_qtensor
 @pytest.mark.parametrize(
-    "inference_target,dtype",
+    "version", ["0.23.10", "0.23.10+build.1", "0.23.11-pre", "0.23.11"]
+)
+def test_iq2s_offload_state_write(tmp_path, version):
+    _check_ggml_offload_state_write(
+        tmp_path,
+        fp_to_tract_iq2_s(torch.randn(4, 512)),
+        _tract_target(version),
+    )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "inference_target",
     [
-        (i, dt)
+        i
         for i in TRACT_INFERENCES_TO_TESTS_EXACT
-        if i.version >= "0.23.10"
-        for dt in [torch.float32, torch.float16]
+        if i.version >= QTensorTractIQ2_S.MIN_TRACT_VERSION
     ],
 )
+# f16 CPU embedding (index_select) works on torch 1.x: like Q4_0/Q8_1 tests
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
 def test_quantize_with_tract_iq2_s_embedding(inference_target, dtype):
     """IQ2_S is only supported by tract on embedding/gathering."""
     with torch.no_grad():

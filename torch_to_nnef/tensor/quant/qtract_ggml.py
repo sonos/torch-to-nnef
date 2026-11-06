@@ -732,7 +732,8 @@ def _iq2_s_quantize_groups(
     best = np.zeros(n_groups, dtype=f32)
     scale = max_x / f32(5.0)
     on_grid = np.ones((n_groups, 2), dtype=bool)
-    with np.errstate(divide="ignore", invalid="ignore"):
+    # huge weights overflow sums like in tract (rejected afterwards)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
         for step in range(-9, 10):
             inv_scale = (f32(5.0) + f32(step) * f32(0.1)) / max_x
             this_scale = f32(1.0) / inv_scale
@@ -802,6 +803,7 @@ class QTensorTractIQ2_S(QTensorTractGGMLBlock):  # noqa: N801
     BLOCK_LEN = QK_K
     BLOCK_BYTES = 82
     ITEM_TYPE = DatBinHeader.TractCustomTypes.IQ2S
+    F16_SCALE_FIELDS = {"d": 0}
 
     @classmethod
     def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:
@@ -829,7 +831,9 @@ class QTensorTractIQ2_S(QTensorTractGGMLBlock):  # noqa: N801
         hi = (grid_index >> 8).reshape((n_blocks, 8, 4))
         qh = (hi << (2 * np.arange(4))).sum(axis=2)
         out = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
-        d_f16 = (d * f32(0.9875)).astype(np.float16)
+        # f16 overflow to inf is rejected by `check_quantized_blocks`
+        with np.errstate(over="ignore"):
+            d_f16 = (d * f32(0.9875)).astype(np.float16)
         out[:, 0:2] = d_f16.reshape((n_blocks, 1)).view(np.uint8)
         out[:, 2:34] = grid_index & 0xFF
         out[:, 34:66] = signs.reshape((n_blocks, 32))

@@ -305,6 +305,62 @@ with torch.no_grad():
     )
 ```
 
+Input requirements, f16 scale overflow and underflow checks, streaming export and
+offloading are the same as for Q4_K. The underflow check only rejects a nonzero
+super-block that would dequantize to all zeros: a group of 16 zeros inside a
+nonzero super-block keeps grid point 0 and decodes to small nonzero values, as in
+llama.cpp and tract.
+
+!!! warning "Requires tract 0.23.10 or newer"
+
+    IQ2_S export is rejected for older targets, including prerelease builds
+    below 0.23.10. Both normal and offloaded exports emit an explicit warning
+    before failing, and no tensor data is written.
+
+#### IQ2_S block layout
+
+IQ2_S stores 256 weights per super-block, split into 32 octets of 8 weights and
+16 groups of 16 weights (2 octets per group). The super-block holds one f16 scale
+`d`, each group `g` a 4-bit scale `s[g]`, and each octet `o` a 10-bit index
+`idx[o]` into the ggml `kgrid_2bit_1024` grid plus 8 sign bits `sign[o]`. A grid
+point packs 8 two-bit levels, each mapped to a magnitude in `{8, 25, 43}`, and
+weight `k` of octet `o` reconstructs as:
+
+```text
+w[8o + k] = d * (0.5 + s[o / 2]) * 0.25 * grid[idx[o]][k] * (bit k of sign[o] ? -1 : 1)
+```
+
+The super-block occupies 82 bytes, or `(16 + 32 * (10 + 8) + 16 * 4) / 256 = 2.5625 bpw`.
+This is llama.cpp `block_iq2_s`, NNEF item type `0x3222`.
+
+```mermaid
+flowchart LR
+    accTitle: IQ2_S super-block layout
+    accDescr: After the NNEF tensor header, each super-block stores an f16 d in bytes 0 and 1, the low 8 bits of the 32 octet grid indices in bytes 2 through 33, the 32 octet sign bytes in bytes 34 through 65, the 2 high bits of each grid index in bytes 66 through 73, and sixteen 4-bit group scales in bytes 74 through 81.
+    subgraph block["256 weights / 82 bytes / 2.5625 bpw"]
+        direction LR
+        d["Bytes 0-1<br/>f16 d"]
+        qs["Bytes 2-33<br/>32 x index low 8 bits"]
+        signs["Bytes 34-65<br/>32 x 8 sign bits"]
+        qh["Bytes 66-73<br/>32 x index high 2 bits"]
+        scales["Bytes 74-81<br/>16 x 4-bit scales"]
+        d --- qs --- signs --- qh --- scales
+    end
+```
+
+**Grid indices**: octet `o` takes its low 8 bits from byte `2 + o` and its 2 high
+bits from bits `2 * (o % 4)` and `2 * (o % 4) + 1` of byte `66 + o / 4`.
+**Signs**: bit `k` of byte `34 + o` negates weight `8o + k`.
+**Scales**: byte `74 + j` holds group `2j` in its low nibble and group `2j + 1` in
+its high nibble.
+
+```mermaid
+flowchart LR
+    accTitle: IQ2_S high index bits in byte 66
+    accDescr: Bits 7 and 6 hold the high index bits of octet 3, bits 5 and 4 of octet 2, bits 3 and 2 of octet 1, bits 1 and 0 of octet 0.
+    o3["Bits 7-6<br/>idx3 high"] --- o2["Bits 5-4<br/>idx2 high"] --- o1["Bits 3-2<br/>idx1 high"] --- o0["Bits 1-0<br/>idx0 high"]
+```
+
 ### Q40 Use specific quantization method
 
 Ok min-max is cool, but quality it provides in Q40 is bad, how do I implement my own quantization (even with prior sections, I feel confused) ?
