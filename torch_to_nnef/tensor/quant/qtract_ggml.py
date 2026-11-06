@@ -45,6 +45,8 @@ QK_K = 256
 # blocks erased by f16 scale underflow are tolerated (with a warning) when
 # their weights are below this fraction of the tensor largest weight
 GGML_UNDERFLOW_REL_TOL = torch.finfo(torch.float16).eps
+# ggml `GROUP_MAX_EPS`: groups below it are all zeros
+GGML_GROUP_MAX_EPS = 1e-15
 
 
 # ggml shared helpers ######################################################
@@ -878,4 +880,229 @@ def fp_to_tract_q5_k(fp_tensor: torch.Tensor) -> QTensorTractQ5_K:
     """
     qtensor = QTensorTractQ5_K.from_fp(fp_tensor)
     assert isinstance(qtensor, QTensorTractQ5_K)
+    return qtensor
+
+
+# Q6_K ######################################################################
+
+
+def ggml_first_absmax(
+    x: torch.Tensor,
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    """Signed value of max |x| per row (first one on ties), and that |x|.
+
+    Explicit scan like ggml loops (`argmax` ties differ across platforms).
+    """
+    signed = torch.zeros_like(x[:, 0])
+    amax = torch.zeros_like(x[:, 0])
+    for i in range(x.shape[1]):
+        ax = x[:, i].abs()
+        update = ax > amax
+        amax = torch.where(update, ax, amax)
+        signed = torch.where(update, x[:, i], signed)
+    return signed, amax
+
+
+def ggml_make_qx_quants(
+    x: torch.Tensor, nmax: int
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    """Port of ggml `make_qx_quants` (`rmse_type` 1) over rows of `x`.
+
+    Each value is weighted by its square.
+
+    Returns:
+        (scale (n,), levels u8 (n, group) in [0, 2 * nmax))
+    """
+    zero = ggml_f32(0.0)
+    x = x.to(torch.float32)
+    vmax, amax = ggml_first_absmax(x)
+    empty = amax < ggml_f32(GGML_GROUP_MAX_EPS)
+    w = x * x
+    wx = w * x
+
+    def levels_for(iscale):
+        return torch.clamp(
+            ggml_nearest_int(iscale[:, None] * x), -nmax, nmax - 1
+        )
+
+    def fit(lev):
+        # ggml order: `(w * x) * l` and `(w * l) * l`
+        lev_f = lev.to(torch.float32)
+        sumlx = ggml_seq_sum(wx * lev_f)
+        suml2 = ggml_seq_sum(w * lev_f * lev_f)
+        return sumlx, suml2
+
+    # empty rows divide by 0: their results are discarded below
+    levels = levels_for(ggml_f32(-nmax) / vmax)
+    sumlx, suml2 = fit(levels)
+    scale = torch.where(suml2 != 0, sumlx / suml2, zero)
+    best = scale * sumlx
+    for step in range(-9, 10):
+        if step == 0:
+            continue
+        iscale = -(ggml_f32(nmax) + ggml_f32(0.1) * ggml_f32(step)) / vmax
+        cand = levels_for(iscale)
+        sumlx, suml2 = fit(cand)
+        update = (suml2 > 0) & (sumlx * sumlx > best * suml2)
+        levels = torch.where(update[:, None], cand, levels)
+        scale = torch.where(update, sumlx / suml2, scale)
+        best = torch.where(update, scale * sumlx, best)
+    levels = torch.where(empty[:, None], 0, levels + nmax).to(torch.uint8)
+    scale = torch.where(empty, zero, scale)
+    return scale, levels
+
+
+def ggml_quant_q6_k_scales(
+    x: torch.Tensor,
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    """Q6_K super-block parameters (ggml `quantize_row_q6_K_ref`).
+
+    Args:
+        x: fp32 (n, 256) super-blocks
+
+    Returns:
+        (d f16 (n,), i8 sub-block scales (n, 16))
+    """
+    zero = ggml_f32(0.0)
+    n_blocks = x.shape[0]
+    assert x.shape[1] == QK_K, x.shape
+    scales, _ = ggml_make_qx_quants(x.reshape((n_blocks * 16, 16)), 32)
+    scales = scales.reshape((n_blocks, 16))
+    max_scale, max_abs_scale = ggml_first_absmax(scales)
+    # ggml writes all zeros super-blocks below this
+    valid = max_abs_scale >= ggml_f32(GGML_GROUP_MAX_EPS)
+    iscale = torch.where(valid, ggml_f32(-128.0) / max_scale, zero)
+    # f16 overflow to inf is rejected by the calibration checks
+    d_f16 = torch.where(valid, ggml_f32(1.0) / iscale, zero).to(torch.float16)
+    sc = torch.clamp(ggml_nearest_int(iscale[:, None] * scales), max=127)
+    sc = torch.where(valid[:, None], sc, 0).to(torch.int8)
+    return d_f16, sc
+
+
+class QScaleGGMLK6(QScaleGGMLK):
+    """ggml Q6_K symmetric super-block scheme.
+
+    Per super-block of 256 values: f16 `d` (n,), and per sub-block of
+    16 values i8 scales `sc` (n, 16). A code `q` in [0, 63] dequantizes
+    to `(d * sc) * (q - 32)`.
+
+    ggml keeps its `make_qx_quants` search levels for sub-blocks whose
+    `d * sc` is 0, and zeros for super-blocks without any scale.
+    """
+
+    SUB_LEN = 16
+    PARAM_NAMES = ("d", "sc")
+
+    def __init__(self, d: torch.Tensor, sc: torch.Tensor):
+        assert d.dtype == torch.float16, d.dtype
+        assert sc.dtype == torch.int8, sc.dtype
+        assert sc.shape == (d.shape[0], 16), (sc.shape, d.shape)
+        self.d = d
+        self.sc = sc
+
+    @classmethod
+    def fit_blocks(cls, x, **settings):
+        scheme = cls(*ggml_quant_q6_k_scales(x))
+        return scheme, scheme.quantize_blocks(x)
+
+    def sub_scales(self):
+        return self.d.to(torch.float32)[:, None] * self.sc.to(torch.float32)
+
+    def levels(self, codes):
+        return codes.to(torch.float32) - 32
+
+    def quantize_blocks(self, x):
+        """Final ggml levels with the f16 rounded super-block scale."""
+        n_blocks = x.shape[0]
+        d_sc = self.sub_scales()
+        x16 = x.reshape((n_blocks, 16, 16))
+        levels = (
+            torch.clamp(ggml_nearest_int(x16 / d_sc[:, :, None]), -32, 31) + 32
+        )
+        zero_d = d_sc == 0
+        if zero_d.any():
+            # ggml keeps `make_qx_quants` levels of these sub-blocks
+            search_scales, search_levels = ggml_make_qx_quants(x16[zero_d], 32)
+            levels[zero_d] = search_levels.to(levels.dtype)
+            # d == 0 super-blocks were fully searched: those without any
+            # scale are written as zeros
+            scales = torch.zeros_like(d_sc)
+            scales[zero_d] = search_scales
+            _, max_abs_scale = ggml_first_absmax(scales)
+            empty = (self.d == 0) & (
+                max_abs_scale < ggml_f32(GGML_GROUP_MAX_EPS)
+            )
+            levels[empty] = 0
+        return levels.reshape((n_blocks, QK_K)).to(torch.uint8)
+
+
+class QTensorTractQ6_K(QTensorTractGGMLK):  # noqa: N801
+    """Tract data format it serializes to: Q6_K (ggml `block_q6_K`).
+
+    Each super-block of 256 values is stored as 210 bytes:
+    128 bytes of low 4 bits and 64 bytes of high 2 bits of 256 6bit
+    levels, sixteen i8 scales (one per sub-block of 16 values), then
+    f16 `d` (6.5625bpw). It is symmetric: value is
+    `d * scale * (level - 32)`.
+
+    Quantization ports llama.cpp `quantize_row_q6_K_ref` (no importance
+    matrix), dequantization matches tract bit exactly.
+
+    Warning:
+        tract (<= 0.23.10) only supports Q6_K weights in
+        embedding/gathering operations: there is no matmul or convolution
+        kernel for it yet.
+
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q6_k.v1"
+    FORMAT_NAME = "Q6_K"
+    BLOCK_BYTES = 210
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.Q6K
+    QSCHEME_CLS = QScaleGGMLK6
+    # instance attribute: type notation for mypy
+    qscheme: QScaleGGMLK6
+
+    @classmethod
+    def _pack_blocks(cls, codes, params, inference_target) -> np.ndarray:
+        n_blocks = codes.shape[0]
+        # per half of 128: l[k] = levels[i + 32 * k] for i in 0..32
+        lv = codes.reshape((n_blocks, 2, 4, 32))
+        ql = torch.cat(
+            [
+                (lv[:, :, 0] & 0xF) | ((lv[:, :, 2] & 0xF) << 4),
+                (lv[:, :, 1] & 0xF) | ((lv[:, :, 3] & 0xF) << 4),
+            ],
+            dim=2,
+        )
+        qh = (
+            (lv[:, :, 0] >> 4)
+            | ((lv[:, :, 1] >> 4) << 2)
+            | ((lv[:, :, 2] >> 4) << 4)
+            | ((lv[:, :, 3] >> 4) << 6)
+        )
+        return torch.cat(
+            [
+                ql.reshape((n_blocks, 128)),
+                qh.reshape((n_blocks, 64)),
+                params["sc"].view(torch.uint8),
+                ggml_f16_to_bytes(params["d"]),
+            ],
+            dim=1,
+        ).numpy()
+
+
+def fp_to_tract_q6_k(fp_tensor: torch.Tensor) -> QTensorTractQ6_K:
+    """Quantize float tensor to tract supported Q6_K (ggml reference).
+
+    Only use it on embedding weights (see `QTensorTractQ6_K`).
+
+    Raises:
+        T2NErrorImpossibleQuantization: invalid dtype or shape, non finite
+            values, a super-block scale `d` that overflows f16, or that
+            underflows it for weights not negligible against the tensor
+            largest one.
+    """
+    qtensor = QTensorTractQ6_K.from_fp(fp_tensor)
+    assert isinstance(qtensor, QTensorTractQ6_K)
     return qtensor
