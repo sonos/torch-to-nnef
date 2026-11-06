@@ -1291,7 +1291,7 @@ def _iq2_s_quantize_groups(
     one = ggml_f32(1.0)
     n_groups = xb.shape[0]
     weight = ggml_f32(0.25) * sigma2[:, None] + xb * xb
-    waux = torch.sqrt(weight)
+    waux = ggml_sqrt(weight)
     neg = xb < 0
     xval = torch.where(neg, -xb, xb)
     max_x = xval.amax(dim=1)
