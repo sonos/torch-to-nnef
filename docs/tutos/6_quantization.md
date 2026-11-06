@@ -120,7 +120,7 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
     handler: python
-- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ8_0
+- ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_0
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
     handler: python
@@ -306,8 +306,8 @@ One code occupies a full byte, using two's complement:
 | Weight | `-127 * d` | `-d` | `0` | `+d` | `127 * d` |
 
 Reconstruction is `w[i] = d * q[i]`, computed in f32 then cast to the weight
-dtype. Codes are `round(x[i] / d)` with `d` in f32, while the stored `d` is
-rounded to f16 (and always positive). The block occupies 34 bytes:
+dtype. Codes are `round(x[i] / d)` (half away from zero) with `d` in f32,
+while the stored `d` is rounded to f16 (and always positive). The block occupies 34 bytes:
 `(16 + 32 * 8) / 32 = 8.5 bpw`. There is no nibble packing, stored zero point
 or sum, and the int8 code `-128` is never emitted.
 
@@ -332,7 +332,7 @@ t2n_export_llm_to_tract \
     -c "min_max_q8_0_embeddings"
 ```
 
-Or directly on a tensor with [fp_to_tract_q8_0_with_min_max_calibration](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract_ggml.py):
+Or directly on a tensor with [fp_to_tract_q8_0_with_min_max_calibration](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract.py):
 
 ```python
 from torch_to_nnef.tensor.quant import fp_to_tract_q8_0_with_min_max_calibration

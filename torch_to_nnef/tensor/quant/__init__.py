@@ -10,19 +10,19 @@ from torch_to_nnef.tensor.quant.base import (
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTract,
     QTensorTractQ2_0_T,
+    QTensorTractQ8_0,
     QTensorTractQ8_1,
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q8_0_with_min_max_calibration,
     fp_to_tract_q8_1_with_min_max_calibration,
     ternary_to_tract_q2_0_t,
 )
 from torch_to_nnef.tensor.quant.qtract_ggml import (
-    QScaleGGMLBlock,
-    QTensorTractGGMLBlock,
+    QScaleGGMLKMin,
+    QTensorTractGGMLKMin,
     QTensorTractQ4_K,
-    QTensorTractQ8_0,
     fp_to_tract_q4_k,
-    fp_to_tract_q8_0_with_min_max_calibration,
 )
 
 __all__ = [
@@ -33,8 +33,8 @@ __all__ = [
     "QScalePerGroupF16",
     "QTensorTract",
     "QTensorTractQ2_0_T",
-    "QScaleGGMLBlock",
-    "QTensorTractGGMLBlock",
+    "QScaleGGMLKMin",
+    "QTensorTractGGMLKMin",
     "QTensorTractQ4_K",
     "fp_to_tract_q4_k",
     "QTensorTractQ8_0",
