@@ -446,6 +446,7 @@ class QTensorTractQ8_0(QTensorTractBlockQuant):  # noqa: N801
     Warning:
         tract (<= 0.23.10) only supports Q8_0 weights in embedding/gathering
         operations: there is no matmul or convolution kernel for it yet.
+        Export requires tract >= 0.23.10; older targets warn and are rejected.
 
     """
 
@@ -457,6 +458,18 @@ class QTensorTractQ8_0(QTensorTractBlockQuant):  # noqa: N801
     RESTRICTED_RANGE = True
     # before 0.23.10 tract item type 0x3080 meant Q8_1
     MIN_TRACT_VERSION = "0.23.10"
+
+    @classmethod
+    def _check_inference_target_support(cls, inference_target: TractNNEF):
+        if inference_target.version < cls.MIN_TRACT_VERSION:
+            LOGGER.warning(
+                "Q8_0 export requires tract >= %s; target is %s "
+                "(older tract reads item type 0x3080 as Q8_1). "
+                "Upgrade tract before exporting Q8_0 weights.",
+                cls.MIN_TRACT_VERSION,
+                inference_target.version,
+            )
+        super()._check_inference_target_support(inference_target)
 
     def decompress(self):
         """Dequantize like tract Q8_0: in f32, then cast to target dtype."""
@@ -486,7 +499,7 @@ class QTensorTractQ8_0(QTensorTractBlockQuant):  # noqa: N801
             torch.int8
         )
         b_all = np.empty((n_groups, cls.BLOCK_BYTES), dtype=np.uint8)
-        b_all[:, :2] = (-scale).numpy().view(np.uint8).reshape(n_groups, 2)
+        b_all[:, :2] = (-scale).numpy().view(np.uint8).reshape((n_groups, 2))
         b_all[:, 2:] = i8_vals.numpy().view(np.uint8)
         return b_all
 
@@ -561,7 +574,52 @@ def fp_to_tract_q8_0_with_min_max_calibration(
     """Min-Max method to quantize float tensor to tract supported Q8_0.
 
     Only use it on embedding weights (see `QTensorTractQ8_0`).
+
+    Accepts nonempty finite floating tensors of rank 2 to 4 whose flattened
+    rows are a multiple of 32.
+
+    Raises:
+        T2NErrorImpossibleQuantization: Invalid dtype or shape, non-finite
+            values, or block scales `absmax / 127` that overflow in f16 or
+            underflow to zero for a nonzero block.
     """
-    return _fp_to_tract_block_quant_with_min_max_calibration(
-        fp_tensor, QTensorTractQ8_0, percentile
-    )
+    if isinstance(fp_tensor, torch.nn.Parameter):
+        fp_tensor = fp_tensor.data
+    group_size = QTensorTractQ8_0.GROUP_SIZE
+    if (
+        not fp_tensor.is_floating_point()
+        or fp_tensor.ndim not in (2, 3, 4)
+        or fp_tensor.numel() == 0
+        or reduce(operator.mul, fp_tensor.shape[1:]) % group_size
+    ):
+        raise T2NErrorImpossibleQuantization(
+            "Q8_0 requires nonempty floating weights of rank 2 to 4 "
+            f"with flattened rows divisible by {group_size}, got "
+            f"{fp_tensor.dtype} {tuple(fp_tensor.shape)}"
+        )
+    with torch.no_grad():
+        f32_tensor = fp_tensor.detach().float()
+        if not torch.isfinite(f32_tensor).all():
+            raise T2NErrorImpossibleQuantization("Q8_0 requires finite weights")
+        absmax = f32_tensor.reshape((-1, group_size)).abs().amax(dim=1)
+        f16_scale = (absmax / 127).half()
+        if not torch.isfinite(f16_scale).all():
+            raise T2NErrorImpossibleQuantization(
+                "Q8_0 block scale overflows f16 (absmax / 127 > 65504)"
+            )
+        if ((absmax != 0) & (f16_scale == 0)).any():
+            raise T2NErrorImpossibleQuantization(
+                "Q8_0 nonzero block scale underflows to zero in f16"
+            )
+        # calibrate in f32 like ggml `quantize_row_q8_0_ref`: f16 or bf16
+        # weights would otherwise round `absmax / 127` twice
+        q_scheme = qscale_per_group_f16_min_max_calibration(
+            f32_tensor,
+            n_bits=QTensorTractQ8_0.N_BITS,
+            group_size=group_size,
+            percentile=percentile,
+            restricted_range=QTensorTractQ8_0.RESTRICTED_RANGE,
+        )
+        return QTensorTractQ8_0(
+            fp_tensor, qscheme=q_scheme, dequant_to_dtype=fp_tensor.dtype
+        )

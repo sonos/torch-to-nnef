@@ -30,7 +30,7 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-To date tract support 4 kind of quantization:
+The exporter supports these tract quantization formats:
 
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
@@ -188,6 +188,53 @@ with torch.no_grad():
 tract (>= 0.23.10) can also load `Q8_0` weights (GGML `block_q8_0`): each group of 32
 elements is stored as a f16 scale and 32 int8 values (8.5bpw), with the same
 `d = absmax / 127` convention as `Q8_1` but without the group sum.
+
+#### Q8_0 block layout
+
+```mermaid
+flowchart LR
+    accTitle: Q8_0 block layout
+    accDescr: Each block stores a little-endian f16 scale in bytes 0 and 1, followed by 32 signed int8 codes in bytes 2 through 33.
+    subgraph block["32 weights / 34 bytes / 8.5 bpw"]
+        direction LR
+        scale["Bytes 0-1<br/>f16 scale d<br/>Little-endian"]
+        codes["Bytes 2-33<br/>q0, q1, ... q31<br/>One signed int8 per byte"]
+        scale --- codes
+    end
+```
+
+One code occupies a full byte, using two's complement:
+
+| Byte (hex) | `81` | `ff` | `00` | `01` | `7f` |
+| --- | --- | --- | --- | --- | --- |
+| Code | -127 | -1 | 0 | +1 | +127 |
+| Weight | `-127 * d` | `-d` | `0` | `+d` | `127 * d` |
+
+Reconstruction is `w[i] = d * q[i]`, computed in f32 by tract then cast to the
+weight dtype. The exporter computes `d = absmax / 127` in f32 (also for f16 and
+bf16 weights), rounds it to f16 and stores it positive, like GGML
+`quantize_row_q8_0_ref`: exported blocks are byte identical to llama.cpp
+reference quantization. The int8 code `-128` is never emitted and all-zero
+blocks are stored with `d = 0`. There is no nibble packing, stored zero point
+or group sum: `(16 + 32 * 8) / 32 = 8.5 bpw`.
+
+| Weight format | Block bytes | Payload bpw |
+| --- | ---: | ---: |
+| Q4_0 | 18 | 4.5 |
+| Q8_0 | 34 | 8.5 |
+| Q8_1 | 36 | 9 |
+| Float16 / bfloat16 | | 16 |
+| Float32 | | 32 |
+
+The NNEF item type is `0x3080`, which tract < 0.23.10 reads as `Q8_1`
+(`DatBinHeader.TractCustomTypes.Q81_LEGACY` is an alias of `Q80` for that
+reason). Export to older targets, prereleases of 0.23.10 included, logs an
+upgrade warning and fails before writing any tensor data.
+
+`fp_to_tract_q8_0_with_min_max_calibration` accepts nonempty finite floating
+weights of rank 2 to 4 with flattened rows divisible by 32. Blocks whose scale
+overflows f16 (`absmax / 127 > 65504`) or underflows to zero while nonzero are
+rejected.
 
 !!! warning
 
