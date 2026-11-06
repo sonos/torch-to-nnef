@@ -125,7 +125,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
-def _quantize_embeddings_min_max(
+def _quantize_embeddings(
     model: nn.Module, q_fn, suffix_name: str, format_name: str, **kwargs
 ):
     to_quantize_module_classes = kwargs.get(
@@ -147,7 +147,7 @@ def quantize_weights_min_max_Q8_1(model: nn.Module, **kwargs):  # noqa: N802
     tract only supports Q8_1 weights for embedding/gathering operations
     so only `nn.Embedding` (or subclasses) can be quantized.
     """
-    return _quantize_embeddings_min_max(
+    return _quantize_embeddings(
         model,
         fp_to_tract_q8_1_with_min_max_calibration,
         "q81_min_max",
@@ -163,7 +163,7 @@ def quantize_weights_min_max_Q8_0(model: nn.Module, **kwargs):  # noqa: N802
     so only `nn.Embedding` (or subclasses) can be quantized.
     Requires tract >= 0.23.10.
     """
-    return _quantize_embeddings_min_max(
+    return _quantize_embeddings(
         model,
         fp_to_tract_q8_0_with_min_max_calibration,
         "q80_min_max",
@@ -180,9 +180,7 @@ def _quantize_embeddings_ggml(
         raise T2NErrorMisuse(
             f"the ggml {format_name} quantizer has no percentile calibration"
         )
-    return _quantize_embeddings_min_max(
-        model, q_fn, suffix_name, format_name, **kwargs
-    )
+    return _quantize_embeddings(model, q_fn, suffix_name, format_name, **kwargs)
 
 
 def quantize_weights_ggml_Q4_K(model: nn.Module, **kwargs):  # noqa: N802

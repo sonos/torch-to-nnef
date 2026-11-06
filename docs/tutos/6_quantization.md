@@ -375,7 +375,8 @@ w[i] = d * sc[j] * q[i] - dmin * m[j],  j = i / 32
 
 The min term gives each sub-block an asymmetric range. The quantizer is a port
 of GGML's reference `quantize_row_q4_K_ref` (a `make_qkx2_quants` search per
-sub-block, without importance matrix): it reproduces GGML's bytes, and the
+sub-block, without importance matrix): on CPU it reproduces GGML's bytes
+(as built without floating point contraction, `-ffp-contract=off`), and the
 exported dequantization matches tract bit exactly.
 
 ```mermaid
