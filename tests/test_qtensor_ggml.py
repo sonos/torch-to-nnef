@@ -502,14 +502,17 @@ def test_iq2s_dat_content_layout(tmp_path):
     )
 
 
-@pytest.mark.parametrize("seed", [0, 1, 2])
-def test_iq2s_dequant_round_trip_error_bounded(seed):
+def test_iq2s_ramp_and_zeros_round_trip():
     # same bound as tract iq2_s_roundtrip
     ramp = _ggml_ramp(512, 0).reshape((2, 256))
     qtensor = fp_to_tract_iq2_s(ramp)
     assert (qtensor.decompress() - ramp).abs().max() < 1.25
     zeros = fp_to_tract_iq2_s(torch.zeros(2, 256))
     assert torch.equal(zeros.decompress(), torch.zeros(2, 256))
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_iq2s_dequant_round_trip_error_bounded(seed):
     gen = torch.Generator().manual_seed(seed)
     # rows of very different magnitudes
     fp_tensor = torch.randn(16, 1024, generator=gen) * 10 ** torch.linspace(
