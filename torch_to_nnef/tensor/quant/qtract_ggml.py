@@ -11,6 +11,7 @@ Warning:
 
 """
 
+import logging
 import operator
 import typing as T
 from functools import lru_cache, reduce
@@ -28,6 +29,8 @@ from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant._iq2_s_grid import KGRID_2BIT_1024
 from torch_to_nnef.tensor.quant.base import QScheme, U8Compressor
 from torch_to_nnef.tensor.quant.qtract import QTensorTractDat
+
+LOGGER = logging.getLogger(__name__)
 
 # numbers of blocks processed at once by numpy (bounds peak memory)
 GGML_CHUNK_BLOCKS = 1 << 14
@@ -64,14 +67,16 @@ class QScaleGGMLBlock(QScheme):
             .to(torch.float32)
             .contiguous()
             .numpy()
-            .reshape(-1, fmt.BLOCK_LEN)
+            .reshape((-1, fmt.BLOCK_LEN))
         )
         out = np.empty((fp_blocks.shape[0], fmt.BLOCK_BYTES), dtype=np.uint8)
         for start in range(0, fp_blocks.shape[0], GGML_CHUNK_BLOCKS):
             end = start + GGML_CHUNK_BLOCKS
-            chunk = fmt.quantize_blocks(fp_blocks[start:end])
+            fp_chunk = fp_blocks[start:end]
+            chunk = fmt.quantize_blocks(fp_chunk)
             assert chunk.dtype == np.uint8, chunk.dtype
-            assert chunk.shape == (len(fp_blocks[start:end]), fmt.BLOCK_BYTES)
+            assert chunk.shape == (len(fp_chunk), fmt.BLOCK_BYTES)
+            fmt.check_quantized_blocks(fp_chunk, chunk)
             out[start:end] = chunk
         return torch.from_numpy(out)
 
@@ -82,7 +87,7 @@ class QScaleGGMLBlock(QScheme):
         """
         fmt = self.fmt
         u8_blocks = (u8_tensor.detach().cpu().contiguous().numpy()).reshape(
-            -1, fmt.BLOCK_BYTES
+            (-1, fmt.BLOCK_BYTES)
         )
         out = np.empty((u8_blocks.shape[0], fmt.BLOCK_LEN), dtype=np.float32)
         for start in range(0, u8_blocks.shape[0], GGML_CHUNK_BLOCKS):
@@ -112,9 +117,18 @@ class QTensorTractGGMLBlock(QTensorTractDat):
         - `BLOCK_BYTES`: number of bytes per block
         - `ITEM_TYPE`: `DatBinHeader.TractCustomTypes` member
         - `MIN_TRACT_VERSION`: minimum tract version reading it
+        - `F16_SCALE_FIELDS`: name to byte offset of each f16 block scale
+          (like `{"d": 0, "dmin": 2}`), checked for f16 overflow
         - `quantize_blocks(fp32 (n, BLOCK_LEN)) -> u8 (n, BLOCK_BYTES)`
         - `dequantize_blocks(u8 (n, BLOCK_BYTES)) -> fp32 (n, BLOCK_LEN)`
           which must reproduce tract dequantization bit exactly.
+
+    Validation shared by all formats:
+        - `check_fp_tensor`: input weights (called at construction)
+        - `check_quantized_blocks`: f16 scales overflow and underflow
+          (called on each quantized chunk)
+        - `_check_inference_target_support`: tract version gate, warns
+          with an upgrade hint then raises before any data is written
 
     Warning:
         tract (<= 0.23.10) only supports these formats in
@@ -126,6 +140,7 @@ class QTensorTractGGMLBlock(QTensorTractDat):
     BLOCK_BYTES: int
     ITEM_TYPE: DatBinHeader.TractCustomTypes
     MIN_TRACT_VERSION: T.Optional[str] = "0.23.10"
+    F16_SCALE_FIELDS: T.Dict[str, int] = {}
     qscheme: QScaleGGMLBlock  # type notation for mypy
 
     def __init__(
@@ -137,7 +152,7 @@ class QTensorTractGGMLBlock(QTensorTractDat):
     ):
         assert isinstance(qscheme, QScaleGGMLBlock), qscheme
         assert qscheme.fmt is type(self), (qscheme.fmt, type(self))
-        self.check_fp_shape(fp_tensor.shape)
+        self.check_fp_tensor(fp_tensor)
         super().__init__(
             fp_tensor,
             qscheme,
@@ -145,6 +160,31 @@ class QTensorTractGGMLBlock(QTensorTractDat):
             u8_compressors=u8_compressors,
         )
         self.decompressed_shape = tuple(fp_tensor.shape)
+
+    @classmethod
+    def check_fp_tensor(cls, fp_tensor: torch.Tensor):
+        """Reject weights this format can not represent.
+
+        Raises:
+            T2NErrorImpossibleQuantization: non floating, empty, rank not
+                in 2..4, flattened rows not a multiple of `BLOCK_LEN`
+                or non finite values.
+        """
+        if not fp_tensor.is_floating_point():
+            raise T2NErrorImpossibleQuantization(
+                f"tract {cls.FORMAT_NAME} requires floating weights "
+                f"but found {fp_tensor.dtype}"
+            )
+        if fp_tensor.numel() == 0:
+            raise T2NErrorImpossibleQuantization(
+                f"tract {cls.FORMAT_NAME} requires nonempty weights "
+                f"but found shape {tuple(fp_tensor.shape)}"
+            )
+        cls.check_fp_shape(fp_tensor.shape)
+        if not torch.isfinite(fp_tensor).all():
+            raise T2NErrorImpossibleQuantization(
+                f"tract {cls.FORMAT_NAME} requires finite weights"
+            )
 
     @classmethod
     def check_fp_shape(cls, shape):
@@ -174,6 +214,58 @@ class QTensorTractGGMLBlock(QTensorTractDat):
                 qscheme=QScaleGGMLBlock(cls),
                 dequant_to_dtype=dequant_to_dtype or fp_tensor.dtype,
             )
+
+    @classmethod
+    def check_quantized_blocks(cls, fp_blocks: np.ndarray, u8_blocks):
+        """Reject blocks whose f16 scales overflow or underflow.
+
+        Overflow: any `F16_SCALE_FIELDS` scale (or dequantized value) is
+        not finite. Underflow: a block with nonzero weights dequantizes
+        to all zeros (f16 scales rounded to 0), which would silently erase
+        those weights. A partial underflow (like Q4_K `d` rounded to 0
+        while `dmin` is not) is accepted: it only drops variations far
+        below the remaining f16 scale, within the quantization error.
+
+        Raises:
+            T2NErrorImpossibleQuantization: on f16 overflow or underflow.
+        """
+        for name, offset in cls.F16_SCALE_FIELDS.items():
+            scale = u8_blocks[:, offset : offset + 2].copy().view(np.float16)
+            if not np.isfinite(scale).all():
+                raise T2NErrorImpossibleQuantization(
+                    f"tract {cls.FORMAT_NAME} block scale `{name}` "
+                    "overflows f16: weights magnitude is too large"
+                )
+        with np.errstate(over="ignore", invalid="ignore"):
+            deq = cls.dequantize_blocks(u8_blocks)
+        if not np.isfinite(deq).all():
+            raise T2NErrorImpossibleQuantization(
+                f"tract {cls.FORMAT_NAME} dequantized values are not finite: "
+                "weights magnitude is too large"
+            )
+        erased = (fp_blocks != 0).any(axis=1) & (deq == 0).all(axis=1)
+        if erased.any():
+            raise T2NErrorImpossibleQuantization(
+                f"tract {cls.FORMAT_NAME} block scales underflow f16: "
+                f"{int(erased.sum())} nonzero block(s) would dequantize "
+                "to zeros (weights magnitude is too small)"
+            )
+
+    @classmethod
+    def _check_inference_target_support(cls, inference_target: TractNNEF):
+        if (
+            cls.MIN_TRACT_VERSION is not None
+            and inference_target.version < cls.MIN_TRACT_VERSION
+        ):
+            LOGGER.warning(
+                "%s export requires tract >= %s; target is %s. "
+                "Upgrade tract before exporting %s weights.",
+                cls.FORMAT_NAME,
+                cls.MIN_TRACT_VERSION,
+                inference_target.version,
+                cls.FORMAT_NAME,
+            )
+        super()._check_inference_target_support(inference_target)
 
     @classmethod
     def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:
@@ -336,15 +428,15 @@ def ggml_quant_k_scales_mins(
     f32 = np.float32
     n_blocks = x.shape[0]
     assert x.shape[1] == QK_K, x.shape
-    sub = x.reshape(n_blocks * 8, 32).astype(f32, copy=False)
+    sub = x.reshape((n_blocks * 8, 32)).astype(f32, copy=False)
     av_x = np.sqrt(ggml_seq_sum(sub * sub) / f32(32.0))
     weights = av_x[:, None] + np.abs(sub)
     scales, levels, mins = ggml_make_qkx2_quants(
         sub, weights, nmax, rmin, 0.1, nstep
     )
-    scales = scales.reshape(n_blocks, 8)
-    mins = mins.reshape(n_blocks, 8)
-    levels = levels.reshape(n_blocks, QK_K)
+    scales = scales.reshape((n_blocks, 8))
+    mins = mins.reshape((n_blocks, 8))
+    levels = levels.reshape((n_blocks, QK_K))
     # comparisons as in ggml: -0.0 mins never win over 0.0
     max_scale = np.where(scales > 0, scales, f32(0)).max(axis=1)
     max_min = np.where(mins > 0, mins, f32(0)).max(axis=1)
@@ -362,25 +454,27 @@ def ggml_quant_k_scales_mins(
     sc[:, 0:4] = ls[:, :4] | ((ls[:, 4:] >> 4) << 6)
     sc[:, 4:8] = lm[:, :4] | ((lm[:, 4:] >> 4) << 6)
     sc[:, 8:12] = (ls[:, 4:] & 0xF) | ((lm[:, 4:] & 0xF) << 4)
-    d_f16 = (max_scale / f32(63.0)).astype(np.float16)
-    dmin_f16 = (max_min / f32(63.0)).astype(np.float16)
+    # f16 overflow to inf is rejected by `check_quantized_blocks`
+    with np.errstate(over="ignore"):
+        d_f16 = (max_scale / f32(63.0)).astype(np.float16)
+        dmin_f16 = (max_min / f32(63.0)).astype(np.float16)
     header = np.empty((n_blocks, 16), dtype=np.uint8)
-    header[:, 0:2] = d_f16.reshape(n_blocks, 1).view(np.uint8)
-    header[:, 2:4] = dmin_f16.reshape(n_blocks, 1).view(np.uint8)
+    header[:, 0:2] = d_f16.reshape((n_blocks, 1)).view(np.uint8)
+    header[:, 2:4] = dmin_f16.reshape((n_blocks, 1)).view(np.uint8)
     header[:, 4:16] = sc
     # final levels with f16 rounded super scales
     sc_u, m_u = ggml_unpack_scale_min_k4(sc)
     d = d_f16.astype(f32)[:, None] * sc_u.astype(f32)
     dm = dmin_f16.astype(f32)[:, None] * m_u.astype(f32)
-    x8 = x.reshape(n_blocks, 8, 32).astype(f32, copy=False)
+    x8 = x.reshape((n_blocks, 8, 32)).astype(f32, copy=False)
     with np.errstate(divide="ignore", invalid="ignore"):
         new_levels = np.clip(
             ggml_nearest_int((x8 + dm[:, :, None]) / d[:, :, None]), 0, nmax
         )
     levels = np.where(
-        (d != 0)[:, :, None], new_levels, levels.reshape(n_blocks, 8, 32)
+        (d != 0)[:, :, None], new_levels, levels.reshape((n_blocks, 8, 32))
     ).astype(np.uint8)
-    return header, levels.reshape(n_blocks, QK_K)
+    return header, levels.reshape((n_blocks, QK_K))
 
 
 def ggml_dequant_k_scales_mins(
@@ -424,6 +518,7 @@ class QTensorTractQ4_K(QTensorTractGGMLBlock):  # noqa: N801
     BLOCK_LEN = QK_K
     BLOCK_BYTES = 144
     ITEM_TYPE = DatBinHeader.TractCustomTypes.Q4K
+    F16_SCALE_FIELDS = {"d": 0, "dmin": 2}
 
     @classmethod
     def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:
@@ -432,24 +527,24 @@ class QTensorTractQ4_K(QTensorTractGGMLBlock):  # noqa: N801
             fp_blocks, nmax=15, rmin=-1.0, nstep=20
         )
         # per 64 values: low nibbles from first 32, high from next 32
-        chunks = levels.reshape(n_blocks, 4, 2, 32)
+        chunks = levels.reshape((n_blocks, 4, 2, 32))
         qs = chunks[:, :, 0, :] | (chunks[:, :, 1, :] << 4)
         out = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
         out[:, :16] = header
-        out[:, 16:] = qs.reshape(n_blocks, 128)
+        out[:, 16:] = qs.reshape((n_blocks, 128))
         return out
 
     @classmethod
     def dequantize_blocks(cls, u8_blocks: np.ndarray) -> np.ndarray:
         n_blocks = u8_blocks.shape[0]
         d_sc, dmin_m = ggml_dequant_k_scales_mins(u8_blocks[:, :16])
-        qs = u8_blocks[:, 16:].reshape(n_blocks, 4, 1, 32)
+        qs = u8_blocks[:, 16:].reshape((n_blocks, 4, 1, 32))
         levels = np.concatenate([qs & 0xF, qs >> 4], axis=2).reshape(
-            n_blocks, 8, 32
+            (n_blocks, 8, 32)
         )
         # same f32 ops order as tract: (d * sc) * q - (dmin * m)
         out = d_sc[:, :, None] * levels.astype(np.float32) - dmin_m[:, :, None]
-        return out.reshape(n_blocks, cls.BLOCK_LEN)
+        return out.reshape((n_blocks, cls.BLOCK_LEN))
 
 
 def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
