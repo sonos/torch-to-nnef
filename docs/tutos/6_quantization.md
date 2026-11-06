@@ -40,6 +40,7 @@ per-tensor metadata.
 | --- | --- | --- |
 | [Q4_0 / Q40](#q4_0-block-layout): 4.5 bpw, 32 weights per f16 scale | Weight-only quantization for matmul, convolution and embeddings/gather; outputs are floating point. | GGML's `block_q4_0`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Tract's NNEF layout has version-dependent nibble order. |
 | [Q8_1](#q8_1-for-embeddings): 9 bpw, 32 int8 weights plus f16 scale and sum | Weight-only, **embeddings/gather only**, tract >= 0.23.0. No matmul or convolution support. | GGML's `block_q8_1`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h), with tract-specific NNEF item types. |
+| [Q4_K](#q4_k-for-embeddings): 4.5 bpw, 256 weights per super-block (f16 `d`/`dmin`, 6-bit sub-block scales and mins) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q4_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q2_0_T](#q2_0_t-for-ternary-weights): 2.5 bpw, 32 ternary weights per f16 scale | Already-ternary weights, including Linear layers; **tract >= 0.23.11**. Does not insert activation quantization. | Related schemes include [BitNet b1.58](https://arxiv.org/abs/2402.17764) and [PrismML Ternary Bonsai](https://prismml.com/news/ternary-bonsai). Two-bit packing is related to GGML's [TQ2_0 family](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h); [tract defines the exact layout](https://github.com/sonos/tract/blob/main/linalg/src/frame/block_quant/q20t.rs). |
 | [Per-tensor affine int8](#per-tensor-8-bit-affine-layout): 8 bits per value, with separate scale/zero point | Weights and activations; supports integer arithmetic in quantized operators. | PyTorch's [per-tensor affine quantization API](https://docs.pytorch.org/docs/stable/generated/torch.quantize_per_tensor.html), exported as integer data plus NNEF `graph.quant` metadata. |
 
@@ -117,6 +118,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractScaleOnly
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
     handler: python
 </div>
 
@@ -269,6 +272,110 @@ with torch.no_grad():
         requires_grad=False,
     )
 ```
+
+### Q4_K for embeddings
+
+tract (>= 0.23.10) can also load GGML `Q4_K` weights. Each super-block of 256
+weights is split into 8 sub-blocks of 32 weights. The super-block stores two
+f16 scales, `d` and `dmin`, and each sub-block `j` stores a 6-bit scale `sc[j]`
+and a 6-bit min `m[j]`, relative to `d` and `dmin`. Each weight has an unsigned
+4-bit level `q[i]` in `[0, 15]`:
+
+```text
+w[i] = d * sc[j] * q[i] - dmin * m[j],  j = i / 32
+```
+
+The min term gives each sub-block an asymmetric range. The quantizer is a port
+of GGML's reference `quantize_row_q4_K_ref` (a `make_qkx2_quants` search per
+sub-block, without importance matrix): it reproduces GGML's bytes, and the
+exported dequantization matches tract bit exactly.
+
+```mermaid
+flowchart LR
+    accTitle: Q4_K super-block layout
+    accDescr: After the NNEF tensor header, each super-block stores an f16 d in bytes 0 and 1, an f16 dmin in bytes 2 and 3, eight packed 6-bit scales and mins in bytes 4 through 15, and 256 four-bit levels in bytes 16 through 143.
+    subgraph block["256 weights / 144 bytes / 4.5 bpw"]
+        direction LR
+        d["Bytes 0-1<br/>f16 d"]
+        dmin["Bytes 2-3<br/>f16 dmin"]
+        scales["Bytes 4-15<br/>8 x 6-bit scales<br/>8 x 6-bit mins"]
+        levels["Bytes 16-143<br/>256 x 4-bit levels<br/>4 chunks of 32 bytes"]
+        d --- dmin --- scales --- levels
+    end
+```
+
+**Inside the 12 bytes of scales and mins**, sub-blocks 0 to 3 use 6 contiguous
+bits, sub-blocks 4 to 7 are split across bytes:
+
+| Block bytes | High bits | Low bits |
+| --- | --- | --- |
+| 4-7 | Bits 7-6: bits 5-4 of `sc[4..7]` | Bits 5-0: `sc[0..3]` |
+| 8-11 | Bits 7-6: bits 5-4 of `m[4..7]` | Bits 5-0: `m[0..3]` |
+| 12-15 | Bits 7-4: bits 3-0 of `m[4..7]` | Bits 3-0: bits 3-0 of `sc[4..7]` |
+
+Byte `4 + k` of each row pairs sub-blocks `k` and `k + 4`: for example
+byte 4 holds `sc[0]` and the two high bits of `sc[4]`.
+
+**Levels**: each 32-byte chunk `p` (bytes `16 + 32 * p` onwards) covers 64
+weights, sub-blocks `2p` and `2p + 1`. Byte `i` of the chunk stores weight
+`64p + i` in its low nibble and weight `64p + 32 + i` in its high nibble:
+
+```mermaid
+flowchart LR
+    accTitle: Q4_K nibble order in byte 16
+    accDescr: Bits 7 through 4 contain level 32; bits 3 through 0 contain level 0.
+    high["Bits 7-4<br/>q32"] --- low["Bits 3-0<br/>q0"]
+```
+
+| Level | 0 | 15 |
+| --- | --- | --- |
+| Weight in sub-block `j` | `-dmin * m[j]` | `15 * d * sc[j] - dmin * m[j]` |
+
+For example, `q0 = 2` and `q32 = 9` produce byte 16 = `0x92`. As in Q4_0,
+paired levels are not adjacent: here they are 32 weights apart. The super-block
+occupies 144 bytes: `(16 + 16 + 16 * 6 + 256 * 4) / 256 = 4.5 bpw`, the same
+payload as Q4_0 but with 6-bit sub-block scales and mins instead of one f16
+scale per 32 weights. The NNEF item type is `0x3140`.
+
+!!! warning
+
+    tract has no matmul or convolution kernel for `Q4_K` weights yet: a `nn.Linear`
+    with `Q4_K` weights fails at tract model optimization (no suitable kernel).
+    Only use it for embeddings (gather operator).
+
+The `ggml_q4_k_embeddings` registry entry quantizes only `nn.Embedding` weights
+(weights tied with other modules like an LLM `lm_head` are left in float):
+
+```bash
+t2n_export_llm_to_tract \
+    -s "meta-llama/Llama-3.2-1B-Instruct" \
+    -dt f16 \
+    -e $HOME/llama32_1B_q4k_embeddings \
+    -c "ggml_q4_k_embeddings"
+```
+
+Or directly on a tensor with [fp_to_tract_q4_k](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract_ggml.py):
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_q4_k
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_q4_k(embedding.weight), requires_grad=False
+    )
+```
+
+The input must be a nonempty, finite, floating tensor (f32, f16 or bf16, always
+quantized from f32) of rank 2 to 4, with the product of dimensions after the
+first divisible by 256. Super-block scales that overflow f16, and nonzero
+super-blocks that would dequantize to zeros because their scales underflow
+f16, are rejected. Streaming export and tensor offloading are supported.
+
+!!! warning "Requires tract 0.23.10 or newer"
+
+    Q4_K export is rejected for older targets, including prerelease builds
+    below 0.23.10. Both normal and offloaded exports emit an explicit warning
+    before failing, and no tensor data is written.
 
 ### Q2_0_T for ternary weights
 
