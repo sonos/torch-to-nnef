@@ -42,11 +42,11 @@ from .utils import (
     check_model_io_test,
     check_offload_state_write,
     check_rejects_old_tract,
-    old_tract_versions,
     skipif_limited_offload_support,
     skipif_unsupported_qtensor,
-    supported_tract_versions,
     tract_target,
+    tract_versions_just_at_or_above,
+    tract_versions_just_below,
 )
 
 pytestmark = skipif_unsupported_qtensor
@@ -413,7 +413,7 @@ def test_ggml_seq_sum_is_sequential_f32():
 
 
 @pytest.mark.parametrize(
-    "version", old_tract_versions(QTensorTractQ4_K.MIN_TRACT_VERSION)
+    "version", tract_versions_just_below(QTensorTractQ4_K.MIN_TRACT_VERSION)
 )
 def test_q4k_rejects_old_tract(tmp_path, caplog, version):
     check_rejects_old_tract(
@@ -422,7 +422,8 @@ def test_q4k_rejects_old_tract(tmp_path, caplog, version):
 
 
 @pytest.mark.parametrize(
-    "version", supported_tract_versions(QTensorTractQ4_K.MIN_TRACT_VERSION)
+    "version",
+    tract_versions_just_at_or_above(QTensorTractQ4_K.MIN_TRACT_VERSION),
 )
 def test_q4k_offload_state_write(tmp_path, version):
     check_offload_state_write(
@@ -691,7 +692,7 @@ def test_iq2s_accepts_zero_groups_in_nonzero_block():
 
 
 @pytest.mark.parametrize(
-    "version", old_tract_versions(QTensorTractIQ2_S.MIN_TRACT_VERSION)
+    "version", tract_versions_just_below(QTensorTractIQ2_S.MIN_TRACT_VERSION)
 )
 def test_iq2s_rejects_old_tract(tmp_path, caplog, version):
     check_rejects_old_tract(
@@ -700,7 +701,8 @@ def test_iq2s_rejects_old_tract(tmp_path, caplog, version):
 
 
 @pytest.mark.parametrize(
-    "version", supported_tract_versions(QTensorTractIQ2_S.MIN_TRACT_VERSION)
+    "version",
+    tract_versions_just_at_or_above(QTensorTractIQ2_S.MIN_TRACT_VERSION),
 )
 def test_iq2s_offload_state_write(tmp_path, version):
     check_offload_state_write(
