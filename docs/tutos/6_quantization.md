@@ -37,6 +37,29 @@ The exporter supports these tract quantization formats:
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
+### Format lineage and references
+
+A quantization scheme, its packed tensor layout and its file container are
+separate choices. GGML defines tensor formats; GGUF and NNEF are containers.
+Related format names do not guarantee identical bytes or interchangeable
+model files.
+
+| Exported format | Lineage and primary references | What this exporter writes |
+| --- | --- | --- |
+| Q4_0 / Q40 | GGML's `block_q4_0`: see the [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). | The GGML-style 32-weight, f16-scale layout inside tract's NNEF extension, with version-dependent nibble order as described below. |
+| Q8_1 | GGML's `block_q8_1`, in the same [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h). | The f16 scale, f16 sum and 32 int8 codes, with tract-specific NNEF item types and embedding-only support. |
+| Q2_0_T | Ternary schemes such as [BitNet b1.58](https://arxiv.org/abs/2402.17764); two-bit packing related to GGML's [TQ2_0 family](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h). The exact layout is defined by [tract's Q2_0_T implementation](https://github.com/sonos/tract/blob/main/linalg/src/frame/block_quant/q20t.rs). | Tract's 32-weight blocks, scale first, at 2.5 bpw. This is not a byte-compatible alias for GGML TQ2_0 or a GGUF Q2_0 payload. |
+| Per-tensor affine int8 | PyTorch's [per-tensor affine quantization API](https://docs.pytorch.org/docs/stable/generated/torch.quantize_per_tensor.html). | Integer tensor data plus scale/zero-point metadata in NNEF `graph.quant`. |
+
+[PrismML's Ternary Bonsai](https://prismml.com/news/ternary-bonsai) is a concrete
+model family using the same `{-s, 0, +s}` alphabet. Its published scheme shares
+an FP16 scale over 128 weights. Compatible materialized inference weights can
+be split into four tract blocks of 32, each with its own stored scale. This
+connects the model's quantization scheme to Q2_0_T without implying that
+PrismML's packed formats, compression ratios or kernels are the same as
+tract's. See also [PrismML's model and runtime repository](https://github.com/PrismML-Eng/Bonsai-demo)
+for its own export formats and runtimes.
+
 Let's take a look at each in turn starting by Q40.
 
 ## Custom Tensor quantization support
