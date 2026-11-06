@@ -30,26 +30,23 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-The exporter supports these tract quantization formats:
+## Supported formats and lineage
 
-- Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
-- Q2_0_T: ternary weights stored in blocks of 32 with an f16 scale (see [ternary weights](#q2_0_t-for-ternary-weights)).
-- Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
-- 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
+The exporter supports the following tract quantization formats. Payload bpw
+includes block scales where applicable, but excludes headers and other
+per-tensor metadata.
 
-### Format lineage and references
+| Format and storage | Supported use | Lineage and references |
+| --- | --- | --- |
+| [Q4_0 / Q40](#q4_0-block-layout): 4.5 bpw, 32 weights per f16 scale | Weight-only quantization for matmul, convolution and embeddings/gather; outputs are floating point. | GGML's `block_q4_0`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Tract's NNEF layout has version-dependent nibble order. |
+| [Q8_1](#q8_1-for-embeddings): 9 bpw, 32 int8 weights plus f16 scale and sum | Weight-only, **embeddings/gather only**, tract >= 0.23.0. No matmul or convolution support. | GGML's `block_q8_1`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h), with tract-specific NNEF item types. |
+| [Q2_0_T](#q2_0_t-for-ternary-weights): 2.5 bpw, 32 ternary weights per f16 scale | Already-ternary weights, including Linear layers; **tract >= 0.23.11**. Does not insert activation quantization. | Related schemes include [BitNet b1.58](https://arxiv.org/abs/2402.17764) and [PrismML Ternary Bonsai](https://prismml.com/news/ternary-bonsai). Two-bit packing is related to GGML's [TQ2_0 family](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h); [tract defines the exact layout](https://github.com/sonos/tract/blob/main/linalg/src/frame/block_quant/q20t.rs). |
+| [Per-tensor affine int8](#per-tensor-8-bit-affine-layout): 8 bits per value, with separate scale/zero point | Weights and activations; supports integer arithmetic in quantized operators. | PyTorch's [per-tensor affine quantization API](https://docs.pytorch.org/docs/stable/generated/torch.quantize_per_tensor.html), exported as integer data plus NNEF `graph.quant` metadata. |
 
 A quantization scheme, its packed tensor layout and its file container are
 separate choices. GGML defines tensor formats; GGUF and NNEF are containers.
-Related format names do not guarantee identical bytes or interchangeable
-model files.
-
-| Exported format | Lineage and primary references | What this exporter writes |
-| --- | --- | --- |
-| Q4_0 / Q40 | GGML's `block_q4_0`: see the [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). | The GGML-style 32-weight, f16-scale layout inside tract's NNEF extension, with version-dependent nibble order as described below. |
-| Q8_1 | GGML's `block_q8_1`, in the same [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h). | The f16 scale, f16 sum and 32 int8 codes, with tract-specific NNEF item types and embedding-only support. |
-| Q2_0_T | Ternary schemes such as [BitNet b1.58](https://arxiv.org/abs/2402.17764); two-bit packing related to GGML's [TQ2_0 family](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h). The exact layout is defined by [tract's Q2_0_T implementation](https://github.com/sonos/tract/blob/main/linalg/src/frame/block_quant/q20t.rs). | Tract's 32-weight blocks, scale first, at 2.5 bpw. This is not a byte-compatible alias for GGML TQ2_0 or a GGUF Q2_0 payload. |
-| Per-tensor affine int8 | PyTorch's [per-tensor affine quantization API](https://docs.pytorch.org/docs/stable/generated/torch.quantize_per_tensor.html). | Integer tensor data plus scale/zero-point metadata in NNEF `graph.quant`. |
+In particular, tract's Q2_0_T is not a byte-compatible alias for GGML TQ2_0
+or a GGUF Q2_0 payload.
 
 [PrismML's Ternary Bonsai](https://prismml.com/news/ternary-bonsai) is a concrete
 model family using the same `{-s, 0, +s}` alphabet. Its published scheme shares
