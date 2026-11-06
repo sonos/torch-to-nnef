@@ -876,13 +876,11 @@ def _conv_pool_specs() -> T.Tuple[OpSpec, ...]:
             sample_st=_grid_sampler_3d_sample_st(),
             tolerance=approx,
         ),
-        gap_spec(
-            "replication_pad1d",
-            _replication_pad1d_sample_st(),
-            "the registered emitter writes NNEF, but tract declines to run "
-            "the emitted 1-D replication-pad graph",
-            stage=NnefGapStage.TRACT_ERROR,
-            emitter_registered=True,
+        OpSpec(
+            name="replication_pad1d",
+            aten_ops=("replication_pad1d",),
+            sample_st=_replication_pad1d_sample_st(),
+            tolerance=exact,
         ),
     )
 

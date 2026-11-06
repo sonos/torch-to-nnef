@@ -397,7 +397,9 @@ basepython = ["python3.14"]
 deps = [
     "torch==2.11.*",
     "torchvision==0.26.*",
-    "torchaudio==2.11.*",
+    # torchaudio 2.11.1 (PyPI) needs torch 2.11.1 symbols, not yet published:
+    # undefined symbol torch_exception_get_what_without_backtrace on 2.11.0
+    "torchaudio==2.11.0",
     "librosa==0.11.0",
 ]
 commands = [

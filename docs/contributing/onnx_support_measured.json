@@ -7511,7 +7511,7 @@
         "specs": [
           "pad-constant",
           "pad-reflect",
-          "pad-replicate-xfail"
+          "pad-replicate"
         ],
         "measurement": "m1",
         "reused": true
@@ -8474,7 +8474,7 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "replication_pad2d-xfail"
+          "replication_pad2d"
         ],
         "measurement": "m5",
         "reused": true
@@ -8494,7 +8494,7 @@
         "numerics_reached": 25,
         "numerics_match": 25,
         "specs": [
-          "replication_pad3d-xfail"
+          "replication_pad3d"
         ],
         "measurement": "m5",
         "reused": true
@@ -16994,7 +16994,7 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "pad-replicate-xfail": {
+    "pad-replicate": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m1"
@@ -17154,12 +17154,12 @@
       "examples": 0,
       "reused_from": "m1"
     },
-    "replication_pad2d-xfail": {
+    "replication_pad2d": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m5"
     },
-    "replication_pad3d-xfail": {
+    "replication_pad3d": {
       "aten_ops": [],
       "examples": 0,
       "reused_from": "m5"

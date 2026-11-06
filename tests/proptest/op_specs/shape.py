@@ -2362,38 +2362,26 @@ def _pad_specs() -> T.List[OpSpec]:
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
-            name="pad-replicate-xfail",
+            name="pad-replicate",
             aten_ops=("pad",),
             sample_st=_pad_sample_st("replicate"),
             tolerance=TractCheckTolerance.EXACT,
-            xfail_reason=(
-                "tract 0.22.1 does not implement NNEF pad mode "
-                '"replicate" ("unsupported padding mode replicate"). '
-                "t2n's replication_padnd emitter passes through the "
-                "mode attribute; the gap is downstream in tract."
-            ),
         ),
         OpSpec(
-            name="replication_pad2d-xfail",
+            name="replication_pad2d",
             aten_ops=("replication_pad2d",),
             sample_st=_direct_spatial_pad_sample_st(
                 torch.ops.aten.replication_pad2d.default, 2, reflect=False
             ),
             tolerance=TractCheckTolerance.EXACT,
-            xfail_reason=(
-                "tract 0.22.1 does not implement NNEF pad mode replicate"
-            ),
         ),
         OpSpec(
-            name="replication_pad3d-xfail",
+            name="replication_pad3d",
             aten_ops=("replication_pad3d",),
             sample_st=_direct_spatial_pad_sample_st(
                 torch.ops.aten.replication_pad3d.default, 3, reflect=False
             ),
             tolerance=TractCheckTolerance.EXACT,
-            xfail_reason=(
-                "tract 0.22.1 does not implement NNEF pad mode replicate"
-            ),
         ),
     ]
 

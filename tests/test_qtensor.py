@@ -676,6 +676,12 @@ def test_quantize_with_tract_q4_0_embedding(inference_target):
         )
 
 
+def _expected_q81_type(inference_target):
+    if inference_target.version >= "0.23.10":
+        return DatBinHeader.TractCustomTypes.Q81
+    return DatBinHeader.TractCustomTypes.Q81_LEGACY
+
+
 @skipif_unsupported_qtensor
 def test_q81_dat_content_layout(tmp_path):
     fp_tensor = torch.arange(-64, 64).reshape(2, 64).float()
@@ -685,7 +691,9 @@ def test_q81_dat_content_layout(tmp_path):
     with (tmp_path / "weight.dat").open("rb") as fh:
         header = DatBinHeader.from_dat_file(fh)
         content = fh.read()
-    assert header.torch_dtype_or_custom == DatBinHeader.TractCustomTypes.Q81
+    assert header.torch_dtype_or_custom == _expected_q81_type(
+        TractNNEF.latest()
+    )
     assert header.dims[: header.rank] == [2, 64]
     assert header.data_size_bytes == len(content) == 4 * 36
 
@@ -804,7 +812,9 @@ def test_quantize_with_tract_q8_1_embedding(inference_target, dtype):
             inference_target=inference_target,
             callback_post_export=partial(
                 check_tensor_in_nnef_archive,
-                labels={"weight": {"dtype": DatBinHeader.TractCustomTypes.Q81}},
+                labels={
+                    "weight": {"dtype": _expected_q81_type(inference_target)}
+                },
             ),
         )
 

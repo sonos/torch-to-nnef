@@ -378,7 +378,7 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
     f16 scale, f16 sum of dequantized values, then 32 int8.
 
     Warning:
-        tract (<= 0.23.9) only supports Q8_1 weights in embedding/gathering
+        tract (<= 0.23.10) only supports Q8_1 weights in embedding/gathering
         operations: there is no matmul or convolution kernel for it yet.
 
     """
@@ -394,7 +394,9 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
     def _item_type(
         cls, inference_target: TractNNEF
     ) -> DatBinHeader.TractCustomTypes:
-        return DatBinHeader.TractCustomTypes.Q81
+        if inference_target.version >= "0.23.10":
+            return DatBinHeader.TractCustomTypes.Q81
+        return DatBinHeader.TractCustomTypes.Q81_LEGACY
 
     @classmethod
     def _pack_groups(
