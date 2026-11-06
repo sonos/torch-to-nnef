@@ -42,6 +42,7 @@ per-tensor metadata.
 | [Q8_1](#q8_1-for-embeddings): 9 bpw, 32 int8 weights plus f16 scale and sum | Weight-only, **embeddings/gather only**, tract >= 0.23.0. No matmul or convolution support. | GGML's `block_q8_1`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h), with tract-specific NNEF item types. |
 | [Q8_0](#q8_0-for-embeddings): 8.5 bpw, 32 int8 weights plus f16 scale | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q8_0`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q4_K](#q4_k-for-embeddings): 4.5 bpw, 256 weights per super-block (f16 `d`/`dmin`, 6-bit sub-block scales and mins) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q4_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
+| [Q5_K](#q5_k-for-embeddings): 5.5 bpw, 256 weights per super-block (Q4_K header, 5-bit levels) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q5_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q6_K](#q6_k-for-embeddings): 6.5625 bpw, 256 weights per super-block (f16 `d`, 16 signed 8-bit sub-block scales, symmetric 6-bit levels) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q6_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q2_0_T](#q2_0_t-for-ternary-weights): 2.5 bpw, 32 ternary weights per f16 scale | Already-ternary weights, including Linear layers; **tract >= 0.23.11**. Does not insert activation quantization. | Related schemes include [BitNet b1.58](https://arxiv.org/abs/2402.17764) and [PrismML Ternary Bonsai](https://prismml.com/news/ternary-bonsai). Two-bit packing is related to GGML's [TQ2_0 family](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h); [tract defines the exact layout](https://github.com/sonos/tract/blob/main/linalg/src/frame/block_quant/q20t.rs). |
 | [Per-tensor affine int8](#per-tensor-8-bit-affine-layout): 8 bits per value, with separate scale/zero point | Weights and activations; supports integer arithmetic in quantized operators. | PyTorch's [per-tensor affine quantization API](https://docs.pytorch.org/docs/stable/generated/torch.quantize_per_tensor.html), exported as integer data plus NNEF `graph.quant` metadata. |
@@ -124,6 +125,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ8_0
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ5_K
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ6_K
     handler: python
@@ -474,6 +477,117 @@ export and tensor offloading are supported.
 !!! warning "Requires tract 0.23.10 or newer"
 
     Q4_K export is rejected for older targets, including prerelease builds
+    below 0.23.10. Both normal and offloaded exports emit an explicit warning
+    before failing, and no tensor data is written.
+
+### Q5_K for embeddings
+
+tract (>= 0.23.10) can also load GGML `Q5_K` weights, the 5-bit sibling of
+`Q4_K`. The super-block of 256 weights keeps the same 8 sub-blocks of 32
+weights, the same f16 `d` and `dmin`, and the same 6-bit sub-block scales
+`sc[j]` and mins `m[j]`, but each weight has an unsigned 5-bit level `q[i]` in
+`[0, 31]`:
+
+```text
+w[i] = d * sc[j] * q[i] - dmin * m[j],  j = i / 32
+```
+
+The quantizer is a port of GGML's reference `quantize_row_q5_K_ref` (a
+`make_qkx2_quants` search per sub-block, without importance matrix): on CPU it
+reproduces GGML's bytes (as built without floating point contraction,
+`-ffp-contract=off`), and the exported dequantization matches tract bit
+exactly.
+
+```mermaid
+flowchart LR
+    accTitle: Q5_K super-block layout
+    accDescr: After the NNEF tensor header, each super-block stores an f16 d in bytes 0 and 1, an f16 dmin in bytes 2 and 3, eight packed 6-bit scales and mins in bytes 4 through 15, the fifth bit of the 256 levels in bytes 16 through 47, and the 256 low 4-bit levels in bytes 48 through 175.
+    subgraph block["256 weights / 176 bytes / 5.5 bpw"]
+        direction LR
+        d["Bytes 0-1<br/>f16 d"]
+        dmin["Bytes 2-3<br/>f16 dmin"]
+        scales["Bytes 4-15<br/>8 x 6-bit scales<br/>8 x 6-bit mins"]
+        qh["Bytes 16-47<br/>256 x 1 high bit"]
+        ql["Bytes 48-175<br/>256 x 4-bit low levels<br/>4 chunks of 32 bytes"]
+        d --- dmin --- scales --- qh --- ql
+    end
+```
+
+**Scales and mins** (block bytes 4 to 15) are packed exactly like
+[Q4_K](#q4_k-for-embeddings).
+
+**Low levels**: as in Q4_K, each 32-byte chunk `p` (bytes `48 + 32 * p`
+onwards) covers 64 weights, sub-blocks `2p` and `2p + 1`. Byte `i` of the chunk
+stores bits 3-0 of `q[64p + i]` in its low nibble and bits 3-0 of
+`q[64p + 32 + i]` in its high nibble.
+
+**High bits**: byte `i` of `qh` (block byte `16 + i`) gathers bit 4 of the 8
+levels at position `i` of each sub-block. Bit `2p` holds the one of
+`q[64p + i]` and bit `2p + 1` the one of `q[64p + 32 + i]`:
+
+```mermaid
+flowchart LR
+    accTitle: Q5_K high bits order in byte 16
+    accDescr: Bits 7 and 6 contain the high bits of levels 224 and 192, bits 5 and 4 of levels 160 and 128, bits 3 and 2 of levels 96 and 64, bits 1 and 0 of levels 32 and 0.
+    b76["Bits 7-6<br/>q224, q192"] --- b54["Bits 5-4<br/>q160, q128"] --- b32["Bits 3-2<br/>q96, q64"] --- b10["Bits 1-0<br/>q32, q0"]
+```
+
+| Block bytes | Content |
+| --- | --- |
+| 16-47 | Byte `16 + i`, bit `2p + h`: bit 4 of `q[64p + 32h + i]` |
+| 48-175 | Byte `48 + 32p + i`: bits 3-0 of `q[64p + i]` (low nibble), of `q[64p + 32 + i]` (high nibble) |
+
+| Level | 0 | 31 |
+| --- | --- | --- |
+| Weight in sub-block `j` | `-dmin * m[j]` | `31 * d * sc[j] - dmin * m[j]` |
+
+For example, `q0 = 18` (`0b10010`) and `q32 = 9` (`0b01001`) produce byte
+48 = `0x92` and set bit 0 of byte 16, bit 1 staying clear. The super-block
+occupies 176 bytes: `(16 + 16 + 16 * 6 + 256 * 5) / 256 = 5.5 bpw`, one more
+bit per weight than Q4_K. The NNEF item type is `0x3150`.
+
+!!! warning
+
+    tract has no matmul or convolution kernel for `Q5_K` weights yet: a `nn.Linear`
+    with `Q5_K` weights fails at tract model optimization (no suitable kernel).
+    Only use it for embeddings (gather operator).
+
+The `ggml_q5_k_embeddings` registry entry quantizes only `nn.Embedding` weights
+(weights tied with other modules like an LLM `lm_head` are left in float, so pick
+a model with untied embeddings like Qwen2.5 7B, whose 3584 wide rows are a
+multiple of 256):
+
+```bash
+t2n_export_llm_to_tract \
+    -s "Qwen/Qwen2.5-7B-Instruct" \
+    -dt f16 \
+    -e $HOME/qwen25_7B_q5k_embeddings \
+    -c "ggml_q5_k_embeddings"
+```
+
+Or directly on a tensor with [fp_to_tract_q5_k](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract_ggml.py):
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_q5_k
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_q5_k(embedding.weight), requires_grad=False
+    )
+```
+
+The input must be a nonempty, finite, floating tensor (f32, f16 or bf16, always
+quantized from f32) of rank 2 to 4, with the product of dimensions after the
+first divisible by 256: embeddings of other widths (like 896 or 1152) are left
+in float with an error log. Super-block scales that overflow f16 are rejected.
+Nonzero super-blocks whose scales underflow f16 dequantize to zeros: they are
+kept with a warning when their weights are negligible against the tensor
+largest one (below f16 precision of it), and rejected otherwise. Streaming
+export and tensor offloading are supported.
+
+!!! warning "Requires tract 0.23.10 or newer"
+
+    Q5_K export is rejected for older targets, including prerelease builds
     below 0.23.10. Both normal and offloaded exports emit an explicit warning
     before failing, and no tensor data is written.
 
