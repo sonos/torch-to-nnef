@@ -1,3 +1,19 @@
+"""tract block quantization formats serialized as custom `.dat` items.
+
+`QTensorTractDat` is the base of every tract block format: offload state,
+tract version gate and `.dat` writing workflow.
+
+This module holds the formats with one f16 scale per group of 32 values
+(`QTensorTractBlockQuant`: Q4_0, Q8_1, Q2_0_T). Their scale is a
+`QScalePerGroupF16` that a torch calibration sets (min max, percentile, or
+external methods like GPTQ), and their u8 storage holds one quantized value
+per byte, packed into tract bytes only when written.
+
+Formats whose bytes come from a ggml reference quantizer (Q4_K and other
+K-quants, IQ formats) live in `qtract_ggml`: their u8 storage is the raw
+ggml block bytes.
+"""
+
 import filecmp
 import logging
 import operator
@@ -121,6 +137,10 @@ class QTensorTractDat(QTensorTract, SupportsOffloadState):
     `_write_binary_dat_from_qtensor_parts` which dumps header and content
     from a (decompressed) u8 storage and its qscheme.
 
+    Subclasses set `decompressed_shape` to the float tensor shape at
+    construction (it sizes the `.dat`). Their u8 storage layout is format
+    specific: `numel` must stay the float tensor one.
+
     """
 
     FORMAT_NAME: str
@@ -198,10 +218,8 @@ class QTensorTractDat(QTensorTract, SupportsOffloadState):
             if cls.VERSION_GATE_NOTE:
                 msg = f"{msg} {cls.VERSION_GATE_NOTE}"
             LOGGER.warning(msg)
-            raise T2NErrorNotImplemented(
-                f"tract {cls.FORMAT_NAME} export requires tract >= "
-                f"{cls.MIN_TRACT_VERSION} but got {inference_target.version}"
-            )
+            # same upgrade hint for callers that only see the exception
+            raise T2NErrorNotImplemented(f"tract {msg}")
 
     @staticmethod
     def _decompress_u8_blob(u8_blob, u8_compressors):
@@ -315,6 +333,11 @@ class QTensorTractBlockQuant(QTensorTractDat):
     RESTRICTED_RANGE = False
     qscheme: QScalePerGroupF16  # type notation for mypy
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # one serialized block per group
+        cls.BLOCK_LEN = cls.GROUP_SIZE
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
@@ -399,26 +422,6 @@ class QTensorTractBlockQuant(QTensorTractDat):
         )
 
     @classmethod
-    def _write_binary_dat_from_parts(
-        cls,
-        path: Path,
-        decompressed_shape,
-        u8_blob: torch.Tensor,
-        scale: torch.Tensor,
-        inference_target: TractNNEF,
-    ):
-        with path.open("wb") as fh:
-            fh.write(
-                cls._build_binary_dat_header_for_shape(
-                    decompressed_shape, inference_target
-                )
-            )
-            for chunk in cls._iter_binary_dat_content_chunks(
-                u8_blob, scale, inference_target
-            ):
-                fh.write(chunk)
-
-    @classmethod
     def _write_binary_dat_from_qtensor_parts(
         cls,
         path: Path,
@@ -428,9 +431,16 @@ class QTensorTractBlockQuant(QTensorTractDat):
         inference_target: TractNNEF,
     ):
         assert isinstance(qscheme, QScalePerGroupF16), qscheme
-        cls._write_binary_dat_from_parts(
-            path, decompressed_shape, u8_blob, qscheme.scale, inference_target
-        )
+        with path.open("wb") as fh:
+            fh.write(
+                cls._build_binary_dat_header_for_shape(
+                    decompressed_shape, inference_target
+                )
+            )
+            for chunk in cls._iter_binary_dat_content_chunks(
+                u8_blob, qscheme.scale, inference_target
+            ):
+                fh.write(chunk)
 
 
 class QTensorTractScaleOnly(QTensorTractBlockQuant):
@@ -512,7 +522,7 @@ class QTensorTractScaleOnly(QTensorTractBlockQuant):
     ) -> np.ndarray:
         n_groups = u8_groups.shape[0]
         post_tract_21_11 = inference_target.version >= "0.21.11"
-        b_all = np.empty((n_groups, 2 + cls.GROUP_SIZE // 2), dtype=np.uint8)
+        b_all = np.empty((n_groups, cls.BLOCK_BYTES), dtype=np.uint8)
         b_all[:, :2] = scale.numpy().view(np.uint8).reshape(n_groups, 2)
         b_all[:, 2:] = (
             cls._pack_nibbles(u8_groups, post_tract_21_11)
@@ -660,7 +670,7 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
             )
             group_sum = group_sum.clamp(-f16_max, f16_max)
         group_sum = group_sum.to(torch.float16)
-        b_all = np.empty((n_groups, 4 + cls.GROUP_SIZE), dtype=np.uint8)
+        b_all = np.empty((n_groups, cls.BLOCK_BYTES), dtype=np.uint8)
         b_all[:, :2] = scale.numpy().view(np.uint8).reshape(n_groups, 2)
         b_all[:, 2:4] = group_sum.numpy().view(np.uint8).reshape(n_groups, 2)
         b_all[:, 4:] = i8_vals.numpy().view(np.uint8)
