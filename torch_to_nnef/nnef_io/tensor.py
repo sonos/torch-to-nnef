@@ -31,13 +31,26 @@ class DatBinHeader:
         """TractCustomTypes.
 
         Custom tract quantisation types used in NNEF headers.
+
+        Values are the little endian hex of the tract `.dat` item type.
+
+        Note:
+            tract 0.23.10 reassigned item type `0x3080` from `Q8_1` to
+            `Q8_0`. Both meanings share the header value "8030", so
+            `Q81_LEGACY` is an Enum alias of `Q80`: both names stay
+            usable but are the same member, and decoding a "8030" header
+            returns `Q80`. The header alone can not tell them apart: it
+            depends on the targeted tract version (or on the payload
+            size: 34 bytes per block of 32 for `Q8_0`, 36 for `Q8_1`).
         """
 
         Q20T = "2030"
         Q40 = "4030"
         Q40_LEGACY = "4020"
+        Q80 = "8030"  # 0x3080: tract >= 0.23.10
         Q81 = "8130"  # 0x3081: tract >= 0.23.10
-        Q81_LEGACY = "8030"  # 0x3080: tract < 0.23.10 (now Q8_0 in tract)
+        # alias of Q80 (same value), 0x3080: Q8_1 for tract < 0.23.10
+        Q81_LEGACY = "8030"
         Q4K = "4031"  # 0x3140: tract >= 0.23.10
 
     def __init__(

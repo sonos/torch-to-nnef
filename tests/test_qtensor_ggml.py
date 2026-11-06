@@ -1,4 +1,4 @@
-"""Tract ggml super-block formats (K-quants): packing and tract execution."""
+"""Tract ggml block formats (Q8_0, K-quants): packing and tract execution."""
 
 from functools import partial
 
@@ -11,6 +11,7 @@ from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
     quantize_weights_ggml_Q4_K,
+    quantize_weights_min_max_Q8_0,
 )
 from torch_to_nnef.exceptions import (
     T2NErrorImpossibleQuantization,
@@ -21,7 +22,9 @@ from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant import (
     QTensor,
     QTensorTractQ4_K,
+    QTensorTractQ8_0,
     fp_to_tract_q4_k,
+    fp_to_tract_q8_0_with_min_max_calibration,
 )
 
 from .test_qtensor import check_tensor_in_nnef_archive
@@ -118,6 +121,192 @@ def _ggml_invalid_weights(block_len: int):
         pytest.param(torch.full((2, block_len), float("inf")), id="inf"),
     ]
 
+
+# Q8_0 #####################################################################
+
+# llama.cpp quantize_row_q8_0_ref / dequantize_row_q8_0 vectors
+# (from tract v0.23.10 linalg/src/frame/block_quant/q8_0.rs tests)
+Q8_0_GGML_REFS = [
+    (
+        0,
+        "082494006cd440a7137fe753ba268efa66cd39a10d79e04cb42087f35fc7339a0672",
+        [(0, 0xBFD9B000), (8, 0xBEC99000), (31, 0x3FE5C800)],
+    ),
+    (
+        8,
+        "a9230000000000000000e557b62888f96bcb3c9c0d7fdf50b02181f364c435950778",
+        [(0, 0), (8, 0xBECED300), (31, 0x3FE5CE00)],
+    ),
+    (32, "00" * 34, [(0, 0)]),
+]
+
+
+@pytest.mark.parametrize("zeros,expected_hex,values", Q8_0_GGML_REFS)
+def test_q80_matches_ggml_reference(tmp_path, zeros, expected_hex, values):
+    ramp = _ggml_ramp(32, zeros)
+    _check_ggml_reference(QTensorTractQ8_0, ramp, expected_hex, values)
+    # same bytes through the public factory and the `.dat` writer
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(
+        torch.from_numpy(ramp).reshape((1, 32))
+    )
+    qtensor.write_in_file(tmp_path, "weight", TractNNEF.latest())
+    assert (tmp_path / "weight.dat").read_bytes()[128:].hex() == expected_hex
+
+
+def test_q80_dat_content_layout(tmp_path):
+    fp_tensor = torch.randn(3, 64)
+    fp_tensor[1, 32:] = 0.0  # all zero block
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(fp_tensor)
+    assert qtensor.u8_blob.shape == (6, 34)
+    _check_ggml_dat_content_layout(
+        tmp_path, qtensor, DatBinHeader.TractCustomTypes.Q80
+    )
+    blocks = qtensor.decompress_to_u8().numpy()
+    # ggml block_q8_0: positive d = absmax / 127, int8 codes in [-127, 127]
+    d = blocks[:, :2].copy().view(np.float16).reshape(-1)
+    expected_d = np.abs(fp_tensor.numpy().reshape((6, 32))).max(axis=1) / 127
+    assert np.array_equal(d, expected_d.astype(np.float16))
+    codes = blocks[:, 2:].view(np.int8)
+    assert codes.min() >= -127
+    assert (codes[3] == 0).all() and d[3] == 0
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_q80_dequant_round_trip_error_bounded(seed):
+    gen = torch.Generator().manual_seed(seed)
+    # rows of very different magnitudes, with d in f16 normal range
+    # (subnormal d loses relative precision, like in ggml and tract)
+    fp_tensor = torch.randn(16, 128, generator=gen) * 10 ** torch.linspace(
+        -1, 3, 16
+    ).reshape((16, 1))
+    deq = fp_to_tract_q8_0_with_min_max_calibration(fp_tensor).decompress()
+    blocks = fp_tensor.reshape((-1, 32))
+    # half a step of the f16 rounded scale, plus its f16 rounding error
+    step = blocks.abs().amax(dim=1, keepdim=True) / 127
+    err = (deq - fp_tensor).abs().reshape((-1, 32))
+    assert (err <= step * 0.502 + blocks.abs() * 2**-10).all()
+    zeros = fp_to_tract_q8_0_with_min_max_calibration(torch.zeros(2, 32))
+    assert torch.equal(zeros.decompress(), torch.zeros(2, 32))
+
+
+@pytest.mark.parametrize("percentile", [1.0, 0.9])
+def test_q80_percentile_clamps_outliers(percentile):
+    fp_tensor = torch.randn(64, 64)
+    fp_tensor[:, 0] = -10.0  # outliers clamped if percentile < 1
+    fp_tensor[:, 1] = 10.0
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(
+        fp_tensor, percentile=percentile
+    )
+    codes = qtensor.decompress_to_u8().numpy()[:, 2:].view(np.int8)
+    assert codes.min() >= -127 and codes.max() <= 127
+    deq = qtensor.decompress()
+    assert torch.equal(deq[:, 0], -deq[:, 1])
+    if percentile < 1.0:
+        assert (deq[:, 1] < 10.0).all()
+    else:
+        assert torch.allclose(deq[:, 1], fp_tensor[:, 1], rtol=1e-3)
+
+
+@pytest.mark.parametrize("shape", [(2, 128), (2, 4, 32), (2, 2, 2, 32)])
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.float32, torch.bfloat16]
+)
+def test_q80_decompress_matches_reference(shape, dtype):
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(shape, generator=gen).to(dtype)
+    _check_ggml_decompress_matches_reference(QTensorTractQ8_0, fp_tensor)
+
+
+@pytest.mark.parametrize(
+    "weight",
+    _ggml_invalid_weights(32)
+    + [
+        # absmax / 127 > 65504
+        pytest.param(torch.full((2, 32), 1e9), id="overflow"),
+        # nonzero block whose d rounds to 0 in f16
+        pytest.param(torch.full((2, 32), 1e-10), id="underflow"),
+    ],
+)
+def test_q80_rejects_invalid_weights(weight):
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_q8_0_with_min_max_calibration(weight)
+
+
+@pytest.mark.parametrize(
+    "version",
+    ["0.22.1"] + old_tract_versions(QTensorTractQ8_0.MIN_TRACT_VERSION),
+)
+def test_q80_rejects_old_tract(tmp_path, caplog, version):
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(torch.randn(2, 32))
+    check_rejects_old_tract(tmp_path, caplog, qtensor, version)
+    assert "Older tract reads item type 0x3080 as Q8_1." in caplog.text
+
+
+@pytest.mark.parametrize(
+    "version", supported_tract_versions(QTensorTractQ8_0.MIN_TRACT_VERSION)
+)
+def test_q80_offload_state_write(tmp_path, version):
+    check_offload_state_write(
+        tmp_path,
+        fp_to_tract_q8_0_with_min_max_calibration(torch.randn(4, 64)),
+        tract_target(version),
+    )
+
+
+@pytest.mark.parametrize(
+    "inference_target",
+    [
+        i
+        for i in TRACT_INFERENCES_TO_TESTS_EXACT
+        if i.version >= QTensorTractQ8_0.MIN_TRACT_VERSION
+    ],
+)
+# f16 CPU embedding (index_select) works on torch 1.x: like Q4_0/Q8_1 tests
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+def test_quantize_with_tract_q8_0_embedding(inference_target, dtype):
+    """Q8_0 is only supported by tract on embedding/gathering."""
+    with torch.no_grad():
+        test_input = torch.arange(6)
+        test_input[:3] = 3
+        model = nn.Embedding(6, 64).eval().to(dtype)
+        q_tensor = fp_to_tract_q8_0_with_min_max_calibration(
+            torch.randn(6, 64).to(dtype)
+        )
+        assert q_tensor.decompress().dtype == dtype
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={"weight": {"dtype": DatBinHeader.TractCustomTypes.Q80}},
+            ),
+        )
+
+
+def test_compress_min_max_q8_0_embeddings_only_quantize_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 32))
+    tied = nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 10, bias=False))
+    tied[1].weight = tied[0].weight
+    registry = dynamic_load_registry(DEFAULT_COMPRESSION_REGISTRY)
+
+    registry["min_max_q8_0_embeddings"](model)
+    assert isinstance(model[0].weight, QTensorTractQ8_0)
+    assert not isinstance(model[1].weight, QTensor)
+
+    # weight shared with a Linear must stay float (no tract Q8_0 matmul)
+    registry["min_max_q8_0_embeddings"](tied)
+    assert not isinstance(tied[0].weight, QTensor)
+
+    with pytest.raises(T2NErrorMisuse):
+        quantize_weights_min_max_Q8_0(
+            nn.Sequential(nn.Embedding(10, 64), nn.Linear(64, 32)),
+            to_quantize_module_classes=(nn.Linear, nn.Embedding),
+        )
+
+
+# Q4_K #####################################################################
 
 # llama.cpp quantize_row_q4_K_ref / dequantize_row_q4_K vectors
 # (from tract v0.23.10 linalg/src/frame/block_quant/ggml_k.rs tests)

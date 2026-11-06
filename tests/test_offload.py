@@ -25,8 +25,10 @@ from torch_to_nnef.tensor.opaque import (
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
-    fp_to_tract_q8_0_with_min_max_calibration,
     fp_to_tract_q8_1_with_min_max_calibration,
+)
+from torch_to_nnef.tensor.quant.qtract_ggml import (
+    fp_to_tract_q8_0_with_min_max_calibration,
 )
 from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer

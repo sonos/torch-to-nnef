@@ -442,7 +442,103 @@ def ggml_dequant_k_scales_mins(
     return d * sc.astype(f32), dmin * mn.astype(f32)
 
 
+def ggml_round_half_away(arr: np.ndarray) -> np.ndarray:
+    """Rust `f32::round`: round half away from zero (exact in f32)."""
+    mag = np.abs(arr)
+    rounded = np.floor(mag)
+    rounded += (mag - rounded) >= 0.5
+    return np.copysign(rounded, arr)
+
+
 # formats ##################################################################
+
+
+class QTensorTractQ8_0(QTensorTractGGMLBlock):  # noqa: N801
+    """Tract data format it serializes to: Q8_0 (ggml `block_q8_0`).
+
+    Each group of 32 values is stored as 34 bytes:
+    f16 scale `d = absmax / 127`, then 32 int8 (8.5bpw).
+    Value is `d * q`.
+
+    Quantization port llama.cpp `quantize_row_q8_0_ref` (as tract
+    `quant_q8_0`), dequantization matches tract bit exactly.
+
+    Warning:
+        tract (<= 0.23.10) only supports Q8_0 weights in embedding/gathering
+        operations: there is no matmul or convolution kernel for it yet.
+        Export requires tract >= 0.23.10; older targets warn and are rejected.
+
+    """
+
+    # v1 stored t2n QScalePerGroupF16 codes, v2 stores raw ggml blocks
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q8_0.v2"
+    FORMAT_NAME = "Q8_0"
+    BLOCK_LEN = 32
+    BLOCK_BYTES = 34
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.Q80
+    F16_SCALE_FIELDS = {"d": 0}
+    VERSION_GATE_NOTE = "Older tract reads item type 0x3080 as Q8_1."
+
+    @classmethod
+    def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:
+        f32 = np.float32
+        n_blocks = fp_blocks.shape[0]
+        fp_blocks = fp_blocks.astype(f32, copy=False)
+        d = np.abs(fp_blocks).max(axis=1) / f32(127.0)
+        with np.errstate(divide="ignore"):
+            inv_d = np.where(d == 0, f32(0), f32(1.0) / d).astype(f32)
+        # `as i8` saturates in rust
+        q = np.clip(
+            ggml_round_half_away(fp_blocks * inv_d[:, None]), -128, 127
+        ).astype(np.int8)
+        out = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
+        # f16 overflow to inf is rejected by `check_quantized_blocks`
+        with np.errstate(over="ignore"):
+            d_f16 = d.astype(np.float16)
+        out[:, :2] = d_f16.reshape((n_blocks, 1)).view(np.uint8)
+        out[:, 2:] = q.view(np.uint8)
+        return out
+
+    @classmethod
+    def dequantize_blocks(cls, u8_blocks: np.ndarray) -> np.ndarray:
+        d = u8_blocks[:, :2].copy().view(np.float16).astype(np.float32)
+        q = u8_blocks[:, 2:].view(np.int8).astype(np.float32)
+        return q * d
+
+
+def fp_to_tract_q8_0_with_min_max_calibration(
+    fp_tensor: torch.Tensor, percentile: float = 1.0
+) -> QTensorTractQ8_0:
+    """Min-Max method to quantize float tensor to tract supported Q8_0.
+
+    Block scale is `absmax / 127` (ggml reference). With `percentile < 1`
+    each block is first clamped to its `percentile` absolute value.
+    Only use it on embedding weights (see `QTensorTractQ8_0`).
+
+    Raises:
+        T2NErrorImpossibleQuantization: invalid dtype or shape, non finite
+            values, or block scales that overflow or underflow in f16.
+    """
+    assert 0.0 < percentile <= 1.0, percentile
+    if isinstance(fp_tensor, torch.nn.Parameter):
+        fp_tensor = fp_tensor.data
+    to_quantize = fp_tensor
+    if percentile < 1.0:
+        check_block_quant_input(
+            fp_tensor, QTensorTractQ8_0.BLOCK_LEN, QTensorTractQ8_0.FORMAT_NAME
+        )
+        with torch.no_grad():
+            blocks = fp_tensor.detach().float()
+            blocks = blocks.reshape((-1, QTensorTractQ8_0.BLOCK_LEN))
+            bound = torch.quantile(blocks.abs(), percentile, dim=1)[:, None]
+            to_quantize = (
+                torch.maximum(torch.minimum(blocks, bound), -bound)
+            ).reshape(fp_tensor.shape)
+    qtensor = QTensorTractQ8_0.from_fp(
+        to_quantize, dequant_to_dtype=fp_tensor.dtype
+    )
+    assert isinstance(qtensor, QTensorTractQ8_0)
+    return qtensor
 
 
 class QTensorTractQ4_K(QTensorTractGGMLBlock):  # noqa: N801
