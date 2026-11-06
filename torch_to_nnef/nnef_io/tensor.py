@@ -37,6 +37,7 @@ class DatBinHeader:
         Q40_LEGACY = "4020"
         Q81 = "8130"  # 0x3081: tract >= 0.23.10
         Q81_LEGACY = "8030"  # 0x3080: tract < 0.23.10 (now Q8_0 in tract)
+        Q4K = "4031"  # 0x3140: tract >= 0.23.10
 
     def __init__(
         self,
@@ -102,13 +103,20 @@ class DatBinHeader:
 
     @classmethod
     def build_tract_qtensor(
-        cls, item_type: TractCustomTypes, shape: T.Tuple[int]
+        cls,
+        item_type: TractCustomTypes,
+        shape: T.Tuple[int, ...],
+        block_bytes: T.Optional[int] = None,
+        block_len: int = 32,
     ) -> "DatBinHeader":
-        """Build a binary header for tract custom types.
+        """Build a binary header for tract custom block quantized types.
 
         Args:
             item_type (TractCustomTypes): Tract custom quantisation type.
             shape (Tuple[int]): Shape of the tensor.
+            block_bytes (Optional[int]): bytes per block of `block_len`
+                elements. Defaults to Q4_0 (18) or Q8_1 (36) layout.
+            block_len (int): elements per block (256 for ggml K-quants).
 
         Returns:
             DatBinHeader: Constructed header instance.
@@ -116,15 +124,22 @@ class DatBinHeader:
         vol = 1
         for s in shape:
             vol *= s
-        if item_type in (
-            cls.TractCustomTypes.Q81,
-            cls.TractCustomTypes.Q81_LEGACY,
-        ):
-            # per group of 32: f16 scale + f16 sum + 32 int8
-            data_size_bytes = vol // 32 * 36
-        else:
-            # per group of 32: f16 scale + 32 nibbles
-            data_size_bytes = int((vol * 4 + vol / 32 * 16) / 8)
+        if block_bytes is None:
+            if item_type in (
+                cls.TractCustomTypes.Q81,
+                cls.TractCustomTypes.Q81_LEGACY,
+            ):
+                # per group of 32: f16 scale + f16 sum + 32 int8
+                block_bytes = 36
+            else:
+                # per group of 32: f16 scale + 32 nibbles
+                block_bytes = 18
+        if vol % block_len != 0:
+            raise T2NErrorMisuse(
+                f"tensor volume {vol} of shape {shape} is not "
+                f"a multiple of block length {block_len}"
+            )
+        data_size_bytes = vol // block_len * block_bytes
 
         return DatBinHeader(
             data_size_bytes=data_size_bytes,

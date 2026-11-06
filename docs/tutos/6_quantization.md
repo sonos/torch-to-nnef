@@ -30,10 +30,11 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-To date tract support 3 kind of quantization:
+To date tract support those kinds of quantization:
 
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
+- Q4_K: [llama.cpp](https://github.com/ggml-org/llama.cpp) K-quant super-blocks of 256 weights (4.5bpw), supported by tract (>= 0.23.10) **only on embedding/gathering operations** (see [Q4_K for embeddings](#q4_k-for-embeddings)).
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
 Let's take a look at each in turn starting by Q40.
@@ -98,6 +99,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractScaleOnly
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
     handler: python
 </div>
 
@@ -176,6 +179,30 @@ with torch.no_grad():
     embedding.weight = nn.Parameter(
         fp_to_tract_q8_1_with_min_max_calibration(embedding.weight),
         requires_grad=False,
+    )
+```
+
+### Q4_K for embeddings
+
+tract (>= 0.23.10) can also load ggml `Q4_K` weights: each super-block of 256 elements
+is stored as llama.cpp `block_q4_K` (144 bytes: f16 `d` and `dmin`, eight 6bit scales and
+mins, then 256 4bit levels), totaling 4.5bpw. The quantizer is a port of llama.cpp
+`quantize_row_q4_K_ref` and the dequantization matches tract bit exactly.
+Weights need a volume of `shape[1:]` divisible by 256.
+
+!!! warning
+
+    Like `Q8_1`, tract has no matmul or convolution kernel for `Q4_K` weights yet:
+    only use it for embeddings (gather operator).
+
+Use the `min_max_q4_k_embeddings` registry entry, or directly on a tensor:
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_q4_k
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_q4_k(embedding.weight), requires_grad=False
     )
 ```
 

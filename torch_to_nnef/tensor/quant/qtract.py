@@ -23,6 +23,7 @@ from torch_to_nnef.tensor.opaque import (
 )
 from torch_to_nnef.tensor.quant.base import (
     QScalePerGroupF16,
+    QScheme,
     QTensor,
     qscale_per_group_f16_min_max_calibration,
 )
@@ -34,55 +35,19 @@ class QTensorTract(QTensor):
     """All QTensorTract implementations."""
 
 
-class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
-    """Common base of tract GGML-like block quantization formats.
+class QTensorTractDat(QTensorTract, SupportsOffloadState):
+    """Common base of QTensor serialized as tract custom `.dat` item types.
 
-    Values are quantized per group of `GROUP_SIZE` elements sharing a f16
-    scale. Each concrete format only defines its tract item type and how a
-    chunk of groups is packed into bytes.
+    It handles offload state, tract version gating and the `.dat` file
+    writing workflow. Subclasses implement
+    `_write_binary_dat_from_qtensor_parts` which dumps header and content
+    from a (decompressed) u8 storage and its qscheme.
 
     """
 
     FORMAT_NAME: str
-    N_BITS: int
-    GROUP_SIZE = 32
-    # calibration default, see qscale_per_group_f16_min_max_calibration
-    RESTRICTED_RANGE = False
     MIN_TRACT_VERSION: T.Optional[str] = None
-    qscheme: QScalePerGroupF16  # type notation for mypy
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
-        # tract limited support of packing
-        assert self.qscheme.n_bits == self.N_BITS, self.qscheme.n_bits
-        assert self.qscheme.group_size == self.GROUP_SIZE, (
-            self.qscheme.group_size
-        )
-        self.decompressed_shape = self.decompress_to_u8().shape
-        assert len(self.decompressed_shape) in [2, 3, 4], (
-            self.decompressed_shape
-        )
-        assert (
-            reduce(operator.mul, self.decompressed_shape[1:]) % self.GROUP_SIZE
-            == 0
-        ), self.decompressed_shape
-
-    @classmethod
-    def _item_type(
-        cls, inference_target: TractNNEF
-    ) -> DatBinHeader.TractCustomTypes:
-        raise T2NErrorNotImplemented()
-
-    @classmethod
-    def _pack_groups(
-        cls,
-        u8_groups: torch.Tensor,
-        scale: torch.Tensor,
-        inference_target: TractNNEF,
-    ) -> np.ndarray:
-        """Pack (n_groups, GROUP_SIZE) u8 values + (n_groups,) f16 scales."""
-        raise T2NErrorNotImplemented()
+    decompressed_shape: T.Tuple[int, ...]
 
     def to_offload_state(self) -> T.Dict[str, T.Any]:
         return {
@@ -99,6 +64,10 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
 
     def _load_extra_offload_state(self, state):
         """Restore format specific attributes from offload state."""
+
+    @classmethod
+    def _check_offload_state(cls, state):
+        """Format specific sanity checks of an offload state."""
 
     @classmethod
     def from_offload_state(cls, state, target_device=None):
@@ -138,6 +107,154 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
                 f"{cls.MIN_TRACT_VERSION} but got {inference_target.version}"
             )
 
+    @staticmethod
+    def _decompress_u8_blob(u8_blob, u8_compressors):
+        decompress_u8 = u8_blob
+        for u8_compressor in reversed(u8_compressors or []):
+            decompress_u8 = u8_compressor.decompress(decompress_u8)
+        return decompress_u8
+
+    @classmethod
+    def _write_binary_dat_from_qtensor_parts(
+        cls,
+        path: Path,
+        decompressed_shape,
+        u8_blob: torch.Tensor,
+        qscheme: QScheme,
+        inference_target: TractNNEF,
+    ):
+        raise T2NErrorNotImplemented()
+
+    @staticmethod
+    def _assert_same_as_existing_dat(path: Path, write_fn) -> None:
+        """Raise if `write_fn(dirpath)` would not reproduce existing `path`."""
+        with tempfile.TemporaryDirectory() as _td:
+            td = Path(_td)
+            write_fn(td)
+            new_path = td / path.name
+            assert new_path.exists(), new_path
+            if filecmp.cmp(path, new_path):
+                return
+        raise T2NErrorNotImplemented(
+            "At least 2 variables in the NNEF graph, "
+            f"share same Parameters: '{path.stem}' but they try "
+            "to use different data-type (likely quantization format). "
+            "This variable collision as no resolution strategy yet."
+        )
+
+    @classmethod
+    def write_offload_state_in_file(
+        cls,
+        state,
+        dirpath: T.Union[str, Path],
+        label: str,
+        inference_target: T.Optional[InferenceTarget] = None,
+    ):
+        assert cls.is_offload_state(state), state
+        if inference_target is None:
+            inference_target = TractNNEF.latest()
+        path = Path(dirpath) / f"{label}.dat"
+        if path.exists():
+            cls._assert_same_as_existing_dat(
+                path,
+                lambda td: cls.write_offload_state_in_file(
+                    state, td, label, inference_target=inference_target
+                ),
+            )
+            return
+        assert isinstance(inference_target, TractNNEF), inference_target
+        cls._check_inference_target_support(inference_target)
+        cls._check_offload_state(state)
+        cls._write_binary_dat_from_qtensor_parts(
+            path,
+            state["decompressed_shape"],
+            cls._decompress_u8_blob(state["u8_blob"], state["u8_compressors"]),
+            state["qscheme"],
+            inference_target,
+        )
+
+    def write_in_file(
+        self,
+        dirpath: T.Union[str, Path],
+        label: str,
+        inference_target: T.Optional[InferenceTarget] = None,
+    ):
+        if inference_target is None:
+            inference_target = TractNNEF.latest()
+        path = Path(dirpath) / f"{label}.dat"
+        # already created a variable dump with that name:
+        # check we would produce identical serialized data
+        if path.exists():
+            self._assert_same_as_existing_dat(
+                path,
+                lambda td: self.write_in_file(
+                    td, label, inference_target=inference_target
+                ),
+            )
+            return
+        assert isinstance(inference_target, TractNNEF), inference_target
+        self._check_inference_target_support(inference_target)
+        self._write_binary_dat_from_qtensor_parts(
+            path,
+            self.decompressed_shape,
+            self.decompress_to_u8(),
+            self.qscheme,
+            inference_target,
+        )
+
+
+class QTensorTractBlockQuant(QTensorTractDat):
+    """Common base of tract GGML-like block quantization formats.
+
+    Values are quantized per group of `GROUP_SIZE` elements sharing a f16
+    scale. Each concrete format only defines its tract item type and how a
+    chunk of groups is packed into bytes.
+
+    """
+
+    N_BITS: int
+    GROUP_SIZE = 32
+    # calibration default, see qscale_per_group_f16_min_max_calibration
+    RESTRICTED_RANGE = False
+    qscheme: QScalePerGroupF16  # type notation for mypy
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
+        # tract limited support of packing
+        assert self.qscheme.n_bits == self.N_BITS, self.qscheme.n_bits
+        assert self.qscheme.group_size == self.GROUP_SIZE, (
+            self.qscheme.group_size
+        )
+        self.decompressed_shape = self.decompress_to_u8().shape
+        assert len(self.decompressed_shape) in [2, 3, 4], (
+            self.decompressed_shape
+        )
+        assert (
+            reduce(operator.mul, self.decompressed_shape[1:]) % self.GROUP_SIZE
+            == 0
+        ), self.decompressed_shape
+
+    @classmethod
+    def _item_type(
+        cls, inference_target: TractNNEF
+    ) -> DatBinHeader.TractCustomTypes:
+        raise T2NErrorNotImplemented()
+
+    @classmethod
+    def _pack_groups(
+        cls,
+        u8_groups: torch.Tensor,
+        scale: torch.Tensor,
+        inference_target: TractNNEF,
+    ) -> np.ndarray:
+        """Pack (n_groups, GROUP_SIZE) u8 values + (n_groups,) f16 scales."""
+        raise T2NErrorNotImplemented()
+
+    @classmethod
+    def _check_offload_state(cls, state):
+        assert state["qscheme"].group_size == cls.GROUP_SIZE, state["qscheme"]
+
     @classmethod
     def _build_binary_dat_header_for_shape(
         cls, decompressed_shape, inference_target: TractNNEF
@@ -145,13 +262,6 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
         return DatBinHeader.build_tract_qtensor(
             cls._item_type(inference_target), decompressed_shape
         ).to_bytes()
-
-    @staticmethod
-    def _decompress_u8_blob(u8_blob, u8_compressors):
-        decompress_u8 = u8_blob
-        for u8_compressor in reversed(u8_compressors or []):
-            decompress_u8 = u8_compressor.decompress(decompress_u8)
-        return decompress_u8
 
     @classmethod
     def _iter_binary_dat_content_chunks(
@@ -205,81 +315,18 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
             ):
                 fh.write(chunk)
 
-    @staticmethod
-    def _assert_same_as_existing_dat(path: Path, write_fn) -> None:
-        """Raise if `write_fn(dirpath)` would not reproduce existing `path`."""
-        with tempfile.TemporaryDirectory() as _td:
-            td = Path(_td)
-            write_fn(td)
-            new_path = td / path.name
-            assert new_path.exists(), new_path
-            if filecmp.cmp(path, new_path):
-                return
-        raise T2NErrorNotImplemented(
-            "At least 2 variables in the NNEF graph, "
-            f"share same Parameters: '{path.stem}' but they try "
-            "to use different data-type (likely quantization format). "
-            "This variable collision as no resolution strategy yet."
-        )
-
     @classmethod
-    def write_offload_state_in_file(
+    def _write_binary_dat_from_qtensor_parts(
         cls,
-        state,
-        dirpath: T.Union[str, Path],
-        label: str,
-        inference_target: T.Optional[InferenceTarget] = None,
+        path: Path,
+        decompressed_shape,
+        u8_blob: torch.Tensor,
+        qscheme: QScheme,
+        inference_target: TractNNEF,
     ):
-        assert cls.is_offload_state(state), state
-        if inference_target is None:
-            inference_target = TractNNEF.latest()
-        path = Path(dirpath) / f"{label}.dat"
-        if path.exists():
-            cls._assert_same_as_existing_dat(
-                path,
-                lambda td: cls.write_offload_state_in_file(
-                    state, td, label, inference_target=inference_target
-                ),
-            )
-            return
-        assert isinstance(inference_target, TractNNEF), inference_target
-        cls._check_inference_target_support(inference_target)
-        assert state["qscheme"].group_size == cls.GROUP_SIZE, state["qscheme"]
+        assert isinstance(qscheme, QScalePerGroupF16), qscheme
         cls._write_binary_dat_from_parts(
-            path,
-            state["decompressed_shape"],
-            cls._decompress_u8_blob(state["u8_blob"], state["u8_compressors"]),
-            state["qscheme"].scale,
-            inference_target,
-        )
-
-    def write_in_file(
-        self,
-        dirpath: T.Union[str, Path],
-        label: str,
-        inference_target: T.Optional[InferenceTarget] = None,
-    ):
-        if inference_target is None:
-            inference_target = TractNNEF.latest()
-        path = Path(dirpath) / f"{label}.dat"
-        # already created a variable dump with that name:
-        # check we would produce identical serialized data
-        if path.exists():
-            self._assert_same_as_existing_dat(
-                path,
-                lambda td: self.write_in_file(
-                    td, label, inference_target=inference_target
-                ),
-            )
-            return
-        assert isinstance(inference_target, TractNNEF), inference_target
-        self._check_inference_target_support(inference_target)
-        self._write_binary_dat_from_parts(
-            path,
-            self.decompressed_shape,
-            self.decompress_to_u8(),
-            self.qscheme.scale,
-            inference_target,
+            path, decompressed_shape, u8_blob, qscheme.scale, inference_target
         )
 
 

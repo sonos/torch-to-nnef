@@ -9,6 +9,7 @@
 ### Added
 
 - **tract `Q8_1` (GGML style) weight export for embeddings**: new `QTensorTractQ8_1` and `fp_to_tract_q8_1_with_min_max_calibration` (8bit per group of 32, 9bpw, GGML `absmax / 127` scale), plus the `min_max_q8_1_embeddings` compression registry entry. Requires tract >= 0.23.0, which only supports `Q8_1` weights on embedding/gathering operations (no matmul or convolution kernel yet).
+- **tract `Q4_K` (ggml K-quant) weight export for embeddings**: new `QTensorTractQ4_K` and `fp_to_tract_q4_k` (llama.cpp `block_q4_K` super-blocks of 256 values, 4.5bpw, reference quantizer port and tract bit exact dequantization), plus the `min_max_q4_k_embeddings` compression registry entry. Built on the new `QTensorTractGGMLBlock` base for ggml super-block formats. Requires tract >= 0.23.10, which only supports `Q4_K` weights on embedding/gathering operations (no matmul or convolution kernel yet).
 
 ## [0.24.12] - 2026-10-13
 
