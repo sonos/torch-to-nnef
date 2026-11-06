@@ -61,7 +61,6 @@ and `graph.nnef` is plain text you can read end to end (metadata header elided):
 Any `nn.Module` whose `forward` takes and returns tensors can be exported out of the box, ordinary CNNs and transformers included. The tutorials below cover the cases that need more care:
 
 - [Dynamic axes](https://sonos.github.io/torch-to-nnef/latest/tutos/4_dynamic_axes/) : variable batch and streamable dimensions
-- Ternary weights can be exported in tract's Q2_0_T format (2.5 bpw, tract >= 0.23.11) using `ternary_to_tract_q2_0_t`; see the [quantization tutorial](https://sonos.github.io/torch-to-nnef/latest/tutos/6_quantization/).
 - [Large Language Models](https://sonos.github.io/torch-to-nnef/latest/tutos/5_llm/) and [quantized models](https://sonos.github.io/torch-to-nnef/latest/tutos/6_quantization/)
 - [Multimodal models (vision & audio)](https://sonos.github.io/torch-to-nnef/latest/tutos/13_multimodal/): encoder + decoder as coordinated NNEF graphs
 - [NeMo ASR models](https://sonos.github.io/torch-to-nnef/latest/tutos/10_nemo/)
