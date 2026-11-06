@@ -55,9 +55,9 @@ def test_q20t_binary_layout_and_offload(tmp_path, version):
     chunks = list(
         qtensor._iter_binary_dat_content_chunks(
             qtensor.decompress_to_u8(),
-            qtensor.qscheme.scale,
+            qtensor.qscheme,
             target,
-            chunk_groups=1,
+            chunk_blocks=1,
         )
     )
     assert [len(chunk) for chunk in chunks] == [10, 10]
