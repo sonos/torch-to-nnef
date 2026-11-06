@@ -35,6 +35,7 @@ from torch_to_nnef.tensor.quant._iq2_s_grid import KGRID_2BIT_1024
 from torch_to_nnef.tensor.quant.base import QScheme, U8Compressor
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractDat,
+    TractBlockLayout,
     check_block_quant_input,
     check_f16_scales,
 )
@@ -130,7 +131,7 @@ class QScaleGGMLBlock(QScheme):
         return f"{self.__class__.__name__}(fmt={self.fmt.FORMAT_NAME})"
 
 
-class QTensorTractGGMLBlock(QTensorTractDat):
+class QTensorTractGGMLBlock(TractBlockLayout, QTensorTractDat):
     """Common base of tract formats stored as raw ggml block bytes.
 
     Storage is the raw ggml block bytes (u8 tensor of shape
@@ -167,8 +168,6 @@ class QTensorTractGGMLBlock(QTensorTractDat):
 
     """
 
-    BLOCK_LEN: int
-    BLOCK_BYTES: int
     ITEM_TYPE: DatBinHeader.TractCustomTypes
     MIN_TRACT_VERSION: T.Optional[str] = "0.23.10"
     F16_SCALE_FIELDS: T.Dict[str, int] = {}
@@ -316,8 +315,7 @@ class QTensorTractGGMLBlock(QTensorTractDat):
         header = DatBinHeader.build_tract_qtensor(
             cls.ITEM_TYPE,
             tuple(decompressed_shape),
-            block_len=cls.BLOCK_LEN,
-            block_bytes=cls.BLOCK_BYTES,
+            data_size_bytes=cls.data_size_bytes(tuple(decompressed_shape)),
         )
         content = u8_blob.detach().cpu().contiguous().numpy()
         assert content.dtype == np.uint8, content.dtype
