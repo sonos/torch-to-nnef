@@ -1,9 +1,11 @@
-"""tract block quantization formats serialized as custom `.dat` items.
+"""tract quantization formats serialized as custom `.dat` items.
 
-`QTensorTractDat` is the base of every tract block format: offload state,
-tract version gate and `.dat` writing workflow.
+`QTensorTractDat` is the base of every tract custom `.dat` format: offload
+state, tract version gate and `.dat` writing workflow, with no assumption on
+the serialized layout. Formats made of fixed size blocks add the
+`TractBlockLayout` mixin (`BLOCK_LEN` values stored in `BLOCK_BYTES`).
 
-This module holds the formats with one f16 scale per group of 32 values
+This module holds the block formats with one f16 scale per group of 32 values
 (`QTensorTractBlockQuant`: Q4_0, Q8_1, Q2_0_T). Their scale is a
 `QScalePerGroupF16` that a torch calibration sets (min max, percentile, or
 external methods like GPTQ), and their u8 storage holds one quantized value
@@ -28,6 +30,7 @@ import torch
 
 from torch_to_nnef.exceptions import (
     T2NErrorImpossibleQuantization,
+    T2NErrorMisuse,
     T2NErrorNotImplemented,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
@@ -129,6 +132,28 @@ def check_f16_scales(
             )
 
 
+class TractBlockLayout:
+    """Layout mixin of formats serialized as fixed size blocks.
+
+    Each block of `BLOCK_LEN` consecutive values (in row-major order) is
+    serialized as `BLOCK_BYTES` bytes.
+    """
+
+    BLOCK_LEN: int
+    BLOCK_BYTES: int
+
+    @classmethod
+    def data_size_bytes(cls, shape: T.Tuple[int, ...]) -> int:
+        """Serialized size of a tensor of `shape`."""
+        vol = reduce(operator.mul, shape, 1)
+        if vol % cls.BLOCK_LEN != 0:
+            raise T2NErrorMisuse(
+                f"tensor volume {vol} of shape {tuple(shape)} is not "
+                f"a multiple of block length {cls.BLOCK_LEN}"
+            )
+        return vol // cls.BLOCK_LEN * cls.BLOCK_BYTES
+
+
 class QTensorTractDat(QTensorTract, SupportsOffloadState):
     """Common base of QTensor serialized as tract custom `.dat` item types.
 
@@ -137,16 +162,15 @@ class QTensorTractDat(QTensorTract, SupportsOffloadState):
     `_write_binary_dat_from_qtensor_parts` which dumps header and content
     from a (decompressed) u8 storage and its qscheme.
 
-    Subclasses set `decompressed_shape` to the float tensor shape at
-    construction (it sizes the `.dat`). Their u8 storage layout is format
+    It makes no assumption on the serialized layout (block quantization,
+    vector quantization codebooks, ...): each format computes its own
+    `.dat` data size. Subclasses set `decompressed_shape` to the float
+    tensor shape at construction. Their u8 storage layout is format
     specific: `numel` must stay the float tensor one.
 
     """
 
     FORMAT_NAME: str
-    # number of values and bytes of each serialized block
-    BLOCK_LEN: int
-    BLOCK_BYTES: int
     MIN_TRACT_VERSION: T.Optional[str] = None
     # appended to the version gate warning when set
     VERSION_GATE_NOTE: T.Optional[str] = None
@@ -317,7 +341,7 @@ class QTensorTractDat(QTensorTract, SupportsOffloadState):
         )
 
 
-class QTensorTractBlockQuant(QTensorTractDat):
+class QTensorTractBlockQuant(TractBlockLayout, QTensorTractDat):
     """Common base of tract GGML-like block quantization formats.
 
     Values are quantized per group of `GROUP_SIZE` elements sharing a f16
@@ -382,8 +406,7 @@ class QTensorTractBlockQuant(QTensorTractDat):
         return DatBinHeader.build_tract_qtensor(
             cls._item_type(inference_target),
             decompressed_shape,
-            block_bytes=cls.BLOCK_BYTES,
-            block_len=cls.BLOCK_LEN,
+            data_size_bytes=cls.data_size_bytes(decompressed_shape),
         ).to_bytes()
 
     @classmethod

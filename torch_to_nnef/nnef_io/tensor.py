@@ -109,33 +109,20 @@ class DatBinHeader:
         item_type: TractCustomTypes,
         shape: T.Tuple[int, ...],
         *,
-        block_bytes: int,
-        block_len: int,
+        data_size_bytes: int,
     ) -> "DatBinHeader":
-        """Build a binary header for tract custom block quantized types.
+        """Build a binary header for tract custom types.
 
         Args:
             item_type (TractCustomTypes): Tract custom quantisation type.
             shape (Tuple[int]): Shape of the tensor.
-            block_bytes (int): bytes per block of `block_len` elements
-                (each qtensor class `BLOCK_BYTES`): an item type alone does
-                not always tell its size (like "8030": Q8_0 or legacy Q8_1).
-            block_len (int): elements per block (32 for Q4_0, 256 for ggml
-                K-quants).
+            data_size_bytes (int): serialized data size, computed by each
+                qtensor format: an item type alone does not always tell it
+                (like "8030": Q8_0 or legacy Q8_1).
 
         Returns:
             DatBinHeader: Constructed header instance.
         """
-        vol = 1
-        for s in shape:
-            vol *= s
-        if vol % block_len != 0:
-            raise T2NErrorMisuse(
-                f"tensor volume {vol} of shape {shape} is not "
-                f"a multiple of block length {block_len}"
-            )
-        data_size_bytes = vol // block_len * block_bytes
-
         return DatBinHeader(
             data_size_bytes=data_size_bytes,
             bits_per_item=2**32 - 1,
