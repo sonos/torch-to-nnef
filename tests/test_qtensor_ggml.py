@@ -154,6 +154,21 @@ GGML_LLAMA_CPP_SHA256 = {
             "5dfcb461fb9367b40858fc2664809605b7a73abedcbe682402ab127ee8424449"
         ),
     },
+    # `quantize_iq2_s` without importance matrix (after `iq2xs_init_impl`)
+    "IQ2_S": {
+        "normal": (
+            "6b19ee1890dca588a8fe59e3dc1f9c667faa536e29aa13868a6ea3f4d003ecc2"
+        ),
+        "sparse": (
+            "811e5eda4bb71145ca44dcf97db969e9c710ef79d45bdd1feb01dfd91654b9d8"
+        ),
+        "positive": (
+            "655a01d54a3dc2881ae9cdf512d26794dc9fc6938c0903efe450ab1f3184dd6b"
+        ),
+        "heavy": (
+            "9ebca7226f7ad8ec90dc5cba3b15d669496b04b4560f8be50d0b5d1caba4bfe6"
+        ),
+    },
 }
 
 
@@ -499,6 +514,10 @@ def test_iq2s_matches_ggml_reference(zeros, expected_hex, values):
     _check_ggml_reference(
         fp_to_tract_iq2_s, _ggml_ramp(256, zeros), expected_hex, values
     )
+
+
+def test_iq2s_matches_llama_cpp_on_random_super_blocks():
+    _check_ggml_llama_cpp_hashes(fp_to_tract_iq2_s, "IQ2_S")
 
 
 def test_iq2s_dat_content_layout(tmp_path):
