@@ -342,8 +342,12 @@ def test_q4k_keeps_fp_tensor_device():
 
 @pytest.mark.parametrize(
     "fp_to_qtensor",
-    [fp_to_tract_q4_k, fp_to_tract_q4_0_with_min_max_calibration],
-    ids=["q4_k", "q4_0"],
+    [
+        fp_to_tract_q4_k,
+        fp_to_tract_q6_k,
+        fp_to_tract_q4_0_with_min_max_calibration,
+    ],
+    ids=["q4_k", "q6_k", "q4_0"],
 )
 def test_qtensor_to_keeps_codes_and_source(fp_to_qtensor):
     fp_tensor = torch.randn(4, 256, generator=torch.Generator().manual_seed(0))
