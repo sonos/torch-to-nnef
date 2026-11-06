@@ -41,10 +41,10 @@ from .utils import (
     check_model_io_test,
     check_offload_state_write,
     check_rejects_old_tract,
-    old_tract_versions,
     skipif_unsupported_qtensor,
-    supported_tract_versions,
     tract_target,
+    tract_versions_just_at_or_above,
+    tract_versions_just_below,
 )
 
 pytestmark = skipif_unsupported_qtensor
@@ -417,7 +417,7 @@ def test_q80_keeps_negligible_underflow_blocks_as_zeros(caplog):
 
 @pytest.mark.parametrize(
     "version",
-    ["0.22.1"] + old_tract_versions(QTensorTractQ8_0.MIN_TRACT_VERSION),
+    ["0.22.1"] + tract_versions_just_below(QTensorTractQ8_0.MIN_TRACT_VERSION),
 )
 def test_q80_rejects_old_tract(tmp_path, caplog, version):
     qtensor = fp_to_tract_q8_0_with_min_max_calibration(torch.randn(2, 32))
@@ -426,7 +426,8 @@ def test_q80_rejects_old_tract(tmp_path, caplog, version):
 
 
 @pytest.mark.parametrize(
-    "version", supported_tract_versions(QTensorTractQ8_0.MIN_TRACT_VERSION)
+    "version",
+    tract_versions_just_at_or_above(QTensorTractQ8_0.MIN_TRACT_VERSION),
 )
 def test_q80_offload_state_write(tmp_path, version):
     check_offload_state_write(
@@ -726,7 +727,7 @@ def test_ggml_seq_sum_is_sequential_f32():
 
 
 @pytest.mark.parametrize(
-    "version", old_tract_versions(QTensorTractQ4_K.MIN_TRACT_VERSION)
+    "version", tract_versions_just_below(QTensorTractQ4_K.MIN_TRACT_VERSION)
 )
 def test_q4k_rejects_old_tract(tmp_path, caplog, version):
     check_rejects_old_tract(
@@ -735,7 +736,8 @@ def test_q4k_rejects_old_tract(tmp_path, caplog, version):
 
 
 @pytest.mark.parametrize(
-    "version", supported_tract_versions(QTensorTractQ4_K.MIN_TRACT_VERSION)
+    "version",
+    tract_versions_just_at_or_above(QTensorTractQ4_K.MIN_TRACT_VERSION),
 )
 def test_q4k_offload_state_write(tmp_path, version):
     check_offload_state_write(
