@@ -675,7 +675,9 @@ def _iq2_s_pack_levels(levels: torch.Tensor) -> torch.Tensor:
 
 
 @lru_cache(maxsize=1)
-def _iq2_s_search_cpu() -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def _iq2_s_search_cpu() -> T.Tuple[
+    torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
+]:
     kgrid = torch.tensor(KGRID_2BIT_1024, dtype=torch.int64)
     grid_levels = _iq2_s_unpack_levels(kgrid)
     assert int(grid_levels.max()) <= 2
@@ -701,32 +703,42 @@ def _iq2_s_search_cpu() -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     shell[rows, slots] = cols
     neighbours = torch.full((IQ2_S_KMAP_SIZE, max_shell), -1, dtype=torch.int64)
     neighbours[all_codes[off]] = shell
-    return grid_levels, kmap, neighbours
+    shell_len = (neighbours >= 0).sum(dim=1)
+    # grid indices fit int16 (cast at use)
+    return (
+        grid_levels,
+        kmap.to(torch.int16),
+        neighbours.to(torch.int16),
+        shell_len.to(torch.int16),
+    )
 
 
 _IQ2_S_SEARCH_BY_DEVICE: T.Dict[
-    str, T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+    str, T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
 ] = {}
 
 
 def _iq2_s_search(
     device: torch.device,
-) -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Port of tract `build_search` (ggml `iq2_s` init, nearest shell only).
 
     Returns:
         (grid levels i64 (1024, 8) in [0, 2],
-         map i64 (KMAP_SIZE,): packed code to grid index or -1 off grid,
-         neighbours i64 (KMAP_SIZE, max_shell): grid indices of the
-         nearest shell in index order, padded with -1), on `device`
+         map i16 (KMAP_SIZE,): packed code to grid index or -1 off grid,
+         neighbours i16 (KMAP_SIZE, max_shell): grid indices of the
+         nearest shell in index order, padded with -1,
+         shell lengths i16 (KMAP_SIZE,): valid neighbours per code),
+        on `device`
     """
     key = str(device)
     if key not in _IQ2_S_SEARCH_BY_DEVICE:
-        grid_levels, kmap, neighbours = _iq2_s_search_cpu()
+        grid_levels, kmap, neighbours, shell_lens = _iq2_s_search_cpu()
         _IQ2_S_SEARCH_BY_DEVICE[key] = (
             grid_levels.to(device),
             kmap.to(device),
             neighbours.to(device),
+            shell_lens.to(device),
         )
     return _IQ2_S_SEARCH_BY_DEVICE[key]
 
@@ -748,9 +760,9 @@ def _iq2_s_find_best_neighbour(
     Returns:
         levels i64 (m, 8) of the best on grid neighbour
     """
-    grid_levels, _, neighbours = _iq2_s_search(xval.device)
-    grid_t = (2 * grid_levels + 1).to(torch.float32).t()
-    shell_len = (neighbours[codes] >= 0).sum(dim=1)
+    grid_levels, _, neighbours, shell_lens = _iq2_s_search(xval.device)
+    grid_f = (2 * grid_levels + 1).to(torch.float32)
+    shell_len = shell_lens[codes]
     out = torch.empty(
         (codes.shape[0], 8), dtype=torch.int64, device=codes.device
     )
@@ -763,19 +775,27 @@ def _iq2_s_find_best_neighbour(
         prev_width = width
         for start in range(0, sel_all.numel(), IQ2_S_NEIGHBOUR_CHUNK):
             sel = sel_all[start : start + IQ2_S_NEIGHBOUR_CHUNK]
-            cands = neighbours[codes[sel], :width]
+            cands = neighbours[codes[sel], :width].to(torch.int64)
             valid = cands >= 0
             cands_ix = torch.where(valid, cands, torch.zeros_like(cands))
             sc = scale[sel, None]
+            # gathered once per chunk: (c, 8) values, (c, width, 8) points
+            xs = xval[sel]
+            ws = waux[sel]
+            pts = grid_f[cands_ix]
             # tract order: d2 += (w * diff) * diff, sequentially
             d2 = torch.zeros(
                 cands.shape, dtype=torch.float32, device=cands.device
             )
             for k in range(8):
-                diff = sc * grid_t[k][cands_ix] - xval[sel, k, None]
-                d2 = d2 + waux[sel, k, None] * diff * diff
-            # tract strict `d2 < best` scan: first minimum wins on ties
-            # (no argmin: its tie breaking is not a contract)
+                diff = sc * pts[:, :, k] - xs[:, k, None]
+                d2 = d2 + ws[:, k, None] * diff * diff
+            # tract strict `d2 < best` scan, first minimum wins on ties
+            # (torch argmin keeps the first too, this scan mirrors tract
+            # and is faster here); seeding `best` from the first
+            # candidate instead of tract `f32::MAX` only differs for
+            # inf/NaN distances (weights around 1e9 and above), rejected
+            # anyway by the f16 `d` overflow check (from about 1e7)
             best_d2 = d2[:, 0]
             pick = cands[:, 0]
             for j in range(1, cands.shape[1]):
@@ -798,7 +818,7 @@ def _iq2_s_snap(
         (levels i64 (m, 8) in [0, 2] on grid, on_grid bool (m,) before
          the neighbour search)
     """
-    _, kmap, _ = _iq2_s_search(xval.device)
+    _, kmap, _, _ = _iq2_s_search(xval.device)
     levels = torch.clamp(
         ggml_nearest_int(
             ggml_f32(0.5) * (inv_scale[:, None] * xval - ggml_f32(1.0))
@@ -1040,11 +1060,13 @@ class QTensorTractIQ2_S(QTensorTractGGMLK):  # noqa: N801
         n_blocks = codes.shape[0]
         assert (codes >> (IQ2_S_SIGN_SHIFT + 1) == 0).all(), "bad IQ2_S code"
         levels = (codes & IQ2_S_LEVEL_MASK).reshape((n_blocks, 32, 8))
-        _, kmap, _ = _iq2_s_search(codes.device)
+        _, kmap, _, _ = _iq2_s_search(codes.device)
         # levels 3 are off the grid (packed codes above the map, or -1)
         packed = _iq2_s_pack_levels(levels).clamp(max=IQ2_S_KMAP_SIZE - 1)
         grid_index = torch.where(
-            (levels <= 2).all(dim=2), kmap[packed], torch.full_like(packed, -1)
+            (levels <= 2).all(dim=2),
+            kmap[packed].to(torch.int64),
+            torch.full_like(packed, -1),
         )
         assert (grid_index >= 0).all(), "IQ2_S octet is not on the grid"
         neg = (codes >> IQ2_S_SIGN_SHIFT).to(torch.int64)

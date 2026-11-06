@@ -565,14 +565,16 @@ def test_iq2s_codes_hold_grid_level_and_sign():
     assert qtensor.qscheme.scales.shape == (8, 16)
     assert int(qtensor.qscheme.scales.max()) <= 15
     # every octet of grid levels is a grid point
-    _, kmap, _ = _iq2_s_search(torch.device("cpu"))
+    _, kmap, _, _ = _iq2_s_search(torch.device("cpu"))
     levels = (codes & 3).reshape((-1, 8)).to(torch.int64)
     packed = (levels << (2 * torch.arange(8))).sum(dim=1)
     assert (kmap[packed] >= 0).all()
 
 
 def test_iq2s_grid_search_tables():
-    grid_levels, kmap, neighbours = _iq2_s_search(torch.device("cpu"))
+    grid_levels, kmap, neighbours, shell_lens = _iq2_s_search(
+        torch.device("cpu")
+    )
     assert len(set(KGRID_2BIT_1024)) == 1024
     assert grid_levels.shape == (1024, 8) and int(grid_levels.max()) == 2
     # map is the inverse of the grid
@@ -590,6 +592,9 @@ def test_iq2s_grid_search_tables():
     valid = shell >= 0
     assert (valid[:, :-1] | ~valid[:, 1:]).all()
     assert ((shell[:, 1:] > shell[:, :-1]) | ~valid[:, 1:]).all()
+    # compact tables, shell lengths precomputed per code
+    assert kmap.dtype == neighbours.dtype == shell_lens.dtype == torch.int16
+    assert torch.equal(shell_lens.to(torch.int64), (neighbours >= 0).sum(dim=1))
 
 
 @pytest.mark.skipif(
