@@ -29,10 +29,12 @@ from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.opaque import set_opaque_tensor_in_params_as_ref
 from torch_to_nnef.tensor.quant import (
     QTensor,
+    QTensorTractQ8_0,
     QTensorTractQ8_1,
     QTensorTractScaleOnly,
     U8Compressor,
     fp_to_tract_q4_0_with_min_max_calibration,
+    fp_to_tract_q8_0_with_min_max_calibration,
     fp_to_tract_q8_1_with_min_max_calibration,
     qscale_per_group_f16_min_max_calibration,
 )
@@ -875,6 +877,40 @@ def test_q81_group_sum_clamped_to_f16_range(tmp_path, caplog):
         blocks = np.frombuffer(fh.read(), dtype=np.uint8).reshape(2, 36)
     group_sum = blocks[:, 2:4].copy().view(np.float16)
     assert np.isfinite(group_sum).all(), group_sum
+
+
+def test_tract_custom_types_q80_shares_legacy_q81_header():
+    # tract 0.23.10 reassigned 0x3080 from Q8_1 to Q8_0
+    assert DatBinHeader.TractCustomTypes.Q81_LEGACY is (
+        DatBinHeader.TractCustomTypes.Q80
+    )
+    assert DatBinHeader.TractCustomTypes("8030").name == "Q80"
+    # same header value: only the block size tells them apart
+    for qtensor_cls in [QTensorTractQ8_0, QTensorTractQ8_1]:
+        header = DatBinHeader.build_tract_qtensor(
+            DatBinHeader.TractCustomTypes.Q80,
+            (2, 32),
+            data_size_bytes=qtensor_cls.data_size_bytes((2, 32)),
+        )
+        assert header.data_size_bytes == 2 * qtensor_cls.BLOCK_BYTES
+
+
+@skipif_unsupported_qtensor
+def test_q80_and_q81_are_distinct_formats(tmp_path):
+    q80 = fp_to_tract_q8_0_with_min_max_calibration(torch.randn(2, 32))
+    q81 = fp_to_tract_q8_1_with_min_max_calibration(torch.randn(2, 32))
+    assert not isinstance(q80, QTensorTractQ8_1)
+    assert not isinstance(q81, QTensorTractQ8_0)
+    q80.write_in_file(tmp_path, "q80", TractNNEF.latest())
+    q81.write_in_file(tmp_path, "q81", TractNNEF.latest())
+    with (tmp_path / "q80.dat").open("rb") as fh:
+        q80_header = DatBinHeader.from_dat_file(fh)
+    with (tmp_path / "q81.dat").open("rb") as fh:
+        q81_header = DatBinHeader.from_dat_file(fh)
+    assert q80_header.torch_dtype_or_custom == DatBinHeader.TractCustomTypes.Q80
+    assert q81_header.torch_dtype_or_custom == DatBinHeader.TractCustomTypes.Q81
+    assert q80_header.data_size_bytes == 2 * 34
+    assert q81_header.data_size_bytes == 2 * 36
 
 
 # conv1d: linear (aka kernel=1)
