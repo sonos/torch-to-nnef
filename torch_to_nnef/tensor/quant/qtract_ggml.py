@@ -850,6 +850,68 @@ def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
     return qtensor
 
 
+# pylint: disable-next=too-many-ancestors
+class QTensorTractQ5_K(QTensorTractGGMLKMin):  # noqa: N801
+    """Tract data format it serializes to: Q5_K (ggml `block_q5_K`).
+
+    Each super-block of 256 values is stored as 176 bytes:
+    f16 `d`, f16 `dmin`, 12 bytes of eight 6bit scales and mins
+    (one per sub-block of 32 values), 32 bytes of level high bits,
+    then 256 low 4bit levels (5.5bpw).
+    Value is `d * scale * level - dmin * min` with 5bit levels.
+
+    Quantization ports llama.cpp `quantize_row_q5_K_ref` (no importance
+    matrix), dequantization matches tract bit exactly.
+
+    Warning:
+        tract (<= 0.23.10) only supports Q5_K weights in
+        embedding/gathering operations: there is no matmul or convolution
+        kernel for it yet.
+
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q5_k.v1"
+    FORMAT_NAME = "Q5_K"
+    BLOCK_BYTES = 176
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.Q5K
+    NMAX = 31
+    RMIN = -0.5
+    NSTEP = 15
+
+    @classmethod
+    def _pack_levels(cls, levels):
+        # per 64 values: (pair, half) where half picks first or next 32
+        n_blocks = levels.shape[0]
+        chunks = levels.reshape((n_blocks, 4, 2, 32))
+        low = chunks & 0xF
+        qs = low[:, :, 0, :] | (low[:, :, 1, :] << 4)
+        # bit `2 * pair + half` of `qh[i]` is the 5th bit of level `i`
+        # of that (pair, half): disjoint bits, so their sum is their or
+        shifts = torch.arange(8, dtype=torch.uint8).reshape((1, 4, 2, 1))
+        qh = (
+            ((chunks >> 4) << shifts.to(chunks.device))
+            .reshape((n_blocks, 8, 32))
+            .sum(dim=1)
+            .to(torch.uint8)
+        )
+        return torch.cat([qh, qs.reshape((n_blocks, 128))], dim=1)
+
+
+def fp_to_tract_q5_k(fp_tensor: torch.Tensor) -> QTensorTractQ5_K:
+    """Quantize float tensor to tract supported Q5_K (ggml reference).
+
+    Only use it on embedding weights (see `QTensorTractQ5_K`).
+
+    Raises:
+        T2NErrorImpossibleQuantization: invalid dtype or shape, non finite
+            values, block scales that overflow f16, or that underflow it
+            for weights not negligible against the tensor largest one.
+    """
+    qtensor = QTensorTractQ5_K.from_fp(fp_tensor)
+    assert isinstance(qtensor, QTensorTractQ5_K)
+    return qtensor
+
+
 # Q6_K ######################################################################
 
 

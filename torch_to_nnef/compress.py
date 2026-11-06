@@ -21,6 +21,7 @@ from torch_to_nnef.tensor.quant import (
     fp_to_tract_iq2_s,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
+    fp_to_tract_q5_k,
     fp_to_tract_q6_k,
     fp_to_tract_q8_0_with_min_max_calibration,
     fp_to_tract_q8_1_with_min_max_calibration,
@@ -198,6 +199,19 @@ def quantize_weights_ggml_Q4_K(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
+def quantize_weights_ggml_Q5_K(model: nn.Module, **kwargs):  # noqa: N802
+    """Example of quantization function for a model to Q5_K.
+
+    Uses the ggml reference quantizer (`make_qkx2_quants` search per
+    sub-block, no importance matrix).
+    tract only supports Q5_K weights for embedding/gathering operations
+    so only `nn.Embedding` (or subclasses) can be quantized.
+    """
+    return _quantize_embeddings_ggml(
+        model, fp_to_tract_q5_k, "q5k_ggml", "Q5_K", **kwargs
+    )
+
+
 def quantize_weights_ggml_Q6_K(model: nn.Module, **kwargs):  # noqa: N802
     """Example of quantization function for a model to Q6_K.
 
@@ -276,6 +290,7 @@ DEFAULT_COMPRESSION = {
     "min_max_q8_0_embeddings": quantize_weights_min_max_Q8_0,
     "min_max_q8_1_embeddings": quantize_weights_min_max_Q8_1,
     "ggml_q4_k_embeddings": quantize_weights_ggml_Q4_K,
+    "ggml_q5_k_embeddings": quantize_weights_ggml_Q5_K,
     "ggml_q6_k_embeddings": quantize_weights_ggml_Q6_K,
     "ggml_iq2_s_embeddings": quantize_weights_ggml_IQ2_S,
 }
