@@ -57,51 +57,9 @@ PrismML's packed formats, compression ratios or kernels are the same as
 tract's. See also [PrismML's model and runtime repository](https://github.com/PrismML-Eng/Bonsai-demo)
 for its own export formats and runtimes.
 
-Let's take a look at each in turn starting by Q40.
+## Usage
 
-## Custom Tensor quantization support
-
-### Q4_0 block layout
-
-Q40 (`Q4_0`) stores 32 weights per block: an f16 scale `s` and 32 four-bit
-codes `c[i]` in `[0, 15]`. Reconstruction is `w[i] = s * (c[i] - 8)`;
-the scale can be negative. The fixed offset of 8 is implicit, not stored.
-The block occupies 18 bytes, or `(16 + 32 * 4) / 32 = 4.5 bpw`.
-
-```mermaid
-flowchart LR
-    accTitle: Q4_0 block layout
-    accDescr: After the NNEF tensor header, each block stores an f16 scale in bytes 0 and 1 and 32 four-bit codes in bytes 2 through 17. Each packed byte pairs codes 16 weights apart.
-    subgraph block["32 weights / 18 bytes / 4.5 bpw"]
-        direction LR
-        scale["Bytes 0-1<br/>f16 scale"]
-        first["Byte 2<br/>c0 + c16"]
-        middle["Bytes 3-16<br/>c1 + c17 ... c14 + c30"]
-        last["Byte 17<br/>c15 + c31"]
-        scale --- first --- middle --- last
-    end
-```
-
-**Inside byte 2**, from most significant to least significant bits:
-
-```mermaid
-flowchart LR
-    accTitle: Q4_0 nibble order in byte 2
-    accDescr: Bits 7 through 4 contain code 16; bits 3 through 0 contain code 0.
-    high["Bits 7-4<br/>c16"] --- low["Bits 3-0<br/>c0"]
-```
-
-| Code | 0 | 8 | 15 |
-| --- | --- | --- | --- |
-| Reconstructed weight | `-8 * s` | `0` | `7 * s` |
-
-The paired codes are 16 weights apart, not adjacent: for example, `c0 = 2`
-and `c16 = 9` produce `0x92`. This is the layout for tract >= 0.21.11
-(item type `0x3040`). For older tract targets, the exporter uses the legacy
-`0x2040` layout: byte 2 pairs `c0` in its low nibble with `c1` in its high
-nibble, byte 3 pairs `c2` with `c3`, and so on. The scale and bpw are unchanged.
-
-### Q40 LLM Export example
+### Q4_0 LLM export example
 
 For LLM as we explained in prior [tutorial](./5_llm.md) quantization is as simple as
 adding the `-c` (or `--compression-method`) option with `min_max_q4_0_all`.
@@ -162,8 +120,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
     handler: python
 </div>
 
-QTensor today support export to [`Q40`](https://huggingface.co/docs/hub/en/gguf) (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw)
-and `Q8_1` (8bit symmetric quantization with a granularity per group of 32 elements, totaling 9bpw).
+The [format overview](#supported-formats-and-lineage) lists the available
+weight formats and their supported operations.
 
 A `QTensor` is a Python object that behaves and should be used as a
 classical `torch.Tensor` with few exceptions: it can not hold any gradient, it can not be modified, it contains internals objects necessary to its definition like:
@@ -198,11 +156,53 @@ Today Q40 is supported by tract on matmul, convolutions and embeddings operation
 The `min_max_q4_0_all` will try to apply it to all those encountered modules within a
 model.
 
-### Q40 for non-llm network
+### Q4_0 for other networks
 
 By reading the previous section you should now understand that beyond specific calibration
 which is not part of this library all of what was explained apply to all neural network parameters used in matmul (nn.Linear, F.linear, ...), conv (Conv1d, Conv2d), and embeddings (gather operator).
 In fact you can just reuse as is the [compress method](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/compress.py#L20) we referenced upper on any neural network defined in PyTorch it should just work.
+
+## Weight quantization formats
+
+### Q4_0 block layout
+
+Q40 (`Q4_0`) stores 32 weights per block: an f16 scale `s` and 32 four-bit
+codes `c[i]` in `[0, 15]`. Reconstruction is `w[i] = s * (c[i] - 8)`;
+the scale can be negative. The fixed offset of 8 is implicit, not stored.
+The block occupies 18 bytes, or `(16 + 32 * 4) / 32 = 4.5 bpw`.
+
+```mermaid
+flowchart LR
+    accTitle: Q4_0 block layout
+    accDescr: After the NNEF tensor header, each block stores an f16 scale in bytes 0 and 1 and 32 four-bit codes in bytes 2 through 17. Each packed byte pairs codes 16 weights apart.
+    subgraph block["32 weights / 18 bytes / 4.5 bpw"]
+        direction LR
+        scale["Bytes 0-1<br/>f16 scale"]
+        first["Byte 2<br/>c0 + c16"]
+        middle["Bytes 3-16<br/>c1 + c17 ... c14 + c30"]
+        last["Byte 17<br/>c15 + c31"]
+        scale --- first --- middle --- last
+    end
+```
+
+**Inside byte 2**, from most significant to least significant bits:
+
+```mermaid
+flowchart LR
+    accTitle: Q4_0 nibble order in byte 2
+    accDescr: Bits 7 through 4 contain code 16; bits 3 through 0 contain code 0.
+    high["Bits 7-4<br/>c16"] --- low["Bits 3-0<br/>c0"]
+```
+
+| Code | 0 | 8 | 15 |
+| --- | --- | --- | --- |
+| Reconstructed weight | `-8 * s` | `0` | `7 * s` |
+
+The paired codes are 16 weights apart, not adjacent: for example, `c0 = 2`
+and `c16 = 9` produce `0x92`. This is the layout for tract >= 0.21.11
+(item type `0x3040`). For older tract targets, the exporter uses the legacy
+`0x2040` layout: byte 2 pairs `c0` in its low nibble with `c1` in its high
+nibble, byte 3 pairs `c2` with `c3`, and so on. The scale and bpw are unchanged.
 
 ### Q8_1 for embeddings
 
@@ -270,7 +270,173 @@ with torch.no_grad():
     )
 ```
 
-### Q40 Use specific quantization method
+### Q2_0_T for ternary weights
+
+Q2_0_T is a **weight-only, symmetric ternary block format**, with **2.5 bits
+per weight (bpw)** including scales. `ternary_to_tract_q2_0_t` exports weights
+that already satisfy this scheme. It does not train, calibrate or optimize a
+float model for ternary inference, and does not insert activation quantization.
+
+#### Scheme and storage cost
+
+For each consecutive block of 32 weights in flattened row order:
+
+```text
+w[i] = s * t[i],  t[i] in {-1, 0, +1}
+s_hat = float16(s)
+exported_w[i] = s_hat * t[i]
+```
+
+The helper infers the nonnegative scale `s` as the largest absolute value in
+the block and checks that every value is exactly `-s`, `0` or `+s`. It does
+not apply abs-mean calibration, thresholds or rounding to choose ternary
+codes. Different nonzero magnitudes within one block are rejected, even if
+rounding them to f16 would make them equal. All-zero blocks are allowed.
+
+Each block stores an f16 scale followed by eight bytes of two-bit codes:
+`0 -> -1`, `1 -> 0`, `2 -> +1`; code 3 is not emitted. Four consecutive codes
+are packed into each byte, lowest bits first. There is no stored zero point.
+NNEF identifies this layout with tract's custom item type `0x3020`.
+
+```mermaid
+flowchart LR
+    accTitle: Q2_0_T block layout
+    accDescr: Each block stores a little-endian f16 scale in bytes 0 and 1, followed by 32 two-bit codes packed four per byte in bytes 2 through 9.
+    subgraph block["32 weights / 10 bytes / 2.5 bpw"]
+        direction LR
+        scale["Bytes 0-1<br/>f16 scale<br/>Little-endian"]
+        first["Byte 2<br/>c0, c1, c2, c3"]
+        rest["Bytes 3-9<br/>c4, c5, ... c31<br/>Four codes per byte"]
+        scale --- first --- rest
+    end
+```
+
+**Inside byte 2**, from most significant to least significant bits:
+
+```mermaid
+flowchart LR
+    accTitle: Q2_0_T two-bit code order in byte 2
+    accDescr: From high to low bits, code 3 occupies bits 7 and 6, code 2 occupies bits 5 and 4, code 1 occupies bits 3 and 2, and code 0 occupies bits 1 and 0.
+    c3["Bits 7-6<br/>c3"] --- c2["Bits 5-4<br/>c2"] --- c1["Bits 3-2<br/>c1"] --- c0["Bits 1-0<br/>c0"]
+```
+
+| Code bits | `00` | `01` | `10` | `11` |
+| --- | --- | --- | --- | --- |
+| Weight | `-scale` | `0` | `+scale` | Not emitted |
+
+For example, weights `[-0.5, 0, +0.5, -0.5]` have codes `[0, 1, 2, 0]`.
+Their packed byte is `00 10 01 00` in high-to-low bit order, or `0x24`.
+The block's scale is `0.5`, stored as the little-endian f16 bytes `00 38`.
+
+The payload is `(32 * 2 + 16) / 32 = 2.5 bpw`: 2 bpw for codes and 0.5 bpw
+for scales. Three possible values carry `log2(3) ~= 1.585` bits of
+information, but this format uses fixed two-bit packing rather than base-3
+or entropy coding. It is **not a 1.58 bpw storage format**.
+
+| Weight format | Payload bpw | Payload size relative to Q2_0_T |
+| --- | ---: | ---: |
+| Q2_0_T | 2.5 | 1x |
+| Q4_0 | 4.5 | 1.8x |
+| Float16 / bfloat16 | 16 | 6.4x |
+| Float32 | 32 | 12.8x |
+
+For example, one billion weights stored entirely as Q2_0_T occupy about
+312.5 MB of tensor payload. These figures exclude tensor/archive headers,
+unconverted weights, activations, caches and runtime buffers. Zeros still
+occupy two bits; this is dense storage, not sparse compression. A source
+scale shared over 128 weights is stored separately for each 32-weight block,
+so larger source groups do not lower the exported bpw.
+
+#### Dequantization and matrix multiplication cost
+
+Reconstructing a block requires reading its scale, extracting 32 codes with
+bit shifts/masks, subtracting one and applying the scale. That is linear
+work in the number of weights reconstructed. Expanding a block produces
+32 floating-point values: 64 bytes in f16 or 128 bytes in f32, compared with
+10 bytes packed. Whether that expansion is transient or retained depends
+on the execution path; packed payload size is not total runtime memory.
+
+Tract's [generic Q2_0_T matmul](https://github.com/sonos/tract/blob/main/linalg/src/generic/mmm.rs)
+reconstructs weights inside the kernel and performs floating-point
+multiply-accumulates. Its [x86 AVX2 panel extractor](https://github.com/sonos/tract/blob/main/linalg/src/x86_64/panel_extract.rs)
+can unpack codes into f32 panels for floating-point kernels. Do not assume
+multiplication-free inference, integer-only arithmetic or sparse zero
+skipping from the ternary alphabet alone.
+
+For `W[M, K] @ X[K, N]`, dense arithmetic remains about `2 * M * K * N`
+floating-point operations, plus unpacking/scaling. A pass reconstructing all
+weights costs `O(M * K)`; tiling and reuse determine how often decoding is
+repeated. Kernel selection, hardware, shapes and the tract version determine
+the actual cost. The storage ratios above are not throughput ratios.
+
+The strongest candidate for a speed benefit is a workload limited by weight
+bandwidth, such as small-batch linear layers or single-token decoding with
+weights larger than cache. For larger batches or prefill, weight reuse makes
+floating-point compute more significant, and unpacking overhead or a less
+optimized kernel can erase the benefit or make execution slower. Benchmark
+latency and peak memory on the intended target at representative batch/token
+counts, separately from model loading and packing. This exporter promises
+the packed representation, not a particular speedup.
+
+#### Recommended models and quantization workflows
+
+Use this format for models whose accuracy has already been validated with
+ternary weights: models pretrained under a ternary constraint, or models
+adapted through quantization-aware training (QAT) or quantization-aware
+fine-tuning. [BitNet b1.58](https://arxiv.org/abs/2402.17764) is an example of
+a training recipe built around ternary weights. Sharing its ternary alphabet
+does not make this format equivalent to its complete training or inference
+recipe, scale granularity or activation quantization.
+
+Advanced post-training quantization (PTQ) is another possible source, but
+only if the method explicitly optimizes for this ternary constraint and
+passes model-level quality evaluation. A generic two-bit PTQ result can have
+four levels, offsets, codebooks or residual corrections that this format
+cannot represent. Any such corrections must remain explicitly represented
+in the model; this helper does not infer them. Naively taking signs or
+rounding a conventional float checkpoint is not a recommended conversion
+strategy and can substantially damage quality.
+
+If a QAT checkpoint contains latent float weights, first materialize the
+actual inference weights using its own trained quantizer. Pass those ternary
+weights to this helper, not the latent weights. Evaluate task quality after
+export, including the effect of rounding scales to f16. `check_io` compares
+execution against the supplied PyTorch model; it does not establish that
+ternarization preserved the original model's accuracy.
+
+#### Exporting compatible weights
+
+```python
+from torch import nn
+from torch_to_nnef.tensor.quant import ternary_to_tract_q2_0_t
+
+# linear.weight must already hold the materialized ternary inference weights.
+linear.weight = nn.Parameter(
+    ternary_to_tract_q2_0_t(linear.weight), requires_grad=False
+)
+```
+
+The input must be a nonempty floating tensor of rank 2 to 4, with the product
+of dimensions after the first divisible by 32. Compatible larger source
+groups, such as 128, split into blocks of 32. Scales are rounded to f16;
+nonzero scales that overflow or underflow are rejected. The helper preserves
+the ternary codes, not necessarily the exact original float scale. Streaming
+export and tensor offloading are supported.
+
+!!! warning "Requires tract 0.23.11 or newer"
+
+    Q2_0_T export is rejected for older targets, including 0.23.10 and
+    prerelease builds below 0.23.11. Both normal and offloaded exports emit
+    an explicit warning before failing. Upgrade tract before exporting
+    ternary weights.
+
+To run the Linear export tests against a supported tract binary:
+
+```bash
+T2N_TEST_TRACT_PATH=/path/to/tract uv run pytest tests/test_q2_0_t.py
+```
+
+## Choosing a Q4_0 calibration method
 
 Ok min-max is cool, but quality it provides in Q40 is bad, how do I implement my own quantization (even with prior sections, I feel confused) ?
 
@@ -569,170 +735,3 @@ You should observe that operators are correctly understood as Quantized with QU8
 
     You exported your first quantized network with `torch_to_nnef` in 8bit
     and learned how to create and manage your own quantization registry !
-
-
-### Q2_0_T for ternary weights
-
-Q2_0_T is a **weight-only, symmetric ternary block format**, with **2.5 bits
-per weight (bpw)** including scales. `ternary_to_tract_q2_0_t` exports weights
-that already satisfy this scheme. It does not train, calibrate or optimize a
-float model for ternary inference, and does not insert activation quantization.
-
-#### Scheme and storage cost
-
-For each consecutive block of 32 weights in flattened row order:
-
-```text
-w[i] = s * t[i],  t[i] in {-1, 0, +1}
-s_hat = float16(s)
-exported_w[i] = s_hat * t[i]
-```
-
-The helper infers the nonnegative scale `s` as the largest absolute value in
-the block and checks that every value is exactly `-s`, `0` or `+s`. It does
-not apply abs-mean calibration, thresholds or rounding to choose ternary
-codes. Different nonzero magnitudes within one block are rejected, even if
-rounding them to f16 would make them equal. All-zero blocks are allowed.
-
-Each block stores an f16 scale followed by eight bytes of two-bit codes:
-`0 -> -1`, `1 -> 0`, `2 -> +1`; code 3 is not emitted. Four consecutive codes
-are packed into each byte, lowest bits first. There is no stored zero point.
-NNEF identifies this layout with tract's custom item type `0x3020`.
-
-```mermaid
-flowchart LR
-    accTitle: Q2_0_T block layout
-    accDescr: Each block stores a little-endian f16 scale in bytes 0 and 1, followed by 32 two-bit codes packed four per byte in bytes 2 through 9.
-    subgraph block["32 weights / 10 bytes / 2.5 bpw"]
-        direction LR
-        scale["Bytes 0-1<br/>f16 scale<br/>Little-endian"]
-        first["Byte 2<br/>c0, c1, c2, c3"]
-        rest["Bytes 3-9<br/>c4, c5, ... c31<br/>Four codes per byte"]
-        scale --- first --- rest
-    end
-```
-
-**Inside byte 2**, from most significant to least significant bits:
-
-```mermaid
-flowchart LR
-    accTitle: Q2_0_T two-bit code order in byte 2
-    accDescr: From high to low bits, code 3 occupies bits 7 and 6, code 2 occupies bits 5 and 4, code 1 occupies bits 3 and 2, and code 0 occupies bits 1 and 0.
-    c3["Bits 7-6<br/>c3"] --- c2["Bits 5-4<br/>c2"] --- c1["Bits 3-2<br/>c1"] --- c0["Bits 1-0<br/>c0"]
-```
-
-| Code bits | `00` | `01` | `10` | `11` |
-| --- | --- | --- | --- | --- |
-| Weight | `-scale` | `0` | `+scale` | Not emitted |
-
-For example, weights `[-0.5, 0, +0.5, -0.5]` have codes `[0, 1, 2, 0]`.
-Their packed byte is `00 10 01 00` in high-to-low bit order, or `0x24`.
-The block's scale is `0.5`, stored as the little-endian f16 bytes `00 38`.
-
-The payload is `(32 * 2 + 16) / 32 = 2.5 bpw`: 2 bpw for codes and 0.5 bpw
-for scales. Three possible values carry `log2(3) ~= 1.585` bits of
-information, but this format uses fixed two-bit packing rather than base-3
-or entropy coding. It is **not a 1.58 bpw storage format**.
-
-| Weight format | Payload bpw | Payload size relative to Q2_0_T |
-| --- | ---: | ---: |
-| Q2_0_T | 2.5 | 1x |
-| Q4_0 | 4.5 | 1.8x |
-| Float16 / bfloat16 | 16 | 6.4x |
-| Float32 | 32 | 12.8x |
-
-For example, one billion weights stored entirely as Q2_0_T occupy about
-312.5 MB of tensor payload. These figures exclude tensor/archive headers,
-unconverted weights, activations, caches and runtime buffers. Zeros still
-occupy two bits; this is dense storage, not sparse compression. A source
-scale shared over 128 weights is stored separately for each 32-weight block,
-so larger source groups do not lower the exported bpw.
-
-#### Dequantization and matrix multiplication cost
-
-Reconstructing a block requires reading its scale, extracting 32 codes with
-bit shifts/masks, subtracting one and applying the scale. That is linear
-work in the number of weights reconstructed. Expanding a block produces
-32 floating-point values: 64 bytes in f16 or 128 bytes in f32, compared with
-10 bytes packed. Whether that expansion is transient or retained depends
-on the execution path; packed payload size is not total runtime memory.
-
-Tract's [generic Q2_0_T matmul](https://github.com/sonos/tract/blob/main/linalg/src/generic/mmm.rs)
-reconstructs weights inside the kernel and performs floating-point
-multiply-accumulates. Its [x86 AVX2 panel extractor](https://github.com/sonos/tract/blob/main/linalg/src/x86_64/panel_extract.rs)
-can unpack codes into f32 panels for floating-point kernels. Do not assume
-multiplication-free inference, integer-only arithmetic or sparse zero
-skipping from the ternary alphabet alone.
-
-For `W[M, K] @ X[K, N]`, dense arithmetic remains about `2 * M * K * N`
-floating-point operations, plus unpacking/scaling. A pass reconstructing all
-weights costs `O(M * K)`; tiling and reuse determine how often decoding is
-repeated. Kernel selection, hardware, shapes and the tract version determine
-the actual cost. The storage ratios above are not throughput ratios.
-
-The strongest candidate for a speed benefit is a workload limited by weight
-bandwidth, such as small-batch linear layers or single-token decoding with
-weights larger than cache. For larger batches or prefill, weight reuse makes
-floating-point compute more significant, and unpacking overhead or a less
-optimized kernel can erase the benefit or make execution slower. Benchmark
-latency and peak memory on the intended target at representative batch/token
-counts, separately from model loading and packing. This exporter promises
-the packed representation, not a particular speedup.
-
-#### Recommended models and quantization workflows
-
-Use this format for models whose accuracy has already been validated with
-ternary weights: models pretrained under a ternary constraint, or models
-adapted through quantization-aware training (QAT) or quantization-aware
-fine-tuning. [BitNet b1.58](https://arxiv.org/abs/2402.17764) is an example of
-a training recipe built around ternary weights. Sharing its ternary alphabet
-does not make this format equivalent to its complete training or inference
-recipe, scale granularity or activation quantization.
-
-Advanced post-training quantization (PTQ) is another possible source, but
-only if the method explicitly optimizes for this ternary constraint and
-passes model-level quality evaluation. A generic two-bit PTQ result can have
-four levels, offsets, codebooks or residual corrections that this format
-cannot represent. Any such corrections must remain explicitly represented
-in the model; this helper does not infer them. Naively taking signs or
-rounding a conventional float checkpoint is not a recommended conversion
-strategy and can substantially damage quality.
-
-If a QAT checkpoint contains latent float weights, first materialize the
-actual inference weights using its own trained quantizer. Pass those ternary
-weights to this helper, not the latent weights. Evaluate task quality after
-export, including the effect of rounding scales to f16. `check_io` compares
-execution against the supplied PyTorch model; it does not establish that
-ternarization preserved the original model's accuracy.
-
-#### Exporting compatible weights
-
-```python
-from torch import nn
-from torch_to_nnef.tensor.quant import ternary_to_tract_q2_0_t
-
-# linear.weight must already hold the materialized ternary inference weights.
-linear.weight = nn.Parameter(
-    ternary_to_tract_q2_0_t(linear.weight), requires_grad=False
-)
-```
-
-The input must be a nonempty floating tensor of rank 2 to 4, with the product
-of dimensions after the first divisible by 32. Compatible larger source
-groups, such as 128, split into blocks of 32. Scales are rounded to f16;
-nonzero scales that overflow or underflow are rejected. The helper preserves
-the ternary codes, not necessarily the exact original float scale. Streaming
-export and tensor offloading are supported.
-
-!!! warning "Requires tract 0.23.11 or newer"
-
-    Q2_0_T export is rejected for older targets, including 0.23.10 and
-    prerelease builds below 0.23.11. Both normal and offloaded exports emit
-    an explicit warning before failing. Upgrade tract before exporting
-    ternary weights.
-
-To run the Linear export tests against a supported tract binary:
-
-```bash
-T2N_TEST_TRACT_PATH=/path/to/tract uv run pytest tests/test_q2_0_t.py
-```
