@@ -9,8 +9,9 @@ u8 storage holds one quantized code per value, its qscheme the block
 parameters as torch tensors, and tract bytes are only packed when written.
 This module holds the formats with one f16 scale per block of 32 values
 (Q4_0, Q8_1, Q2_0_T, `QScalePerGroupF16` that a torch calibration sets:
-min max, percentile, or external methods like GPTQ). K-quants and IQ formats
-live in `qtract_ggml`.
+min max, percentile, or external methods like GPTQ). Formats whose
+calibration reproduces a llama.cpp reference quantizer (Q8_0, K-quants,
+IQ formats) live in `qtract_ggml`.
 """
 
 import filecmp

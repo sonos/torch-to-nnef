@@ -40,6 +40,7 @@ per-tensor metadata.
 | --- | --- | --- |
 | [Q4_0 / Q40](#q4_0-block-layout): 4.5 bpw, 32 weights per f16 scale | Weight-only quantization for matmul, convolution and embeddings/gather; outputs are floating point. | GGML's `block_q4_0`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Tract's NNEF layout has version-dependent nibble order. |
 | [Q8_1](#q8_1-for-embeddings): 9 bpw, 32 int8 weights plus f16 scale and sum | Weight-only, **embeddings/gather only**, tract >= 0.23.0. No matmul or convolution support. | GGML's `block_q8_1`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h), with tract-specific NNEF item types. |
+| [Q8_0](#q8_0-for-embeddings): 8.5 bpw, 32 int8 weights plus f16 scale | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q8_0`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q4_K](#q4_k-for-embeddings): 4.5 bpw, 256 weights per super-block (f16 `d`/`dmin`, 6-bit sub-block scales and mins) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q4_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [IQ2_S](#iq2_s-for-embeddings): 2.5625 bpw, 256 weights per super-block (f16 `d`, 4-bit group scales, 1024 point grid indices and sign bits per 8 weights) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_iq2_s`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizer and grid](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q2_0_T](#q2_0_t-for-ternary-weights): 2.5 bpw, 32 ternary weights per f16 scale | Already-ternary weights, including Linear layers; **tract >= 0.23.11**. Does not insert activation quantization. | Related schemes include [BitNet b1.58](https://arxiv.org/abs/2402.17764) and [PrismML Ternary Bonsai](https://prismml.com/news/ternary-bonsai). Two-bit packing is related to GGML's [TQ2_0 family](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h); [tract defines the exact layout](https://github.com/sonos/tract/blob/main/linalg/src/frame/block_quant/q20t.rs). |
@@ -119,6 +120,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractScaleOnly
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ8_0
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
     handler: python
@@ -276,6 +279,93 @@ with torch.no_grad():
         requires_grad=False,
     )
 ```
+
+### Q8_0 for embeddings
+
+tract (>= 0.23.10) can also load GGML `Q8_0` weights: each group of 32 elements
+is stored as a f16 scale and 32 int8 values (8.5bpw), like `Q8_1` without the
+sum field. Scale follows the GGML convention `d = absmax / 127` (int8 values in
+`[-127, 127]`). The quantizer is a port of GGML's reference
+`quantize_row_q8_0_ref`, as in tract: it reproduces GGML's bytes, and the
+exported dequantization matches tract bit exactly.
+
+```mermaid
+flowchart LR
+    accTitle: Q8_0 block layout
+    accDescr: Each block stores an f16 scale in bytes 0 and 1, and 32 signed integer codes in bytes 2 through 33.
+    subgraph block["32 weights / 34 bytes / 8.5 bpw"]
+        direction LR
+        scale["Bytes 0-1<br/>f16 scale"]
+        codes["Bytes 2-33<br/>q0, q1, ... q31<br/>One signed int8 per byte"]
+        scale --- codes
+    end
+```
+
+One code occupies a full byte, using two's complement:
+
+| Byte (hex) | `81` | `ff` | `00` | `01` | `7f` |
+| --- | --- | --- | --- | --- | --- |
+| Code | -127 | -1 | 0 | +1 | +127 |
+| Weight | `-127 * d` | `-d` | `0` | `+d` | `127 * d` |
+
+Reconstruction is `w[i] = d * q[i]`, computed in f32 then cast to the weight
+dtype. Codes are `round(x[i] / d)` (half away from zero) with `d` in f32,
+while the stored `d` is rounded to f16 (positive from the min max calibration).
+Scales from an external calibration (like GPTQ) are given with a `QScaleQ8_0`
+qscheme: blocks whose stored `d` is not the f16 rounded `absmax / 127` of their
+weights are quantized with the stored `d` itself. The block occupies 34 bytes:
+`(16 + 32 * 8) / 32 = 8.5 bpw`. There is no nibble packing, stored zero point
+or sum, and the int8 code `-128` is never emitted.
+
+The NNEF item type is `0x3080`, the item type older tract assigns to Q8_1:
+`DatBinHeader.TractCustomTypes.Q80` and `Q81_LEGACY` are the same header value.
+
+!!! warning
+
+    tract has no matmul or convolution kernel for `Q8_0` weights yet: a `nn.Linear`
+    or `nn.Conv*` with `Q8_0` weights will fail at tract model optimization.
+    Only use it for embeddings (gather operator).
+
+The `min_max_q8_0_embeddings` registry entry quantizes only `nn.Embedding` weights
+(weights tied with other modules like an LLM `lm_head` are left in float, so pick
+a model with untied embeddings like Qwen2.5 7B):
+
+```bash
+t2n_export_llm_to_tract \
+    -s "Qwen/Qwen2.5-7B-Instruct" \
+    -dt f16 \
+    -e $HOME/qwen25_7B_q80_embeddings \
+    -c "min_max_q8_0_embeddings"
+```
+
+Or directly on a tensor with [fp_to_tract_q8_0_with_min_max_calibration](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract_ggml.py):
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_q8_0_with_min_max_calibration
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_q8_0_with_min_max_calibration(embedding.weight),
+        requires_grad=False,
+    )
+```
+
+The input must be a nonempty, finite, floating tensor (f32, f16 or bf16, always
+quantized from f32) of rank 2 to 4, with the product of dimensions after the
+first divisible by 32. Block scales that overflow f16 (`absmax / 127 > 65504`)
+are rejected. Nonzero blocks whose scale underflows f16 dequantize to zeros:
+they are kept with a warning when their weights are negligible against the
+tensor largest one (below f16 precision of it), and rejected otherwise. With
+`percentile < 1`, each block is first
+clamped to that percentile of its absolute values. Streaming export and tensor
+offloading are supported.
+
+!!! warning "Requires tract 0.23.10 or newer"
+
+    Q8_0 export is rejected for older targets, including prerelease builds
+    below 0.23.10, since they read item type `0x3080` as Q8_1. Both normal and
+    offloaded exports emit an explicit warning before failing, and no tensor
+    data is written.
 
 ### Q4_K for embeddings
 

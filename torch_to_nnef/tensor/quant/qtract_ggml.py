@@ -1,4 +1,4 @@
-"""tract ggml K-quant and IQ block formats (Q4_K, IQ2_S).
+"""tract ggml reference block formats (Q8_0, K-quants, IQ formats).
 
 Like the formats of `qtract`, the u8 storage holds one quantized code per
 value and the qscheme holds the block parameters as torch tensors. tract
@@ -31,9 +31,10 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant._iq2_s_grid import KGRID_2BIT_1024
-from torch_to_nnef.tensor.quant.base import QScheme
+from torch_to_nnef.tensor.quant.base import QScalePerGroupF16, QScheme
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractBlockQuant,
+    QTensorTractScalePerGroupF16,
     check_block_quant_input,
     check_f16_scales,
 )
@@ -213,6 +214,182 @@ def ggml_iter_blocks(fp_tensor: torch.Tensor, block_len: int):
     for start in range(0, blocks.shape[0], GGML_CHUNK_BLOCKS):
         chunk = blocks[start : start + GGML_CHUNK_BLOCKS]
         yield start, chunk.to(torch.float32).contiguous()
+
+
+# Q8_0 ######################################################################
+
+
+def round_half_away(arr: torch.Tensor) -> torch.Tensor:
+    """C `roundf` (and rust `f32::round`): round half away from zero.
+
+    Exact in f32, unlike `floor(|x| + 0.5)` (0.49999997 rounds to 1).
+    """
+    mag = arr.abs()
+    rounded = mag.floor()
+    rounded = rounded + ((mag - rounded) >= 0.5).to(rounded.dtype)
+    return torch.copysign(rounded, arr)
+
+
+def _q8_0_codes(x: torch.Tensor, d_f32: torch.Tensor) -> torch.Tensor:
+    """U8 codes `roundf(x / d) + 128` of f32 (n, 32) blocks, f32 (n, 1) d."""
+    inv_d = torch.where(d_f32 == 0, torch.zeros_like(d_f32), 1.0 / d_f32)
+    codes = round_half_away(x * inv_d).clamp(-127, 127) + 128
+    return codes.to(torch.uint8)
+
+
+class QScaleQ8_0(QScalePerGroupF16):  # noqa: N801
+    """Q8_0 f16 scale `d` per block of 32 (ggml `block_q8_0`).
+
+    Codes are `q + 128` with `q` in [-127, 127], dequantized in f32 as
+    `d * q` (like tract), then casted.
+
+    Like llama.cpp `quantize_row_q8_0_ref`, `q = roundf(x / d_f32)` with
+    `d_f32 = absmax / 127` of the block in f32, before its f16 rounding.
+    `quantize_as_u8` recomputes `d_f32` from each block of the given
+    tensor and uses it whenever it rounds to the stored f16 scale: this is
+    the case of `fp_to_tract_q8_0_with_min_max_calibration` (positive
+    scales). Otherwise, the block falls back to the stored f16 scale
+    itself: scales set by an external calibration (GPTQ, clipping, a
+    negative or any other scale than f16(absmax / 127) of the block), or
+    a tensor quantized with scales calibrated on other weights.
+    """
+
+    def quantize_as_u8(self, fp_tensor):
+        scale = self.scale.reshape((-1, 1))
+        assert scale.shape[0] * self.group_size == fp_tensor.numel(), (
+            fp_tensor.shape,
+            scale.shape,
+        )
+        codes = torch.empty(
+            fp_tensor.shape, dtype=torch.uint8, device=fp_tensor.device
+        )
+        flat_codes = codes.view((-1, self.group_size))
+        for start, x in ggml_iter_blocks(fp_tensor, self.group_size):
+            end = start + x.shape[0]
+            chunk_scale = scale[start:end].to(x.device)
+            d_ggml = x.abs().amax(dim=1, keepdim=True) / 127.0
+            d_f32 = torch.where(
+                d_ggml.to(torch.float16) == chunk_scale,
+                d_ggml,
+                chunk_scale.to(torch.float32),
+            )
+            flat_codes[start:end] = _q8_0_codes(x, d_f32)
+        return codes
+
+    def dequantize(self, u8_tensor, target_dtype):
+        """F32 `d * q` like tract, then cast."""
+        scale = self.scale.to(torch.float32).reshape((-1, 1))
+        codes = u8_tensor.reshape((-1, self.group_size)).to(
+            device=scale.device, dtype=torch.float32
+        )
+        return (
+            ((codes - 128.0) * scale).reshape(u8_tensor.shape).to(target_dtype)
+        )
+
+
+class QTensorTractQ8_0(QTensorTractScalePerGroupF16):  # noqa: N801
+    """Tract data format it serializes to: Q8_0 (ggml `block_q8_0`).
+
+    Each group of 32 values is stored as 34 bytes:
+    f16 scale `d`, then 32 int8 (8.5bpw). Value is `d * q`.
+
+    Use `fp_to_tract_q8_0_with_min_max_calibration` to construct it:
+    quantization matches llama.cpp `quantize_row_q8_0_ref` bytes,
+    dequantization matches tract bit exactly. External calibrations
+    provide their scales with a `QScaleQ8_0`.
+
+    Warning:
+        tract (<= 0.23.10) only supports Q8_0 weights in embedding/gathering
+        operations: there is no matmul or convolution kernel for it yet.
+        Export requires tract >= 0.23.10; older targets warn and are rejected.
+
+    """
+
+    # v3: Q8_0 is unreleased, states of earlier development versions of
+    # this format (v1, v2) are incompatible and rejected
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q8_0.v3"
+    FORMAT_NAME = "Q8_0"
+    N_BITS = 8
+    BLOCK_BYTES = 34
+    RESTRICTED_RANGE = True
+    QSCHEME_CLS = QScaleQ8_0
+    MIN_TRACT_VERSION = "0.23.10"
+    VERSION_GATE_NOTE = "Older tract reads item type 0x3080 as Q8_1."
+
+    @classmethod
+    def _item_type(cls, inference_target):
+        return DatBinHeader.TractCustomTypes.Q80
+
+    @classmethod
+    def _pack_blocks(cls, codes, params, inference_target):
+        n_blocks = codes.shape[0]
+        b_all = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
+        b_all[:, :2] = (
+            params["scale"].numpy().astype("<f2").view(np.uint8).reshape(-1, 2)
+        )
+        b_all[:, 2:] = (
+            (codes.to(torch.int16) - 128).to(torch.int8).numpy().view(np.uint8)
+        )
+        return b_all
+
+
+def fp_to_tract_q8_0_with_min_max_calibration(
+    fp_tensor: torch.Tensor, percentile: float = 1.0
+) -> QTensorTractQ8_0:
+    """Min-Max method to quantize float tensor to tract supported Q8_0.
+
+    Block scale is `absmax / 127` (ggml reference). With `percentile < 1`
+    each block is first clamped to its `percentile` absolute value.
+    Only use it on embedding weights (see `QTensorTractQ8_0`).
+
+    Raises:
+        T2NErrorImpossibleQuantization: invalid dtype or shape, non finite
+            values, block scales that overflow f16, or that underflow it
+            for weights not negligible against the tensor largest one.
+    """
+    assert 0.0 < percentile <= 1.0, percentile
+    if isinstance(fp_tensor, torch.nn.Parameter):
+        fp_tensor = fp_tensor.data
+    block_len = QTensorTractQ8_0.BLOCK_LEN
+    format_name = QTensorTractQ8_0.FORMAT_NAME
+    check_block_quant_input(fp_tensor, block_len, format_name)
+    with torch.no_grad():
+        fp_tensor = fp_tensor.detach()
+        n_blocks = fp_tensor.numel() // block_len
+        scale = torch.empty(
+            (n_blocks, 1), dtype=torch.float16, device=fp_tensor.device
+        )
+        codes = torch.empty(
+            fp_tensor.shape, dtype=torch.uint8, device=fp_tensor.device
+        )
+        flat_codes = codes.view((-1, block_len))
+        underflow = GGMLUnderflowCheck(format_name)
+        for start, x in ggml_iter_blocks(fp_tensor, block_len):
+            end = start + x.shape[0]
+            if percentile < 1.0:
+                bound = torch.quantile(x.abs(), percentile, dim=1)[:, None]
+                x = torch.maximum(torch.minimum(x, bound), -bound)
+            d_f32 = x.abs().amax(dim=1, keepdim=True) / 127.0
+            d_f16 = d_f32.to(torch.float16)
+            check_f16_scales(d_f16, format_name, scale_name="`d`")
+            chunk_codes = _q8_0_codes(x, d_f32)
+            underflow.update(
+                x, (chunk_codes.to(torch.float32) - 128.0) * d_f16.float()
+            )
+            scale[start:end] = d_f16
+            flat_codes[start:end] = chunk_codes
+        underflow.check()
+        qscheme = QScaleQ8_0(
+            group_size=block_len,
+            scale=scale,
+            n_bits=QTensorTractQ8_0.N_BITS,
+            restricted_range=QTensorTractQ8_0.RESTRICTED_RANGE,
+        )
+        qtensor = QTensorTractQ8_0._from_codes(
+            fp_tensor, codes, qscheme, fp_tensor.dtype
+        )
+        assert isinstance(qtensor, QTensorTractQ8_0)
+        return qtensor
 
 
 # ggml super-block scheme and tensor bases ##################################
