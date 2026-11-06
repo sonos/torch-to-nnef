@@ -451,29 +451,126 @@ You should observe that operators are correctly understood as Quantized with QU8
 
 ### Q2_0_T for ternary weights
 
-`ternary_to_tract_q2_0_t` packs weights that already contain only zero and
-plus/minus a shared scale within each group of 32 consecutive values. It
-rejects ordinary float weights instead of quantizing them to ternary values.
-Weights trained with larger groups, such as 128, also satisfy this condition.
+Q2_0_T is a **weight-only, symmetric ternary block format**, with **2.5 bits
+per weight (bpw)** including scales. `ternary_to_tract_q2_0_t` exports weights
+that already satisfy this scheme. It does not train, calibrate or optimize a
+float model for ternary inference, and does not insert activation quantization.
+
+#### Scheme and storage cost
+
+For each consecutive block of 32 weights in flattened row order:
+
+```text
+w[i] = s * t[i],  t[i] in {-1, 0, +1}
+s_hat = float16(s)
+exported_w[i] = s_hat * t[i]
+```
+
+The helper infers the nonnegative scale `s` as the largest absolute value in
+the block and checks that every value is exactly `-s`, `0` or `+s`. It does
+not apply abs-mean calibration, thresholds or rounding to choose ternary
+codes. Different nonzero magnitudes within one block are rejected, even if
+rounding them to f16 would make them equal. All-zero blocks are allowed.
+
+Each block stores an f16 scale followed by eight bytes of two-bit codes:
+`0 -> -1`, `1 -> 0`, `2 -> +1`; code 3 is not emitted. Four consecutive codes
+are packed into each byte, lowest bits first. There is no stored zero point.
+NNEF identifies this layout with tract's custom item type `0x3020`.
+
+The payload is `(32 * 2 + 16) / 32 = 2.5 bpw`: 2 bpw for codes and 0.5 bpw
+for scales. Three possible values carry `log2(3) ~= 1.585` bits of
+information, but this format uses fixed two-bit packing rather than base-3
+or entropy coding. It is **not a 1.58 bpw storage format**.
+
+| Weight format | Payload bpw | Payload size relative to Q2_0_T |
+| --- | ---: | ---: |
+| Q2_0_T | 2.5 | 1x |
+| Q4_0 | 4.5 | 1.8x |
+| Float16 / bfloat16 | 16 | 6.4x |
+| Float32 | 32 | 12.8x |
+
+For example, one billion weights stored entirely as Q2_0_T occupy about
+312.5 MB of tensor payload. These figures exclude tensor/archive headers,
+unconverted weights, activations, caches and runtime buffers. Zeros still
+occupy two bits; this is dense storage, not sparse compression. A source
+scale shared over 128 weights is stored separately for each 32-weight block,
+so larger source groups do not lower the exported bpw.
+
+#### Dequantization and matrix multiplication cost
+
+Reconstructing a block requires reading its scale, extracting 32 codes with
+bit shifts/masks, subtracting one and applying the scale. That is linear
+work in the number of weights reconstructed. Expanding a block produces
+32 floating-point values: 64 bytes in f16 or 128 bytes in f32, compared with
+10 bytes packed. Whether that expansion is transient or retained depends
+on the execution path; packed payload size is not total runtime memory.
+
+Tract's [generic Q2_0_T matmul](https://github.com/sonos/tract/blob/main/linalg/src/generic/mmm.rs)
+reconstructs weights inside the kernel and performs floating-point
+multiply-accumulates. Its [x86 AVX2 panel extractor](https://github.com/sonos/tract/blob/main/linalg/src/x86_64/panel_extract.rs)
+can unpack codes into f32 panels for floating-point kernels. Do not assume
+multiplication-free inference, integer-only arithmetic or sparse zero
+skipping from the ternary alphabet alone.
+
+For `W[M, K] @ X[K, N]`, dense arithmetic remains about `2 * M * K * N`
+floating-point operations, plus unpacking/scaling. A pass reconstructing all
+weights costs `O(M * K)`; tiling and reuse determine how often decoding is
+repeated. Kernel selection, hardware, shapes and the tract version determine
+the actual cost. The storage ratios above are not throughput ratios.
+
+The strongest candidate for a speed benefit is a workload limited by weight
+bandwidth, such as small-batch linear layers or single-token decoding with
+weights larger than cache. For larger batches or prefill, weight reuse makes
+floating-point compute more significant, and unpacking overhead or a less
+optimized kernel can erase the benefit or make execution slower. Benchmark
+latency and peak memory on the intended target at representative batch/token
+counts, separately from model loading and packing. This exporter promises
+the packed representation, not a particular speedup.
+
+#### Recommended models and quantization workflows
+
+Use this format for models whose accuracy has already been validated with
+ternary weights: models pretrained under a ternary constraint, or models
+adapted through quantization-aware training (QAT) or quantization-aware
+fine-tuning. [BitNet b1.58](https://arxiv.org/abs/2402.17764) is an example of
+a training recipe built around ternary weights. Sharing its ternary alphabet
+does not make this format equivalent to its complete training or inference
+recipe, scale granularity or activation quantization.
+
+Advanced post-training quantization (PTQ) is another possible source, but
+only if the method explicitly optimizes for this ternary constraint and
+passes model-level quality evaluation. A generic two-bit PTQ result can have
+four levels, offsets, codebooks or residual corrections that this format
+cannot represent. Any such corrections must remain explicitly represented
+in the model; this helper does not infer them. Naively taking signs or
+rounding a conventional float checkpoint is not a recommended conversion
+strategy and can substantially damage quality.
+
+If a QAT checkpoint contains latent float weights, first materialize the
+actual inference weights using its own trained quantizer. Pass those ternary
+weights to this helper, not the latent weights. Evaluate task quality after
+export, including the effect of rounding scales to f16. `check_io` compares
+execution against the supplied PyTorch model; it does not establish that
+ternarization preserved the original model's accuracy.
+
+#### Exporting compatible weights
 
 ```python
 from torch import nn
 from torch_to_nnef.tensor.quant import ternary_to_tract_q2_0_t
 
+# linear.weight must already hold the materialized ternary inference weights.
 linear.weight = nn.Parameter(
     ternary_to_tract_q2_0_t(linear.weight), requires_grad=False
 )
 ```
 
 The input must be a nonempty floating tensor of rank 2 to 4, with the product
-of dimensions after the first divisible by 32. Scales are rounded to f16;
-nonzero scales that overflow or underflow are rejected. All-zero blocks are
-allowed. The helper preserves the ternary codes, not necessarily the exact
-original float scale.
-
-Each block occupies 10 bytes: an f16 scale and eight bytes of packed two-bit
-codes. Codes 0, 1 and 2 mean -scale, zero and +scale. NNEF uses tract's custom
-item type `0x3020`. Streaming export and tensor offloading are supported.
+of dimensions after the first divisible by 32. Compatible larger source
+groups, such as 128, split into blocks of 32. Scales are rounded to f16;
+nonzero scales that overflow or underflow are rejected. The helper preserves
+the ternary codes, not necessarily the exact original float scale. Streaming
+export and tensor offloading are supported.
 
 !!! warning "Requires tract 0.23.11 or newer"
 
