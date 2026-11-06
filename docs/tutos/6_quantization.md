@@ -41,6 +41,39 @@ Let's take a look at each in turn starting by Q40.
 
 ## Custom Tensor quantization support
 
+### Q4_0 block layout
+
+Q40 (`Q4_0`) stores 32 weights per block: an f16 scale `s` and 32 four-bit
+codes `c[i]` in `[0, 15]`. Reconstruction is `w[i] = s * (c[i] - 8)`;
+the scale can be negative. The fixed offset of 8 is implicit, not stored.
+The block occupies 18 bytes, or `(16 + 32 * 4) / 32 = 4.5 bpw`.
+
+```text
+One Q4_0 block: 32 weights, 18 bytes (after the NNEF tensor header)
+
+Byte offset    0       1        2          3                17
+           +---------------+----------+----------+-----+----------+
+Contents   |   f16 scale   | c0, c16  | c1, c17  | ... | c15, c31 |
+           +---------------+----------+----------+-----+----------+
+                2 bytes           16 bytes: 32 four-bit codes
+
+Zoom into byte 2 (high bits on the left):
+
+Bit         7   6   5   4     3   2   1   0
+           +-----------------+-----------------+
+Code       |       c16       |       c0        |
+           +-----------------+-----------------+
+
+Code          0        8        15
+Weight      -8 * s     0       7 * s
+```
+
+The paired codes are 16 weights apart, not adjacent: for example, `c0 = 2`
+and `c16 = 9` produce `0x92`. This is the layout for tract >= 0.21.11
+(item type `0x3040`). For older tract targets, the exporter uses the legacy
+`0x2040` layout: byte 2 pairs `c0` in its low nibble with `c1` in its high
+nibble, byte 3 pairs `c2` with `c3`, and so on. The scale and bpw are unchanged.
+
 ### Q40 LLM Export example
 
 For LLM as we explained in prior [tutorial](./5_llm.md) quantization is as simple as
@@ -149,6 +182,32 @@ In fact you can just reuse as is the [compress method](https://github.com/sonos/
 tract (>= 0.23.0) can also load `Q8_1` weights: each group of 32 elements is stored
 as a f16 scale, a f16 sum of the dequantized values and 32 int8 values (9bpw).
 Scale follows the GGML convention `d = absmax / 127` (int8 values in `[-127, 127]`).
+
+```text
+One Q8_1 block: 32 weights, 36 bytes (after the NNEF tensor header)
+
+Byte offset    0       1       2       3      4      5            35
+           +---------------+---------------+------+------+-----+------+
+Contents   |   f16 scale   |    f16 sum    |  q0  |  q1  | ... | q31  |
+           +---------------+---------------+------+------+-----+------+
+                2 bytes         2 bytes          32 signed int8 values
+
+One code occupies a full byte (two's complement):
+
+Byte hex       81          ff          00          01          7f
+Code         -127          -1           0          +1         +127
+Weight     -127 * d         -d          0          +d        127 * d
+```
+
+Reconstruction is `w[i] = d * q[i]`. The stored sum is `d * sum(q[i])`,
+rounded to f16 and clamped to its finite range on overflow. Tract's embedding
+reader uses the scale and codes, not this sum, but it remains part of the
+layout: `(16 + 16 + 32 * 8) / 32 = 9 bpw`. There is no nibble packing or
+stored zero point, and the exporter does not emit the int8 code `-128`.
+
+The NNEF item type is `0x3081` for tract >= 0.23.10 and `0x3080` for older
+targets. This version choice matters: newer tract assigns `0x3080` to Q8_0,
+which has a different layout without the sum field.
 
 !!! warning
 
@@ -344,6 +403,37 @@ since a while. This is great because it means this is as well represented in the
 Intermediate representation after graph is traced, hence easily exportable with
 `torch_to_nnef`. Still, today tract only support 8bit asymmetric linear quantization
 per tensor (no per channel).
+
+### Per-tensor 8-bit affine layout
+
+Unlike the block formats above, PyTorch's per-tensor affine scheme stores
+one scale `s` and one zero point `z` for the whole tensor. Values reconstruct
+as `x[i] = s * (q[i] - z)`. The integer payload uses one byte per element:
+signed int8 (`qint8`, range `[-128, 127]`) or unsigned uint8 (`quint8`, range
+`[0, 255]`). Scale and zero point are separate NNEF quantization metadata,
+not repeated in the tensor payload.
+
+```text
+NNEF archive
+|
++-- graph.quant: tensor label -> scale s, zero point z,
+|                               bits=8, signed=true/false
+|
++-- weight.dat:  [ NNEF tensor header ][ q0 ][ q1 ][ q2 ] ... [ qN-1 ]
+                                       1 byte per stored integer
+
+             Shared metadata applies to every element
+                         x[i] = s * (q[i] - z)
+```
+
+For an unsigned example with `s = 0.25` and `z = 128`, integer values
+`[126, 128, 130]` are bytes `7e 80 82` and reconstruct to `[-0.5, 0, +0.5]`.
+The payload is 8 bits per stored value, plus per-tensor metadata and headers;
+there is no fixed block overhead such as Q8_1's 9 bpw. Quantized activations
+use the same affine relation but are computed at runtime, rather than stored
+as weight payloads in the archive.
+
+### PTQ example
 
 We will demonstrate this ability on a simple usecase:
 
