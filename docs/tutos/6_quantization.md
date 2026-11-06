@@ -285,6 +285,52 @@ holding the fifth bit of each level, totaling 176 bytes per super-block of 256 e
 The quantizer is a port of llama.cpp `quantize_row_q5_K_ref` and the dequantization matches
 tract bit exactly. Same constraints as `Q4_K`: embeddings only, `shape[1:]` volume divisible
 by 256. Use the `min_max_q5_k_embeddings` registry entry or `fp_to_tract_q5_k`.
+Input validation (dtype, rank, finite values, f16 scale overflow and underflow) and the
+tract >= 0.23.10 gate (warning then failure before any data is written, prereleases
+below 0.23.10 included) are the same as for `Q4_K`.
+
+#### Q5_K block layout
+
+Q5_K keeps the Q4_K reconstruction `w[i] = d * sc[j] * q[i] - dmin * m[j]` with the
+same 16-byte header (f16 `d`, f16 `dmin`, 12 bytes of packed 6-bit scales and mins,
+see [Q4_K block layout](#q4_k-block-layout)), but levels `q[i]` are 5-bit, in `[0, 31]`.
+The fifth bit of every level is stored apart, in 32 bytes right after the header,
+followed by the same 128 bytes of low nibbles as Q4_K.
+The super-block occupies 176 bytes, or `(16 + 16 + 16 * 6 + 256 * 5) / 256 = 5.5 bpw`.
+This is llama.cpp `block_q5_K`, NNEF item type `0x3150`.
+
+```mermaid
+flowchart LR
+    accTitle: Q5_K super-block layout
+    accDescr: After the NNEF tensor header, each super-block stores an f16 d in bytes 0 and 1, an f16 dmin in bytes 2 and 3, eight packed 6-bit scales and mins in bytes 4 through 15, the high bit of the 256 levels in bytes 16 through 47, and the 256 low 4-bit levels in bytes 48 through 175.
+    subgraph block["256 weights / 176 bytes / 5.5 bpw"]
+        direction LR
+        d["Bytes 0-1<br/>f16 d"]
+        dmin["Bytes 2-3<br/>f16 dmin"]
+        scales["Bytes 4-15<br/>8 x 6-bit scales<br/>8 x 6-bit mins"]
+        qh["Bytes 16-47<br/>qh: 256 x 1 high bit"]
+        ql["Bytes 48-175<br/>256 x 4-bit low levels<br/>4 chunks of 32 bytes"]
+        d --- dmin --- scales --- qh --- ql
+    end
+```
+
+**Low nibbles**: as in Q4_K, the 32-byte chunk `p` (bytes `48 + 32 * p` onwards)
+stores weight `64p + i` in the low nibble of byte `i` and weight `64p + 32 + i`
+in its high nibble.
+
+**High bits**: byte `i` of `qh` (block byte `16 + i`) collects the fifth bit of
+the 8 weights sharing index `i` in their 32-weight sub-block: bit `2p` holds the
+high bit of weight `64p + i` and bit `2p + 1` the one of weight `64p + 32 + i`:
+
+```mermaid
+flowchart LR
+    accTitle: Q5_K high bits order in qh byte 0
+    accDescr: Bits 7 and 6 hold the high bits of levels 224 and 192, bits 5 and 4 of levels 160 and 128, bits 3 and 2 of levels 96 and 64, bits 1 and 0 of levels 32 and 0.
+    b76["Bits 7-6<br/>q224, q192"] --- b54["Bits 5-4<br/>q160, q128"] --- b32["Bits 3-2<br/>q96, q64"] --- b10["Bits 1-0<br/>q32, q0"]
+```
+
+For example, `q0 = 18` (`0b10010`) and `q32 = 9` (`0b01001`) produce byte 48 = `0x92`
+(low nibbles `2` and `9`) and set bit 0 of byte 16, bit 1 staying clear.
 
 ### Q40 Use specific quantization method
 

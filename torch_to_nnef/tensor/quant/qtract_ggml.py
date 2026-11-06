@@ -580,6 +580,7 @@ class QTensorTractQ5_K(QTensorTractGGMLBlock):  # noqa: N801
     BLOCK_LEN = QK_K
     BLOCK_BYTES = 176
     ITEM_TYPE = DatBinHeader.TractCustomTypes.Q5K
+    F16_SCALE_FIELDS = {"d": 0, "dmin": 2}
 
     # bit of `qh` holding the 5th bit of level `i` of each (pair, half)
     _QH_SHIFTS = np.arange(8, dtype=np.uint8).reshape((1, 4, 2, 1))
