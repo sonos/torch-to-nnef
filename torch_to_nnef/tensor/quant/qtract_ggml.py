@@ -73,6 +73,32 @@ def ggml_seq_sum(arr: torch.Tensor) -> torch.Tensor:
     return acc
 
 
+def ggml_sqrt(arr: torch.Tensor) -> torch.Tensor:
+    """Correctly rounded f32 square root (IEEE `sqrtf`), on every platform.
+
+    `torch.sqrt` is not: x86 builds compute it with MKL vector math, accurate
+    to about 1 ulp only, and its result depends on the CPU model. The f32
+    rounding of the f64 root is fixed up with exact f64 checks: the midpoint
+    of two consecutive f32 has at most 25 significant bits, so its f64 square
+    is exact (and never equals a f32, so there are no ties).
+    """
+    x = arr.to(torch.float32)
+    device = x.device
+    if device.type == "mps":
+        # no f64 on mps: fix up on cpu
+        x = x.cpu()
+    xd = x.to(torch.float64)
+    root = torch.sqrt(xd).to(torch.float32)
+    up = torch.nextafter(root, torch.full_like(root, float("inf")))
+    down = torch.nextafter(root, torch.zeros_like(root))
+    root_d = root.to(torch.float64)
+    mid_up = (root_d + up.to(torch.float64)) * 0.5
+    mid_down = (root_d + down.to(torch.float64)) * 0.5
+    out = torch.where(mid_up * mid_up < xd, up, root)
+    out = torch.where(mid_down * mid_down > xd, down, out)
+    return out.to(device)
+
+
 def ggml_nearest_int(arr: torch.Tensor) -> torch.Tensor:
     """Port of ggml `nearest_int` (f32 mantissa trick, round half to even).
 
@@ -603,7 +629,7 @@ def ggml_pack_scale_min_k4(sc: torch.Tensor, m: torch.Tensor) -> torch.Tensor:
 
 def ggml_k_min_sub_weights(sub: torch.Tensor) -> torch.Tensor:
     """Weights of ggml K-quants `make_qkx2_quants` for (n, 32) sub-blocks."""
-    av_x = torch.sqrt(ggml_seq_sum(sub * sub) / ggml_f32(32.0))
+    av_x = ggml_sqrt(ggml_seq_sum(sub * sub) / ggml_f32(32.0))
     return av_x[:, None] + sub.abs()
 
 
