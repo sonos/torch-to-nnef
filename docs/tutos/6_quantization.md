@@ -42,6 +42,7 @@ per-tensor metadata.
 | [Q8_1](#q8_1-for-embeddings): 9 bpw, 32 int8 weights plus f16 scale and sum | Weight-only, **embeddings/gather only**, tract >= 0.23.0. No matmul or convolution support. | GGML's `block_q8_1`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h), with tract-specific NNEF item types. |
 | [Q8_0](#q8_0-for-embeddings): 8.5 bpw, 32 int8 weights plus f16 scale | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q8_0`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q4_K](#q4_k-for-embeddings): 4.5 bpw, 256 weights per super-block (f16 `d`/`dmin`, 6-bit sub-block scales and mins) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q4_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
+| [Q6_K](#q6_k-for-embeddings): 6.5625 bpw, 256 weights per super-block (f16 `d`, 16 signed 8-bit sub-block scales, symmetric 6-bit levels) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q6_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q2_0_T](#q2_0_t-for-ternary-weights): 2.5 bpw, 32 ternary weights per f16 scale | Already-ternary weights, including Linear layers; **tract >= 0.23.11**. Does not insert activation quantization. | Related schemes include [BitNet b1.58](https://arxiv.org/abs/2402.17764) and [PrismML Ternary Bonsai](https://prismml.com/news/ternary-bonsai). Two-bit packing is related to GGML's [TQ2_0 family](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h); [tract defines the exact layout](https://github.com/sonos/tract/blob/main/linalg/src/frame/block_quant/q20t.rs). |
 | [Per-tensor affine int8](#per-tensor-8-bit-affine-layout): 8 bits per value, with separate scale/zero point | Weights and activations; supports integer arithmetic in quantized operators. | PyTorch's [per-tensor affine quantization API](https://docs.pytorch.org/docs/stable/generated/torch.quantize_per_tensor.html), exported as integer data plus NNEF `graph.quant` metadata. |
 
@@ -123,6 +124,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ8_0
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ6_K
     handler: python
 </div>
 
@@ -471,6 +474,111 @@ export and tensor offloading are supported.
 !!! warning "Requires tract 0.23.10 or newer"
 
     Q4_K export is rejected for older targets, including prerelease builds
+    below 0.23.10. Both normal and offloaded exports emit an explicit warning
+    before failing, and no tensor data is written.
+
+### Q6_K for embeddings
+
+tract (>= 0.23.10) can also load GGML `Q6_K` weights. Each super-block of 256
+weights is split into 16 sub-blocks of 16 weights. The super-block stores one
+f16 scale `d`, and each sub-block `j` stores a signed 8-bit scale `sc[j]`,
+relative to `d`. Each weight has a 6-bit level `q[i]` in `[0, 63]`:
+
+```text
+w[i] = d * sc[j] * (q[i] - 32),  j = i / 16
+```
+
+The format is symmetric: there is no min term, the signed level `q[i] - 32`
+lies in `[-32, 31]`. The quantizer is a port of GGML's reference
+`quantize_row_q6_K_ref` (a `make_qx_quants` search per sub-block, without
+importance matrix): on CPU it reproduces GGML's bytes (as built without
+floating point contraction, `-ffp-contract=off`), and the exported
+dequantization matches tract bit exactly.
+
+```mermaid
+flowchart LR
+    accTitle: Q6_K super-block layout
+    accDescr: After the NNEF tensor header, each super-block stores the low 4 bits of 256 levels in bytes 0 through 127, their high 2 bits in bytes 128 through 191, sixteen signed 8-bit sub-block scales in bytes 192 through 207, and an f16 d in bytes 208 and 209.
+    subgraph block["256 weights / 210 bytes / 6.5625 bpw"]
+        direction LR
+        ql["Bytes 0-127<br/>ql: 256 x low 4 bits<br/>2 halves of 64 bytes"]
+        qh["Bytes 128-191<br/>qh: 256 x high 2 bits<br/>2 halves of 32 bytes"]
+        scales["Bytes 192-207<br/>16 x i8 scales"]
+        d["Bytes 208-209<br/>f16 d"]
+        ql --- qh --- scales --- d
+    end
+```
+
+**Levels**: each 6-bit level is split into its low 4 bits (in `ql`) and its
+high 2 bits (in `qh`). Weights are processed in 2 halves `h` of 128 weights.
+For `i` in `[0, 31]`, with `b = 128h + i`:
+
+| Block byte | High bits | Low bits |
+| --- | --- | --- |
+| `ql`: `64h + i` | Bits 7-4: bits 3-0 of `q[b + 64]` | Bits 3-0: bits 3-0 of `q[b]` |
+| `ql`: `64h + 32 + i` | Bits 7-4: bits 3-0 of `q[b + 96]` | Bits 3-0: bits 3-0 of `q[b + 32]` |
+| `qh`: `128 + 32h + i` | Bits 7-6: `q[b + 96]`, bits 5-4: `q[b + 64]` | Bits 3-2: `q[b + 32]`, bits 1-0: `q[b]` |
+
+Each `qh` byte holds the bits 5-4 of four levels, 32 weights apart:
+
+```mermaid
+flowchart LR
+    accTitle: Q6_K high bits order in byte 128
+    accDescr: Bits 7 and 6 contain the high bits of level 96, bits 5 and 4 those of level 64, bits 3 and 2 those of level 32, bits 1 and 0 those of level 0.
+    b96["Bits 7-6<br/>q96 high"] --- b64["Bits 5-4<br/>q64 high"] --- b32["Bits 3-2<br/>q32 high"] --- b0["Bits 1-0<br/>q0 high"]
+```
+
+| Level | 0 | 32 | 63 |
+| --- | --- | --- | --- |
+| Weight in sub-block `j` | `-32 * d * sc[j]` | `0` | `31 * d * sc[j]` |
+
+For example, `q0 = 37` (`0b100101`) and `q64 = 12` (`0b001100`) produce byte 0 =
+`0xC5`, and set bits 1-0 of byte 128 to `0b10` and its bits 5-4 to `0b00`. The
+super-block occupies 210 bytes: `(256 * 6 + 16 * 8 + 16) / 256 = 6.5625 bpw`,
+with finer sub-blocks (16 weights) than Q4_K. The NNEF item type is `0x3160`.
+
+!!! warning
+
+    tract has no matmul or convolution kernel for `Q6_K` weights yet: a `nn.Linear`
+    with `Q6_K` weights fails at tract model optimization (no suitable kernel).
+    Only use it for embeddings (gather operator).
+
+The `ggml_q6_k_embeddings` registry entry quantizes only `nn.Embedding` weights
+(weights tied with other modules like an LLM `lm_head` are left in float, so pick
+a model with untied embeddings like Qwen2.5 7B, whose 3584 wide rows are a
+multiple of 256):
+
+```bash
+t2n_export_llm_to_tract \
+    -s "Qwen/Qwen2.5-7B-Instruct" \
+    -dt f16 \
+    -e $HOME/qwen25_7B_q6k_embeddings \
+    -c "ggml_q6_k_embeddings"
+```
+
+Or directly on a tensor with [fp_to_tract_q6_k](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract_ggml.py):
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_q6_k
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_q6_k(embedding.weight), requires_grad=False
+    )
+```
+
+The input must be a nonempty, finite, floating tensor (f32, f16 or bf16, always
+quantized from f32) of rank 2 to 4, with the product of dimensions after the
+first divisible by 256: embeddings of other widths (like 896 or 1152) are left
+in float with an error log. A super-block scale `d` that overflows f16 is rejected.
+Nonzero super-blocks whose `d` underflows f16 dequantize to zeros: they are
+kept with a warning when their weights are negligible against the tensor
+largest one (below f16 precision of it), and rejected otherwise. Streaming
+export and tensor offloading are supported.
+
+!!! warning "Requires tract 0.23.10 or newer"
+
+    Q6_K export is rejected for older targets, including prerelease builds
     below 0.23.10. Both normal and offloaded exports emit an explicit warning
     before failing, and no tensor data is written.
 

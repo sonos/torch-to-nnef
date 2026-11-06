@@ -11,6 +11,7 @@ from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
     quantize_weights_ggml_Q4_K,
+    quantize_weights_ggml_Q6_K,
     quantize_weights_min_max_Q8_0,
 )
 from torch_to_nnef.exceptions import (
@@ -23,13 +24,16 @@ from torch_to_nnef.tensor.quant import (
     QScaleQ8_0,
     QTensor,
     QTensorTractQ4_K,
+    QTensorTractQ6_K,
     QTensorTractQ8_0,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
+    fp_to_tract_q6_k,
     fp_to_tract_q8_0_with_min_max_calibration,
     qtract_ggml,
 )
 from torch_to_nnef.tensor.quant.qtract_ggml import (
+    ggml_make_qx_quants,
     ggml_nearest_int,
     ggml_seq_sum,
     round_half_away,
@@ -164,6 +168,20 @@ GGML_LLAMA_CPP_SHA256 = {
         ),
         "heavy": (
             "57c055ca1fbe8b4f7c5b0a71286ab0ad93d2df4d24a07d2204805c06f13c8f18"
+        ),
+    },
+    "Q6_K": {
+        "normal": (
+            "4c3361e4fea00945dafcb58ffcca683d69e9f0eeaeb86be9524c6d8c1c8f4be1"
+        ),
+        "sparse": (
+            "b15eaf8d6d6977bd7b4caa7bb74bc55c90e0ae443db2b49720084dbac353e8e6"
+        ),
+        "positive": (
+            "95fbb46e4d18f96ff912151ef2b8682d32180fa0512157205b91fbf9accbda61"
+        ),
+        "heavy": (
+            "58814b856c6c84d60c8ee0c07022808af4e3ae4b18f89cc60086663c35e5fc6c"
         ),
     },
 }
@@ -663,10 +681,11 @@ def test_q80_keeps_fp_tensor_device():
     "fp_to_qtensor",
     [
         fp_to_tract_q4_k,
+        fp_to_tract_q6_k,
         fp_to_tract_q4_0_with_min_max_calibration,
         fp_to_tract_q8_0_with_min_max_calibration,
     ],
-    ids=["q4_k", "q4_0", "q8_0"],
+    ids=["q4_k", "q6_k", "q4_0", "q8_0"],
 )
 def test_qtensor_to_keeps_codes_and_source(fp_to_qtensor):
     fp_tensor = torch.randn(4, 256, generator=torch.Generator().manual_seed(0))
@@ -798,3 +817,235 @@ def test_compress_ggml_q4_k_embeddings_only_quantize_embeddings():
         quantize_weights_ggml_Q4_K(
             nn.Sequential(nn.Embedding(10, 256)), percentile=0.99
         )
+
+
+# Q6_K #####################################################################
+
+
+# llama.cpp quantize_row_q6_K_ref / dequantize_row_q6_K vectors
+# (from tract v0.23.10 linalg/src/frame/block_quant/ggml_k.rs tests)
+Q6_K_GGML_REFS = [
+    (
+        0,
+        "8b10d58b10d66b20d66b22b66d02b67d0159bd0158bc0468bf0367bf236ade2266"
+        "d21b96d01b86c04b85f03b75f03aa520d66b22b66d02b66d01b85d01b85d03d76b"
+        "20d66b22b66d02b66d01b85d01b8b30d68b11d68c11d76c22d76c22b76d0158ac0"
+        "458bf0357bf036abe036abe2566e12b66d11b96d01a85cf4a85ff3a74f278e50fa"
+        "51278d24fa50fb8d278e50fab1db71ec06ac1b71db46ac06b1db71ec2b812cf65c"
+        "fb812b865cf6512b812cf6af1872d845af05b2d872af05afd872d87c78847b857c"
+        "79847b857c78847f79802290",
+        [(0, 0xBFD832A0), (16, 0x3F687880), (255, 0x3FA55000)],
+    ),
+    (
+        16,
+        "8010d08010d06020d06020b06000b0700159bd0158bc0468bf0367bf236ade2266"
+        "d21b96d01b86c04b85f03b75f03aa520d66b22b66d02b66d01b85d01b85d03d76b"
+        "20d66b22b66d02b66d01b85d01b8b30d68b11d68c11d76c22d76c22b76d0158ac0"
+        "458bf0357bf036abe036abe2566e12b66d11b96d01a85cf4a85ff3a74f248c50f8"
+        "50248c24f850f88c248c50f8b1db71ec06ac1b71db46ac06b1db71ec2b812cf65c"
+        "fb812b865cf6512b812cf6af1872d845af05b2d872af05afd872d80078847b857c"
+        "79847b857c78847f79802290",
+        [(0, 0), (16, 0x3F687880), (255, 0x3FA55000)],
+    ),
+    (256, "00" * 210, []),
+]
+
+
+@pytest.mark.parametrize("zeros,expected_hex,values", Q6_K_GGML_REFS)
+def test_q6k_matches_ggml_reference(zeros, expected_hex, values):
+    _check_ggml_reference(
+        fp_to_tract_q6_k, _ggml_ramp(256, zeros), expected_hex, values
+    )
+
+
+def test_q6k_matches_llama_cpp_on_random_super_blocks():
+    _check_ggml_llama_cpp_hashes(fp_to_tract_q6_k, "Q6_K")
+
+
+def test_q6k_matches_llama_cpp_on_single_nonzero_value():
+    # make_qx_quants `suml2` accumulates `(w * l) * l`: `w * (l * l)`
+    # rounds differently and picks level 1 instead of 0 here
+    data = torch.zeros(256)
+    data[5] = -1.5918127
+    # llama.cpp quantize_row_q6_K_ref (-ffp-contract=off) bytes:
+    # ql, qh (level 0 at index 5, 32 elsewhere in sub-block 0), scales, d
+    expected_hex = (
+        "00" * 128
+        + "02" * 5
+        + "00"
+        + "02" * 10
+        + "00" * 48
+        + "80"
+        + "00" * 15
+        + "5e8e"
+    )
+    _check_ggml_reference(
+        fp_to_tract_q6_k, data, expected_hex, [(0, 0), (5, 0xBFCBC000)]
+    )
+
+
+def test_q6k_dat_content_layout(tmp_path):
+    qtensor = fp_to_tract_q6_k(torch.randn(3, 512))
+    assert qtensor.u8_blob.shape == (3, 512)
+    _check_ggml_dat_content_layout(
+        tmp_path, qtensor, DatBinHeader.TractCustomTypes.Q6K
+    )
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_q6k_dequant_round_trip_error_bounded(seed):
+    # same bound as tract q6_k_roundtrip
+    ramp = _ggml_ramp(512, 0).reshape(2, 256)
+    qtensor = fp_to_tract_q6_k(ramp)
+    assert (qtensor.decompress() - ramp).abs().max() < 0.1
+    zeros = fp_to_tract_q6_k(torch.zeros(2, 256))
+    assert torch.equal(zeros.decompress(), torch.zeros(2, 256))
+    gen = torch.Generator().manual_seed(seed)
+    # rows of very different magnitudes
+    fp_tensor = torch.randn(16, 1024, generator=gen) * 10 ** torch.linspace(
+        -3, 3, 16
+    ).reshape(16, 1)
+    deq = fp_to_tract_q6_k(fp_tensor).decompress()
+    # Bound per super-block in steps of absmax / 32: the reference search
+    # clamps levels to [-32, 31] and the i8 sub-block scales are rounded
+    # relative to d, so errors exceed half a step (measured up to 1.65
+    # step over 300 seeds), 2.5 steps leaves a robust margin.
+    sb_fp = fp_tensor.reshape(-1, 256)
+    sb_step = sb_fp.abs().max(dim=1).values / 32
+    sb_err = (deq - fp_tensor).abs().reshape(-1, 256).max(dim=1).values
+    assert (sb_err <= 2.5 * sb_step).all(), (sb_err / sb_step).max()
+    # relative error of a 6.5625bpw format (measured below 0.019)
+    assert (deq - fp_tensor).norm() / fp_tensor.norm() < 0.03
+
+
+@pytest.mark.parametrize("shape", [(2, 256), (2, 2, 256), (2, 2, 2, 256)])
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.float32, torch.bfloat16]
+)
+def test_q6k_decompress_matches_reference(shape, dtype):
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(shape, generator=gen).to(dtype)
+    _check_ggml_decompress_matches_reference(fp_to_tract_q6_k, fp_tensor)
+
+
+@pytest.mark.parametrize(
+    "weight",
+    _ggml_invalid_weights(256)
+    + [
+        # |d| = absmax / 4096 (sub-block scale absmax / 32, then / 128):
+        # f16 overflow above 65504 * 4096 ~ 2.7e8, for both signs
+        pytest.param(torch.full((2, 256), 1e9), id="d_overflow"),
+        pytest.param(torch.full((2, 256), -1e9), id="d_overflow_negative"),
+        # nonzero super-block whose d rounds to 0 in f16 (~2.4e-14)
+        pytest.param(torch.full((2, 256), 1e-10), id="underflow"),
+    ],
+)
+def test_q6k_rejects_invalid_weights(weight):
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_q6_k(weight)
+
+
+@pytest.mark.parametrize(
+    "version", tract_versions_just_below(QTensorTractQ6_K.MIN_TRACT_VERSION)
+)
+def test_q6k_rejects_old_tract(tmp_path, caplog, version):
+    check_rejects_old_tract(
+        tmp_path, caplog, fp_to_tract_q6_k(torch.randn(2, 256)), version
+    )
+
+
+@pytest.mark.parametrize(
+    "version",
+    tract_versions_just_at_or_above(QTensorTractQ6_K.MIN_TRACT_VERSION),
+)
+def test_q6k_offload_state_write(tmp_path, version):
+    check_offload_state_write(
+        tmp_path, fp_to_tract_q6_k(torch.randn(4, 512)), tract_target(version)
+    )
+
+
+@pytest.mark.parametrize(
+    "inference_target",
+    [
+        i
+        for i in TRACT_INFERENCES_TO_TESTS_EXACT
+        if i.version >= QTensorTractQ6_K.MIN_TRACT_VERSION
+    ],
+)
+# f16 CPU embedding (index_select) works on torch 1.x: like Q4_0/Q8_1 tests
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+def test_quantize_with_tract_q6_k_embedding(inference_target, dtype):
+    """Q6_K is only supported by tract on embedding/gathering."""
+    with torch.no_grad():
+        test_input = torch.arange(6)
+        test_input[:3] = 3
+        model = nn.Embedding(6, 512).eval().to(dtype)
+        q_tensor = fp_to_tract_q6_k(torch.randn(6, 512).to(dtype))
+        assert q_tensor.decompress().dtype == dtype
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={"weight": {"dtype": DatBinHeader.TractCustomTypes.Q6K}},
+            ),
+        )
+
+
+def test_compress_ggml_q6_k_embeddings_only_quantize_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32))
+    tied = nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 10, bias=False))
+    tied[1].weight = tied[0].weight
+    registry = dynamic_load_registry(DEFAULT_COMPRESSION_REGISTRY)
+
+    registry["ggml_q6_k_embeddings"](model)
+    assert isinstance(model[0].weight, QTensorTractQ6_K)
+    assert not isinstance(model[1].weight, QTensor)
+
+    # weight shared with a Linear must stay float (no tract Q6_K matmul)
+    registry["ggml_q6_k_embeddings"](tied)
+    assert not isinstance(tied[0].weight, QTensor)
+
+    with pytest.raises(T2NErrorMisuse):
+        quantize_weights_ggml_Q6_K(
+            nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32)),
+            to_quantize_module_classes=(nn.Linear, nn.Embedding),
+        )
+    with pytest.raises(T2NErrorMisuse, match="percentile"):
+        quantize_weights_ggml_Q6_K(
+            nn.Sequential(nn.Embedding(10, 256)), percentile=0.99
+        )
+
+
+def test_q6k_zero_d_super_blocks_keep_ggml_levels(caplog):
+    # row 1: d underflows f16, ggml keeps the make_qx_quants levels;
+    # row 2: sub-block scales below GROUP_MAX_EPS, ggml writes zeros
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(3, 256, generator=gen)
+    fp_tensor[1] *= 1e-9
+    fp_tensor[2] *= 1e-15
+    with caplog.at_level("WARNING"):
+        qtensor = fp_to_tract_q6_k(fp_tensor)
+    assert "2 nonzero block(s) dequantize to zeros" in caplog.text
+    assert torch.equal(qtensor.qscheme.d[1:].float(), torch.zeros(2))
+    _, levels = ggml_make_qx_quants(fp_tensor[1].reshape(16, 16), 32)
+    codes = qtensor.decompress_to_u8()
+    assert torch.equal(codes[1], levels.reshape(256))
+    assert torch.equal(codes[2], torch.zeros(256, dtype=torch.uint8))
+    assert torch.equal(qtensor.decompress()[1:], torch.zeros(2, 256))
+
+
+def test_q6k_make_qx_quants_levels_and_scale():
+    # all zero (below GROUP_MAX_EPS) sub-blocks: zero scale and levels 0
+    scale, levels = ggml_make_qx_quants(torch.zeros(2, 16), 32)
+    assert torch.equal(scale, torch.zeros(2))
+    assert torch.equal(levels, torch.zeros((2, 16), dtype=torch.uint8))
+    # levels in [0, 2 * nmax), signed level times scale approximates x
+    x = _ggml_ramp(64, 0).reshape((4, 16))
+    scale, levels = ggml_make_qx_quants(x, 32)
+    assert levels.dtype == torch.uint8
+    assert levels.max() < 64
+    deq = scale[:, None] * (levels.to(torch.float32) - 32)
+    assert (deq - x).abs().max() <= scale.abs().max()
