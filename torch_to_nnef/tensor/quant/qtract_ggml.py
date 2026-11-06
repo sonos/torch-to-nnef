@@ -13,7 +13,7 @@ Warning:
 
 import operator
 import typing as T
-from functools import reduce
+from functools import lru_cache, reduce
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +25,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
+from torch_to_nnef.tensor.quant._iq2_s_grid import KGRID_2BIT_1024
 from torch_to_nnef.tensor.quant.base import QScheme, U8Compressor
 from torch_to_nnef.tensor.quant.qtract import QTensorTractDat
 
@@ -458,4 +459,312 @@ def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
     """
     qtensor = QTensorTractQ4_K.from_fp(fp_tensor)
     assert isinstance(qtensor, QTensorTractQ4_K)
+    return qtensor
+
+
+# IQ2_S ####################################################################
+
+# ggml `GROUP_MAX_EPS_IQ2_S`
+IQ2_S_GROUP_MAX_EPS = 1e-8
+# packed 2bit codes whose digits are at most 2 (43690 is eight 2 digits)
+IQ2_S_KMAP_SIZE = 43692
+# ggml `iq2s_grid` dequant bytes for levels 0, 1, 2
+IQ2_S_CODE_BYTE = np.array([0x08, 0x19, 0x2B], dtype=np.float32)
+# octets processed at once by the off grid neighbour search
+IQ2_S_NEIGHBOUR_CHUNK = 1 << 14
+# nearest shell padding widths (largest shell holds 70 grid points)
+IQ2_S_SHELL_WIDTHS = (1, 2, 4, 8, 16, 32)
+
+
+def _iq2_s_unpack_levels(codes: np.ndarray) -> np.ndarray:
+    """Unpack (...) 2bit packed codes into (..., 8) levels."""
+    shifts = 2 * np.arange(8, dtype=np.int64)
+    return ((codes.astype(np.int64)[..., None] >> shifts) & 3).astype(np.int8)
+
+
+def _iq2_s_pack_levels(levels: np.ndarray) -> np.ndarray:
+    """Pack (..., 8) levels in [0, 2] into (...) 2bit codes."""
+    shifts = 2 * np.arange(8, dtype=np.int64)
+    return (levels.astype(np.int64) << shifts).sum(axis=-1)
+
+
+@lru_cache(maxsize=1)
+def _iq2_s_search() -> T.Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Port of tract `build_search` (ggml `iq2_s` init, nearest shell only).
+
+    Returns:
+        (grid odd levels i8 (1024, 8) in {1, 3, 5},
+         map i32 (KMAP_SIZE,): packed code to grid index or -1 off grid,
+         neighbours i32 (KMAP_SIZE, max_shell): grid indices of the
+         nearest shell in index order, padded with -1)
+    """
+    grid_levels = _iq2_s_unpack_levels(KGRID_2BIT_1024)
+    assert grid_levels.max() <= 2
+    grid = (2 * grid_levels + 1).astype(np.int8)
+    kmap = np.full(IQ2_S_KMAP_SIZE, -1, dtype=np.int32)
+    kmap[KGRID_2BIT_1024.astype(np.int64)] = np.arange(1024, dtype=np.int32)
+    # snapped levels are clamped to [0, 2]: only those codes are looked up
+    all_levels = np.stack(
+        np.meshgrid(*[np.arange(3)] * 8, indexing="ij"), axis=-1
+    ).reshape((-1, 8))
+    all_codes = _iq2_s_pack_levels(all_levels)
+    off = kmap[all_codes] < 0
+    odd = (2 * all_levels[off] + 1).astype(np.int32)
+    d2 = ((odd[:, None, :] - grid[None].astype(np.int32)) ** 2).sum(axis=-1)
+    is_best = d2 == d2.min(axis=1, keepdims=True)
+    max_shell = int(is_best.sum(axis=1).max())
+    # stable sort keeps the shell in grid index order (ggml qsort order)
+    order = np.argsort(~is_best, axis=1, kind="stable")[:, :max_shell]
+    shell = np.where(np.take_along_axis(is_best, order, axis=1), order, -1)
+    neighbours = np.full((IQ2_S_KMAP_SIZE, max_shell), -1, dtype=np.int32)
+    neighbours[all_codes[off]] = shell
+    return grid, kmap, neighbours
+
+
+def _iq2_s_find_best_neighbour(
+    codes: np.ndarray, xval: np.ndarray, waux: np.ndarray, scale: np.ndarray
+) -> np.ndarray:
+    """Port of tract `find_best_neighbour` for off grid octets.
+
+    Args:
+        codes: (m,) off grid packed codes
+        xval: fp32 (m, 8) absolute values
+        waux: fp32 (m, 8) weights
+        scale: fp32 (m,) trial scale
+
+    Returns:
+        levels i8 (m, 8) of the best on grid neighbour
+    """
+    f32 = np.float32
+    grid, _, neighbours = _iq2_s_search()
+    grid_t = grid.T.astype(f32)
+    shell_len = (neighbours[codes] >= 0).sum(axis=1)
+    out = np.empty((codes.shape[0], 8), dtype=np.int8)
+    # shells are padded to a few widths to bound the wasted work
+    prev_width = 0
+    for width in IQ2_S_SHELL_WIDTHS + (neighbours.shape[1],):
+        sel_all = np.nonzero((shell_len > prev_width) & (shell_len <= width))[0]
+        prev_width = width
+        for start in range(0, sel_all.size, IQ2_S_NEIGHBOUR_CHUNK):
+            sel = sel_all[start : start + IQ2_S_NEIGHBOUR_CHUNK]
+            cands = neighbours[codes[sel], :width]
+            valid = cands >= 0
+            cands_ix = np.where(valid, cands, 0)
+            sc = scale[sel, None]
+            # tract order: d2 += (w * diff) * diff, sequentially
+            d2 = np.zeros(cands.shape, dtype=f32)
+            for k in range(8):
+                diff = sc * grid_t[k][cands_ix] - xval[sel, k, None]
+                d2 += waux[sel, k, None] * diff * diff
+            d2 = np.where(valid, d2, f32(np.inf))
+            # first minimum, like tract strict `d2 < best` scan
+            best = np.argmin(d2, axis=1)
+            pick = np.take_along_axis(cands, best[:, None], axis=1)[:, 0]
+            out[sel] = (grid[pick] - 1) // 2
+    return out
+
+
+def _iq2_s_snap(
+    xval: np.ndarray,
+    waux: np.ndarray,
+    inv_scale: np.ndarray,
+    scale: np.ndarray,
+) -> T.Tuple[np.ndarray, np.ndarray]:
+    """Port of tract `snap_octet` vectorized over (m, 8) octets.
+
+    Returns:
+        (levels i8 (m, 8) in [0, 2] on grid, on_grid bool (m,) before
+         the neighbour search)
+    """
+    f32 = np.float32
+    _, kmap, _ = _iq2_s_search()
+    levels = np.clip(
+        ggml_nearest_int(f32(0.5) * (inv_scale[:, None] * xval - f32(1.0))),
+        0,
+        2,
+    ).astype(np.int8)
+    codes = _iq2_s_pack_levels(levels)
+    on_grid = kmap[codes] >= 0
+    off = np.nonzero(~on_grid)[0]
+    if off.size:
+        levels[off] = _iq2_s_find_best_neighbour(
+            codes[off], xval[off], waux[off], scale[off]
+        )
+    return levels, on_grid
+
+
+def _iq2_s_sums(
+    weight: np.ndarray, xval: np.ndarray, levels: np.ndarray
+) -> T.Tuple[np.ndarray, np.ndarray]:
+    """Group `sumqx` and `sumq2` over (g, 16) values, like tract."""
+    f32 = np.float32
+    q = f32(2.0) * levels.astype(f32) + f32(1.0)
+    sumqx = ggml_seq_sum(weight * xval * q)
+    sumq2 = ggml_seq_sum(weight * q * q)
+    return sumqx, sumq2
+
+
+def _iq2_s_quantize_groups(
+    xb: np.ndarray, sigma2: np.ndarray
+) -> T.Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Port of tract IQ2_S `quantize_group` vectorized over (g, 16) groups.
+
+    Returns:
+        (scale fp32 (g,), grid index (g, 2), sign bytes u8 (g, 2))
+        skipped groups (below `GROUP_MAX_EPS_IQ2_S`) get 0 everywhere.
+    """
+    f32 = np.float32
+    _, kmap, _ = _iq2_s_search()
+    n_groups = xb.shape[0]
+    weight = f32(0.25) * sigma2[:, None] + xb * xb
+    waux = np.sqrt(weight)
+    neg = xb < 0
+    xval = np.where(neg, -xb, xb)
+    bits = (1 << np.arange(8)).astype(np.uint8)
+    signs = (neg.reshape((n_groups, 2, 8)) * bits).sum(axis=-1).astype(np.uint8)
+    max_x = xval.max(axis=1)
+    skipped = max_x < f32(IQ2_S_GROUP_MAX_EPS)
+    max_x = np.where(skipped, f32(1.0), max_x)
+    xval_o = xval.reshape((n_groups * 2, 8))
+    waux_o = waux.reshape((n_groups * 2, 8))
+    levels = np.zeros((n_groups, 16), dtype=np.int8)
+    best = np.zeros(n_groups, dtype=f32)
+    scale = max_x / f32(5.0)
+    on_grid = np.ones((n_groups, 2), dtype=bool)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for step in range(-9, 10):
+            inv_scale = (f32(5.0) + f32(step) * f32(0.1)) / max_x
+            this_scale = f32(1.0) / inv_scale
+            aux, on_aux = _iq2_s_snap(
+                xval_o,
+                waux_o,
+                np.repeat(inv_scale, 2),
+                np.repeat(this_scale, 2),
+            )
+            aux = aux.reshape((n_groups, 16))
+            sumqx, sumq2 = _iq2_s_sums(weight, xval, aux)
+            update = (sumq2 > 0) & (sumqx * sumqx > best * sumq2)
+            new_scale = sumqx / sumq2
+            scale = np.where(update, new_scale, scale)
+            best = np.where(update, new_scale * sumqx, best)
+            levels = np.where(update[:, None], aux, levels)
+            on_grid = np.where(
+                update[:, None], on_aux.reshape((-1, 2)), on_grid
+            )
+        # off grid octets are snapped again with the best scale
+        refit = (~on_grid).any(axis=1) & (scale > 0)
+        redo = np.nonzero((~on_grid & refit[:, None]).reshape(-1))[0]
+        if redo.size:
+            scale_o = np.repeat(scale, 2)[redo]
+            levels_o = levels.reshape((-1, 8))
+            levels_o[redo], _ = _iq2_s_snap(
+                xval_o[redo], waux_o[redo], f32(1.0) / scale_o, scale_o
+            )
+            levels = levels_o.reshape((n_groups, 16))
+            sumqx, sumq2 = _iq2_s_sums(weight, xval, levels)
+            scale = np.where(refit & (sumq2 > 0), sumqx / sumq2, scale)
+    flip = scale < 0
+    scale = np.where(flip, -scale, scale)
+    signs = np.where(flip[:, None], ~signs, signs)
+    grid_index = kmap[_iq2_s_pack_levels(levels.reshape((n_groups, 2, 8)))]
+    assert (grid_index[~skipped] >= 0).all(), "iq2_s point is not on the grid"
+    scale = np.where(skipped, f32(0.0), scale).astype(f32)
+    grid_index = np.where(skipped[:, None], 0, grid_index)
+    signs = np.where(skipped[:, None], 0, signs).astype(np.uint8)
+    return scale, grid_index, signs
+
+
+class QTensorTractIQ2_S(QTensorTractGGMLBlock):  # noqa: N801
+    """Tract data format it serializes to: IQ2_S (ggml `block_iq2_s`).
+
+    Each super-block of 256 values is stored as 82 bytes (2.5625bpw):
+    f16 `d`, 32 low grid index bytes then 32 sign bytes (one per octet
+    of 8 values), 8 bytes of 2bit high grid index parts, then sixteen
+    4bit scales (one per group of 16 values).
+    Each octet is a point of the ggml 1024 entries `kgrid_2bit_1024`
+    grid (magnitudes in {8, 25, 43}), value is
+    `d * (0.5 + scale) * 0.25 * magnitude * sign`.
+
+    Quantization port llama.cpp `quantize_row_iq2_s_ref` without
+    importance matrix (grid nearest neighbour search with a weighted
+    scale fit), dequantization matches tract bit exactly.
+
+    Warning:
+        tract (<= 0.23.10) only supports IQ2_S weights in
+        embedding/gathering operations: there is no matmul or convolution
+        kernel for it yet.
+
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_iq2_s.v1"
+    FORMAT_NAME = "IQ2_S"
+    BLOCK_LEN = QK_K
+    BLOCK_BYTES = 82
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.IQ2S
+
+    @classmethod
+    def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:
+        f32 = np.float32
+        n_blocks = fp_blocks.shape[0]
+        x = fp_blocks.astype(f32, copy=False)
+        sigma2 = f32(2.0) * ggml_seq_sum(x * x) / f32(QK_K)
+        scales, grid_index, signs = _iq2_s_quantize_groups(
+            x.reshape((n_blocks * 16, 16)), np.repeat(sigma2, 16)
+        )
+        scales = scales.reshape((n_blocks, 16))
+        grid_index = grid_index.reshape((n_blocks, 32))
+        max_scale = scales.max(axis=1)
+        zero = max_scale == 0
+        # nibbles fit against max / 31, stored d is that times 0.9875
+        d = np.where(zero, f32(1.0), max_scale / f32(31.0)).astype(f32)
+        nibbles = np.clip(
+            ggml_nearest_int(
+                f32(0.5) * ((f32(1.0) / d)[:, None] * scales - f32(1.0))
+            ),
+            0,
+            15,
+        ).astype(np.uint8)
+        # two high index bits per octet, four octets per qh byte
+        hi = (grid_index >> 8).reshape((n_blocks, 8, 4))
+        qh = (hi << (2 * np.arange(4))).sum(axis=2)
+        out = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
+        d_f16 = (d * f32(0.9875)).astype(np.float16)
+        out[:, 0:2] = d_f16.reshape((n_blocks, 1)).view(np.uint8)
+        out[:, 2:34] = grid_index & 0xFF
+        out[:, 34:66] = signs.reshape((n_blocks, 32))
+        out[:, 66:74] = qh
+        out[:, 74:82] = nibbles[:, 0::2] | (nibbles[:, 1::2] << 4)
+        out[zero] = 0
+        return out
+
+    @classmethod
+    def dequantize_blocks(cls, u8_blocks: np.ndarray) -> np.ndarray:
+        f32 = np.float32
+        n_blocks = u8_blocks.shape[0]
+        d = u8_blocks[:, 0:2].copy().view(np.float16).astype(f32)
+        qs = u8_blocks[:, 2:34].astype(np.int64)
+        signs = u8_blocks[:, 34:66]
+        qh = u8_blocks[:, 66:74].astype(np.int64)
+        sc = u8_blocks[:, 74:82]
+        # group 2k scale is the low nibble of byte k, group 2k+1 the high
+        nib = np.stack([sc & 0xF, sc >> 4], axis=2).reshape((n_blocks, 16))
+        # same f32 ops order as tract: (d * (0.5 + nibble)) * 0.25
+        db = d * (f32(0.5) + nib.astype(f32)) * f32(0.25)
+        hi = (qh[:, :, None] >> (2 * np.arange(4))) & 3
+        index = qs | (hi.reshape((n_blocks, 32)) << 8)
+        mags = IQ2_S_CODE_BYTE[_iq2_s_unpack_levels(KGRID_2BIT_1024[index])]
+        neg = (signs[:, :, None] >> np.arange(8, dtype=np.uint8)) & 1
+        sign = np.where(neg == 1, f32(-1.0), f32(1.0))
+        # (dl * magnitude) * sign, dl being the octet group scale
+        out = np.repeat(db, 2, axis=1)[:, :, None] * mags * sign
+        return out.reshape((n_blocks, cls.BLOCK_LEN))
+
+
+def fp_to_tract_iq2_s(fp_tensor: torch.Tensor) -> QTensorTractIQ2_S:
+    """Quantize float tensor to tract supported IQ2_S (ggml reference).
+
+    Only use it on embedding weights (see `QTensorTractIQ2_S`).
+    """
+    qtensor = QTensorTractIQ2_S.from_fp(fp_tensor)
+    assert isinstance(qtensor, QTensorTractIQ2_S)
     return qtensor

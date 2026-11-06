@@ -35,6 +35,7 @@ To date tract support those kinds of quantization:
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
 - Q4_K: [llama.cpp](https://github.com/ggml-org/llama.cpp) K-quant super-blocks of 256 weights (4.5bpw), supported by tract (>= 0.23.10) **only on embedding/gathering operations** (see [Q4_K for embeddings](#q4_k-for-embeddings)).
+- IQ2_S: [llama.cpp](https://github.com/ggml-org/llama.cpp) i-quant super-blocks of 256 weights (2.5625bpw), supported by tract (>= 0.23.10) **only on embedding/gathering operations** (see [IQ2_S for embeddings](#iq2_s-for-embeddings)).
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
 Let's take a look at each in turn starting by Q40.
@@ -101,6 +102,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractIQ2_S
     handler: python
 </div>
 
@@ -203,6 +206,33 @@ from torch_to_nnef.tensor.quant import fp_to_tract_q4_k
 with torch.no_grad():
     embedding.weight = nn.Parameter(
         fp_to_tract_q4_k(embedding.weight), requires_grad=False
+    )
+```
+
+### IQ2_S for embeddings
+
+tract (>= 0.23.10) also loads ggml `IQ2_S` weights: each super-block of 256 elements
+is stored as llama.cpp `block_iq2_s` (82 bytes: f16 `d`, 10bit grid indices and sign bits
+of the 32 octets, sixteen 4bit group scales), totaling 2.5625bpw. Each octet of 8 values
+is a point of the ggml 1024 entries grid. The quantizer is a port of llama.cpp
+`quantize_row_iq2_s_ref` without importance matrix (grid nearest neighbour search,
+not min-max), and the dequantization matches tract bit exactly.
+Weights need a volume of `shape[1:]` divisible by 256. Expect a large error
+(around 26% relative L2 error on gaussian weights).
+
+!!! warning
+
+    Like `Q8_1`, tract has no matmul or convolution kernel for `IQ2_S` weights yet:
+    only use it for embeddings (gather operator).
+
+Use the `ggml_iq2_s_embeddings` registry entry, or directly on a tensor:
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_iq2_s
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_iq2_s(embedding.weight), requires_grad=False
     )
 ```
 

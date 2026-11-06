@@ -16,6 +16,7 @@ from torch import nn
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
+    quantize_weights_ggml_IQ2_S,
     quantize_weights_min_max_Q4_K,
     quantize_weights_min_max_Q8_1,
 )
@@ -31,10 +32,12 @@ from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.opaque import set_opaque_tensor_in_params_as_ref
 from torch_to_nnef.tensor.quant import (
     QTensor,
+    QTensorTractIQ2_S,
     QTensorTractQ4_K,
     QTensorTractQ8_1,
     QTensorTractScaleOnly,
     U8Compressor,
+    fp_to_tract_iq2_s,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
     fp_to_tract_q8_1_with_min_max_calibration,
@@ -1072,6 +1075,147 @@ def test_compress_min_max_q4_k_embeddings_only_quantize_embeddings():
 
     with pytest.raises(T2NErrorMisuse):
         quantize_weights_min_max_Q4_K(
+            nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32)),
+            to_quantize_module_classes=(nn.Linear, nn.Embedding),
+        )
+
+
+# llama.cpp quantize_row_iq2_s_ref / dequantize_row_iq2_s vectors
+# (from tract v0.23.10 linalg/src/frame/block_quant/iq2_s.rs tests)
+IQ2_S_GGML_REFS = [
+    (
+        0,
+        "a82379f32f67b63064b6416db7ae6d479f7d47932f799d2f67b6308db630d3b741"
+        "6d29b5522bb5526aa5566aa5d44aadd44aa9955aa995522bb5522ba5566aa5564a"
+        "d3a6699ad6b56d9bdfdcceadeedccbeb",
+        [(0, 0xBFB96CC0), (32, 0xBEBF6800), (255, 0x3FAD7640)],
+    ),
+    (
+        32,
+        "f42200000000b630d3b6416db7ae6d479f7d47932f799d2f67b630d3b630d3b741"
+        "6d00000000b5526aa5566aa5d44aadd44aa9955aa995522bb5522ba5566aa5564a"
+        "00b6699ad6b56d9b00dddfbfffedddfc",
+        # a skipped group keeps grid index 0: zeros come back as 0x3c5e8000
+        [(0, 0x3C5E8000), (32, 0xBEBBBC00), (255, 0x3FA86560)],
+    ),
+    (256, "00" * 82, [(0, 0), (255, 0)]),
+]
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("zeros,expected_hex,values", IQ2_S_GGML_REFS)
+def test_iq2s_matches_ggml_reference(zeros, expected_hex, values):
+    _check_ggml_reference(
+        QTensorTractIQ2_S, _ggml_ramp(256, zeros), expected_hex, values
+    )
+
+
+@skipif_unsupported_qtensor
+def test_iq2s_dat_content_layout(tmp_path):
+    qtensor = fp_to_tract_iq2_s(torch.randn(3, 512))
+    assert qtensor.u8_blob.shape == (6, 82)
+    _check_ggml_dat_content_layout(
+        tmp_path, qtensor, DatBinHeader.TractCustomTypes.IQ2S
+    )
+
+
+@skipif_unsupported_qtensor
+def test_iq2s_dequant_round_trip_error_bounded():
+    # same bound as tract iq2_s_roundtrip
+    ramp = torch.from_numpy(_ggml_ramp(512, 0)).reshape((2, 256))
+    qtensor = fp_to_tract_iq2_s(ramp)
+    assert (qtensor.decompress() - ramp).abs().max() < 1.25
+    zeros = fp_to_tract_iq2_s(torch.zeros(2, 256))
+    assert torch.equal(zeros.decompress(), torch.zeros(2, 256))
+    # gaussian: signs are kept exactly, magnitudes within a 2.56bpw error
+    fp_tensor = torch.randn(16, 1024)
+    deq = fp_to_tract_iq2_s(fp_tensor).decompress()
+    assert torch.equal(deq.sign(), fp_tensor.sign())
+    assert (deq - fp_tensor).norm() / fp_tensor.norm() < 0.35
+
+
+@skipif_unsupported_qtensor
+def test_iq2s_rejects_incomplete_super_blocks():
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_iq2_s(torch.randn(4, 128))
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_iq2_s(torch.randn(256))
+
+
+@skipif_unsupported_qtensor
+def test_iq2s_unsupported_before_tract_0_23_10(tmp_path):
+    qtensor = fp_to_tract_iq2_s(torch.randn(2, 256))
+    for version in ["0.22.1", "0.23.8"]:
+        with pytest.raises(T2NErrorNotImplemented):
+            qtensor.write_in_file(
+                tmp_path, "weight", TractNNEF(version, check_io=False)
+            )
+        with pytest.raises(T2NErrorNotImplemented):
+            QTensorTractIQ2_S.write_offload_state_in_file(
+                qtensor.to_offload_state(),
+                tmp_path,
+                "weight",
+                inference_target=TractNNEF(version, check_io=False),
+            )
+    assert not (tmp_path / "weight.dat").exists()
+
+
+@skipif_unsupported_qtensor
+def test_iq2s_offload_state_write(tmp_path):
+    _check_ggml_offload_state_write(
+        tmp_path, fp_to_tract_iq2_s(torch.randn(4, 512))
+    )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "inference_target,dtype",
+    [
+        (i, dt)
+        for i in TRACT_INFERENCES_TO_TESTS_EXACT
+        if i.version >= "0.23.10"
+        for dt in [torch.float32, torch.float16]
+    ],
+)
+def test_quantize_with_tract_iq2_s_embedding(inference_target, dtype):
+    """IQ2_S is only supported by tract on embedding/gathering."""
+    with torch.no_grad():
+        test_input = torch.arange(6)
+        test_input[:3] = 3
+        model = nn.Embedding(6, 512).eval().to(dtype)
+        q_tensor = fp_to_tract_iq2_s(torch.randn(6, 512).to(dtype))
+        assert q_tensor.decompress().dtype == dtype
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {"dtype": DatBinHeader.TractCustomTypes.IQ2S}
+                },
+            ),
+        )
+
+
+@skipif_unsupported_qtensor
+def test_compress_ggml_iq2_s_embeddings_only_quantize_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32))
+    tied = nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 10, bias=False))
+    tied[1].weight = tied[0].weight
+    registry = dynamic_load_registry(DEFAULT_COMPRESSION_REGISTRY)
+
+    registry["ggml_iq2_s_embeddings"](model)
+    assert isinstance(model[0].weight, QTensorTractIQ2_S)
+    assert not isinstance(model[1].weight, QTensor)
+
+    # weight shared with a Linear must stay float (no tract IQ2_S matmul)
+    registry["ggml_iq2_s_embeddings"](tied)
+    assert not isinstance(tied[0].weight, QTensor)
+
+    with pytest.raises(T2NErrorMisuse):
+        quantize_weights_ggml_IQ2_S(
             nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32)),
             to_quantize_module_classes=(nn.Linear, nn.Embedding),
         )

@@ -18,6 +18,7 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
     QTensor,
+    fp_to_tract_iq2_s,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
     fp_to_tract_q8_1_with_min_max_calibration,
@@ -167,6 +168,19 @@ def quantize_weights_min_max_Q4_K(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
+def quantize_weights_ggml_IQ2_S(model: nn.Module, **kwargs):  # noqa: N802
+    """Example of quantization function for a model to IQ2_S.
+
+    Uses the ggml reference quantizer (grid nearest neighbour search with
+    a weighted scale fit, no importance matrix), not a min-max one.
+    tract only supports IQ2_S weights for embedding/gathering operations
+    so only `nn.Embedding` (or subclasses) can be quantized.
+    """
+    return _quantize_embeddings_min_max(
+        model, fp_to_tract_iq2_s, "iq2s_ggml", "IQ2_S", **kwargs
+    )
+
+
 def offloaded_tensor_qtensor(
     q_fn, tensor: torch.Tensor, suffix_name: str
 ) -> torch.Tensor:
@@ -218,4 +232,5 @@ DEFAULT_COMPRESSION = {
     ),
     "min_max_q8_1_embeddings": quantize_weights_min_max_Q8_1,
     "min_max_q4_k_embeddings": quantize_weights_min_max_Q4_K,
+    "ggml_iq2_s_embeddings": quantize_weights_ggml_IQ2_S,
 }
