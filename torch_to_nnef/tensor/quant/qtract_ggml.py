@@ -641,6 +641,7 @@ def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
     return qtensor
 
 
+# pylint: disable-next=too-many-ancestors
 class QTensorTractQ5_K(QTensorTractGGMLKMin):  # noqa: N801
     """Tract data format it serializes to: Q5_K (ggml `block_q5_K`).
 
