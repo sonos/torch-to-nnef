@@ -156,15 +156,16 @@ def quantize_weights_min_max_Q8_1(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
-def quantize_weights_min_max_Q4_K(model: nn.Module, **kwargs):  # noqa: N802
+def quantize_weights_ggml_Q4_K(model: nn.Module, **kwargs):  # noqa: N802
     """Example of quantization function for a model to Q4_K.
 
-    Uses the ggml reference quantizer (min-max search per sub-block).
+    Uses the ggml reference quantizer (`make_qkx2_quants` search per
+    sub-block, no importance matrix).
     tract only supports Q4_K weights for embedding/gathering operations
     so only `nn.Embedding` (or subclasses) can be quantized.
     """
     return _quantize_embeddings_min_max(
-        model, fp_to_tract_q4_k, "q4k_min_max", "Q4_K", **kwargs
+        model, fp_to_tract_q4_k, "q4k_ggml", "Q4_K", **kwargs
     )
 
 
@@ -172,7 +173,7 @@ def quantize_weights_ggml_IQ2_S(model: nn.Module, **kwargs):  # noqa: N802
     """Example of quantization function for a model to IQ2_S.
 
     Uses the ggml reference quantizer (grid nearest neighbour search with
-    a weighted scale fit, no importance matrix), not a min-max one.
+    a weighted scale fit, no importance matrix).
     tract only supports IQ2_S weights for embedding/gathering operations
     so only `nn.Embedding` (or subclasses) can be quantized.
     """
@@ -231,6 +232,6 @@ DEFAULT_COMPRESSION = {
         ),
     ),
     "min_max_q8_1_embeddings": quantize_weights_min_max_Q8_1,
-    "min_max_q4_k_embeddings": quantize_weights_min_max_Q4_K,
+    "ggml_q4_k_embeddings": quantize_weights_ggml_Q4_K,
     "ggml_iq2_s_embeddings": quantize_weights_ggml_IQ2_S,
 }
