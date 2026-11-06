@@ -459,3 +459,75 @@ def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
     qtensor = QTensorTractQ4_K.from_fp(fp_tensor)
     assert isinstance(qtensor, QTensorTractQ4_K)
     return qtensor
+
+
+class QTensorTractQ5_K(QTensorTractGGMLBlock):  # noqa: N801
+    """Tract data format it serializes to: Q5_K (ggml `block_q5_K`).
+
+    Each super-block of 256 values is stored as 176 bytes:
+    f16 `d`, f16 `dmin`, 12 bytes of eight 6bit scales and mins
+    (one per sub-block of 32 values), 32 bytes of level high bits,
+    then 256 low 4bit levels (5.5bpw).
+    Value is `d * scale * level - dmin * min` with 5bit levels.
+
+    Quantization port llama.cpp `quantize_row_q5_K_ref` (no importance
+    matrix), dequantization matches tract bit exactly.
+
+    Warning:
+        tract (<= 0.23.10) only supports Q5_K weights in
+        embedding/gathering operations: there is no matmul or convolution
+        kernel for it yet.
+
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q5_k.v1"
+    FORMAT_NAME = "Q5_K"
+    BLOCK_LEN = QK_K
+    BLOCK_BYTES = 176
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.Q5K
+
+    # bit of `qh` holding the 5th bit of level `i` of each (pair, half)
+    _QH_SHIFTS = np.arange(8, dtype=np.uint8).reshape(1, 4, 2, 1)
+
+    @classmethod
+    def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:
+        n_blocks = fp_blocks.shape[0]
+        header, levels = ggml_quant_k_scales_mins(
+            fp_blocks, nmax=31, rmin=-0.5, nstep=15
+        )
+        # per 64 values: (pair, half) where half picks first or next 32
+        chunks = levels.reshape(n_blocks, 4, 2, 32)
+        low = chunks & 0xF
+        ql = low[:, :, 0, :] | (low[:, :, 1, :] << 4)
+        qh = np.bitwise_or.reduce(
+            ((chunks >> 4) << cls._QH_SHIFTS).reshape(n_blocks, 8, 32),
+            axis=1,
+        )
+        out = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
+        out[:, :16] = header
+        out[:, 16:48] = qh
+        out[:, 48:] = ql.reshape(n_blocks, 128)
+        return out
+
+    @classmethod
+    def dequantize_blocks(cls, u8_blocks: np.ndarray) -> np.ndarray:
+        n_blocks = u8_blocks.shape[0]
+        d_sc, dmin_m = ggml_dequant_k_scales_mins(u8_blocks[:, :16])
+        qh = u8_blocks[:, 16:48].reshape(n_blocks, 1, 1, 32)
+        ql = u8_blocks[:, 48:].reshape(n_blocks, 4, 1, 32)
+        low = np.concatenate([ql & 0xF, ql >> 4], axis=2)
+        high = (qh >> cls._QH_SHIFTS) & 1
+        levels = (low | (high << 4)).reshape(n_blocks, 8, 32)
+        # same f32 ops order as tract: (d * sc) * q - (dmin * m)
+        out = d_sc[:, :, None] * levels.astype(np.float32) - dmin_m[:, :, None]
+        return out.reshape(n_blocks, cls.BLOCK_LEN)
+
+
+def fp_to_tract_q5_k(fp_tensor: torch.Tensor) -> QTensorTractQ5_K:
+    """Quantize float tensor to tract supported Q5_K (ggml reference).
+
+    Only use it on embedding weights (see `QTensorTractQ5_K`).
+    """
+    qtensor = QTensorTractQ5_K.from_fp(fp_tensor)
+    assert isinstance(qtensor, QTensorTractQ5_K)
+    return qtensor

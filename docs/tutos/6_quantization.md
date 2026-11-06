@@ -35,6 +35,7 @@ To date tract support those kinds of quantization:
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
 - Q4_K: [llama.cpp](https://github.com/ggml-org/llama.cpp) K-quant super-blocks of 256 weights (4.5bpw), supported by tract (>= 0.23.10) **only on embedding/gathering operations** (see [Q4_K for embeddings](#q4_k-for-embeddings)).
+- Q5_K: 5bit sibling of Q4_K (5.5bpw), same tract (>= 0.23.10) **embedding/gathering only** support (see [Q5_K for embeddings](#q5_k-for-embeddings)).
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
 Let's take a look at each in turn starting by Q40.
@@ -101,6 +102,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractQ8_1
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ4_K
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ5_K
     handler: python
 </div>
 
@@ -205,6 +208,14 @@ with torch.no_grad():
         fp_to_tract_q4_k(embedding.weight), requires_grad=False
     )
 ```
+
+### Q5_K for embeddings
+
+`Q5_K` (tract >= 0.23.10) is the 5bit sibling of `Q4_K`: same 16 bytes header, plus 32 bytes
+holding the fifth bit of each level, totaling 176 bytes per super-block of 256 elements (5.5bpw).
+The quantizer is a port of llama.cpp `quantize_row_q5_K_ref` and the dequantization matches
+tract bit exactly. Same constraints as `Q4_K`: embeddings only, `shape[1:]` volume divisible
+by 256. Use the `min_max_q5_k_embeddings` registry entry or `fp_to_tract_q5_k`.
 
 ### Q40 Use specific quantization method
 
