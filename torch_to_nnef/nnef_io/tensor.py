@@ -35,7 +35,8 @@ class DatBinHeader:
 
         Q40 = "4030"
         Q40_LEGACY = "4020"
-        Q81 = "8030"
+        Q81 = "8130"  # 0x3081: tract >= 0.23.10
+        Q81_LEGACY = "8030"  # 0x3080: tract < 0.23.10 (now Q8_0 in tract)
 
     def __init__(
         self,
@@ -115,7 +116,10 @@ class DatBinHeader:
         vol = 1
         for s in shape:
             vol *= s
-        if item_type == cls.TractCustomTypes.Q81:
+        if item_type in (
+            cls.TractCustomTypes.Q81,
+            cls.TractCustomTypes.Q81_LEGACY,
+        ):
             # per group of 32: f16 scale + f16 sum + 32 int8
             data_size_bytes = vol // 32 * 36
         else:
