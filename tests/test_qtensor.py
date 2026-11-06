@@ -886,14 +886,13 @@ def test_tract_custom_types_q80_shares_legacy_q81_header():
     )
     assert DatBinHeader.TractCustomTypes("8030").name == "Q80"
     # same header value: only the block size tells them apart
-    for block_bytes in [34, 36]:
+    for qtensor_cls in [QTensorTractQ8_0, QTensorTractQ8_1]:
         header = DatBinHeader.build_tract_qtensor(
             DatBinHeader.TractCustomTypes.Q80,
             (2, 32),
-            block_bytes=block_bytes,
-            block_len=32,
+            data_size_bytes=qtensor_cls.data_size_bytes((2, 32)),
         )
-        assert header.data_size_bytes == 2 * block_bytes
+        assert header.data_size_bytes == 2 * qtensor_cls.BLOCK_BYTES
 
 
 @skipif_unsupported_qtensor
