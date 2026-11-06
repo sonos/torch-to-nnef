@@ -150,6 +150,20 @@ GGML_LLAMA_CPP_SHA256 = {
             "5dfcb461fb9367b40858fc2664809605b7a73abedcbe682402ab127ee8424449"
         ),
     },
+    "Q6_K": {
+        "normal": (
+            "4c3361e4fea00945dafcb58ffcca683d69e9f0eeaeb86be9524c6d8c1c8f4be1"
+        ),
+        "sparse": (
+            "b15eaf8d6d6977bd7b4caa7bb74bc55c90e0ae443db2b49720084dbac353e8e6"
+        ),
+        "positive": (
+            "95fbb46e4d18f96ff912151ef2b8682d32180fa0512157205b91fbf9accbda61"
+        ),
+        "heavy": (
+            "58814b856c6c84d60c8ee0c07022808af4e3ae4b18f89cc60086663c35e5fc6c"
+        ),
+    },
 }
 
 
@@ -498,6 +512,32 @@ Q6_K_GGML_REFS = [
 def test_q6k_matches_ggml_reference(zeros, expected_hex, values):
     _check_ggml_reference(
         fp_to_tract_q6_k, _ggml_ramp(256, zeros), expected_hex, values
+    )
+
+
+def test_q6k_matches_llama_cpp_on_random_super_blocks():
+    _check_ggml_llama_cpp_hashes(fp_to_tract_q6_k, "Q6_K")
+
+
+def test_q6k_matches_llama_cpp_on_single_nonzero_value():
+    # make_qx_quants `suml2` accumulates `(w * l) * l`: `w * (l * l)`
+    # rounds differently and picks level 1 instead of 0 here
+    data = torch.zeros(256)
+    data[5] = -1.5918127
+    # llama.cpp quantize_row_q6_K_ref (-ffp-contract=off) bytes:
+    # ql, qh (level 0 at index 5, 32 elsewhere in sub-block 0), scales, d
+    expected_hex = (
+        "00" * 128
+        + "02" * 5
+        + "00"
+        + "02" * 10
+        + "00" * 48
+        + "80"
+        + "00" * 15
+        + "5e8e"
+    )
+    _check_ggml_reference(
+        fp_to_tract_q6_k, data, expected_hex, [(0, 0), (5, 0xBFCBC000)]
     )
 
 

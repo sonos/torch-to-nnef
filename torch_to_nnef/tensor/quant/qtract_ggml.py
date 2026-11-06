@@ -687,8 +687,10 @@ def ggml_make_qx_quants(
         )
 
     def fit(lev):
-        sumlx = ggml_seq_sum(wx * lev.to(torch.float32))
-        suml2 = ggml_seq_sum(w * (lev * lev).to(torch.float32))
+        # ggml order: `(w * x) * l` and `(w * l) * l`
+        lev_f = lev.to(torch.float32)
+        sumlx = ggml_seq_sum(wx * lev_f)
+        suml2 = ggml_seq_sum(w * lev_f * lev_f)
         return sumlx, suml2
 
     # empty rows divide by 0: their results are discarded below
