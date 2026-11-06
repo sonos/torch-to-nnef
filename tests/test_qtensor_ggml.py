@@ -11,6 +11,7 @@ from torch import nn
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
+    quantize_weights_ggml_IQ2_S,
     quantize_weights_ggml_Q4_K,
     quantize_weights_ggml_Q5_K,
     quantize_weights_ggml_Q6_K,
@@ -22,13 +23,16 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
+from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
     QScaleQ8_0,
     QTensor,
+    QTensorTractIQ2_S,
     QTensorTractQ4_K,
     QTensorTractQ5_K,
     QTensorTractQ6_K,
     QTensorTractQ8_0,
+    fp_to_tract_iq2_s,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
     fp_to_tract_q5_k,
@@ -36,7 +40,9 @@ from torch_to_nnef.tensor.quant import (
     fp_to_tract_q8_0_with_min_max_calibration,
     qtract_ggml,
 )
+from torch_to_nnef.tensor.quant._iq2_s_grid import KGRID_2BIT_1024
 from torch_to_nnef.tensor.quant.qtract_ggml import (
+    _iq2_s_search,
     ggml_make_qx_quants,
     ggml_nearest_int,
     ggml_seq_sum,
@@ -50,6 +56,7 @@ from .utils import (
     check_model_io_test,
     check_offload_state_write,
     check_rejects_old_tract,
+    skipif_limited_offload_support,
     skipif_unsupported_qtensor,
     tract_target,
     tract_versions_just_at_or_above,
@@ -201,6 +208,21 @@ GGML_LLAMA_CPP_SHA256 = {
         ),
         "heavy": (
             "58814b856c6c84d60c8ee0c07022808af4e3ae4b18f89cc60086663c35e5fc6c"
+        ),
+    },
+    # `quantize_iq2_s` without importance matrix (after `iq2xs_init_impl`)
+    "IQ2_S": {
+        "normal": (
+            "6b19ee1890dca588a8fe59e3dc1f9c667faa536e29aa13868a6ea3f4d003ecc2"
+        ),
+        "sparse": (
+            "811e5eda4bb71145ca44dcf97db969e9c710ef79d45bdd1feb01dfd91654b9d8"
+        ),
+        "positive": (
+            "655a01d54a3dc2881ae9cdf512d26794dc9fc6938c0903efe450ab1f3184dd6b"
+        ),
+        "heavy": (
+            "9ebca7226f7ad8ec90dc5cba3b15d669496b04b4560f8be50d0b5d1caba4bfe6"
         ),
     },
 }
@@ -702,10 +724,11 @@ def test_q80_keeps_fp_tensor_device():
         fp_to_tract_q4_k,
         fp_to_tract_q5_k,
         fp_to_tract_q6_k,
+        fp_to_tract_iq2_s,
         fp_to_tract_q4_0_with_min_max_calibration,
         fp_to_tract_q8_0_with_min_max_calibration,
     ],
-    ids=["q4_k", "q5_k", "q6_k", "q4_0", "q8_0"],
+    ids=["q4_k", "q5_k", "q6_k", "iq2_s", "q4_0", "q8_0"],
 )
 def test_qtensor_to_keeps_codes_and_source(fp_to_qtensor):
     fp_tensor = torch.randn(4, 256, generator=torch.Generator().manual_seed(0))
@@ -1268,3 +1291,286 @@ def test_q6k_make_qx_quants_levels_and_scale():
     assert levels.max() < 64
     deq = scale[:, None] * (levels.to(torch.float32) - 32)
     assert (deq - x).abs().max() <= scale.abs().max()
+
+
+# IQ2_S ####################################################################
+
+# llama.cpp quantize_row_iq2_s_ref / dequantize_row_iq2_s vectors
+# (from tract v0.23.10 linalg/src/frame/block_quant/iq2_s.rs tests)
+IQ2_S_GGML_REFS = [
+    (
+        0,
+        "a82379f32f67b63064b6416db7ae6d479f7d47932f799d2f67b6308db630d3b741"
+        "6d29b5522bb5526aa5566aa5d44aadd44aa9955aa995522bb5522ba5566aa5564a"
+        "d3a6699ad6b56d9bdfdcceadeedccbeb",
+        [(0, 0xBFB96CC0), (32, 0xBEBF6800), (255, 0x3FAD7640)],
+    ),
+    (
+        32,
+        "f42200000000b630d3b6416db7ae6d479f7d47932f799d2f67b630d3b630d3b741"
+        "6d00000000b5526aa5566aa5d44aadd44aa9955aa995522bb5522ba5566aa5564a"
+        "00b6699ad6b56d9b00dddfbfffedddfc",
+        # a skipped group keeps grid index 0: zeros come back as 0x3c5e8000
+        [(0, 0x3C5E8000), (32, 0xBEBBBC00), (255, 0x3FA86560)],
+    ),
+    (256, "00" * 82, [(0, 0), (255, 0)]),
+]
+
+
+@pytest.mark.parametrize("zeros,expected_hex,values", IQ2_S_GGML_REFS)
+def test_iq2s_matches_ggml_reference(zeros, expected_hex, values):
+    _check_ggml_reference(
+        fp_to_tract_iq2_s, _ggml_ramp(256, zeros), expected_hex, values
+    )
+
+
+def test_iq2s_matches_llama_cpp_on_random_super_blocks():
+    _check_ggml_llama_cpp_hashes(fp_to_tract_iq2_s, "IQ2_S")
+
+
+def test_iq2s_dat_content_layout(tmp_path):
+    qtensor = fp_to_tract_iq2_s(torch.randn(3, 512))
+    assert qtensor.u8_blob.shape == (3, 512)
+    _check_ggml_dat_content_layout(
+        tmp_path, qtensor, DatBinHeader.TractCustomTypes.IQ2S
+    )
+
+
+def test_iq2s_ramp_and_zeros_round_trip():
+    # same bound as tract iq2_s_roundtrip
+    ramp = _ggml_ramp(512, 0).reshape((2, 256))
+    qtensor = fp_to_tract_iq2_s(ramp)
+    assert (qtensor.decompress() - ramp).abs().max() < 1.25
+    zeros = fp_to_tract_iq2_s(torch.zeros(2, 256))
+    assert torch.equal(zeros.decompress(), torch.zeros(2, 256))
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_iq2s_dequant_round_trip_error_bounded(seed):
+    gen = torch.Generator().manual_seed(seed)
+    # rows of very different magnitudes
+    fp_tensor = torch.randn(16, 1024, generator=gen) * 10 ** torch.linspace(
+        -3, 3, 16
+    ).reshape((16, 1))
+    deq = fp_to_tract_iq2_s(fp_tensor).decompress()
+    # signs are stored exactly, grid magnitudes are never 0
+    assert torch.equal(deq.sign(), fp_tensor.sign())
+    # relative error of a 2.5625bpw format, per row (measured near 0.26)
+    row_err = (deq - fp_tensor).norm(dim=1) / fp_tensor.norm(dim=1)
+    assert (row_err < 0.35).all(), row_err.max()
+
+
+@pytest.mark.parametrize("shape", [(2, 256), (2, 2, 256), (2, 2, 2, 256)])
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.float32, torch.bfloat16]
+)
+def test_iq2s_decompress_matches_reference(shape, dtype):
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(shape, generator=gen).to(dtype)
+    _check_ggml_decompress_matches_reference(fp_to_tract_iq2_s, fp_tensor)
+
+
+@pytest.mark.parametrize(
+    "weight",
+    _ggml_invalid_weights(256)
+    + [
+        # f16 overflow of d
+        pytest.param(torch.full((2, 256), 1e9), id="d_overflow"),
+        # nonzero super-block whose d rounds to 0 in f16
+        pytest.param(torch.full((2, 256), 1e-7), id="underflow"),
+        # below the ggml group epsilon: every group is skipped
+        pytest.param(torch.full((2, 256), 1e-10), id="below_group_eps"),
+    ],
+)
+def test_iq2s_rejects_invalid_weights(weight):
+    with pytest.raises(T2NErrorImpossibleQuantization):
+        fp_to_tract_iq2_s(weight)
+
+
+def test_iq2s_codes_hold_grid_level_and_sign():
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(4, 512, generator=gen)
+    fp_tensor[0, :256] = 0
+    qtensor = fp_to_tract_iq2_s(fp_tensor)
+    codes = qtensor.decompress_to_u8()
+    assert codes.dtype == torch.uint8
+    assert set(codes.unique().tolist()) <= {0, 1, 2, 4, 5, 6}
+    # bit 2 is the exact sign, an all zero super-block has zero codes
+    assert torch.equal((codes >> 2) == 1, fp_tensor < 0)
+    assert not codes[0, :256].any()
+    assert qtensor.qscheme.d.shape == (8,)
+    assert qtensor.qscheme.scales.shape == (8, 16)
+    assert int(qtensor.qscheme.scales.max()) <= 15
+    # every octet of grid levels is a grid point
+    _, kmap, _, _ = _iq2_s_search(torch.device("cpu"))
+    levels = (codes & 3).reshape((-1, 8)).to(torch.int64)
+    packed = (levels << (2 * torch.arange(8))).sum(dim=1)
+    assert (kmap[packed] >= 0).all()
+
+
+def test_iq2s_grid_search_tables():
+    grid_levels, kmap, neighbours, shell_lens = _iq2_s_search(
+        torch.device("cpu")
+    )
+    assert len(set(KGRID_2BIT_1024)) == 1024
+    assert grid_levels.shape == (1024, 8) and int(grid_levels.max()) == 2
+    # map is the inverse of the grid
+    assert torch.equal(kmap[torch.tensor(KGRID_2BIT_1024)], torch.arange(1024))
+    assert int((kmap >= 0).sum()) == 1024
+    # off grid codes of levels in [0, 2] have a nonempty nearest shell
+    digits = 3 ** torch.arange(8)
+    all_levels = (torch.arange(3**8)[:, None] // digits) % 3
+    all_codes = (all_levels << (2 * torch.arange(8))).sum(dim=1)
+    off = all_codes[kmap[all_codes] < 0]
+    assert (neighbours[off, 0] >= 0).all()
+    assert (neighbours[kmap >= 0] == -1).all()
+    # shells are in grid index order, padded at the end
+    shell = neighbours[off]
+    valid = shell >= 0
+    assert (valid[:, :-1] | ~valid[:, 1:]).all()
+    assert ((shell[:, 1:] > shell[:, :-1]) | ~valid[:, 1:]).all()
+    # compact tables, shell lengths precomputed per code
+    assert kmap.dtype == neighbours.dtype == shell_lens.dtype == torch.int16
+    assert torch.equal(shell_lens.to(torch.int64), (neighbours >= 0).sum(dim=1))
+
+
+@pytest.mark.skipif(
+    _accelerator_device() is None, reason="needs a cuda or mps device"
+)
+def test_iq2s_keeps_fp_tensor_device():
+    device = _accelerator_device()
+    fp_tensor = torch.randn(4, 256)
+    qtensor = fp_to_tract_iq2_s(fp_tensor.to(device))
+    assert qtensor.device.type == device.type
+    assert qtensor.qscheme.d.device.type == device.type
+    deq = qtensor.decompress()
+    assert deq.device.type == device.type
+    # same bytes as a cpu quantization
+    assert _tract_bytes(qtensor) == _tract_bytes(fp_to_tract_iq2_s(fp_tensor))
+    out = nn.functional.embedding(torch.tensor([0, 3], device=device), qtensor)
+    assert torch.equal(out.cpu(), deq.cpu()[[0, 3]])
+
+
+def test_iq2s_runs_the_ggml_search_once(monkeypatch):
+    calls = []
+    quant = qtract_ggml.ggml_quant_iq2_s
+
+    def counting_quant(x):
+        calls.append(x.shape[0])
+        return quant(x)
+
+    monkeypatch.setattr(qtract_ggml, "ggml_quant_iq2_s", counting_quant)
+    fp_tensor = torch.randn(4, 512)
+    qtensor = fp_to_tract_iq2_s(fp_tensor)
+    # one call per chunk: codes come from the calibration search
+    assert calls == [8]
+    _tract_bytes(qtensor)
+    qtensor.to(torch.float16).decompress()
+    assert calls == [8]
+
+
+@skipif_limited_offload_support
+def test_iq2s_offloaded_to_dtype_keeps_codes(tmp_path):
+    qtensor = fp_to_tract_iq2_s(torch.randn(4, 256))
+    offloaded = OffloadedTensor.from_original_tensor(
+        qtensor, "iq2s", offload_dir=tmp_path
+    )
+    offloaded.to(torch.float16)
+    reloaded = offloaded.reload()
+    assert type(reloaded) is QTensorTractIQ2_S
+    assert torch.equal(reloaded.decompress_to_u8(), qtensor.decompress_to_u8())
+    assert torch.equal(
+        reloaded.decompress(), qtensor.decompress().to(torch.float16)
+    )
+
+
+def test_iq2s_scheme_rejects_other_tensor():
+    qtensor = fp_to_tract_iq2_s(torch.randn(2, 256))
+    with pytest.raises(T2NErrorMisuse, match="IQ2_S"):
+        qtensor.qscheme.quantize_as_u8(torch.randn(2, 256))
+
+
+def test_iq2s_accepts_zero_groups_in_nonzero_block():
+    # skipped groups decode to small nonzero values: no underflow error
+    fp_tensor = torch.randn(2, 256)
+    fp_tensor[:, :32] = 0
+    deq = fp_to_tract_iq2_s(fp_tensor).decompress()
+    assert (deq[:, :32] > 0).all()
+
+
+@pytest.mark.parametrize(
+    "version", tract_versions_just_below(QTensorTractIQ2_S.MIN_TRACT_VERSION)
+)
+def test_iq2s_rejects_old_tract(tmp_path, caplog, version):
+    check_rejects_old_tract(
+        tmp_path, caplog, fp_to_tract_iq2_s(torch.randn(2, 256)), version
+    )
+
+
+@pytest.mark.parametrize(
+    "version",
+    tract_versions_just_at_or_above(QTensorTractIQ2_S.MIN_TRACT_VERSION),
+)
+def test_iq2s_offload_state_write(tmp_path, version):
+    check_offload_state_write(
+        tmp_path,
+        fp_to_tract_iq2_s(torch.randn(4, 512)),
+        tract_target(version),
+    )
+
+
+@pytest.mark.parametrize(
+    "inference_target",
+    [
+        i
+        for i in TRACT_INFERENCES_TO_TESTS_EXACT
+        if i.version >= QTensorTractIQ2_S.MIN_TRACT_VERSION
+    ],
+)
+# f16 CPU embedding (index_select) works on torch 1.x: like Q4_0/Q8_1 tests
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+def test_quantize_with_tract_iq2_s_embedding(inference_target, dtype):
+    """IQ2_S is only supported by tract on embedding/gathering."""
+    with torch.no_grad():
+        test_input = torch.arange(6)
+        test_input[:3] = 3
+        model = nn.Embedding(6, 512).eval().to(dtype)
+        q_tensor = fp_to_tract_iq2_s(torch.randn(6, 512).to(dtype))
+        assert q_tensor.decompress().dtype == dtype
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {"dtype": DatBinHeader.TractCustomTypes.IQ2S}
+                },
+            ),
+        )
+
+
+def test_compress_ggml_iq2_s_embeddings_only_quantize_embeddings():
+    model = nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32))
+    tied = nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 10, bias=False))
+    tied[1].weight = tied[0].weight
+    registry = dynamic_load_registry(DEFAULT_COMPRESSION_REGISTRY)
+
+    registry["ggml_iq2_s_embeddings"](model)
+    assert isinstance(model[0].weight, QTensorTractIQ2_S)
+    assert not isinstance(model[1].weight, QTensor)
+
+    # weight shared with a Linear must stay float (no tract IQ2_S matmul)
+    registry["ggml_iq2_s_embeddings"](tied)
+    assert not isinstance(tied[0].weight, QTensor)
+
+    with pytest.raises(T2NErrorMisuse):
+        quantize_weights_ggml_IQ2_S(
+            nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32)),
+            to_quantize_module_classes=(nn.Linear, nn.Embedding),
+        )
+    with pytest.raises(T2NErrorMisuse, match="percentile"):
+        quantize_weights_ggml_IQ2_S(
+            nn.Sequential(nn.Embedding(10, 256)), percentile=0.99
+        )

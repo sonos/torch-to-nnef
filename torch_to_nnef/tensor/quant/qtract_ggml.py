@@ -19,15 +19,18 @@ Warning:
 
 import logging
 import typing as T
+from functools import lru_cache
 
 import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import (
     T2NErrorImpossibleQuantization,
+    T2NErrorMisuse,
     T2NErrorNotImplemented,
 )
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
+from torch_to_nnef.tensor.quant._iq2_s_grid import KGRID_2BIT_1024
 from torch_to_nnef.tensor.quant.base import QScalePerGroupF16, QScheme
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTractBlockQuant,
@@ -1131,4 +1134,466 @@ def fp_to_tract_q6_k(fp_tensor: torch.Tensor) -> QTensorTractQ6_K:
     """
     qtensor = QTensorTractQ6_K.from_fp(fp_tensor)
     assert isinstance(qtensor, QTensorTractQ6_K)
+    return qtensor
+
+
+# IQ2_S ####################################################################
+
+IQ2_S_FORMAT_NAME = "IQ2_S"
+# ggml `GROUP_MAX_EPS_IQ2_S`
+IQ2_S_GROUP_MAX_EPS = 1e-8
+# packed 2bit codes whose digits are at most 2 (43690 is eight 2 digits)
+IQ2_S_KMAP_SIZE = 43692
+# ggml `iq2s_grid` dequant bytes for levels 0, 1, 2
+IQ2_S_CODE_BYTE = (8.0, 25.0, 43.0)
+# IQ2_S u8 code: bits 1-0 hold the grid level, bit 2 negates the value
+IQ2_S_LEVEL_MASK = 3
+IQ2_S_SIGN_SHIFT = 2
+# octets processed at once by the off grid neighbour search
+IQ2_S_NEIGHBOUR_CHUNK = 1 << 14
+# nearest shell padding widths (largest shell holds 70 grid points)
+IQ2_S_SHELL_WIDTHS = (1, 2, 4, 8, 16, 32)
+
+
+def _iq2_s_unpack_levels(codes: torch.Tensor) -> torch.Tensor:
+    """Unpack (...) 2bit packed codes into i64 (..., 8) levels."""
+    shifts = 2 * torch.arange(8, dtype=torch.int64, device=codes.device)
+    return (codes.to(torch.int64)[..., None] >> shifts) & 3
+
+
+def _iq2_s_pack_levels(levels: torch.Tensor) -> torch.Tensor:
+    """Pack (..., 8) levels in [0, 2] into i64 (...) 2bit codes."""
+    shifts = 2 * torch.arange(8, dtype=torch.int64, device=levels.device)
+    return (levels.to(torch.int64) << shifts).sum(dim=-1)
+
+
+@lru_cache(maxsize=1)
+def _iq2_s_search_cpu() -> T.Tuple[
+    torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
+]:
+    kgrid = torch.tensor(KGRID_2BIT_1024, dtype=torch.int64)
+    grid_levels = _iq2_s_unpack_levels(kgrid)
+    assert int(grid_levels.max()) <= 2
+    grid_odd = 2 * grid_levels + 1
+    kmap = torch.full((IQ2_S_KMAP_SIZE,), -1, dtype=torch.int64)
+    kmap[kgrid] = torch.arange(1024, dtype=torch.int64)
+    # snapped levels are clamped to [0, 2]: only those codes are looked up
+    digits = 3 ** torch.arange(8, dtype=torch.int64)
+    all_levels = (torch.arange(3**8, dtype=torch.int64)[:, None] // digits) % 3
+    all_codes = _iq2_s_pack_levels(all_levels)
+    off = kmap[all_codes] < 0
+    odd = 2 * all_levels[off] + 1
+    # integer squared distances to every grid point, exact
+    d2 = torch.zeros((odd.shape[0], 1024), dtype=torch.int64)
+    for k in range(8):
+        d2 += (odd[:, k, None] - grid_odd[None, :, k]) ** 2
+    is_best = d2 == d2.amin(dim=1, keepdim=True)
+    max_shell = int(is_best.sum(dim=1).max())
+    # shell kept in grid index order (ggml qsort order)
+    rows, cols = is_best.nonzero(as_tuple=True)
+    slots = is_best.to(torch.int64).cumsum(dim=1)[rows, cols] - 1
+    shell = torch.full((is_best.shape[0], max_shell), -1, dtype=torch.int64)
+    shell[rows, slots] = cols
+    neighbours = torch.full((IQ2_S_KMAP_SIZE, max_shell), -1, dtype=torch.int64)
+    neighbours[all_codes[off]] = shell
+    shell_len = (neighbours >= 0).sum(dim=1)
+    # grid indices fit int16 (cast at use)
+    return (
+        grid_levels,
+        kmap.to(torch.int16),
+        neighbours.to(torch.int16),
+        shell_len.to(torch.int16),
+    )
+
+
+_IQ2_S_SEARCH_BY_DEVICE: T.Dict[
+    str, T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+] = {}
+
+
+def _iq2_s_search(
+    device: torch.device,
+) -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Port of tract `build_search` (ggml `iq2_s` init, nearest shell only).
+
+    Returns:
+        (grid levels i64 (1024, 8) in [0, 2],
+         map i16 (KMAP_SIZE,): packed code to grid index or -1 off grid,
+         neighbours i16 (KMAP_SIZE, max_shell): grid indices of the
+         nearest shell in index order, padded with -1,
+         shell lengths i16 (KMAP_SIZE,): valid neighbours per code),
+        on `device`
+    """
+    key = str(device)
+    if key not in _IQ2_S_SEARCH_BY_DEVICE:
+        grid_levels, kmap, neighbours, shell_lens = _iq2_s_search_cpu()
+        _IQ2_S_SEARCH_BY_DEVICE[key] = (
+            grid_levels.to(device),
+            kmap.to(device),
+            neighbours.to(device),
+            shell_lens.to(device),
+        )
+    return _IQ2_S_SEARCH_BY_DEVICE[key]
+
+
+def _iq2_s_find_best_neighbour(
+    codes: torch.Tensor,
+    xval: torch.Tensor,
+    waux: torch.Tensor,
+    scale: torch.Tensor,
+) -> torch.Tensor:
+    """Port of tract `find_best_neighbour` for off grid octets.
+
+    Args:
+        codes: i64 (m,) off grid packed codes
+        xval: fp32 (m, 8) absolute values
+        waux: fp32 (m, 8) weights
+        scale: fp32 (m,) trial scale
+
+    Returns:
+        levels i64 (m, 8) of the best on grid neighbour
+    """
+    grid_levels, _, neighbours, shell_lens = _iq2_s_search(xval.device)
+    grid_f = (2 * grid_levels + 1).to(torch.float32)
+    shell_len = shell_lens[codes]
+    out = torch.empty(
+        (codes.shape[0], 8), dtype=torch.int64, device=codes.device
+    )
+    # shells are padded to a few widths to bound the wasted work
+    prev_width = 0
+    for width in IQ2_S_SHELL_WIDTHS + (neighbours.shape[1],):
+        sel_all = torch.nonzero(
+            (shell_len > prev_width) & (shell_len <= width)
+        ).reshape(-1)
+        prev_width = width
+        for start in range(0, sel_all.numel(), IQ2_S_NEIGHBOUR_CHUNK):
+            sel = sel_all[start : start + IQ2_S_NEIGHBOUR_CHUNK]
+            cands = neighbours[codes[sel], :width].to(torch.int64)
+            valid = cands >= 0
+            cands_ix = torch.where(valid, cands, torch.zeros_like(cands))
+            sc = scale[sel, None]
+            # gathered once per chunk: (c, 8) values, (c, width, 8) points
+            xs = xval[sel]
+            ws = waux[sel]
+            pts = grid_f[cands_ix]
+            # tract order: d2 += (w * diff) * diff, sequentially
+            d2 = torch.zeros(
+                cands.shape, dtype=torch.float32, device=cands.device
+            )
+            for k in range(8):
+                diff = sc * pts[:, :, k] - xs[:, k, None]
+                d2 = d2 + ws[:, k, None] * diff * diff
+            # tract strict `d2 < best` scan, first minimum wins on ties
+            # (torch argmin keeps the first too, this scan mirrors tract
+            # and is faster here); seeding `best` from the first
+            # candidate instead of tract `f32::MAX` only differs for
+            # inf/NaN distances (weights around 1e9 and above), rejected
+            # anyway by the f16 `d` overflow check (from about 1e7)
+            best_d2 = d2[:, 0]
+            pick = cands[:, 0]
+            for j in range(1, cands.shape[1]):
+                update = valid[:, j] & (d2[:, j] < best_d2)
+                best_d2 = torch.where(update, d2[:, j], best_d2)
+                pick = torch.where(update, cands[:, j], pick)
+            out[sel] = grid_levels[pick]
+    return out
+
+
+def _iq2_s_snap(
+    xval: torch.Tensor,
+    waux: torch.Tensor,
+    inv_scale: torch.Tensor,
+    scale: torch.Tensor,
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    """Port of tract `snap_octet` vectorized over (m, 8) octets.
+
+    Returns:
+        (levels i64 (m, 8) in [0, 2] on grid, on_grid bool (m,) before
+         the neighbour search)
+    """
+    _, kmap, _, _ = _iq2_s_search(xval.device)
+    levels = torch.clamp(
+        ggml_nearest_int(
+            ggml_f32(0.5) * (inv_scale[:, None] * xval - ggml_f32(1.0))
+        ),
+        0,
+        2,
+    ).to(torch.int64)
+    codes = _iq2_s_pack_levels(levels)
+    on_grid = kmap[codes] >= 0
+    off = torch.nonzero(~on_grid).reshape(-1)
+    if off.numel():
+        levels[off] = _iq2_s_find_best_neighbour(
+            codes[off], xval[off], waux[off], scale[off]
+        )
+    return levels, on_grid
+
+
+def _iq2_s_sums(
+    weight: torch.Tensor, xval: torch.Tensor, levels: torch.Tensor
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    """Group `sumqx` and `sumq2` over (g, 16) values, like tract."""
+    q = ggml_f32(2.0) * levels.to(torch.float32) + ggml_f32(1.0)
+    sumqx = ggml_seq_sum(weight * xval * q)
+    sumq2 = ggml_seq_sum(weight * q * q)
+    return sumqx, sumq2
+
+
+def _iq2_s_quantize_groups(
+    xb: torch.Tensor, sigma2: torch.Tensor
+) -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Port of tract IQ2_S `quantize_group` vectorized over (g, 16) groups.
+
+    Returns:
+        (scale fp32 (g,), grid levels i64 (g, 16) in [0, 2],
+         negative signs bool (g, 16)); skipped groups (below
+         `GROUP_MAX_EPS_IQ2_S`) get 0 everywhere.
+    """
+    zero = ggml_f32(0.0)
+    one = ggml_f32(1.0)
+    n_groups = xb.shape[0]
+    weight = ggml_f32(0.25) * sigma2[:, None] + xb * xb
+    waux = ggml_sqrt(weight)
+    neg = xb < 0
+    xval = torch.where(neg, -xb, xb)
+    max_x = xval.amax(dim=1)
+    skipped = max_x < ggml_f32(IQ2_S_GROUP_MAX_EPS)
+    max_x = torch.where(skipped, one, max_x)
+    xval_o = xval.reshape((n_groups * 2, 8))
+    waux_o = waux.reshape((n_groups * 2, 8))
+    levels = torch.zeros((n_groups, 16), dtype=torch.int64, device=xb.device)
+    best = torch.zeros((n_groups,), dtype=torch.float32, device=xb.device)
+    scale = max_x / ggml_f32(5.0)
+    on_grid = torch.ones((n_groups, 2), dtype=torch.bool, device=xb.device)
+    # huge weights overflow sums like in tract (rejected afterwards)
+    for step in range(-9, 10):
+        inv_scale = (ggml_f32(5.0) + ggml_f32(step) * ggml_f32(0.1)) / max_x
+        this_scale = one / inv_scale
+        aux, on_aux = _iq2_s_snap(
+            xval_o,
+            waux_o,
+            inv_scale.repeat_interleave(2),
+            this_scale.repeat_interleave(2),
+        )
+        aux = aux.reshape((n_groups, 16))
+        sumqx, sumq2 = _iq2_s_sums(weight, xval, aux)
+        update = (sumq2 > 0) & (sumqx * sumqx > best * sumq2)
+        new_scale = sumqx / sumq2
+        scale = torch.where(update, new_scale, scale)
+        best = torch.where(update, new_scale * sumqx, best)
+        levels = torch.where(update[:, None], aux, levels)
+        on_grid = torch.where(
+            update[:, None], on_aux.reshape((n_groups, 2)), on_grid
+        )
+    # off grid octets are snapped again with the best scale
+    refit = (~on_grid).any(dim=1) & (scale > 0)
+    redo = torch.nonzero((~on_grid & refit[:, None]).reshape(-1)).reshape(-1)
+    if redo.numel():
+        scale_o = scale.repeat_interleave(2)[redo]
+        levels_o = levels.reshape((n_groups * 2, 8)).clone()
+        levels_o[redo], _ = _iq2_s_snap(
+            xval_o[redo], waux_o[redo], one / scale_o, scale_o
+        )
+        levels = levels_o.reshape((n_groups, 16))
+        sumqx, sumq2 = _iq2_s_sums(weight, xval, levels)
+        scale = torch.where(refit & (sumq2 > 0), sumqx / sumq2, scale)
+    flip = scale < 0
+    scale = torch.where(flip, -scale, scale)
+    neg = neg ^ flip[:, None]
+    scale = torch.where(skipped, zero, scale)
+    levels = torch.where(skipped[:, None], torch.zeros_like(levels), levels)
+    neg = neg & ~skipped[:, None]
+    return scale, levels, neg
+
+
+def ggml_quant_iq2_s(
+    x: torch.Tensor,
+) -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """IQ2_S super-blocks (ggml `quantize_row_iq2_s_ref`, no imatrix).
+
+    Args:
+        x: fp32 (n, 256) super-blocks
+
+    Returns:
+        (d f16 (n,), 4bit group scales u8 (n, 16), u8 codes (n, 256),
+         see `QScaleGGMLIQ2S`)
+    """
+    n_blocks = x.shape[0]
+    assert x.shape[1] == QK_K, x.shape
+    x = x.to(torch.float32)
+    sigma2 = ggml_f32(2.0) * ggml_seq_sum(x * x) / ggml_f32(float(QK_K))
+    scales, levels, neg = _iq2_s_quantize_groups(
+        x.reshape((n_blocks * 16, 16)), sigma2.repeat_interleave(16)
+    )
+    scales = scales.reshape((n_blocks, 16))
+    max_scale = scales.amax(dim=1)
+    zero = max_scale == 0
+    # nibbles fit against max / 31, stored d is that times 0.9875
+    d = torch.where(zero, ggml_f32(1.0), max_scale / ggml_f32(31.0))
+    nibbles = torch.clamp(
+        ggml_nearest_int(
+            ggml_f32(0.5)
+            * ((ggml_f32(1.0) / d)[:, None] * scales - ggml_f32(1.0))
+        ),
+        0,
+        15,
+    ).to(torch.uint8)
+    # f16 overflow to inf is rejected by the calibration checks
+    d_f16 = (d * ggml_f32(0.9875)).to(torch.float16)
+    codes = (levels | (neg.to(torch.int64) << IQ2_S_SIGN_SHIFT)).reshape(
+        (n_blocks, QK_K)
+    )
+    # an all zero super-block is stored as zeros, like in ggml
+    d_f16 = torch.where(zero, torch.zeros_like(d_f16), d_f16)
+    nibbles = torch.where(zero[:, None], torch.zeros_like(nibbles), nibbles)
+    codes = torch.where(zero[:, None], torch.zeros_like(codes), codes)
+    return d_f16, nibbles, codes.to(torch.uint8)
+
+
+class QScaleGGMLIQ2S(QScaleGGMLK):
+    """ggml IQ2_S super-block scheme.
+
+    Per super-block of 256 values: f16 `d` (n,), and per group of 16
+    values a 4bit scale `scales` (n, 16). Each u8 code holds the grid
+    level of its value in bits 1-0 (0, 1 or 2 for magnitudes 8, 25 and
+    43) and its sign in bit 2 (set for negative), so codes are in
+    {0, 1, 2, 4, 5, 6}. A code dequantizes to
+    `(d * (0.5 + scale) * 0.25) * (magnitude * sign)`.
+
+    Each octet of 8 levels is a point of the ggml `kgrid_2bit_1024` grid
+    (its index is looked up when packed). Levels come from a search that
+    the parameters alone do not determine: `quantize_blocks` runs the
+    deterministic ggml quantizer again and checks it finds these
+    parameters.
+    """
+
+    SUB_LEN = 16
+    PARAM_NAMES = ("d", "scales")
+
+    def __init__(self, d: torch.Tensor, scales: torch.Tensor):
+        assert d.dtype == torch.float16, d.dtype
+        assert scales.dtype == torch.uint8, scales.dtype
+        assert scales.shape == (d.shape[0], 16), (scales.shape, d.shape)
+        self.d = d
+        self.scales = scales
+
+    @classmethod
+    def fit_blocks(cls, x, **settings):
+        d, scales, codes = ggml_quant_iq2_s(x)
+        return cls(d, scales), codes
+
+    def quantize_blocks(self, x):
+        """Codes of the ggml quantizer, checked against these parameters.
+
+        Raises:
+            T2NErrorMisuse: `x` quantizes to other parameters.
+        """
+        d, scales, codes = ggml_quant_iq2_s(x)
+        if not (
+            torch.equal(d.view(torch.int16), self.d.view(torch.int16))
+            and torch.equal(scales, self.scales)
+        ):
+            raise T2NErrorMisuse(
+                f"{IQ2_S_FORMAT_NAME} scheme parameters were not calibrated "
+                "on this tensor"
+            )
+        return codes
+
+    def sub_scales(self):
+        """F32 group scales `d * (0.5 + scale) * 0.25` like tract."""
+        return (
+            self.d.to(torch.float32)[:, None]
+            * (ggml_f32(0.5) + self.scales.to(torch.float32))
+            * ggml_f32(0.25)
+        )
+
+    def levels(self, codes):
+        """F32 signed grid magnitudes (multiplying by +-1 is exact)."""
+        code_bytes = torch.tensor(
+            IQ2_S_CODE_BYTE, dtype=torch.float32, device=codes.device
+        )
+        mags = code_bytes[(codes & IQ2_S_LEVEL_MASK).to(torch.int64)]
+        return torch.where((codes >> IQ2_S_SIGN_SHIFT) != 0, -mags, mags)
+
+
+class QTensorTractIQ2_S(QTensorTractGGMLK):  # noqa: N801
+    """Tract data format it serializes to: IQ2_S (ggml `block_iq2_s`).
+
+    Each super-block of 256 values is stored as 82 bytes (2.5625bpw):
+    f16 `d`, 32 low grid index bytes then 32 sign bytes (one per octet
+    of 8 values), 8 bytes of 2bit high grid index parts, then sixteen
+    4bit scales (one per group of 16 values).
+    Each octet is a point of the ggml 1024 entries `kgrid_2bit_1024`
+    grid (magnitudes in {8, 25, 43}), value is
+    `d * (0.5 + scale) * 0.25 * magnitude * sign`.
+
+    Its u8 storage holds one code per value (grid level and sign, see
+    `QScaleGGMLIQ2S`), grid indices are only looked up when written.
+
+    Quantization ports llama.cpp `quantize_row_iq2_s_ref` without
+    importance matrix (grid nearest neighbour search with a weighted
+    scale fit, about 2s per 16384 super-blocks on CPU), dequantization
+    matches tract bit exactly.
+
+    Warning:
+        tract (<= 0.23.10) only supports IQ2_S weights in
+        embedding/gathering operations: there is no matmul or convolution
+        kernel for it yet.
+
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_iq2_s.v1"
+    FORMAT_NAME = IQ2_S_FORMAT_NAME
+    BLOCK_BYTES = 82
+    ITEM_TYPE = DatBinHeader.TractCustomTypes.IQ2S
+    QSCHEME_CLS = QScaleGGMLIQ2S
+    # instance attribute: type notation for mypy
+    qscheme: QScaleGGMLIQ2S
+
+    @classmethod
+    def _pack_blocks(cls, codes, params, inference_target) -> np.ndarray:
+        n_blocks = codes.shape[0]
+        assert (codes >> (IQ2_S_SIGN_SHIFT + 1) == 0).all(), "bad IQ2_S code"
+        levels = (codes & IQ2_S_LEVEL_MASK).reshape((n_blocks, 32, 8))
+        _, kmap, _, _ = _iq2_s_search(codes.device)
+        # levels 3 are off the grid (packed codes above the map, or -1)
+        packed = _iq2_s_pack_levels(levels).clamp(max=IQ2_S_KMAP_SIZE - 1)
+        grid_index = torch.where(
+            (levels <= 2).all(dim=2),
+            kmap[packed].to(torch.int64),
+            torch.full_like(packed, -1),
+        )
+        assert (grid_index >= 0).all(), "IQ2_S octet is not on the grid"
+        neg = (codes >> IQ2_S_SIGN_SHIFT).to(torch.int64)
+        bits = torch.arange(8, dtype=torch.int64)
+        signs = (neg.reshape((n_blocks, 32, 8)) << bits).sum(dim=2)
+        # two high index bits per octet, four octets per qh byte
+        hi = (grid_index >> 8).reshape((n_blocks, 8, 4))
+        qh = (hi << (2 * torch.arange(4, dtype=torch.int64))).sum(dim=2)
+        nib = params["scales"]
+        return torch.cat(
+            [
+                ggml_f16_to_bytes(params["d"]),
+                (grid_index & 0xFF).to(torch.uint8),
+                signs.to(torch.uint8),
+                qh.to(torch.uint8),
+                nib[:, 0::2] | (nib[:, 1::2] << 4),
+            ],
+            dim=1,
+        ).numpy()
+
+
+def fp_to_tract_iq2_s(fp_tensor: torch.Tensor) -> QTensorTractIQ2_S:
+    """Quantize float tensor to tract supported IQ2_S (ggml reference).
+
+    Only use it on embedding weights (see `QTensorTractIQ2_S`).
+
+    Raises:
+        T2NErrorImpossibleQuantization: invalid dtype or shape, non finite
+            values, a super-block scale `d` that overflows f16, or that
+            underflows it for weights not negligible against the tensor
+            largest one.
+    """
+    qtensor = QTensorTractIQ2_S.from_fp(fp_tensor)
+    assert isinstance(qtensor, QTensorTractIQ2_S)
     return qtensor

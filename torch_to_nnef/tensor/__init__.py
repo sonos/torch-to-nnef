@@ -10,6 +10,7 @@ from torch_to_nnef.tensor.opaque import (
 from torch_to_nnef.tensor.quant import (
     QScalePerGroupF16,
     QTensor,
+    QTensorTractIQ2_S,
     QTensorTractQ2_0_T,
     QTensorTractQ4_K,
     QTensorTractQ5_K,
@@ -40,6 +41,7 @@ __all__ = [
     "QTensorTractQ8_0",
     "QTensorTractQ5_K",
     "QTensorTractQ6_K",
+    "QTensorTractIQ2_S",
     "QTensorTractQ8_1",
     "QTensorTractScaleOnly",
     "OpaqueTensorRef",

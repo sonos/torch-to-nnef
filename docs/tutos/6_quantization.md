@@ -44,6 +44,7 @@ per-tensor metadata.
 | [Q4_K](#q4_k-for-embeddings): 4.5 bpw, 256 weights per super-block (f16 `d`/`dmin`, 6-bit sub-block scales and mins) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q4_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q5_K](#q5_k-for-embeddings): 5.5 bpw, 256 weights per super-block (Q4_K header, 5-bit levels) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q5_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q6_K](#q6_k-for-embeddings): 6.5625 bpw, 256 weights per super-block (f16 `d`, 16 signed 8-bit sub-block scales, symmetric 6-bit levels) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_q6_K`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizers](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
+| [IQ2_S](#iq2_s-for-embeddings): 2.5625 bpw, 256 weights per super-block (f16 `d`, 4-bit group scales, 1024 point grid indices and sign bits per 8 weights) | Weight-only, **embeddings/gather only**, tract >= 0.23.10. No matmul or convolution support. | GGML's `block_iq2_s`: [block definitions](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h) and [reference quantizer and grid](https://github.com/ggml-org/ggml/blob/master/src/ggml-quants.c). Bytes are written exactly as GGML lays them out. |
 | [Q2_0_T](#q2_0_t-for-ternary-weights): 2.5 bpw, 32 ternary weights per f16 scale | Already-ternary weights, including Linear layers; **tract >= 0.23.11**. Does not insert activation quantization. | Related schemes include [BitNet b1.58](https://arxiv.org/abs/2402.17764) and [PrismML Ternary Bonsai](https://prismml.com/news/ternary-bonsai). Two-bit packing is related to GGML's [TQ2_0 family](https://github.com/ggml-org/ggml/blob/master/src/ggml-common.h); [tract defines the exact layout](https://github.com/sonos/tract/blob/main/linalg/src/frame/block_quant/q20t.rs). |
 | [Per-tensor affine int8](#per-tensor-8-bit-affine-layout): 8 bits per value, with separate scale/zero point | Weights and activations; supports integer arithmetic in quantized operators. | PyTorch's [per-tensor affine quantization API](https://docs.pytorch.org/docs/stable/generated/torch.quantize_per_tensor.html), exported as integer data plus NNEF `graph.quant` metadata. |
 
@@ -129,6 +130,8 @@ into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blo
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ5_K
     handler: python
 - ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractQ6_K
+    handler: python
+- ::: torch_to_nnef.tensor.quant.qtract_ggml.QTensorTractIQ2_S
     handler: python
 </div>
 
@@ -693,6 +696,126 @@ export and tensor offloading are supported.
 !!! warning "Requires tract 0.23.10 or newer"
 
     Q6_K export is rejected for older targets, including prerelease builds
+    below 0.23.10. Both normal and offloaded exports emit an explicit warning
+    before failing, and no tensor data is written.
+
+### IQ2_S for embeddings
+
+tract (>= 0.23.10) can also load GGML `IQ2_S` weights. Each super-block of 256
+weights is split into 16 groups of 16 weights, each made of 2 octets of 8
+weights. The super-block stores one f16 scale `d`, each group `g` a 4-bit scale
+`s[g]`, and each octet `o` a 10-bit index `idx[o]` into the 1024 entries GGML
+grid `kgrid_2bit_1024` plus 8 sign bits `sign[o]`. A grid point packs eight
+2-bit levels, each mapped to a magnitude in `{8, 25, 43}`. Weight `k` of octet
+`o` is:
+
+```text
+w[8o + k] = d * (0.5 + s[o / 2]) * 0.25 * grid[idx[o]][k] * (sign bit k of o ? -1 : 1)
+```
+
+Signs are stored exactly, so only magnitudes are approximated: each octet of
+magnitudes snaps to one of the 1024 grid points. The quantizer is a port of
+GGML's reference `quantize_row_iq2_s_ref` (19 step scale search, grid nearest
+neighbour search and a weighted scale refit, without importance matrix): on
+CPU its bytes match the tract `IQ2_S` quantizer, and llama.cpp
+`quantize_iq2_s` built without floating point contraction (`-ffp-contract=off`),
+and the exported dequantization matches tract bit exactly. Expect a much larger
+error than Q4_K (around 26% relative L2 error on gaussian weights).
+
+The grid search makes quantization slower than Q4_K: on an Apple M4 Pro CPU it
+takes about 2 seconds per 16384 super-blocks (4M weights), so around 4 to 5
+minutes for a 150k x 4096 embedding (about 1 minute with Q4_K).
+
+```mermaid
+flowchart LR
+    accTitle: IQ2_S super-block layout
+    accDescr: After the NNEF tensor header, each super-block stores an f16 d in bytes 0 and 1, the low 8 bits of the 32 octet grid indices in bytes 2 through 33, the 32 octet sign bytes in bytes 34 through 65, the 2 high bits of each grid index in bytes 66 through 73, and sixteen 4-bit group scales in bytes 74 through 81.
+    subgraph block["256 weights / 82 bytes / 2.5625 bpw"]
+        direction LR
+        d["Bytes 0-1<br/>f16 d"]
+        qs["Bytes 2-33<br/>32 x index low 8 bits"]
+        signs["Bytes 34-65<br/>32 x 8 sign bits"]
+        qh["Bytes 66-73<br/>32 x index high 2 bits"]
+        scales["Bytes 74-81<br/>16 x 4-bit scales"]
+        d --- qs --- signs --- qh --- scales
+    end
+```
+
+**Per octet and group fields**, for octet `o` in `[0, 31]` and group `g` in
+`[0, 15]`:
+
+| Block bytes | Content |
+| --- | --- |
+| `2 + o` | Bits 7-0 of `idx[o]` |
+| `34 + o` | `sign[o]`: bit `k` negates weight `8o + k` |
+| `66 + o / 4` | Bits `2 * (o % 4) + 1` and `2 * (o % 4)`: bits 9-8 of `idx[o]` |
+| `74 + g / 2` | Low nibble: `s[g]` for even `g`, high nibble: `s[g]` for odd `g` |
+
+```mermaid
+flowchart LR
+    accTitle: IQ2_S high index bits in byte 66
+    accDescr: Bits 7 and 6 hold the high index bits of octet 3, bits 5 and 4 of octet 2, bits 3 and 2 of octet 1, bits 1 and 0 of octet 0.
+    o3["Bits 7-6<br/>idx3 high"] --- o2["Bits 5-4<br/>idx2 high"] --- o1["Bits 3-2<br/>idx1 high"] --- o0["Bits 1-0<br/>idx0 high"]
+```
+
+| Grid level | 0 | 1 | 2 |
+| --- | --- | --- | --- |
+| Magnitude in group `g` | `8 * d * (0.5 + s[g]) / 4` | `25 * d * (0.5 + s[g]) / 4` | `43 * d * (0.5 + s[g]) / 4` |
+
+Grid level `k` of a point is bits `2k + 1` and `2k` of its `kgrid_2bit_1024`
+entry. The super-block occupies 82 bytes:
+`(16 + 32 * (10 + 8) + 16 * 4) / 256 = 2.5625 bpw`. The NNEF item type is
+`0x3222`.
+
+!!! note "Zero groups"
+
+    A group of 16 weights below `1e-8` in magnitude is skipped, as in GGML: it
+    keeps grid point 0 with positive signs, so inside a nonzero super-block it
+    dequantizes to small nonzero values (not exact zeros). An all-zero
+    super-block is stored as zeros and dequantizes to zeros.
+
+!!! warning
+
+    tract has no matmul or convolution kernel for `IQ2_S` weights yet: a `nn.Linear`
+    with `IQ2_S` weights fails at tract model optimization (no suitable kernel).
+    Only use it for embeddings (gather operator).
+
+The `ggml_iq2_s_embeddings` registry entry quantizes only `nn.Embedding` weights
+(weights tied with other modules like an LLM `lm_head` are left in float, so pick
+a model with untied embeddings like Qwen2.5 7B, whose 3584 wide rows are a
+multiple of 256):
+
+```bash
+t2n_export_llm_to_tract \
+    -s "Qwen/Qwen2.5-7B-Instruct" \
+    -dt f16 \
+    -e $HOME/qwen25_7B_iq2s_embeddings \
+    -c "ggml_iq2_s_embeddings"
+```
+
+Or directly on a tensor with [fp_to_tract_iq2_s](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract_ggml.py):
+
+```python
+from torch_to_nnef.tensor.quant import fp_to_tract_iq2_s
+
+with torch.no_grad():
+    embedding.weight = nn.Parameter(
+        fp_to_tract_iq2_s(embedding.weight), requires_grad=False
+    )
+```
+
+The input must be a nonempty, finite, floating tensor (f32, f16 or bf16, always
+quantized from f32) of rank 2 to 4, with the product of dimensions after the
+first divisible by 256: embeddings of other widths (like 896 or 1152) are left
+in float with an error log. A super-block scale `d` that overflows f16 is rejected.
+Nonzero super-blocks whose `d` underflows f16 dequantize to zeros: they are
+kept with a warning when their weights are negligible against the tensor
+largest one (below f16 precision of it), and rejected otherwise. Streaming
+export and tensor offloading are supported.
+
+!!! warning "Requires tract 0.23.10 or newer"
+
+    IQ2_S export is rejected for older targets, including prerelease builds
     below 0.23.10. Both normal and offloaded exports emit an explicit warning
     before failing, and no tensor data is written.
 

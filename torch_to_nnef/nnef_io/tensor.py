@@ -54,6 +54,7 @@ class DatBinHeader:
         Q4K = "4031"  # 0x3140: tract >= 0.23.10
         Q5K = "5031"  # 0x3150: tract >= 0.23.10
         Q6K = "6031"  # 0x3160: tract >= 0.23.10
+        IQ2S = "2232"  # 0x3222: tract >= 0.23.10
 
     def __init__(
         self,
