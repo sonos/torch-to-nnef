@@ -149,6 +149,20 @@ GGML_LLAMA_CPP_SHA256 = {
             "5dfcb461fb9367b40858fc2664809605b7a73abedcbe682402ab127ee8424449"
         ),
     },
+    "Q5_K": {
+        "normal": (
+            "11e64dff548a2650304b6b70509dd1a10f860617d95a8a5bf0b44717408b8181"
+        ),
+        "sparse": (
+            "7c95be149871262df8f1da3f89145acdb8662e347e967a00a47d1b66db09102b"
+        ),
+        "positive": (
+            "a5f617f56d5466a763dc5c67ea911f99362fd4d8a62b372cf189640f6e4e58f0"
+        ),
+        "heavy": (
+            "b6f668e2012ddfe6bf63b24145bd745b6cdf3fc6056baa3aa2ec9129c1e9e432"
+        ),
+    },
 }
 
 
@@ -327,8 +341,12 @@ def test_q4k_keeps_fp_tensor_device():
 
 @pytest.mark.parametrize(
     "fp_to_qtensor",
-    [fp_to_tract_q4_k, fp_to_tract_q4_0_with_min_max_calibration],
-    ids=["q4_k", "q4_0"],
+    [
+        fp_to_tract_q4_k,
+        fp_to_tract_q5_k,
+        fp_to_tract_q4_0_with_min_max_calibration,
+    ],
+    ids=["q4_k", "q5_k", "q4_0"],
 )
 def test_qtensor_to_keeps_codes_and_source(fp_to_qtensor):
     fp_tensor = torch.randn(4, 256, generator=torch.Generator().manual_seed(0))
@@ -493,6 +511,10 @@ def test_q5k_matches_ggml_reference(zeros, expected_hex, values):
     _check_ggml_reference(
         fp_to_tract_q5_k, _ggml_ramp(256, zeros), expected_hex, values
     )
+
+
+def test_q5k_matches_llama_cpp_on_random_super_blocks():
+    _check_ggml_llama_cpp_hashes(fp_to_tract_q5_k, "Q5_K")
 
 
 def test_q5k_dat_content_layout(tmp_path):
