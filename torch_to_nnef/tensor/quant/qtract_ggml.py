@@ -513,9 +513,11 @@ def _iq2_s_search() -> T.Tuple[np.ndarray, np.ndarray, np.ndarray]:
     d2 = ((odd[:, None, :] - grid[None].astype(np.int32)) ** 2).sum(axis=-1)
     is_best = d2 == d2.min(axis=1, keepdims=True)
     max_shell = int(is_best.sum(axis=1).max())
-    # stable sort keeps the shell in grid index order (ggml qsort order)
-    order = np.argsort(~is_best, axis=1, kind="stable")[:, :max_shell]
-    shell = np.where(np.take_along_axis(is_best, order, axis=1), order, -1)
+    # shell kept in grid index order (ggml qsort order), integer ops only
+    rows, cols = np.nonzero(is_best)
+    slots = np.cumsum(is_best, axis=1)[rows, cols] - 1
+    shell = np.full((is_best.shape[0], max_shell), -1, dtype=np.int32)
+    shell[rows, slots] = cols
     neighbours = np.full((IQ2_S_KMAP_SIZE, max_shell), -1, dtype=np.int32)
     neighbours[all_codes[off]] = shell
     return grid, kmap, neighbours
@@ -556,10 +558,14 @@ def _iq2_s_find_best_neighbour(
             for k in range(8):
                 diff = sc * grid_t[k][cands_ix] - xval[sel, k, None]
                 d2 += waux[sel, k, None] * diff * diff
-            d2 = np.where(valid, d2, f32(np.inf))
-            # first minimum, like tract strict `d2 < best` scan
-            best = np.argmin(d2, axis=1)
-            pick = np.take_along_axis(cands, best[:, None], axis=1)[:, 0]
+            # tract strict `d2 < best` scan: first minimum wins on ties
+            # (no `np.argmin`: its SIMD tie breaking is platform dependent)
+            best_d2 = d2[:, 0]
+            pick = cands[:, 0]
+            for j in range(1, width):
+                update = valid[:, j] & (d2[:, j] < best_d2)
+                best_d2 = np.where(update, d2[:, j], best_d2)
+                pick = np.where(update, cands[:, j], pick)
             out[sel] = (grid[pick] - 1) // 2
     return out
 
