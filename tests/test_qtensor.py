@@ -1101,9 +1101,7 @@ def test_q4k_rejects_invalid_weights(weight):
 
 
 @skipif_unsupported_qtensor
-@pytest.mark.parametrize(
-    "version", ["0.22.1", "0.23.9", "0.23.10-pre", "0.23.10-rc.1"]
-)
+@pytest.mark.parametrize("version", ["0.23.9", "0.23.10-pre", "0.23.10-rc.1"])
 def test_q4k_rejects_old_tract(tmp_path, caplog, version):
     _check_ggml_rejects_old_tract(
         tmp_path, caplog, fp_to_tract_q4_k(torch.randn(2, 256)), version
@@ -1111,7 +1109,9 @@ def test_q4k_rejects_old_tract(tmp_path, caplog, version):
 
 
 @skipif_unsupported_qtensor
-@pytest.mark.parametrize("version", ["0.23.10", "0.23.11", "0.23.11-pre"])
+@pytest.mark.parametrize(
+    "version", ["0.23.10", "0.23.10+build.1", "0.23.11-pre", "0.23.11"]
+)
 def test_q4k_offload_state_write(tmp_path, version):
     _check_ggml_offload_state_write(
         tmp_path, fp_to_tract_q4_k(torch.randn(4, 512)), _tract_target(version)

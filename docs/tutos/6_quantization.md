@@ -30,7 +30,7 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-To date tract support those kinds of quantization:
+The exporter supports these tract quantization formats:
 
 - Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - Q8_1: [GGML style](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) 8bit weights only quantization, supported by tract (>= 0.23.0) **only on embedding/gathering operations** (see [Q8_1 for embeddings](#q8_1-for-embeddings)).
