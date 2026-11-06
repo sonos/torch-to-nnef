@@ -163,6 +163,10 @@ def quantize_weights_ggml_Q4_K(model: nn.Module, **kwargs):  # noqa: N802
     tract only supports Q4_K weights for embedding/gathering operations
     so only `nn.Embedding` (or subclasses) can be quantized.
     """
+    if "percentile" in kwargs:
+        raise T2NErrorMisuse(
+            "the ggml Q4_K quantizer has no percentile calibration"
+        )
     return _quantize_embeddings_min_max(
         model, fp_to_tract_q4_k, "q4k_ggml", "Q4_K", **kwargs
     )
