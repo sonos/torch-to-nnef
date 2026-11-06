@@ -48,6 +48,8 @@ from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TRACT_INFERENCES_TO_TESTS_EXACT,
     check_model_io_test,
+    check_rejects_old_tract,
+    old_tract_versions,
     skipif_no_meta_opaque_tracing,
     skipif_unsupported_qtensor,
 )
@@ -777,6 +779,21 @@ def test_q81_unsupported_before_tract_0_23(tmp_path):
         qtensor.write_in_file(
             tmp_path, "weight", TractNNEF("0.22.1", check_io=False)
         )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "version",
+    ["0.22.1"] + old_tract_versions(QTensorTractQ8_1.MIN_TRACT_VERSION),
+)
+def test_q81_old_tract_warns_with_upgrade_hint(tmp_path, caplog, version):
+    """Q8_1 inherits the shared tract version gate."""
+    check_rejects_old_tract(
+        tmp_path,
+        caplog,
+        fp_to_tract_q8_1_with_min_max_calibration(torch.randn(2, 32)),
+        version,
+    )
 
 
 @skipif_unsupported_qtensor

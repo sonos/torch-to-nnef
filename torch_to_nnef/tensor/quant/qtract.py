@@ -23,6 +23,7 @@ from torch_to_nnef.tensor.opaque import (
 )
 from torch_to_nnef.tensor.quant.base import (
     QScalePerGroupF16,
+    QScheme,
     QTensor,
     qscale_per_group_f16_min_max_calibration,
 )
@@ -34,7 +35,271 @@ class QTensorTract(QTensor):
     """All QTensorTract implementations."""
 
 
-class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
+def check_block_quant_input(
+    fp_tensor: torch.Tensor, block_len: int, format_name: str
+) -> None:
+    """Reject weights a tract block quantization format can not store.
+
+    tract reads block quantized `.dat` as `shape[0]` rows of
+    `prod(shape[1:])` values split in blocks of `block_len`.
+
+    Raises:
+        T2NErrorImpossibleQuantization: non floating, empty, rank not in
+            2..4, `prod(shape[1:])` not a multiple of `block_len` or
+            non finite values.
+    """
+    if not fp_tensor.is_floating_point():
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} requires floating weights "
+            f"but found {fp_tensor.dtype}"
+        )
+    if fp_tensor.numel() == 0:
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} requires nonempty weights "
+            f"but found shape {tuple(fp_tensor.shape)}"
+        )
+    if fp_tensor.ndim not in (2, 3, 4):
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} does only support weight "
+            f"of rank 2 to 4 but found shape {tuple(fp_tensor.shape)}"
+        )
+    if reduce(operator.mul, fp_tensor.shape[1:]) % block_len != 0:
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} requires flattened rows "
+            f"(prod(shape[1:])) divisible by {block_len} but found "
+            f"shape {tuple(fp_tensor.shape)}"
+        )
+    if not torch.isfinite(fp_tensor).all():
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} requires finite weights"
+        )
+
+
+def check_f16_scales(
+    scales: T.Union[torch.Tensor, np.ndarray],
+    format_name: str,
+    nonzero_mask: T.Optional[T.Union[torch.Tensor, np.ndarray]] = None,
+    scale_name: str = "scale",
+) -> None:
+    """Reject f16 rounded block scales out of f16 range.
+
+    Args:
+        scales: block scales already rounded to f16.
+        format_name: format named in the error message.
+        nonzero_mask: same shape as `scales`, True where the scale
+            represents nonzero weights. When given, such scales rounded
+            to 0 are rejected (f16 underflow would erase those weights).
+        scale_name: scale named in the error message.
+
+    Raises:
+        T2NErrorImpossibleQuantization: on f16 overflow (inf) or underflow.
+    """
+    if isinstance(scales, torch.Tensor):
+        scales = scales.detach().cpu().float().numpy()
+    if isinstance(nonzero_mask, torch.Tensor):
+        nonzero_mask = nonzero_mask.detach().cpu().numpy()
+    if not np.isfinite(scales).all():
+        raise T2NErrorImpossibleQuantization(
+            f"tract {format_name} block {scale_name} overflows f16: "
+            "weights magnitude is too large"
+        )
+    if nonzero_mask is not None:
+        underflow = np.asarray(nonzero_mask, dtype=bool) & (scales == 0)
+        if underflow.any():
+            raise T2NErrorImpossibleQuantization(
+                f"tract {format_name} block {scale_name} underflows f16: "
+                f"{int(underflow.sum())} nonzero block(s) would dequantize "
+                "to zeros (weights magnitude is too small)"
+            )
+
+
+class QTensorTractDat(QTensorTract, SupportsOffloadState):
+    """Common base of QTensor serialized as tract custom `.dat` item types.
+
+    It handles offload state, tract version gating and the `.dat` file
+    writing workflow. Subclasses implement
+    `_write_binary_dat_from_qtensor_parts` which dumps header and content
+    from a (decompressed) u8 storage and its qscheme.
+
+    """
+
+    FORMAT_NAME: str
+    # number of values and bytes of each serialized block
+    BLOCK_LEN: int
+    BLOCK_BYTES: int
+    MIN_TRACT_VERSION: T.Optional[str] = None
+    # appended to the version gate warning when set
+    VERSION_GATE_NOTE: T.Optional[str] = None
+    decompressed_shape: T.Tuple[int, ...]
+
+    def to_offload_state(self) -> T.Dict[str, T.Any]:
+        return {
+            OFFLOAD_STATE_KEY: self.OFFLOAD_STATE_TAG,
+            "shape": tuple(self.shape),
+            "dtype": self.dtype,
+            "u8_blob": self.u8_blob,
+            "u8_compressors": self.u8_compressors,
+            "qscheme": self.qscheme,
+            "dequant_to_dtype": self.dequant_to_dtype,
+            "nnef_name": self.nnef_name,
+            "decompressed_shape": tuple(self.decompressed_shape),
+        }
+
+    def _load_extra_offload_state(self, state):
+        """Restore format specific attributes from offload state."""
+
+    @classmethod
+    def _check_offload_state(cls, state):
+        """Format specific sanity checks of an offload state."""
+
+    @classmethod
+    def from_offload_state(cls, state, target_device=None):
+        assert cls.is_offload_state(state), state
+        # Fallback reload path only: rebuild the Tensor subclass shell on CPU
+        # from the compact state. The fp-shaped buffer is an uninitialized
+        # placeholder (never read: decompression uses u8_blob), so it stays
+        # cheap. Large NNEF exports skip this entirely via the direct
+        # offload-state writer (write_offload_state_in_file).
+        fp_placeholder = torch.empty(state["shape"], dtype=state["dtype"])
+        qtensor = cls.__new__(
+            cls,
+            fp_placeholder,
+            state["qscheme"],
+            dequant_to_dtype=state["dequant_to_dtype"],
+        )
+        qtensor.u8_compressors = state["u8_compressors"]
+        qtensor.u8_blob = state["u8_blob"]
+        qtensor.qscheme = state["qscheme"]
+        qtensor.dequant_to_dtype = state["dequant_to_dtype"]
+        qtensor.nnef_name = state["nnef_name"]
+        qtensor.requires_grad = False
+        qtensor.decompressed_shape = state["decompressed_shape"]
+        qtensor._load_extra_offload_state(state)
+        if target_device is not None and qtensor.device != target_device:
+            qtensor.to_device(target_device)
+        return qtensor
+
+    @classmethod
+    def _check_inference_target_support(cls, inference_target: TractNNEF):
+        """Warn with an upgrade hint then raise below `MIN_TRACT_VERSION`.
+
+        Called before any tensor data is written.
+        """
+        if (
+            cls.MIN_TRACT_VERSION is not None
+            and inference_target.version < cls.MIN_TRACT_VERSION
+        ):
+            msg = (
+                f"{cls.FORMAT_NAME} export requires tract >= "
+                f"{cls.MIN_TRACT_VERSION}; target is "
+                f"{inference_target.version}. Upgrade tract before "
+                f"exporting {cls.FORMAT_NAME} weights."
+            )
+            if cls.VERSION_GATE_NOTE:
+                msg = f"{msg} {cls.VERSION_GATE_NOTE}"
+            LOGGER.warning(msg)
+            raise T2NErrorNotImplemented(
+                f"tract {cls.FORMAT_NAME} export requires tract >= "
+                f"{cls.MIN_TRACT_VERSION} but got {inference_target.version}"
+            )
+
+    @staticmethod
+    def _decompress_u8_blob(u8_blob, u8_compressors):
+        decompress_u8 = u8_blob
+        for u8_compressor in reversed(u8_compressors or []):
+            decompress_u8 = u8_compressor.decompress(decompress_u8)
+        return decompress_u8
+
+    @classmethod
+    def _write_binary_dat_from_qtensor_parts(
+        cls,
+        path: Path,
+        decompressed_shape,
+        u8_blob: torch.Tensor,
+        qscheme: QScheme,
+        inference_target: TractNNEF,
+    ):
+        raise T2NErrorNotImplemented()
+
+    @staticmethod
+    def _assert_same_as_existing_dat(path: Path, write_fn) -> None:
+        """Raise if `write_fn(dirpath)` would not reproduce existing `path`."""
+        with tempfile.TemporaryDirectory() as _td:
+            td = Path(_td)
+            write_fn(td)
+            new_path = td / path.name
+            assert new_path.exists(), new_path
+            if filecmp.cmp(path, new_path):
+                return
+        raise T2NErrorNotImplemented(
+            "At least 2 variables in the NNEF graph, "
+            f"share same Parameters: '{path.stem}' but they try "
+            "to use different data-type (likely quantization format). "
+            "This variable collision as no resolution strategy yet."
+        )
+
+    @classmethod
+    def write_offload_state_in_file(
+        cls,
+        state,
+        dirpath: T.Union[str, Path],
+        label: str,
+        inference_target: T.Optional[InferenceTarget] = None,
+    ):
+        assert cls.is_offload_state(state), state
+        if inference_target is None:
+            inference_target = TractNNEF.latest()
+        path = Path(dirpath) / f"{label}.dat"
+        if path.exists():
+            cls._assert_same_as_existing_dat(
+                path,
+                lambda td: cls.write_offload_state_in_file(
+                    state, td, label, inference_target=inference_target
+                ),
+            )
+            return
+        assert isinstance(inference_target, TractNNEF), inference_target
+        cls._check_inference_target_support(inference_target)
+        cls._check_offload_state(state)
+        cls._write_binary_dat_from_qtensor_parts(
+            path,
+            state["decompressed_shape"],
+            cls._decompress_u8_blob(state["u8_blob"], state["u8_compressors"]),
+            state["qscheme"],
+            inference_target,
+        )
+
+    def write_in_file(
+        self,
+        dirpath: T.Union[str, Path],
+        label: str,
+        inference_target: T.Optional[InferenceTarget] = None,
+    ):
+        if inference_target is None:
+            inference_target = TractNNEF.latest()
+        path = Path(dirpath) / f"{label}.dat"
+        # already created a variable dump with that name:
+        # check we would produce identical serialized data
+        if path.exists():
+            self._assert_same_as_existing_dat(
+                path,
+                lambda td: self.write_in_file(
+                    td, label, inference_target=inference_target
+                ),
+            )
+            return
+        assert isinstance(inference_target, TractNNEF), inference_target
+        self._check_inference_target_support(inference_target)
+        self._write_binary_dat_from_qtensor_parts(
+            path,
+            self.decompressed_shape,
+            self.decompress_to_u8(),
+            self.qscheme,
+            inference_target,
+        )
+
+
+class QTensorTractBlockQuant(QTensorTractDat):
     """Common base of tract GGML-like block quantization formats.
 
     Values are quantized per group of `GROUP_SIZE` elements sharing a f16
@@ -43,14 +308,11 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
 
     """
 
-    FORMAT_NAME: str
     N_BITS: int
     GROUP_SIZE = 32
-    # bytes per serialized group of GROUP_SIZE elements
-    BLOCK_BYTES: int
+    BLOCK_LEN = GROUP_SIZE
     # calibration default, see qscale_per_group_f16_min_max_calibration
     RESTRICTED_RANGE = False
-    MIN_TRACT_VERSION: T.Optional[str] = None
     qscheme: QScalePerGroupF16  # type notation for mypy
 
     def __init__(self, *args, **kwargs):
@@ -86,59 +348,9 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
         """Pack (n_groups, GROUP_SIZE) u8 values + (n_groups,) f16 scales."""
         raise T2NErrorNotImplemented()
 
-    def to_offload_state(self) -> T.Dict[str, T.Any]:
-        return {
-            OFFLOAD_STATE_KEY: self.OFFLOAD_STATE_TAG,
-            "shape": tuple(self.shape),
-            "dtype": self.dtype,
-            "u8_blob": self.u8_blob,
-            "u8_compressors": self.u8_compressors,
-            "qscheme": self.qscheme,
-            "dequant_to_dtype": self.dequant_to_dtype,
-            "nnef_name": self.nnef_name,
-            "decompressed_shape": tuple(self.decompressed_shape),
-        }
-
-    def _load_extra_offload_state(self, state):
-        """Restore format specific attributes from offload state."""
-
     @classmethod
-    def from_offload_state(cls, state, target_device=None):
-        assert cls.is_offload_state(state), state
-        # Fallback reload path only: rebuild the Tensor subclass shell on CPU
-        # from the compact state. The fp-shaped buffer is an uninitialized
-        # placeholder (never read: decompression uses u8_blob), so it stays
-        # cheap. Large NNEF exports skip this entirely via the direct
-        # offload-state writer (write_offload_state_in_file).
-        fp_placeholder = torch.empty(state["shape"], dtype=state["dtype"])
-        qtensor = cls.__new__(
-            cls,
-            fp_placeholder,
-            state["qscheme"],
-            dequant_to_dtype=state["dequant_to_dtype"],
-        )
-        qtensor.u8_compressors = state["u8_compressors"]
-        qtensor.u8_blob = state["u8_blob"]
-        qtensor.qscheme = state["qscheme"]
-        qtensor.dequant_to_dtype = state["dequant_to_dtype"]
-        qtensor.nnef_name = state["nnef_name"]
-        qtensor.requires_grad = False
-        qtensor.decompressed_shape = state["decompressed_shape"]
-        qtensor._load_extra_offload_state(state)
-        if target_device is not None and qtensor.device != target_device:
-            qtensor.to_device(target_device)
-        return qtensor
-
-    @classmethod
-    def _check_inference_target_support(cls, inference_target: TractNNEF):
-        if (
-            cls.MIN_TRACT_VERSION is not None
-            and inference_target.version < cls.MIN_TRACT_VERSION
-        ):
-            raise T2NErrorNotImplemented(
-                f"tract {cls.FORMAT_NAME} export requires tract >= "
-                f"{cls.MIN_TRACT_VERSION} but got {inference_target.version}"
-            )
+    def _check_offload_state(cls, state):
+        assert state["qscheme"].group_size == cls.GROUP_SIZE, state["qscheme"]
 
     @classmethod
     def _build_binary_dat_header_for_shape(
@@ -148,14 +360,8 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
             cls._item_type(inference_target),
             decompressed_shape,
             block_bytes=cls.BLOCK_BYTES,
+            block_len=cls.BLOCK_LEN,
         ).to_bytes()
-
-    @staticmethod
-    def _decompress_u8_blob(u8_blob, u8_compressors):
-        decompress_u8 = u8_blob
-        for u8_compressor in reversed(u8_compressors or []):
-            decompress_u8 = u8_compressor.decompress(decompress_u8)
-        return decompress_u8
 
     @classmethod
     def _iter_binary_dat_content_chunks(
@@ -212,81 +418,18 @@ class QTensorTractBlockQuant(QTensorTract, SupportsOffloadState):
             ):
                 fh.write(chunk)
 
-    @staticmethod
-    def _assert_same_as_existing_dat(path: Path, write_fn) -> None:
-        """Raise if `write_fn(dirpath)` would not reproduce existing `path`."""
-        with tempfile.TemporaryDirectory() as _td:
-            td = Path(_td)
-            write_fn(td)
-            new_path = td / path.name
-            assert new_path.exists(), new_path
-            if filecmp.cmp(path, new_path):
-                return
-        raise T2NErrorNotImplemented(
-            "At least 2 variables in the NNEF graph, "
-            f"share same Parameters: '{path.stem}' but they try "
-            "to use different data-type (likely quantization format). "
-            "This variable collision as no resolution strategy yet."
-        )
-
     @classmethod
-    def write_offload_state_in_file(
+    def _write_binary_dat_from_qtensor_parts(
         cls,
-        state,
-        dirpath: T.Union[str, Path],
-        label: str,
-        inference_target: T.Optional[InferenceTarget] = None,
+        path: Path,
+        decompressed_shape,
+        u8_blob: torch.Tensor,
+        qscheme: QScheme,
+        inference_target: TractNNEF,
     ):
-        assert cls.is_offload_state(state), state
-        if inference_target is None:
-            inference_target = TractNNEF.latest()
-        path = Path(dirpath) / f"{label}.dat"
-        if path.exists():
-            cls._assert_same_as_existing_dat(
-                path,
-                lambda td: cls.write_offload_state_in_file(
-                    state, td, label, inference_target=inference_target
-                ),
-            )
-            return
-        assert isinstance(inference_target, TractNNEF), inference_target
-        cls._check_inference_target_support(inference_target)
-        assert state["qscheme"].group_size == cls.GROUP_SIZE, state["qscheme"]
+        assert isinstance(qscheme, QScalePerGroupF16), qscheme
         cls._write_binary_dat_from_parts(
-            path,
-            state["decompressed_shape"],
-            cls._decompress_u8_blob(state["u8_blob"], state["u8_compressors"]),
-            state["qscheme"].scale,
-            inference_target,
-        )
-
-    def write_in_file(
-        self,
-        dirpath: T.Union[str, Path],
-        label: str,
-        inference_target: T.Optional[InferenceTarget] = None,
-    ):
-        if inference_target is None:
-            inference_target = TractNNEF.latest()
-        path = Path(dirpath) / f"{label}.dat"
-        # already created a variable dump with that name:
-        # check we would produce identical serialized data
-        if path.exists():
-            self._assert_same_as_existing_dat(
-                path,
-                lambda td: self.write_in_file(
-                    td, label, inference_target=inference_target
-                ),
-            )
-            return
-        assert isinstance(inference_target, TractNNEF), inference_target
-        self._check_inference_target_support(inference_target)
-        self._write_binary_dat_from_parts(
-            path,
-            self.decompressed_shape,
-            self.decompress_to_u8(),
-            self.qscheme.scale,
-            inference_target,
+            path, decompressed_shape, u8_blob, qscheme.scale, inference_target
         )
 
 
@@ -379,6 +522,93 @@ class QTensorTractScaleOnly(QTensorTractBlockQuant):
         return b_all
 
 
+class _TernaryScalePerGroupF16(QScalePerGroupF16):
+    def quantize_as_u8(self, fp_tensor):
+        groups = fp_tensor.detach().reshape(-1, 32)
+        magnitudes = groups.abs().amax(dim=1, keepdim=True)
+        if (
+            not torch.isfinite(groups).all()
+            or not ((groups == 0) | (groups.abs() == magnitudes)).all()
+        ):
+            raise T2NErrorImpossibleQuantization(
+                "Q2_0_T requires finite ternary weights per group of 32"
+            )
+        if not torch.equal(magnitudes.to(torch.float16), self.scale):
+            raise T2NErrorImpossibleQuantization("Q2_0_T scale mismatch")
+        check_f16_scales(self.scale, "Q2_0_T", nonzero_mask=magnitudes != 0)
+        return (fp_tensor.sign() + 1).to(torch.uint8)
+
+    def dequantize(self, u8_tensor, target_dtype):
+        values = u8_tensor.reshape(-1, 32).to(target_dtype) - 1
+        return (values * self.scale.to(target_dtype)).reshape(u8_tensor.shape)
+
+
+class QTensorTractQ2_0_T(QTensorTractBlockQuant):  # noqa: N801
+    """Tract ternary weights: f16 scale and 32 two-bit codes per block.
+
+    Use `ternary_to_tract_q2_0_t` to construct from existing ternary weights.
+    Codes 0, 1 and 2 represent -scale, zero and +scale. Each block occupies
+    10 bytes, with four consecutive codes packed low bits first per byte.
+    Export requires tract >= 0.23.11; older targets warn and are rejected.
+    """
+
+    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q2_0_t.v1"
+    FORMAT_NAME = "Q2_0_T"
+    N_BITS = 2
+    BLOCK_BYTES = 10
+    MIN_TRACT_VERSION = "0.23.11"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not isinstance(self.qscheme, _TernaryScalePerGroupF16):
+            raise T2NErrorImpossibleQuantization(
+                "Q2_0_T requires its ternary scale scheme"
+            )
+
+    @classmethod
+    def _item_type(cls, inference_target):
+        return DatBinHeader.TractCustomTypes.Q20T
+
+    @classmethod
+    def _pack_groups(cls, u8_groups, scale, inference_target):
+        codes = u8_groups.numpy().reshape(-1, 8, 4)
+        blocks = np.empty((len(codes), cls.BLOCK_BYTES), dtype=np.uint8)
+        blocks[:, :2] = (
+            scale.numpy().astype("<f2").view(np.uint8).reshape(-1, 2)
+        )
+        blocks[:, 2:] = (
+            codes[:, :, 0]
+            | (codes[:, :, 1] << 2)
+            | (codes[:, :, 2] << 4)
+            | (codes[:, :, 3] << 6)
+        )
+        return blocks
+
+
+def ternary_to_tract_q2_0_t(fp_tensor: torch.Tensor) -> QTensorTractQ2_0_T:
+    """Pack existing ternary weights, rounding only their scales to f16.
+
+    Accepts floating tensors of rank 2 to 4 whose flattened rows are a
+    multiple of 32. Each consecutive group of 32 must contain only zero
+    and a single absolute nonzero value. Larger source groups (e.g. 128)
+    naturally split into blocks of 32. All-zero blocks are supported.
+
+    Raises:
+        T2NErrorImpossibleQuantization: Invalid shape, non-ternary values,
+            or nonzero scales that overflow or underflow in f16.
+    """
+    check_block_quant_input(
+        fp_tensor, QTensorTractQ2_0_T.BLOCK_LEN, QTensorTractQ2_0_T.FORMAT_NAME
+    )
+    with torch.no_grad():
+        fp_tensor = fp_tensor.detach()
+        scale = fp_tensor.reshape(-1, 32).abs().amax(dim=1, keepdim=True)
+        scheme = _TernaryScalePerGroupF16(32, scale, 2)
+        return QTensorTractQ2_0_T(
+            fp_tensor, qscheme=scheme, dequant_to_dtype=fp_tensor.dtype
+        )
+
+
 class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
     """Tract data format it serializes to: Q8_1 (GGML style).
 
@@ -434,73 +664,6 @@ class QTensorTractQ8_1(QTensorTractBlockQuant):  # noqa: N801
         b_all[:, :2] = scale.numpy().view(np.uint8).reshape(n_groups, 2)
         b_all[:, 2:4] = group_sum.numpy().view(np.uint8).reshape(n_groups, 2)
         b_all[:, 4:] = i8_vals.numpy().view(np.uint8)
-        return b_all
-
-
-class QTensorTractQ8_0(QTensorTractBlockQuant):  # noqa: N801
-    """Tract data format it serializes to: Q8_0 (GGML style).
-
-    Each group of 32 values is stored as 34 bytes:
-    f16 scale, then 32 int8 (GGML `block_q8_0`).
-
-    Warning:
-        tract (<= 0.23.10) only supports Q8_0 weights in embedding/gathering
-        operations: there is no matmul or convolution kernel for it yet.
-        Export requires tract >= 0.23.10; older targets warn and are rejected.
-
-    """
-
-    OFFLOAD_STATE_TAG = "torch_to_nnef.qtensor_tract_q8_0.v1"
-    FORMAT_NAME = "Q8_0"
-    N_BITS = 8
-    BLOCK_BYTES = 34
-    # GGML Q8 convention: d = absmax / 127, int8 values in [-127, 127]
-    RESTRICTED_RANGE = True
-    # before 0.23.10 tract item type 0x3080 meant Q8_1
-    MIN_TRACT_VERSION = "0.23.10"
-
-    @classmethod
-    def _check_inference_target_support(cls, inference_target: TractNNEF):
-        if inference_target.version < cls.MIN_TRACT_VERSION:
-            LOGGER.warning(
-                "Q8_0 export requires tract >= %s; target is %s "
-                "(older tract reads item type 0x3080 as Q8_1). "
-                "Upgrade tract before exporting Q8_0 weights.",
-                cls.MIN_TRACT_VERSION,
-                inference_target.version,
-            )
-        super()._check_inference_target_support(inference_target)
-
-    def decompress(self):
-        """Dequantize like tract Q8_0: in f32, then cast to target dtype."""
-        assert self.qscheme is not None
-        return self.qscheme.dequantize(
-            self.decompress_to_u8(), target_dtype=torch.float32
-        ).to(self.dequant_to_dtype)
-
-    @classmethod
-    def _item_type(
-        cls, inference_target: TractNNEF
-    ) -> DatBinHeader.TractCustomTypes:
-        return DatBinHeader.TractCustomTypes.Q80
-
-    @classmethod
-    def _pack_groups(
-        cls,
-        u8_groups: torch.Tensor,
-        scale: torch.Tensor,
-        inference_target: TractNNEF,
-    ) -> np.ndarray:
-        n_groups = u8_groups.shape[0]
-        # u8 storage is offset by 2**(n_bits-1). Calibration scales are
-        # negative: flip both signs (exact, values in [-127, 127]) to write
-        # the positive GGML `d = absmax / 127` scale.
-        i8_vals = (2 ** (cls.N_BITS - 1) - u8_groups.to(torch.int16)).to(
-            torch.int8
-        )
-        b_all = np.empty((n_groups, cls.BLOCK_BYTES), dtype=np.uint8)
-        b_all[:, :2] = (-scale).numpy().view(np.uint8).reshape((n_groups, 2))
-        b_all[:, 2:] = i8_vals.numpy().view(np.uint8)
         return b_all
 
 
@@ -566,60 +729,3 @@ def fp_to_tract_q8_1_with_min_max_calibration(
     return _fp_to_tract_block_quant_with_min_max_calibration(
         fp_tensor, QTensorTractQ8_1, percentile
     )
-
-
-def fp_to_tract_q8_0_with_min_max_calibration(
-    fp_tensor, percentile: float = 1.0
-) -> QTensorTractQ8_0:
-    """Min-Max method to quantize float tensor to tract supported Q8_0.
-
-    Only use it on embedding weights (see `QTensorTractQ8_0`).
-
-    Accepts nonempty finite floating tensors of rank 2 to 4 whose flattened
-    rows are a multiple of 32.
-
-    Raises:
-        T2NErrorImpossibleQuantization: Invalid dtype or shape, non-finite
-            values, or block scales `absmax / 127` that overflow in f16 or
-            underflow to zero for a nonzero block.
-    """
-    if isinstance(fp_tensor, torch.nn.Parameter):
-        fp_tensor = fp_tensor.data
-    group_size = QTensorTractQ8_0.GROUP_SIZE
-    if (
-        not fp_tensor.is_floating_point()
-        or fp_tensor.ndim not in (2, 3, 4)
-        or fp_tensor.numel() == 0
-        or reduce(operator.mul, fp_tensor.shape[1:]) % group_size
-    ):
-        raise T2NErrorImpossibleQuantization(
-            "Q8_0 requires nonempty floating weights of rank 2 to 4 "
-            f"with flattened rows divisible by {group_size}, got "
-            f"{fp_tensor.dtype} {tuple(fp_tensor.shape)}"
-        )
-    with torch.no_grad():
-        f32_tensor = fp_tensor.detach().float()
-        if not torch.isfinite(f32_tensor).all():
-            raise T2NErrorImpossibleQuantization("Q8_0 requires finite weights")
-        absmax = f32_tensor.reshape((-1, group_size)).abs().amax(dim=1)
-        f16_scale = (absmax / 127).half()
-        if not torch.isfinite(f16_scale).all():
-            raise T2NErrorImpossibleQuantization(
-                "Q8_0 block scale overflows f16 (absmax / 127 > 65504)"
-            )
-        if ((absmax != 0) & (f16_scale == 0)).any():
-            raise T2NErrorImpossibleQuantization(
-                "Q8_0 nonzero block scale underflows to zero in f16"
-            )
-        # calibrate in f32 like ggml `quantize_row_q8_0_ref`: f16 or bf16
-        # weights would otherwise round `absmax / 127` twice
-        q_scheme = qscale_per_group_f16_min_max_calibration(
-            f32_tensor,
-            n_bits=QTensorTractQ8_0.N_BITS,
-            group_size=group_size,
-            percentile=percentile,
-            restricted_range=QTensorTractQ8_0.RESTRICTED_RANGE,
-        )
-        return QTensorTractQ8_0(
-            fp_tensor, qscheme=q_scheme, dequant_to_dtype=fp_tensor.dtype
-        )

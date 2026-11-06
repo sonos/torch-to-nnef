@@ -31,25 +31,14 @@ class DatBinHeader:
         """TractCustomTypes.
 
         Custom tract quantisation types used in NNEF headers.
-
-        Values are the little endian hex of the tract `.dat` item type.
-
-        Note:
-            tract 0.23.10 reassigned item type `0x3080` from `Q8_1` to
-            `Q8_0`. Both meanings share the header value "8030", so
-            `Q81_LEGACY` is an Enum alias of `Q80`: both names stay
-            usable but are the same member, and decoding a "8030" header
-            returns `Q80`. The header alone can not tell them apart: it
-            depends on the targeted tract version (or on the payload
-            size: 34 bytes per block of 32 for `Q8_0`, 36 for `Q8_1`).
         """
 
+        Q20T = "2030"
         Q40 = "4030"
         Q40_LEGACY = "4020"
-        Q80 = "8030"  # 0x3080: tract >= 0.23.10
         Q81 = "8130"  # 0x3081: tract >= 0.23.10
-        # alias of Q80 (same value), 0x3080: Q8_1 for tract < 0.23.10
-        Q81_LEGACY = "8030"
+        Q81_LEGACY = "8030"  # 0x3080: tract < 0.23.10 (now Q8_0 in tract)
+        Q4K = "4031"  # 0x3140: tract >= 0.23.10
 
     def __init__(
         self,
@@ -117,17 +106,19 @@ class DatBinHeader:
     def build_tract_qtensor(
         cls,
         item_type: TractCustomTypes,
-        shape: T.Tuple[int],
+        shape: T.Tuple[int, ...],
         block_bytes: T.Optional[int] = None,
+        block_len: int = 32,
     ) -> "DatBinHeader":
-        """Build a binary header for tract custom types.
+        """Build a binary header for tract custom block quantized types.
 
         Args:
             item_type (TractCustomTypes): Tract custom quantisation type.
             shape (Tuple[int]): Shape of the tensor.
-            block_bytes (Optional[int]): bytes per block of 32 elements.
-                Required for "8030" (`Q80` or `Q81_LEGACY`), whose size
-                depends on the targeted tract version.
+            block_bytes (Optional[int]): bytes per block of `block_len`
+                elements, required: an item type alone does not always
+                tell its size (like "8030": Q8_0 or legacy Q8_1).
+            block_len (int): elements per block (256 for ggml K-quants).
 
         Returns:
             DatBinHeader: Constructed header instance.
@@ -136,15 +127,16 @@ class DatBinHeader:
         for s in shape:
             vol *= s
         if block_bytes is None:
-            if item_type == cls.TractCustomTypes.Q80:
-                raise T2NErrorMisuse(
-                    "item type 8030 is Q8_0 (34 bytes per block) or legacy "
-                    "Q8_1 (36 bytes per block): block_bytes is required"
-                )
-            # Q8_1: f16 scale + f16 sum + 32 int8, Q4_0: f16 scale + 32 nibbles
-            block_bytes = 36 if item_type == cls.TractCustomTypes.Q81 else 18
-        assert vol % 32 == 0, shape
-        data_size_bytes = vol // 32 * block_bytes
+            raise T2NErrorMisuse(
+                f"block_bytes is required to size tract {item_type} "
+                "(each qtensor class passes its BLOCK_BYTES)"
+            )
+        if vol % block_len != 0:
+            raise T2NErrorMisuse(
+                f"tensor volume {vol} of shape {shape} is not "
+                f"a multiple of block length {block_len}"
+            )
+        data_size_bytes = vol // block_len * block_bytes
 
         return DatBinHeader(
             data_size_bytes=data_size_bytes,
