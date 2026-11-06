@@ -1069,9 +1069,15 @@ def _linear_algebra_specs() -> T.Tuple[OpSpec, ...]:
 def _baddbmm_sample_st() -> st.SearchStrategy[OpSample]:
     @st.composite
     def _draw(draw) -> OpSample:
-        self_t = draw(tensor_st((2, 3, 5), torch.float32, finite=True))
-        a = draw(tensor_st((2, 3, 4), torch.float32, finite=True))
-        b = draw(tensor_st((2, 4, 5), torch.float32, finite=True))
+        # Bound magnitudes like addmm/addbmm: unbounded f32 draws let the
+        # products overflow, and the result then depends on the order the
+        # inf/huge terms are summed (tract kernel choice varies by CPU).
+        dom = Interval(-3.0, 3.0)
+        self_t = draw(
+            tensor_st((2, 3, 5), torch.float32, finite=True, domain=dom)
+        )
+        a = draw(tensor_st((2, 3, 4), torch.float32, finite=True, domain=dom))
+        b = draw(tensor_st((2, 4, 5), torch.float32, finite=True, domain=dom))
         return OpSample(
             inputs=(self_t, a, b),
             module=TernaryPrimitive(torch.ops.aten.baddbmm.default),
