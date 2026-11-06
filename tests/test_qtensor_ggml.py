@@ -20,16 +20,19 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant import (
+    QScaleQ8_0,
     QTensor,
     QTensorTractQ4_K,
     QTensorTractQ8_0,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
     fp_to_tract_q8_0_with_min_max_calibration,
+    qtract_ggml,
 )
 from torch_to_nnef.tensor.quant.qtract_ggml import (
     ggml_nearest_int,
     ggml_seq_sum,
+    round_half_away,
 )
 
 from .test_qtensor import check_tensor_in_nnef_archive
@@ -149,6 +152,20 @@ GGML_LLAMA_CPP_SHA256 = {
             "5dfcb461fb9367b40858fc2664809605b7a73abedcbe682402ab127ee8424449"
         ),
     },
+    "Q8_0": {
+        "normal": (
+            "af26ee528dba447f22d5c660861b63ad646d4f7e63e3338b3e5a2d9aa27ae288"
+        ),
+        "sparse": (
+            "d5860ea02e7353a483097fa45a70a583fa6fed23cbb291b6a939db529f4c7524"
+        ),
+        "positive": (
+            "3663df90198d7845d36bddf6417f669d9fe8990c02f3cd6e8b31376597e0b6d6"
+        ),
+        "heavy": (
+            "57c055ca1fbe8b4f7c5b0a71286ab0ad93d2df4d24a07d2204805c06f13c8f18"
+        ),
+    },
 }
 
 
@@ -176,8 +193,8 @@ def _ggml_invalid_weights(block_len: int):
 
 # Q8_0 #####################################################################
 
-# llama.cpp quantize_row_q8_0_ref / dequantize_row_q8_0 vectors
-# (from tract v0.23.10 linalg/src/frame/block_quant/q8_0.rs tests)
+# ramp vectors of tract v0.23.10 linalg/src/frame/block_quant/q8_0.rs
+# tests (llama.cpp quantize_row_q8_0_ref / dequantize_row_q8_0)
 Q8_0_GGML_REFS = [
     (
         0,
@@ -203,6 +220,92 @@ def test_q80_matches_ggml_reference(tmp_path, zeros, expected_hex, values):
     qtensor = fp_to_tract_q8_0_with_min_max_calibration(ramp.reshape(1, 32))
     qtensor.write_in_file(tmp_path, "weight", TractNNEF.latest())
     assert (tmp_path / "weight.dat").read_bytes()[128:].hex() == expected_hex
+
+
+def test_q80_matches_llama_cpp_on_random_blocks():
+    _check_ggml_llama_cpp_hashes(
+        fp_to_tract_q8_0_with_min_max_calibration, "Q8_0"
+    )
+
+
+def test_round_half_away_matches_c_roundf():
+    below_half = float(torch.tensor(0.5).nextafter(torch.tensor(0.0)))
+    values = torch.tensor([0.5, 1.5, 2.5, 126.5, below_half, 1.0, 0.0])
+    expected = torch.tensor([1.0, 2.0, 3.0, 127.0, 0.0, 1.0, 0.0])
+    assert torch.equal(round_half_away(values), expected)
+    assert torch.equal(round_half_away(-values), -expected)
+
+
+def test_q80_rounds_half_away_from_zero():
+    # absmax 127 gives d = 1: codes are the rounded values themselves,
+    # exact ties round away from zero (not to even like torch.round)
+    below_half = float(torch.tensor(0.5).nextafter(torch.tensor(0.0)))
+    halves = torch.arange(14, dtype=torch.float32) * 9 + 0.5
+    block = torch.cat(
+        [
+            torch.tensor([127.0, -127.0, below_half, -below_half]),
+            torch.stack([halves, -halves], dim=1).reshape(-1),
+        ]
+    )
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(block.reshape(1, 32))
+    assert torch.equal(qtensor.qscheme.scale, torch.ones(1, 1).half())
+    codes = qtensor.decompress_to_u8().reshape(-1).to(torch.int16) - 128
+    expected = torch.cat(
+        [
+            torch.tensor([127, -127, 0, 0]),
+            torch.stack([halves + 0.5, -halves - 0.5], dim=1).reshape(-1),
+        ]
+    ).to(torch.int16)
+    assert torch.equal(codes, expected)
+
+
+def test_q80_scheme_falls_back_to_stored_scale():
+    # scales not equal to f16(absmax / 127) of their block (external
+    # calibration): codes use the stored f16 scale itself
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(4, 64, generator=gen)
+    blocks = fp_tensor.reshape(8, 32)
+    d_ggml = blocks.abs().amax(dim=1, keepdim=True) / 127
+    scale = d_ggml.half().clone()
+    scale[1] *= 2  # coarser scale
+    scale[2] = -scale[2]  # negative scale
+    scale[3] = 0.0  # erased block
+    qscheme = QScaleQ8_0(group_size=32, scale=scale, n_bits=8)
+    qtensor = QTensorTractQ8_0(
+        fp_tensor, qscheme=qscheme, dequant_to_dtype=torch.float32
+    )
+    codes = qtensor.decompress_to_u8().reshape(8, 32).to(torch.int16) - 128
+    exact = [0, 4, 5, 6, 7]  # blocks with the min max scale
+    d_f32 = scale.float()
+    d_f32[exact] = d_ggml[exact]
+    inv_d = torch.where(d_f32 == 0, torch.zeros_like(d_f32), 1.0 / d_f32)
+    expected = round_half_away(blocks * inv_d).clamp(-127, 127)
+    assert torch.equal(codes, expected.to(torch.int16))
+    assert (codes[1].abs() <= 64).all() and (codes[3] == 0).all()
+    deq = qtensor.decompress().reshape(8, 32)
+    assert torch.equal(deq, codes.float() * scale.float())
+    # the negative scale still reconstructs the weights
+    assert ((deq[2] - blocks[2]).abs() <= d_ggml[2] * 0.502).all()
+    # blocks with the min max scale match the factory ones
+    ref = fp_to_tract_q8_0_with_min_max_calibration(fp_tensor)
+    assert torch.equal(deq[exact], ref.decompress().reshape(8, 32)[exact])
+
+
+@pytest.mark.parametrize("percentile", [1.0, 0.9])
+def test_q80_chunked_calibration_matches_single_chunk(monkeypatch, percentile):
+    gen = torch.Generator().manual_seed(0)
+    fp_tensor = torch.randn(10, 96, generator=gen)
+    fp_tensor[3] *= 1e-9  # negligible underflow blocks across chunks
+    ref = fp_to_tract_q8_0_with_min_max_calibration(fp_tensor, percentile)
+    monkeypatch.setattr(qtract_ggml, "GGML_CHUNK_BLOCKS", 7)
+    qtensor = fp_to_tract_q8_0_with_min_max_calibration(fp_tensor, percentile)
+    assert torch.equal(qtensor.qscheme.scale, ref.qscheme.scale)
+    assert torch.equal(qtensor.decompress_to_u8(), ref.decompress_to_u8())
+    assert torch.equal(
+        qtensor.qscheme.quantize_as_u8(fp_tensor),
+        ref.qscheme.quantize_as_u8(fp_tensor),
+    )
+    assert _tract_bytes(qtensor) == _tract_bytes(ref)
 
 
 def test_q80_dat_content_layout(tmp_path):
@@ -557,8 +660,12 @@ def test_q80_keeps_fp_tensor_device():
 
 @pytest.mark.parametrize(
     "fp_to_qtensor",
-    [fp_to_tract_q4_k, fp_to_tract_q4_0_with_min_max_calibration],
-    ids=["q4_k", "q4_0"],
+    [
+        fp_to_tract_q4_k,
+        fp_to_tract_q4_0_with_min_max_calibration,
+        fp_to_tract_q8_0_with_min_max_calibration,
+    ],
+    ids=["q4_k", "q4_0", "q8_0"],
 )
 def test_qtensor_to_keeps_codes_and_source(fp_to_qtensor):
     fp_tensor = torch.randn(4, 256, generator=torch.Generator().manual_seed(0))
