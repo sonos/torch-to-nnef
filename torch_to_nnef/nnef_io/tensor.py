@@ -52,6 +52,7 @@ class DatBinHeader:
         # alias of Q80 (same value), 0x3080: Q8_1 for tract < 0.23.10
         Q81_LEGACY = "8030"
         Q4K = "4031"  # 0x3140: tract >= 0.23.10
+        Q6K = "6031"  # 0x3160: tract >= 0.23.10
         IQ2S = "2232"  # 0x3222: tract >= 0.23.10
 
     def __init__(
