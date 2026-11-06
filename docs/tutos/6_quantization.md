@@ -254,13 +254,14 @@ which has a different layout without the sum field.
 
 This makes it a good fit for embeddings that you want to keep with a better precision than Q40,
 the `min_max_q8_1_embeddings` registry entry quantizes only `nn.Embedding` weights
-(weights tied with other modules like an LLM `lm_head` are left in float):
+(weights tied with other modules like an LLM `lm_head` are left in float, so pick
+a model with untied embeddings like Qwen2.5 7B):
 
 ```bash
 t2n_export_llm_to_tract \
-    -s "meta-llama/Llama-3.2-1B-Instruct" \
+    -s "Qwen/Qwen2.5-7B-Instruct" \
     -dt f16 \
-    -e $HOME/llama32_1B_q81_embeddings \
+    -e $HOME/qwen25_7B_q81_embeddings \
     -c "min_max_q8_1_embeddings"
 ```
 
@@ -347,13 +348,15 @@ scale per 32 weights. The NNEF item type is `0x3140`.
     Only use it for embeddings (gather operator).
 
 The `ggml_q4_k_embeddings` registry entry quantizes only `nn.Embedding` weights
-(weights tied with other modules like an LLM `lm_head` are left in float):
+(weights tied with other modules like an LLM `lm_head` are left in float, so pick
+a model with untied embeddings like Qwen2.5 7B, whose 3584 wide rows are a
+multiple of 256):
 
 ```bash
 t2n_export_llm_to_tract \
-    -s "meta-llama/Llama-3.2-1B-Instruct" \
+    -s "Qwen/Qwen2.5-7B-Instruct" \
     -dt f16 \
-    -e $HOME/llama32_1B_q4k_embeddings \
+    -e $HOME/qwen25_7B_q4k_embeddings \
     -c "ggml_q4_k_embeddings"
 ```
 
@@ -370,9 +373,12 @@ with torch.no_grad():
 
 The input must be a nonempty, finite, floating tensor (f32, f16 or bf16, always
 quantized from f32) of rank 2 to 4, with the product of dimensions after the
-first divisible by 256. Super-block scales that overflow f16, and nonzero
-super-blocks that would dequantize to zeros because their scales underflow
-f16, are rejected. Streaming export and tensor offloading are supported.
+first divisible by 256: embeddings of other widths (like 896 or 1152) are left
+in float with an error log. Super-block scales that overflow f16 are rejected.
+Nonzero super-blocks whose scales underflow f16 dequantize to zeros: they are
+kept with a warning when their weights are negligible against the tensor
+largest one (below f16 precision of it), and rejected otherwise. Streaming
+export and tensor offloading are supported.
 
 !!! warning "Requires tract 0.23.10 or newer"
 
@@ -457,13 +463,15 @@ entry. The super-block occupies 82 bytes:
     Only use it for embeddings (gather operator).
 
 The `ggml_iq2_s_embeddings` registry entry quantizes only `nn.Embedding` weights
-(weights tied with other modules like an LLM `lm_head` are left in float):
+(weights tied with other modules like an LLM `lm_head` are left in float, so pick
+a model with untied embeddings like Qwen2.5 7B, whose 3584 wide rows are a
+multiple of 256):
 
 ```bash
 t2n_export_llm_to_tract \
-    -s "meta-llama/Llama-3.2-1B-Instruct" \
+    -s "Qwen/Qwen2.5-7B-Instruct" \
     -dt f16 \
-    -e $HOME/llama32_1B_iq2s_embeddings \
+    -e $HOME/qwen25_7B_iq2s_embeddings \
     -c "ggml_iq2_s_embeddings"
 ```
 
@@ -480,9 +488,12 @@ with torch.no_grad():
 
 The input must be a nonempty, finite, floating tensor (f32, f16 or bf16, always
 quantized from f32) of rank 2 to 4, with the product of dimensions after the
-first divisible by 256. A super-block scale `d` that overflows f16, and nonzero
-super-blocks that would dequantize to zeros because `d` underflows f16, are
-rejected. Streaming export and tensor offloading are supported.
+first divisible by 256: embeddings of other widths (like 896 or 1152) are left
+in float with an error log. A super-block scale `d` that overflows f16 is rejected.
+Nonzero super-blocks whose `d` underflows f16 dequantize to zeros: they are
+kept with a warning when their weights are negligible against the tensor
+largest one (below f16 precision of it), and rejected otherwise. Streaming
+export and tensor offloading are supported.
 
 !!! warning "Requires tract 0.23.10 or newer"
 

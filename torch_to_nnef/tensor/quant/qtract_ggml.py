@@ -1,9 +1,14 @@
-"""tract ggml super-block quantization formats (K-quants, IQ formats).
+"""tract formats stored as raw ggml block bytes (K-quants, IQ formats).
 
 These formats store each block of `BLOCK_LEN` values as an opaque
 `BLOCK_BYTES` bytes chunk laid out exactly like llama.cpp `block_*`
-structures. The QTensor u8 storage is these raw ggml bytes, written as is
-in the tract `.dat` file.
+structures. The QTensor u8 storage is these raw ggml bytes, produced by a
+numpy port of the ggml reference quantizer and written as is in the tract
+`.dat` file.
+
+Formats with a single f16 scale per group of 32 values that a torch
+calibration can set (Q4_0, Q8_1, Q2_0_T) live in `qtract` instead: their
+u8 storage holds one quantized value per byte, packed only when written.
 
 Warning:
     tract (<= 0.23.10) has no matmul or convolution kernel for these formats:
@@ -11,6 +16,7 @@ Warning:
 
 """
 
+import logging
 import operator
 import typing as T
 from functools import lru_cache, reduce
@@ -33,16 +39,25 @@ from torch_to_nnef.tensor.quant.qtract import (
     check_f16_scales,
 )
 
+LOGGER = logging.getLogger(__name__)
+
 # numbers of blocks processed at once by numpy (bounds peak memory)
 GGML_CHUNK_BLOCKS = 1 << 14
 # ggml K-quants super-block length
 QK_K = 256
+# blocks erased by f16 scale underflow are tolerated (with a warning) when
+# their weights are below this fraction of the tensor largest weight
+GGML_UNDERFLOW_REL_TOL = float(np.finfo(np.float16).eps)
 
 
 class QScaleGGMLBlock(QScheme):
     """Opaque ggml block scheme: the u8 storage are raw ggml block bytes.
 
-    All the format logic lives in its `QTensorTractGGMLBlock` subclass.
+    `QTensor` quantizes through its scheme, so this scheme only runs the
+    chunked numpy loop and delegates the format logic (block quantization,
+    dequantization and checks) to its `fmt` class. Each format is then a
+    single `QTensorTractGGMLBlock` subclass, with no state in the scheme
+    besides that class.
 
     """
 
@@ -71,15 +86,26 @@ class QScaleGGMLBlock(QScheme):
             .reshape((-1, fmt.BLOCK_LEN))
         )
         out = np.empty((fp_blocks.shape[0], fmt.BLOCK_BYTES), dtype=np.uint8)
+        absmax = 0.0
+        erased_count = 0
+        erased_absmax = 0.0
         for start in range(0, fp_blocks.shape[0], GGML_CHUNK_BLOCKS):
             end = start + GGML_CHUNK_BLOCKS
             fp_chunk = fp_blocks[start:end]
             chunk = fmt.quantize_blocks(fp_chunk)
             assert chunk.dtype == np.uint8, chunk.dtype
             assert chunk.shape == (len(fp_chunk), fmt.BLOCK_BYTES)
-            fmt.check_quantized_blocks(fp_chunk, chunk)
+            erased = fmt.check_quantized_blocks(fp_chunk, chunk)
+            chunk_absmax = np.abs(fp_chunk).max(axis=1)
+            absmax = max(absmax, float(chunk_absmax.max()))
+            if erased.any():
+                erased_count += int(erased.sum())
+                erased_absmax = max(
+                    erased_absmax, float(chunk_absmax[erased].max())
+                )
             out[start:end] = chunk
-        return torch.from_numpy(out)
+        fmt.check_underflow(erased_count, erased_absmax, absmax)
+        return torch.from_numpy(out).to(fp_tensor.device)
 
     def dequantize(self, u8_tensor: torch.Tensor, target_dtype):
         """Dequantize a (n_blocks, BLOCK_BYTES) u8 tensor into flat fp.
@@ -105,11 +131,13 @@ class QScaleGGMLBlock(QScheme):
 
 
 class QTensorTractGGMLBlock(QTensorTractDat):
-    """Common base of tract ggml super-block formats.
+    """Common base of tract formats stored as raw ggml block bytes.
 
     Storage is the raw ggml block bytes (u8 tensor of shape
-    `(n_blocks, BLOCK_BYTES)`), blocks follow the row-major order of the
-    float tensor, and are dumped as is after the tract `.dat` header.
+    `(n_blocks, BLOCK_BYTES)`, on the float tensor device), blocks follow
+    the row-major order of the float tensor, and are dumped as is after the
+    tract `.dat` header. `numel` is the float tensor one, not the bytes
+    count.
 
     Subclass contract:
         - `OFFLOAD_STATE_TAG`: unique offload state tag
@@ -126,8 +154,9 @@ class QTensorTractGGMLBlock(QTensorTractDat):
 
     Validation shared by all formats:
         - `check_fp_tensor`: input weights (called at construction)
-        - `check_quantized_blocks`: f16 scales overflow and underflow
-          (called on each quantized chunk)
+        - `check_quantized_blocks`: f16 scales overflow (called on each
+          quantized chunk), then `check_underflow` on blocks erased by
+          f16 scales underflow
         - `QTensorTractDat._check_inference_target_support`: tract version
           gate, warns with an upgrade hint then raises before any data
           is written
@@ -186,18 +215,24 @@ class QTensorTractGGMLBlock(QTensorTractDat):
             )
 
     @classmethod
-    def check_quantized_blocks(cls, fp_blocks: np.ndarray, u8_blocks):
-        """Reject blocks whose f16 scales overflow or underflow.
+    def check_quantized_blocks(
+        cls, fp_blocks: np.ndarray, u8_blocks: np.ndarray
+    ) -> np.ndarray:
+        """Reject f16 scales overflow, find blocks erased by underflow.
 
         Overflow: any `F16_SCALE_FIELDS` scale (or dequantized value) is
         not finite. Underflow: a block with nonzero weights dequantizes
-        to all zeros (f16 scales rounded to 0), which would silently erase
-        those weights. A partial underflow (like Q4_K `d` rounded to 0
-        while `dmin` is not) is accepted: it only drops variations far
-        below the remaining f16 scale, within the quantization error.
+        to all zeros (f16 scales rounded to 0). A partial underflow (like
+        Q4_K `d` rounded to 0 while `dmin` is not) is not reported: it only
+        drops variations far below the remaining f16 scale, within the
+        quantization error.
+
+        Returns:
+            bool (n,) mask of the nonzero blocks dequantized to all zeros,
+            judged by `check_underflow` over the whole tensor.
 
         Raises:
-            T2NErrorImpossibleQuantization: on f16 overflow or underflow.
+            T2NErrorImpossibleQuantization: on f16 overflow.
         """
         for name, offset in cls.F16_SCALE_FIELDS.items():
             check_f16_scales(
@@ -211,12 +246,39 @@ class QTensorTractGGMLBlock(QTensorTractDat):
         # the f16 scales of a nonzero block underflow
         with np.errstate(invalid="ignore"):
             block_absmax = np.abs(deq).max(axis=1)
-        check_f16_scales(
-            block_absmax,
-            cls.FORMAT_NAME,
-            nonzero_mask=(fp_blocks != 0).any(axis=1),
-            scale_name="scales",
+        check_f16_scales(block_absmax, cls.FORMAT_NAME, scale_name="scales")
+        return (fp_blocks != 0).any(axis=1) & (block_absmax == 0)
+
+    @classmethod
+    def check_underflow(
+        cls, erased_count: int, erased_absmax: float, absmax: float
+    ) -> None:
+        """Judge the blocks erased to zeros by f16 scales underflow.
+
+        Like llama.cpp and tract quantizers, such blocks are kept as zeros
+        (with a warning) when their weights are negligible against the
+        tensor largest weight (below `GGML_UNDERFLOW_REL_TOL` of it, the
+        f16 precision): this is a quantization error below what the f16
+        dequantized tensor can represent. Otherwise the weights are too
+        small as a whole for this format f16 scales.
+
+        Raises:
+            T2NErrorImpossibleQuantization: when erased weights are not
+                negligible.
+        """
+        if erased_count == 0:
+            return
+        msg = (
+            f"tract {cls.FORMAT_NAME} block scales underflow f16: "
+            f"{erased_count} nonzero block(s) dequantize to zeros "
+            f"(largest erased weight magnitude {erased_absmax:.3g}, "
+            f"tensor largest {absmax:.3g})"
         )
+        if erased_absmax > GGML_UNDERFLOW_REL_TOL * absmax:
+            raise T2NErrorImpossibleQuantization(
+                f"{msg}: weights magnitude is too small"
+            )
+        LOGGER.warning("%s: kept as zeros", msg)
 
     @classmethod
     def quantize_blocks(cls, fp_blocks: np.ndarray) -> np.ndarray:
@@ -277,8 +339,14 @@ def ggml_seq_sum(arr: np.ndarray) -> np.ndarray:
 
 
 def ggml_nearest_int(arr: np.ndarray) -> np.ndarray:
-    """Port of ggml `nearest_int`: round half to even (for |x| < 2**22)."""
-    return np.rint(arr).astype(np.int32)
+    """Port of ggml `nearest_int` (f32 mantissa trick, round half to even).
+
+    Exact like ggml for |x| <= 2**22 (ggml asserts it), and platform
+    independent beyond, unlike a float to int32 cast.
+    """
+    with np.errstate(invalid="ignore", over="ignore"):
+        biased = arr.astype(np.float32) + np.float32(12582912.0)
+    return (biased.view(np.int32) & 0x7FFFFF) - 0x400000
 
 
 def ggml_make_qkx2_quants(
