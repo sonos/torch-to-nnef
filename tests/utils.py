@@ -15,6 +15,7 @@ import pytest
 import torch as Torch
 from torch.nn.utils.weight_norm import WeightNorm
 
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import (
     InferenceTarget,
@@ -33,7 +34,7 @@ from torch_to_nnef.tensor.quant.base import (
     QTENSOR_UNSUPPORTED_MSG,
 )
 from torch_to_nnef.torch_graph.ir_naming import DEFAULT_VARNAME_SCHEME
-from torch_to_nnef.utils import torch_version
+from torch_to_nnef.utils import SemanticVersion, torch_version
 
 TRACT_INFERENCES_TO_TESTS_APPROX = [
     # we maintain last 3 majors of tract
@@ -328,3 +329,84 @@ def cond_tract_gt_0_22_0(inference_target: InferenceTarget) -> bool:
     return isinstance(inference_target, TractNNEF) and (
         inference_target.version > "0.22.1"
     )
+
+
+# tract block quantized QTensor shared checks ##############################
+
+
+def tract_target(version: str) -> TractNNEF:
+    """Latest tract target relabeled with `version` (prereleases allowed)."""
+    target = deepcopy(TractNNEF.latest())
+    target.version = SemanticVersion.from_str(version)
+    return target
+
+
+def old_tract_versions(min_version: str) -> T.List[str]:
+    """Versions below `min_version` (SemVer: prereleases sort before)."""
+    major, minor, patch = (int(v) for v in min_version.split("."))
+    versions = [f"{min_version}-pre", f"{min_version}-rc.1"]
+    if patch > 0:
+        versions.insert(0, f"{major}.{minor}.{patch - 1}")
+    return versions
+
+
+def supported_tract_versions(min_version: str) -> T.List[str]:
+    """Versions at or above `min_version` (build metadata is ignored)."""
+    major, minor, patch = (int(v) for v in min_version.split("."))
+    next_patch = f"{major}.{minor}.{patch + 1}"
+    return [
+        min_version,
+        f"{min_version}+build.1",
+        f"{next_patch}-pre",
+        next_patch,
+    ]
+
+
+def check_rejects_old_tract(tmp_path, caplog, qtensor, version: str):
+    """Both write paths warn with the upgrade hint and write no data."""
+    qtensor_cls = type(qtensor)
+    target = tract_target(version)
+    match = (
+        f"{qtensor_cls.FORMAT_NAME} export requires tract >= "
+        + qtensor_cls.MIN_TRACT_VERSION.replace(".", r"\.")
+    )
+    with caplog.at_level("WARNING"):
+        with pytest.raises(T2NErrorNotImplemented, match=match):
+            qtensor.write_in_file(tmp_path, "weight", target)
+        with pytest.raises(T2NErrorNotImplemented, match=match):
+            qtensor_cls.write_offload_state_in_file(
+                qtensor.to_offload_state(), tmp_path, "offloaded", target
+            )
+    hint = (
+        f"{qtensor_cls.FORMAT_NAME} export requires tract >= "
+        f"{qtensor_cls.MIN_TRACT_VERSION}; target is {target.version}. "
+        f"Upgrade tract before exporting {qtensor_cls.FORMAT_NAME} weights."
+    )
+    assert caplog.text.count(hint) == 2, caplog.text
+    assert not list(Path(tmp_path).glob("*.dat"))
+
+
+def check_offload_state_write(tmp_path, qtensor, target: TractNNEF):
+    """Offload state reload and direct write match the in-memory qtensor."""
+    qtensor_cls = type(qtensor)
+    tmp_path = Path(tmp_path)
+    ref_dir = tmp_path / "ref"
+    out_dir = tmp_path / "out"
+    reload_dir = tmp_path / "reload"
+    for dirpath in [ref_dir, out_dir, reload_dir]:
+        dirpath.mkdir()
+    qtensor.write_in_file(ref_dir, "weight", target)
+    expected = (ref_dir / "weight.dat").read_bytes()
+    state = qtensor.to_offload_state()
+    assert qtensor_cls.is_offload_state(state)
+    qtensor_cls.write_offload_state_in_file(
+        state, out_dir, "weight", inference_target=target
+    )
+    assert (out_dir / "weight.dat").read_bytes() == expected
+    reloaded = qtensor_cls.from_offload_state(state)
+    assert type(reloaded) is qtensor_cls
+    assert Torch.equal(reloaded.decompress(), qtensor.decompress())
+    reloaded.write_in_file(reload_dir, "weight", target)
+    assert (reload_dir / "weight.dat").read_bytes() == expected
+    # same label written twice with same content is accepted
+    qtensor.write_in_file(ref_dir, "weight", target)
