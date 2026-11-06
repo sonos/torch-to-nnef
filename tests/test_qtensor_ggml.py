@@ -1,4 +1,4 @@
-"""Tract ggml super-block formats (K-quants): packing and tract execution."""
+"""Tract raw ggml block formats (K-quants): packing and tract execution."""
 
 from functools import partial
 
@@ -26,6 +26,7 @@ from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_k,
     fp_to_tract_q5_k,
 )
+from torch_to_nnef.tensor.quant.qtract_ggml import ggml_nearest_int
 
 from .test_qtensor import check_tensor_in_nnef_archive
 from .utils import (
@@ -206,13 +207,81 @@ def test_q4k_decompress_matches_reference(shape, dtype):
         # f16 overflow of d (positive range) and dmin (negative offset)
         pytest.param(torch.full((2, 256), 1e9), id="d_overflow"),
         pytest.param(torch.full((2, 256), -1e9), id="dmin_overflow"),
-        # nonzero super-block whose d and dmin round to 0 in f16
-        pytest.param(torch.full((2, 256), 1e-10), id="underflow"),
     ],
 )
 def test_q4k_rejects_invalid_weights(weight):
     with pytest.raises(T2NErrorImpossibleQuantization):
         fp_to_tract_q4_k(weight)
+
+
+def test_q4k_keeps_negligible_underflow_blocks_as_zeros(caplog):
+    # one row far below f16 scales resolution, others of unit magnitude:
+    # like llama.cpp and tract, its blocks quantize to zeros
+    fp_tensor = torch.randn(8, 512, generator=torch.Generator().manual_seed(0))
+    fp_tensor[3] *= 1e-7
+    with caplog.at_level("WARNING"):
+        qtensor = fp_to_tract_q4_k(fp_tensor)
+    assert "2 nonzero block(s) dequantize to zeros" in caplog.text
+    deq = qtensor.decompress()
+    assert torch.equal(deq[3], torch.zeros(512))
+    assert (deq[:3] != 0).any()
+
+
+@pytest.mark.parametrize(
+    "weight",
+    [
+        pytest.param(torch.full((2, 256), 1e-10), id="whole_tensor"),
+        # erased block magnitude above f16 precision of the tensor max
+        pytest.param(
+            torch.cat([torch.full((1, 256), 1e-6), torch.full((1, 256), 1e-4)]),
+            id="relative",
+        ),
+    ],
+)
+def test_q4k_rejects_significant_underflow(weight):
+    with pytest.raises(T2NErrorImpossibleQuantization, match="underflow"):
+        fp_to_tract_q4_k(weight)
+
+
+def _accelerator_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    mps = getattr(torch.backends, "mps", None)
+    if mps is not None and mps.is_available():
+        return torch.device("mps")
+    return None
+
+
+@pytest.mark.skipif(
+    _accelerator_device() is None, reason="needs a cuda or mps device"
+)
+def test_q4k_keeps_fp_tensor_device():
+    device = _accelerator_device()
+    fp_tensor = torch.randn(4, 256)
+    qtensor = fp_to_tract_q4_k(fp_tensor.to(device))
+    assert qtensor.device.type == device.type
+    deq = qtensor.decompress()
+    assert deq.device.type == device.type
+    # same bytes as a cpu quantization
+    assert torch.equal(
+        qtensor.u8_blob.cpu(), fp_to_tract_q4_k(fp_tensor).u8_blob
+    )
+    out = nn.functional.embedding(torch.tensor([0, 3], device=device), qtensor)
+    assert torch.equal(out.cpu(), deq.cpu()[[0, 3]])
+
+
+def test_ggml_nearest_int_matches_ggml():
+    vals = np.array(
+        [0.5, 1.5, 2.5, -0.5, -1.5, 0.49999997, 3.7, -3.7, 4194303.0],
+        dtype=np.float32,
+    )
+    np.testing.assert_array_equal(ggml_nearest_int(vals), np.rint(vals))
+    # beyond ggml range: same bits as ggml on every platform (a float to
+    # int32 cast of out of range values is platform dependent)
+    big = np.array([2.0**23, 1e7], dtype=np.float32)
+    np.testing.assert_array_equal(
+        ggml_nearest_int(big), np.array([-2097152, -1291456], dtype=np.int32)
+    )
 
 
 @pytest.mark.parametrize(
@@ -281,6 +350,10 @@ def test_compress_ggml_q4_k_embeddings_only_quantize_embeddings():
         quantize_weights_ggml_Q4_K(
             nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32)),
             to_quantize_module_classes=(nn.Linear, nn.Embedding),
+        )
+    with pytest.raises(T2NErrorMisuse, match="percentile"):
+        quantize_weights_ggml_Q4_K(
+            nn.Sequential(nn.Embedding(10, 256)), percentile=0.99
         )
 
 
@@ -454,4 +527,8 @@ def test_compress_ggml_q5_k_embeddings_only_quantize_embeddings():
         quantize_weights_ggml_Q5_K(
             nn.Sequential(nn.Embedding(10, 256), nn.Linear(256, 32)),
             to_quantize_module_classes=(nn.Linear, nn.Embedding),
+        )
+    with pytest.raises(T2NErrorMisuse, match="percentile"):
+        quantize_weights_ggml_Q5_K(
+            nn.Sequential(nn.Embedding(10, 256)), percentile=0.99
         )
