@@ -4,6 +4,7 @@
 ## Unreleased
 
 ### Changed
+- **Latest officially supported tract version is now 0.23.10**, up from 0.23.9. Default exports target 0.23.10.
 - **Latest officially supported tract version is now 0.23.9**, up from 0.23.8. Default exports target 0.23.9.
 
 ### Added
