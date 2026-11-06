@@ -48,25 +48,32 @@ codes `c[i]` in `[0, 15]`. Reconstruction is `w[i] = s * (c[i] - 8)`;
 the scale can be negative. The fixed offset of 8 is implicit, not stored.
 The block occupies 18 bytes, or `(16 + 32 * 4) / 32 = 4.5 bpw`.
 
-```text
-One Q4_0 block: 32 weights, 18 bytes (after the NNEF tensor header)
-
-Byte offset    0       1        2          3                17
-           +---------------+----------+----------+-----+----------+
-Contents   |   f16 scale   | c0, c16  | c1, c17  | ... | c15, c31 |
-           +---------------+----------+----------+-----+----------+
-                2 bytes           16 bytes: 32 four-bit codes
-
-Zoom into byte 2 (high bits on the left):
-
-Bit         7   6   5   4     3   2   1   0
-           +-----------------+-----------------+
-Code       |       c16       |       c0        |
-           +-----------------+-----------------+
-
-Code          0        8        15
-Weight      -8 * s     0       7 * s
+```mermaid
+flowchart LR
+    accTitle: Q4_0 block layout
+    accDescr: After the NNEF tensor header, each block stores an f16 scale in bytes 0 and 1 and 32 four-bit codes in bytes 2 through 17. Each packed byte pairs codes 16 weights apart.
+    subgraph block["32 weights / 18 bytes / 4.5 bpw"]
+        direction LR
+        scale["Bytes 0-1<br/>f16 scale"]
+        first["Byte 2<br/>c0 + c16"]
+        middle["Bytes 3-16<br/>c1 + c17 ... c14 + c30"]
+        last["Byte 17<br/>c15 + c31"]
+        scale --- first --- middle --- last
+    end
 ```
+
+**Inside byte 2**, from most significant to least significant bits:
+
+```mermaid
+flowchart LR
+    accTitle: Q4_0 nibble order in byte 2
+    accDescr: Bits 7 through 4 contain code 16; bits 3 through 0 contain code 0.
+    high["Bits 7-4<br/>c16"] --- low["Bits 3-0<br/>c0"]
+```
+
+| Code | 0 | 8 | 15 |
+| --- | --- | --- | --- |
+| Reconstructed weight | `-8 * s` | `0` | `7 * s` |
 
 The paired codes are 16 weights apart, not adjacent: for example, `c0 = 2`
 and `c16 = 9` produce `0x92`. This is the layout for tract >= 0.21.11
@@ -183,21 +190,25 @@ tract (>= 0.23.0) can also load `Q8_1` weights: each group of 32 elements is sto
 as a f16 scale, a f16 sum of the dequantized values and 32 int8 values (9bpw).
 Scale follows the GGML convention `d = absmax / 127` (int8 values in `[-127, 127]`).
 
-```text
-One Q8_1 block: 32 weights, 36 bytes (after the NNEF tensor header)
-
-Byte offset    0       1       2       3      4      5            35
-           +---------------+---------------+------+------+-----+------+
-Contents   |   f16 scale   |    f16 sum    |  q0  |  q1  | ... | q31  |
-           +---------------+---------------+------+------+-----+------+
-                2 bytes         2 bytes          32 signed int8 values
-
-One code occupies a full byte (two's complement):
-
-Byte hex       81          ff          00          01          7f
-Code         -127          -1           0          +1         +127
-Weight     -127 * d         -d          0          +d        127 * d
+```mermaid
+flowchart LR
+    accTitle: Q8_1 block layout
+    accDescr: Each block stores an f16 scale in bytes 0 and 1, an f16 sum in bytes 2 and 3, and 32 signed integer codes in bytes 4 through 35.
+    subgraph block["32 weights / 36 bytes / 9 bpw"]
+        direction LR
+        scale["Bytes 0-1<br/>f16 scale"]
+        sum["Bytes 2-3<br/>f16 sum"]
+        codes["Bytes 4-35<br/>q0, q1, ... q31<br/>One signed int8 per byte"]
+        scale --- sum --- codes
+    end
 ```
+
+One code occupies a full byte, using two's complement:
+
+| Byte (hex) | `81` | `ff` | `00` | `01` | `7f` |
+| --- | --- | --- | --- | --- | --- |
+| Code | -127 | -1 | 0 | +1 | +127 |
+| Weight | `-127 * d` | `-d` | `0` | `+d` | `127 * d` |
 
 Reconstruction is `w[i] = d * q[i]`. The stored sum is `d * sum(q[i])`,
 rounded to f16 and clamped to its finite range on overflow. Tract's embedding
@@ -413,17 +424,18 @@ signed int8 (`qint8`, range `[-128, 127]`) or unsigned uint8 (`quint8`, range
 `[0, 255]`). Scale and zero point are separate NNEF quantization metadata,
 not repeated in the tensor payload.
 
-```text
-NNEF archive
-|
-+-- graph.quant: tensor label -> scale s, zero point z,
-|                               bits=8, signed=true/false
-|
-+-- weight.dat:  [ NNEF tensor header ][ q0 ][ q1 ][ q2 ] ... [ qN-1 ]
-                                       1 byte per stored integer
-
-             Shared metadata applies to every element
-                         x[i] = s * (q[i] - z)
+```mermaid
+flowchart TD
+    accTitle: Per-tensor affine int8 storage and reconstruction
+    accDescr: The NNEF archive stores the scale and zero point in graph.quant and the integer payload in weight.dat. Both are used to reconstruct each value as scale times integer minus zero point.
+    archive["NNEF archive"]
+    metadata["graph.quant<br/>Tensor label: scale s, zero point z<br/>bits = 8, signed = true or false"]
+    payload["weight.dat<br/>NNEF tensor header<br/>q0, q1, ... qN-1: one byte each"]
+    value["Reconstruct each value<br/>x[i] = s * (q[i] - z)"]
+    archive --> metadata
+    archive --> payload
+    metadata -->|Shared by every element| value
+    payload -->|Signed or unsigned integer| value
 ```
 
 For an unsigned example with `s = 0.25` and `z = 128`, integer values
@@ -567,27 +579,31 @@ Each block stores an f16 scale followed by eight bytes of two-bit codes:
 are packed into each byte, lowest bits first. There is no stored zero point.
 NNEF identifies this layout with tract's custom item type `0x3020`.
 
-```text
-One block: 32 weights, 10 bytes (after the NNEF tensor header)
-
-Byte offset    0       1       2       3              9
-           +---------------+-------+-------+-----+---------+
-Contents   |   f16 scale   | c0-c3 | c4-c7 | ... | c28-c31 |
-           | little-endian |       |       |     |         |
-           +---------------+-------+-------+-----+---------+
-                2 bytes           8 bytes: 32 two-bit codes
-
-Zoom into byte 2 (high bits on the left):
-
-Bit         7   6     5   4     3   2     1   0
-           +---------+---------+---------+---------+
-Code       |   c3    |   c2    |   c1    |   c0    |
-           +---------+---------+---------+---------+
-                Each code describes one consecutive weight
-
-Code bits      00         01         10         11
-Weight       -scale       0       +scale    not emitted
+```mermaid
+flowchart LR
+    accTitle: Q2_0_T block layout
+    accDescr: Each block stores a little-endian f16 scale in bytes 0 and 1, followed by 32 two-bit codes packed four per byte in bytes 2 through 9.
+    subgraph block["32 weights / 10 bytes / 2.5 bpw"]
+        direction LR
+        scale["Bytes 0-1<br/>f16 scale<br/>Little-endian"]
+        first["Byte 2<br/>c0, c1, c2, c3"]
+        rest["Bytes 3-9<br/>c4, c5, ... c31<br/>Four codes per byte"]
+        scale --- first --- rest
+    end
 ```
+
+**Inside byte 2**, from most significant to least significant bits:
+
+```mermaid
+flowchart LR
+    accTitle: Q2_0_T two-bit code order in byte 2
+    accDescr: From high to low bits, code 3 occupies bits 7 and 6, code 2 occupies bits 5 and 4, code 1 occupies bits 3 and 2, and code 0 occupies bits 1 and 0.
+    c3["Bits 7-6<br/>c3"] --- c2["Bits 5-4<br/>c2"] --- c1["Bits 3-2<br/>c1"] --- c0["Bits 1-0<br/>c0"]
+```
+
+| Code bits | `00` | `01` | `10` | `11` |
+| --- | --- | --- | --- | --- |
+| Weight | `-scale` | `0` | `+scale` | Not emitted |
 
 For example, weights `[-0.5, 0, +0.5, -0.5]` have codes `[0, 1, 2, 0]`.
 Their packed byte is `00 10 01 00` in high-to-low bit order, or `0x24`.
