@@ -63,7 +63,7 @@ class QScaleGGMLBlock(QScheme):
             .to(torch.float32)
             .contiguous()
             .numpy()
-            .reshape(-1, fmt.BLOCK_LEN)
+            .reshape((-1, fmt.BLOCK_LEN))
         )
         out = np.empty((fp_blocks.shape[0], fmt.BLOCK_BYTES), dtype=np.uint8)
         for start in range(0, fp_blocks.shape[0], GGML_CHUNK_BLOCKS):
@@ -81,7 +81,7 @@ class QScaleGGMLBlock(QScheme):
         """
         fmt = self.fmt
         u8_blocks = (u8_tensor.detach().cpu().contiguous().numpy()).reshape(
-            -1, fmt.BLOCK_BYTES
+            (-1, fmt.BLOCK_BYTES)
         )
         out = np.empty((u8_blocks.shape[0], fmt.BLOCK_LEN), dtype=np.float32)
         for start in range(0, u8_blocks.shape[0], GGML_CHUNK_BLOCKS):
@@ -335,15 +335,15 @@ def ggml_quant_k_scales_mins(
     f32 = np.float32
     n_blocks = x.shape[0]
     assert x.shape[1] == QK_K, x.shape
-    sub = x.reshape(n_blocks * 8, 32).astype(f32, copy=False)
+    sub = x.reshape((n_blocks * 8, 32)).astype(f32, copy=False)
     av_x = np.sqrt(ggml_seq_sum(sub * sub) / f32(32.0))
     weights = av_x[:, None] + np.abs(sub)
     scales, levels, mins = ggml_make_qkx2_quants(
         sub, weights, nmax, rmin, 0.1, nstep
     )
-    scales = scales.reshape(n_blocks, 8)
-    mins = mins.reshape(n_blocks, 8)
-    levels = levels.reshape(n_blocks, QK_K)
+    scales = scales.reshape((n_blocks, 8))
+    mins = mins.reshape((n_blocks, 8))
+    levels = levels.reshape((n_blocks, QK_K))
     # comparisons as in ggml: -0.0 mins never win over 0.0
     max_scale = np.where(scales > 0, scales, f32(0)).max(axis=1)
     max_min = np.where(mins > 0, mins, f32(0)).max(axis=1)
@@ -364,22 +364,22 @@ def ggml_quant_k_scales_mins(
     d_f16 = (max_scale / f32(63.0)).astype(np.float16)
     dmin_f16 = (max_min / f32(63.0)).astype(np.float16)
     header = np.empty((n_blocks, 16), dtype=np.uint8)
-    header[:, 0:2] = d_f16.reshape(n_blocks, 1).view(np.uint8)
-    header[:, 2:4] = dmin_f16.reshape(n_blocks, 1).view(np.uint8)
+    header[:, 0:2] = d_f16.reshape((n_blocks, 1)).view(np.uint8)
+    header[:, 2:4] = dmin_f16.reshape((n_blocks, 1)).view(np.uint8)
     header[:, 4:16] = sc
     # final levels with f16 rounded super scales
     sc_u, m_u = ggml_unpack_scale_min_k4(sc)
     d = d_f16.astype(f32)[:, None] * sc_u.astype(f32)
     dm = dmin_f16.astype(f32)[:, None] * m_u.astype(f32)
-    x8 = x.reshape(n_blocks, 8, 32).astype(f32, copy=False)
+    x8 = x.reshape((n_blocks, 8, 32)).astype(f32, copy=False)
     with np.errstate(divide="ignore", invalid="ignore"):
         new_levels = np.clip(
             ggml_nearest_int((x8 + dm[:, :, None]) / d[:, :, None]), 0, nmax
         )
     levels = np.where(
-        (d != 0)[:, :, None], new_levels, levels.reshape(n_blocks, 8, 32)
+        (d != 0)[:, :, None], new_levels, levels.reshape((n_blocks, 8, 32))
     ).astype(np.uint8)
-    return header, levels.reshape(n_blocks, QK_K)
+    return header, levels.reshape((n_blocks, QK_K))
 
 
 def ggml_dequant_k_scales_mins(
@@ -431,24 +431,24 @@ class QTensorTractQ4_K(QTensorTractGGMLBlock):  # noqa: N801
             fp_blocks, nmax=15, rmin=-1.0, nstep=20
         )
         # per 64 values: low nibbles from first 32, high from next 32
-        chunks = levels.reshape(n_blocks, 4, 2, 32)
+        chunks = levels.reshape((n_blocks, 4, 2, 32))
         qs = chunks[:, :, 0, :] | (chunks[:, :, 1, :] << 4)
         out = np.empty((n_blocks, cls.BLOCK_BYTES), dtype=np.uint8)
         out[:, :16] = header
-        out[:, 16:] = qs.reshape(n_blocks, 128)
+        out[:, 16:] = qs.reshape((n_blocks, 128))
         return out
 
     @classmethod
     def dequantize_blocks(cls, u8_blocks: np.ndarray) -> np.ndarray:
         n_blocks = u8_blocks.shape[0]
         d_sc, dmin_m = ggml_dequant_k_scales_mins(u8_blocks[:, :16])
-        qs = u8_blocks[:, 16:].reshape(n_blocks, 4, 1, 32)
+        qs = u8_blocks[:, 16:].reshape((n_blocks, 4, 1, 32))
         levels = np.concatenate([qs & 0xF, qs >> 4], axis=2).reshape(
-            n_blocks, 8, 32
+            (n_blocks, 8, 32)
         )
         # same f32 ops order as tract: (d * sc) * q - (dmin * m)
         out = d_sc[:, :, None] * levels.astype(np.float32) - dmin_m[:, :, None]
-        return out.reshape(n_blocks, cls.BLOCK_LEN)
+        return out.reshape((n_blocks, cls.BLOCK_LEN))
 
 
 def fp_to_tract_q4_k(fp_tensor: torch.Tensor) -> QTensorTractQ4_K:
