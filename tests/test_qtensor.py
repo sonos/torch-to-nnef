@@ -888,7 +888,10 @@ def test_tract_custom_types_q80_shares_legacy_q81_header():
     # same header value: only the block size tells them apart
     for block_bytes in [34, 36]:
         header = DatBinHeader.build_tract_qtensor(
-            DatBinHeader.TractCustomTypes.Q80, (2, 32), block_bytes=block_bytes
+            DatBinHeader.TractCustomTypes.Q80,
+            (2, 32),
+            block_bytes=block_bytes,
+            block_len=32,
         )
         assert header.data_size_bytes == 2 * block_bytes
 
