@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- **ggml block quantizers gave CPU model dependent bytes on x86**: `torch.sqrt`, computed with MKL vector math on x86 builds, is only accurate to about 1 ulp. The Q4_K (and K-quant with mins) sub-block weights now use `ggml_sqrt`, a correctly rounded f32 square root like C `sqrtf`, so bytes match llama.cpp on every machine.
 - **`QTensor.to(dtype or device)` left the source qtensor broken**: its qscheme was shared with the new qtensor and moved to the new device in place. The new qtensor now gets its own qscheme copy, and tract block formats keep their u8 codes instead of quantizing the dequantized values again.
 
 ## [0.24.12] - 2026-10-13

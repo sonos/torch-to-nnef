@@ -1,6 +1,7 @@
 """Tract ggml block formats (Q8_0, K-quants): packing, tract execution."""
 
 import hashlib
+import math
 from functools import partial
 
 import pytest
@@ -36,6 +37,7 @@ from torch_to_nnef.tensor.quant.qtract_ggml import (
     ggml_make_qx_quants,
     ggml_nearest_int,
     ggml_seq_sum,
+    ggml_sqrt,
     round_half_away,
 )
 
@@ -734,6 +736,23 @@ def test_ggml_nearest_int_matches_ggml():
     # int32 cast of out of range values is platform dependent)
     big = torch.tensor([2.0**23, 1e7], dtype=torch.float32)
     assert ggml_nearest_int(big).tolist() == [-2097152, -1291456]
+
+
+def test_ggml_sqrt_is_correctly_rounded():
+    # reference: f32 rounding of the f64 root (correctly rounded for sqrt)
+    gen = torch.Generator().manual_seed(0)
+    bits = torch.randint(0, 0x7F800000, (20000,), generator=gen)
+    values = torch.cat(
+        [
+            bits.to(torch.int32).view(torch.float32),
+            torch.tensor([0.0, 1.0, 2.0, 0.25, 1e-45, 3.4e38, float("inf")]),
+        ]
+    )
+    expected = torch.tensor(
+        [math.sqrt(v) for v in values.tolist()], dtype=torch.float64
+    ).to(torch.float32)
+    assert torch.equal(ggml_sqrt(values), expected)
+    assert torch.isnan(ggml_sqrt(torch.tensor([-1.0, float("nan")]))).all()
 
 
 def test_ggml_seq_sum_is_sequential_f32():
