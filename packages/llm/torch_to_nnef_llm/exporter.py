@@ -637,6 +637,8 @@ class LLMExporter:
         self, io_npz_dirpath: Path, size: int = 6
     ) -> T.List[T.Tuple[Path, Path]]:
         """Realistic dump of IO's."""
+        if self.model_infos.conf.model_type == "lfm3":
+            return self._dump_mixed_state_io(io_npz_dirpath, size)
         half = size // 2
         prompt_in_npz = io_npz_dirpath / "prompt_inputs.npz"
         prompt_out_npz = io_npz_dirpath / "prompt_outputs.npz"
@@ -693,6 +695,43 @@ class LLMExporter:
             (prompt_with_past_in_npz, prompt_with_past_out_npz),
             (text_gen_in_npz, text_gen_out_npz),
         ]
+
+    def _dump_mixed_state_io(self, directory: Path, size: int):
+        """Build continuation probes by carrying every state output forward.
+
+        A convolution state cannot be reconstructed by slicing a later KV
+        cache. Run the actual prefix for each continuation instead.
+        """
+        inputs, names, out_names, _ = self.generate_inputs_io_names_and_dynaxes(
+            n_input_tokens=size, n_past_input_tokens=0
+        )
+        dynamic_logits = self.wrapped_model.dynamic_logits_to_keep
+        suffix = inputs[-1:] if dynamic_logits else ()
+        state = inputs[1:-1] if dynamic_logits else inputs[1:]
+        bundles = []
+        for label, past in (
+            ("prompt", 0),
+            ("prompt_with_past", size // 2),
+            ("text_generation", size - 1),
+        ):
+            carried = state
+            if past:
+                carried = self.wrapped_model(
+                    inputs[0][:, :past], *state, *suffix
+                )[1:]
+            step_inputs = (inputs[0][:, past:], *carried, *suffix)
+            in_path = directory / f"{label}_inputs.npz"
+            out_path = directory / f"{label}_outputs.npz"
+            build_io(
+                self.wrapped_model,
+                step_inputs,
+                input_bundle_path=in_path,
+                output_bundle_path=out_path,
+                input_names=names,
+                output_names=out_names,
+            )
+            bundles.append((in_path, out_path))
+        return bundles
 
     @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
     def generate_test_text(
