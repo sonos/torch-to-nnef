@@ -47,7 +47,11 @@ LFM3_MODEL_DIR=/path/to/snapshot TRACT_BIN=/path/to/tract \
   uv run --extra llm pytest packages/llm/tests/test_lfm3_handler.py
 ```
 
-These compare streaming logits against the original cacheless model and run
+The full float32 checkpoint was exported and checked with tract 0.23.5-pre,
+PyTorch 2.14.1, and Transformers 5.19.0. The NNEF artifact is about 6.5 GiB.
+
+The tests cover small three-layer and full-depth 24-layer configurations.
+They compare streaming logits against the original cacheless model and run
 one exported graph with empty history, single-token decode, and chunks crossing
 the sliding-window and convolution boundaries. Integration tests skip when the
 local snapshot or tract binary is not configured.

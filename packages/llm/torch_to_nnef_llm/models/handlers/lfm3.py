@@ -56,11 +56,59 @@ class _ExportCache:
         return joined
 
 
+class _ExportShortConv(torch.nn.Module):
+    """Use a valid convolution over history + new tokens, with no crops.
+
+    The remote implementation pads and crops twice. Repeating those symbolic
+    slices across 13 layers makes tract's ROI optimizer prohibitively slow.
+    Six history samples already supply the causal left padding we need.
+    """
+
+    def __init__(self, original):
+        super().__init__()
+        self.original = original
+
+    def forward(
+        self,
+        hidden_states,
+        past_key_values=None,
+        attention_mask=None,
+        seq_idx=None,
+    ):
+        if not isinstance(past_key_values, _ExportCache):
+            return self.original(
+                hidden_states,
+                past_key_values=past_key_values,
+                attention_mask=attention_mask,
+                seq_idx=seq_idx,
+            )
+        module = self.original
+        b, c, x = module.in_proj(hidden_states).transpose(1, 2).chunk(3, dim=1)
+        joined = past_key_values.update_conv_state(
+            b * x,
+            module.layer_idx,
+            conv_kernel_size=module.conv_kernel_size,
+        )
+        convolved = torch.nn.functional.conv1d(
+            joined,
+            module.conv.weight,
+            module.conv.bias,
+            groups=module.conv.groups,
+        )
+        return module.out_proj((c * convolved).transpose(1, 2))
+
+
 @register_handler
 class Lfm3ArchitectureHandler(DefaultArchitectureHandler):
     """Export unpadded, batch-one LFM3 continuation and prefill."""
 
     ARCH_NAMES = ("lfm3",)
+
+    def prepare_model_for_export(self, model):
+        for layer in model.model.layers:
+            conv = getattr(layer, "conv", None)
+            if conv is not None and not isinstance(conv, _ExportShortConv):
+                layer.conv = _ExportShortConv(conv)
 
     def build_input_spec(
         self,

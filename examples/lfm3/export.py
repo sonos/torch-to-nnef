@@ -58,6 +58,7 @@ def main():
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained(source, trust_remote_code=True)
     handler = Lfm3ArchitectureHandler()
+    handler.prepare_model_for_export(model)
     spec = handler.build_input_spec(
         tokenizer=tokenizer,
         config_helper=HFConfigHelper(config),

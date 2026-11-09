@@ -36,7 +36,7 @@ def test_lfm3_cache_is_functional():
 
 
 @pytest.fixture
-def tiny_model():
+def tiny_model(request):
     # The model lives in pinned Hub remote code, not in transformers itself.
     source = os.environ.get("LFM3_MODEL_DIR")
     if not source:
@@ -50,8 +50,9 @@ def tiny_model():
     config.num_key_value_heads = 2
     config.head_dim = 8
     config.vocab_size = 128
-    config.num_hidden_layers = 3
-    config.layer_types = ["conv", "full_attention", "sliding_attention"]
+    if getattr(request, "param", 3) == 3:
+        config.num_hidden_layers = 3
+        config.layer_types = ["conv", "full_attention", "sliding_attention"]
     config.sliding_window = 4
     config.pad_token_id = 0
     torch.manual_seed(0)
@@ -81,6 +82,7 @@ def _spec(model, past=0):
 
 def test_lfm3_streaming_matches_original(tiny_model):
     model = tiny_model
+    Lfm3ArchitectureHandler().prepare_model_for_export(model)
     wrapper = BaseCausal(
         model, handler=Lfm3ArchitectureHandler(), num_logits_to_keep=0
     )
@@ -106,10 +108,12 @@ def test_lfm3_streaming_matches_original(tiny_model):
             )
 
 
+@pytest.mark.parametrize("tiny_model", [3, 24], indirect=True)
 def test_lfm3_dynamic_nnef(tiny_model, tmp_path):
     binary = os.environ.get("TRACT_BIN")
     if not binary:
         pytest.skip("set TRACT_BIN for dynamic NNEF runtime validation")
+    Lfm3ArchitectureHandler().prepare_model_for_export(tiny_model)
     cli = TractCli(Path(binary))
     spec = _spec(tiny_model, past=2)
     wrapper = BaseCausal(
