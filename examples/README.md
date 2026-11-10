@@ -20,6 +20,7 @@ README.
 | [`nuextract3/`](nuextract3/) | NuExtract3 / Qwen3.5-VL document VLM: image-to-Markdown export with the hybrid gated-delta-net decoder and a minimal Rust+tract runner that decodes generated Markdown | (no tutorial yet) |: |
 | [`imageclass-wasm/`](imageclass-wasm/) | Image classifier compiled to wasm | [1. Getting started](https://sonos.github.io/torch-to-nnef/latest/tutos/1_getting_started/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_image_classifier.html) |
 | [`yolo/`](yolo/) | YOLO pose estimation in wasm | [1. Getting started](https://sonos.github.io/torch-to-nnef/latest/tutos/1_getting_started/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_pose_estimation.html) |
+| [`lfm3/`](lfm3/) | LFM3-1.7B-Base streaming export with convolution and attention state | (no tutorial yet) |: |
 | [`llm_wasm/`](llm_wasm/) | Small LLM running in wasm | [5. Large Language Models](https://sonos.github.io/torch-to-nnef/latest/tutos/5_llm/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_poem_generator.html) |
 | [`vad/FSMN-wasm/`](vad/FSMN-wasm/) | FSMN VAD in wasm | [4. Dynamic axes](https://sonos.github.io/torch-to-nnef/latest/tutos/4_dynamic_axes/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_vad.html) |
 | [`vad/silero-jit/`](vad/silero-jit/) | Silero-VAD JIT artifact straight to NNEF (`harden_jit_for_export`) | [12. JIT-only models](https://sonos.github.io/torch-to-nnef/latest/tutos/12_jit_only_models/) |: |

@@ -21,6 +21,7 @@ from .idefics3_vl import (
     Idefics3ArchitectureHandler,
     Idefics3VisionEncoderHandler,
 )
+from .lfm3 import Lfm3ArchitectureHandler
 from .mistral3 import Mistral3TextArchitectureHandler
 from .openelm import OpenELMArchitectureHandler
 from .phi import PhiArchitectureHandler
@@ -63,6 +64,7 @@ __all__ = [
     "Gemma4VisionEncoderHandler",
     "GptOssArchitectureHandler",
     "IOSpec",
+    "Lfm3ArchitectureHandler",
     "Idefics3ArchitectureHandler",
     "Idefics3VisionEncoderHandler",
     "MultiModalArchitectureHandler",
