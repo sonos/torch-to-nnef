@@ -3,6 +3,9 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`OffloadedTensor.to(device=..., dtype=...)` raised `IndexError`**: with keyword arguments only there was no positional argument to inspect, and `.to(other_tensor)` was read as a dtype. Arguments are now parsed the way `Tensor.to` parses them, so every signature works.
 
 ## [0.25.0] - 2026-11-06
 

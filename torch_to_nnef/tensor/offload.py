@@ -608,37 +608,26 @@ class OffloadedTensor(OpaqueTensor):
         return off_tensor
 
     def to(self, *args, **kwargs):
-        """Change the target device when reloaded in memory."""
-        if len(args) > 1:
-            kwargs.update(zip(["device", "dtype"], args, strict=False))
-        else:
-            # unfortunately arg order is not guarantied
-            # in torch .to ...
-            try:
-                torch.device(args[0])
-                kwargs["device"] = args[0]
-            except TypeError:
-                kwargs["dtype"] = args[0]
+        """Change the target device when reloaded in memory.
 
-        if kwargs.get("dtype") is not None:
-            dtype = kwargs["dtype"]
-            assert isinstance(dtype, torch.dtype)
-            if dtype != self.elem.dtype:
-                tensor = self.reload().to(dtype)
-                self._save(
-                    tensor,
-                    self.offload_dir,
-                    self._name,
-                    storage_id=self._storage_id,
-                )
-                self.offload_path.unlink()
-                self.elem = self.elem.to(dtype)
-                self.__dict__["dtype"] = dtype
-                LOGGER.info(
-                    "[casted to %s] offload tensor '%s'", dtype, self._name
-                )
-        if kwargs.get("device") is not None:
-            self.target_device = torch.device(kwargs["device"])
+        Accepts every ``Tensor.to`` signature (positional or keyword device
+        and dtype, or another tensor) by parsing them as torch does.
+        """
+        device, dtype, *_ = torch._C._nn._parse_to(*args, **kwargs)
+        if dtype is not None and dtype != self.elem.dtype:
+            tensor = self.reload().to(dtype)
+            self._save(
+                tensor,
+                self.offload_dir,
+                self._name,
+                storage_id=self._storage_id,
+            )
+            self.offload_path.unlink()
+            self.elem = self.elem.to(dtype)
+            self.__dict__["dtype"] = dtype
+            LOGGER.info("[casted to %s] offload tensor '%s'", dtype, self._name)
+        if device is not None:
+            self.target_device = device
         return self
 
     @property

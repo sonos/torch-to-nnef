@@ -455,6 +455,48 @@ def test_offload_change_dtype():
 
 
 @skipif_limited_offload_support
+@pytest.mark.parametrize(
+    "to_args",
+    [
+        pytest.param(((), {"device": "cpu", "dtype": torch.float16}), id="kw"),
+        pytest.param((("cpu",), {"dtype": torch.float16}), id="mixed"),
+        pytest.param((("cpu", torch.float16), {}), id="positional"),
+        pytest.param(
+            ((torch.zeros(1, dtype=torch.float16),), {}), id="other-tensor"
+        ),
+        pytest.param(
+            ((torch.float16,), {"non_blocking": True}), id="non-blocking"
+        ),
+    ],
+)
+def test_offload_to_accepts_tensor_to_signatures(to_args):
+    args, kwargs = to_args
+    with tempfile.TemporaryDirectory() as td:
+        offloaded_value = OffloadedTensor.from_original_tensor(
+            torch.rand(10, 10, dtype=torch.float32),
+            "my_offloaded_weight",
+            offload_dir=Path(td),
+        )
+        offloaded_value = offloaded_value.to(*args, **kwargs)
+        assert offloaded_value.dtype == torch.float16
+        assert offloaded_value.target_device == torch.device("cpu")
+        assert offloaded_value.reload().dtype == torch.float16
+
+
+@skipif_limited_offload_support
+def test_offload_to_device_only_keeps_dtype():
+    with tempfile.TemporaryDirectory() as td:
+        offloaded_value = OffloadedTensor.from_original_tensor(
+            torch.rand(10, 10, dtype=torch.float32),
+            "my_offloaded_weight",
+            offload_dir=Path(td),
+        )
+        offloaded_value = offloaded_value.to(device="meta")
+        assert offloaded_value.dtype == torch.float32
+        assert offloaded_value.target_device == torch.device("meta")
+
+
+@skipif_limited_offload_support
 def test_offload_set_updates_payload():
     with tempfile.TemporaryDirectory() as td:
         offloaded_value = OffloadedTensor.from_original_tensor(
