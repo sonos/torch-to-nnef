@@ -2,6 +2,7 @@ import abc
 import copy
 import logging
 import typing as T
+import warnings
 from pathlib import Path
 
 import torch
@@ -325,6 +326,26 @@ class QTensor(OpaqueTensor):
         new_obj.nnef_name = self.nnef_name
         new_obj.requires_grad = False
         return new_obj
+
+    def __deepcopy__(self, memo):
+        """Copy the packed codes and scheme, staying quantized.
+
+        ``Tensor.__deepcopy__`` would reach ``__torch_function__``, which
+        decompresses its argument: the copy came back as the dequantized
+        ``torch.Tensor``, and memo entries were keyed on that temporary. The
+        pickle protocol keeps the QTensor, so this rebuilds from it exactly as
+        ``copy.deepcopy`` does for objects without ``__deepcopy__``: the copy
+        is registered in *memo*, and state shared between QTensors (a common
+        scheme, say) stays shared within one deep copy.
+        """
+        if id(self) in memo:
+            return memo[id(self)]
+        with warnings.catch_warnings():
+            # The reduced state holds the wrapper's TypedStorage.
+            warnings.filterwarnings(
+                "ignore", message="TypedStorage is deprecated"
+            )
+            return copy._reconstruct(self, memo, *self.__reduce_ex__(4))
 
     def _rebuild_with(self, fp_tensor, qscheme, dequant_to_dtype):
         """New qtensor of `fp_tensor` keeping these exact u8 codes."""

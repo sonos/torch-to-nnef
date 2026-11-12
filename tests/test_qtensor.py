@@ -217,6 +217,34 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     assert type(out) is type(inp_tensor)  # avoid propagation of qtype
 
 
+@skipif_unsupported_qtensor
+def test_qtensor_deepcopy_keeps_each_layer_quantized_and_its_own():
+    torch.manual_seed(0)
+    model = nn.Sequential(*(nn.Linear(64, 64, bias=False) for _ in range(8)))
+    for layer in model:
+        layer.weight = nn.Parameter(
+            fp_to_tract_q4_0_with_min_max_calibration(layer.weight.detach()),
+            requires_grad=False,
+        )
+    # Repeat: wrong memo hits depended on temporaries' ids being reused.
+    for _ in range(5):
+        copied = deepcopy(model)
+        for original, clone in zip(model, copied, strict=True):
+            assert type(clone.weight) is type(original.weight)
+            assert clone.weight.u8_blob is not original.weight.u8_blob
+            assert torch.equal(
+                clone.weight.decompress(), original.weight.decompress()
+            )
+
+
+@skipif_unsupported_qtensor
+def test_qtensor_deepcopy_preserves_sharing_within_one_copy():
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    copied = deepcopy({"a": q_tensor, "b": q_tensor})
+    assert copied["a"] is copied["b"]
+    assert copied["a"] is not q_tensor
+
+
 @pytest.fixture
 def forbid_qtensor_materialization(monkeypatch):
     """Fail the test if any quantized weight is decompressed during trace."""
