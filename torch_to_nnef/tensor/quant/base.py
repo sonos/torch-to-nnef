@@ -331,7 +331,8 @@ class QTensor(OpaqueTensor):
 
         Without this override the call reaches ``__torch_function__``, which
         returns the dequantized ``torch.Tensor`` instead, so ``nn.Module.cpu``
-        cannot move a quantized parameter.
+        cannot move a quantized parameter. ``memory_format`` is accepted for
+        signature compatibility only; the packed codes keep their layout.
         """
         return self.to("cpu")
 
@@ -341,7 +342,12 @@ class QTensor(OpaqueTensor):
         non_blocking=False,
         memory_format=torch.preserve_format,
     ):
-        """Move to a CUDA device and stay quantized, as ``to(device)`` does."""
+        """Move to a CUDA device and stay quantized, as ``to(device)`` does.
+
+        ``device`` is a device, an index or ``None`` for the current CUDA
+        device. ``non_blocking`` and ``memory_format`` are accepted for
+        signature compatibility only.
+        """
         if device is None:
             device = torch.device("cuda", torch.cuda.current_device())
         elif isinstance(device, int):
