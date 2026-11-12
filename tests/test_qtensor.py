@@ -217,6 +217,34 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     assert type(out) is type(inp_tensor)  # avoid propagation of qtype
 
 
+@skipif_unsupported_qtensor
+def test_qtensor_cpu_keeps_the_quantized_tensor():
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(64).reshape(2, 32).float()
+    )
+    moved = q_tensor.cpu()
+    assert type(moved) is type(q_tensor)
+    assert torch.equal(moved.u8_blob, q_tensor.u8_blob)
+    assert torch.equal(moved.decompress(), q_tensor.decompress())
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+@pytest.mark.parametrize("device", [None, 0, "cuda"])
+def test_qtensor_cuda_and_cpu_move_the_packed_codes(device):
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(64).reshape(2, 32).float()
+    )
+    expected = q_tensor.decompress()
+    on_gpu = q_tensor.cuda() if device is None else q_tensor.cuda(device)
+    assert type(on_gpu) is type(q_tensor)
+    assert on_gpu.u8_blob.device.type == "cuda"
+    back = on_gpu.cpu()
+    assert type(back) is type(q_tensor)
+    assert back.u8_blob.device.type == "cpu"
+    assert torch.equal(back.decompress(), expected)
+
+
 @pytest.fixture
 def forbid_qtensor_materialization(monkeypatch):
     """Fail the test if any quantized weight is decompressed during trace."""

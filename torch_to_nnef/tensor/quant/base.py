@@ -326,6 +326,28 @@ class QTensor(OpaqueTensor):
         new_obj.requires_grad = False
         return new_obj
 
+    def cpu(self, memory_format=torch.preserve_format):
+        """Move to host memory and stay quantized, as ``to("cpu")`` does.
+
+        Without this override the call reaches ``__torch_function__``, which
+        returns the dequantized ``torch.Tensor`` instead, so ``nn.Module.cpu``
+        cannot move a quantized parameter.
+        """
+        return self.to("cpu")
+
+    def cuda(
+        self,
+        device=None,
+        non_blocking=False,
+        memory_format=torch.preserve_format,
+    ):
+        """Move to a CUDA device and stay quantized, as ``to(device)`` does."""
+        if device is None:
+            device = torch.device("cuda", torch.cuda.current_device())
+        elif isinstance(device, int):
+            device = torch.device("cuda", device)
+        return self.to(device)
+
     def _rebuild_with(self, fp_tensor, qscheme, dequant_to_dtype):
         """New qtensor of `fp_tensor` keeping these exact u8 codes."""
         new_obj = self.__class__(

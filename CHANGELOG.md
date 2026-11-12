@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+### Fixed
+- **`QTensor.cpu()` and `QTensor.cuda()` keep the tensor quantized** (core): both calls used to fall through to `__torch_function__`, which returned the dequantized `torch.Tensor`, while `QTensor.to(device)` moved the packed codes. They now delegate to `to`, so a quantized tensor moves between host and GPU like any other.
 
 ## [0.25.0] - 2026-11-06
 
