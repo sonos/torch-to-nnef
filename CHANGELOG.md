@@ -4,7 +4,7 @@
 ## Unreleased
 
 ### Fixed
-- **`copy.deepcopy` keeps a `QTensor` quantized** (core): the default `Tensor.__deepcopy__` went through `__torch_function__`, which decompresses its argument, so a deep copy came back as the dequantized `torch.Tensor`, and its memo was keyed on a temporary whose id could be reused by a later tensor. `QTensor.__deepcopy__` now rebuilds the copy through the pickle protocol, which keeps the packed codes, and registers it in the memo, so a deep-copied module keeps quantized weights and tensors shared within it stay shared.
+- **`copy.deepcopy` keeps a `QTensor` quantized** (core): the default `Tensor.__deepcopy__` went through `__torch_function__`, which decompresses its argument, so a deep copy came back as the dequantized `torch.Tensor`, and its memo was keyed on a temporary whose id could be reused by a later tensor. `QTensor.__deepcopy__` now rebuilds the copy from its pickle reduction, which keeps the packed codes, deep-copying that state with the memo, so a deep-copied module keeps quantized weights and tensors shared within it stay shared.
 
 ## [0.25.0] - 2026-11-06
 
