@@ -633,11 +633,19 @@ class OffloadedTensor(OpaqueTensor):
         if copy_requested:
             # A distinct storage identity keeps casts/deletion of the copy
             # from modifying or unlinking the source payload.
+            # A lazy target (or residency scope) may be meta. Save real
+            # values before setting the copy's target, even for dtype casts.
+            values = self.reload(device="cpu")
+            if dtype is not None:
+                values = values.to(dtype=dtype)
             copied = self.from_original_tensor(
-                self.reload(), self._name, offload_dir=self.offload_dir
+                values, self._name, offload_dir=self.offload_dir
             )
             copied.force_gc_collect = self.force_gc_collect
-            return copied.to(device=device, dtype=dtype)
+            copied.target_device = (
+                device if device is not None else self.target_device
+            )
+            return copied
         if dtype is not None and dtype != self.elem.dtype:
             tensor = self.reload().to(dtype)
             self._save(

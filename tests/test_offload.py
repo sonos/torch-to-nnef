@@ -589,3 +589,41 @@ def test_offload_to_rejects_invalid_copy_before_mutation(tmp_path):
         original.to(torch.float16, False, True, copy=True)
     assert original.dtype == torch.float32
     assert original.offload_path.exists()
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("device", [None, "cpu", "meta"])
+@pytest.mark.parametrize("dtype", [None, torch.float16])
+def test_offload_copy_from_meta_target_preserves_payload(
+    tmp_path, device, dtype
+):
+    values = torch.arange(16, dtype=torch.float32).reshape(4, 4)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    ).to(device="meta")
+
+    copied = original.to(device=device, dtype=dtype, copy=True)
+
+    assert copied.target_device == torch.device(device or "meta")
+    assert copied.offload_path != original.offload_path
+    assert torch.equal(copied.reload(device="cpu"), values.to(dtype=dtype))
+    assert copied.dtype == (dtype or values.dtype)
+    assert original.target_device == torch.device("meta")
+    assert original.dtype == values.dtype
+    assert torch.equal(original.reload(device="cpu"), values)
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("dtype", [None, torch.float16])
+def test_offload_copy_ignores_residency_target_override(tmp_path, dtype):
+    from torch_to_nnef.tensor.residency import TensorResidencyPool
+
+    values = torch.arange(16, dtype=torch.float32).reshape(4, 4)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    with TensorResidencyPool() as pool, pool.scope(device="meta"):
+        copied = original.to(dtype=dtype, copy=True)
+    assert copied.target_device == original.target_device == torch.device("cpu")
+    assert torch.equal(copied.reload(), values.to(dtype=dtype))
+    assert torch.equal(original.reload(), values)
