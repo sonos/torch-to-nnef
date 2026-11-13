@@ -470,16 +470,26 @@ class QTensor(OpaqueTensor):
         if (
             isinstance(new_data, self.__class__)
             and new_data.dtype == self.dtype
-            and torch.equal(
-                self.decompress(), new_data.decompress().to(self.device)
-            )
         ):
-            # Module._apply preserves Parameter identity by assigning .data.
-            # Adopt the moved quantized state, keeping tied parameters tied.
-            self.u8_blob = new_data.u8_blob
-            self.qscheme = new_data.qscheme
-            self.u8_compressors = new_data.u8_compressors
-            return
+            # Validate the state as this object will decode it. Subclasses
+            # may retain metadata (such as specific_machine) that changes
+            # decoding, so equality with new_data alone is insufficient.
+            candidate = copy.copy(self)
+            candidate.u8_blob = new_data.u8_blob
+            candidate.qscheme = new_data.qscheme
+            candidate.u8_compressors = new_data.u8_compressors
+            original_values = self.decompress()
+            if torch.equal(
+                original_values, new_data.decompress().to(self.device)
+            ) and torch.equal(
+                original_values, candidate.decompress().to(self.device)
+            ):
+                # Module._apply assigns .data to keep Parameter identity.
+                # Commit only after validating, keeping tied weights tied.
+                self.u8_blob = candidate.u8_blob
+                self.qscheme = candidate.qscheme
+                self.u8_compressors = candidate.u8_compressors
+                return
         raise T2NErrorNotImplemented(f"Trying to alter a QTensor.data: {self}")
 
     def write_in_file(self, dirpath: T.Union[str, Path], label: str):

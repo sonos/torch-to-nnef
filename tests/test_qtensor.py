@@ -1373,3 +1373,34 @@ def test_qtensor_module_device_transfer_preserves_tied_parameters(device):
     assert weight.qscheme.scale.device.type == "cpu"
     assert torch.equal(weight.decompress(), expected)
     assert torch.equal(weight.u8_blob, expected_codes)
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("same_values", [True, False])
+def test_qtensor_data_rejects_incompatible_decoding_metadata(same_values):
+    original = fp_to_tract_q4_0_with_min_max_calibration(torch.ones(1, 32))
+    replacement = deepcopy(original)
+    original.specific_machine = "x86_64"
+    replacement.specific_machine = "arm64"
+    replacement.qscheme.scale.fill_(0.1234)
+    replacement.u8_blob.fill_(15)  # seven times the scale, rounded to f16
+    if same_values:
+        original.qscheme.scale.copy_(replacement.qscheme.scale * 7)
+        original.u8_blob.fill_(9)  # one times the already-rounded scale
+    else:
+        original.qscheme.scale.copy_(replacement.qscheme.scale)
+        original.u8_blob.fill_(15)
+    expected = original.decompress().clone()
+    codes, scheme = original.u8_blob, original.qscheme
+    assert torch.equal(expected, replacement.decompress()) == same_values
+
+    # When values match, keeping x86 metadata with the replacement's state
+    # would produce 0.8638916015625 instead of 0.86376953125. When they do not
+    # match, even an unchanged candidate must not bypass the value check.
+    with pytest.raises(T2NErrorNotImplemented):
+        original.data = replacement
+
+    assert original.u8_blob is codes
+    assert original.qscheme is scheme
+    assert original.specific_machine == "x86_64"
+    assert torch.equal(original.decompress(), expected)
