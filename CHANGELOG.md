@@ -4,8 +4,8 @@
 ## Unreleased
 
 ### Fixed
-
 - **`OffloadedTensor.to(device=..., dtype=...)` raised `IndexError`**: with keyword arguments only there was no positional argument to inspect, and `.to(other_tensor)` was read as a dtype. Arguments are now parsed the way `Tensor.to` parses them, so every signature works.
+- **`copy.deepcopy` keeps a `QTensor` quantized** (core): the default `Tensor.__deepcopy__` went through `__torch_function__`, which decompresses its argument, so a deep copy came back as the dequantized `torch.Tensor`, and its memo was keyed on a temporary whose id could be reused by a later tensor. `QTensor.__deepcopy__` now rebuilds the copy from its pickle reduction, which keeps the packed codes, deep-copying that state with the memo, so a deep-copied module keeps quantized weights and tensors shared within it stay shared.
 
 ## [0.25.0] - 2026-11-06
 
