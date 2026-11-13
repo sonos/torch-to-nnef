@@ -20,3 +20,8 @@ ndarray-npy = { version = "0.10", default-features = false }
 
 [profile.release]
 debug = true
+
+[patch.crates-io]
+# Upstream ZIP 9 support; remove once ndarray-npy publishes this fix.
+# https://github.com/jturner314/ndarray-npy/pull/109
+ndarray-npy = { git = "https://github.com/jturner314/ndarray-npy", rev = "0215776b072b80b5d5bfe11455f4e8584f14501e" }
