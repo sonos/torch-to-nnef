@@ -292,16 +292,32 @@ class QTensor(OpaqueTensor):
         """
         if id(self) in memo:
             return memo[id(self)]
-        # A tensor reduces to (rebuild, args); its subclass, storage and
-        # attributes all travel in args.
-        rebuild, args = self.__reduce_ex__(4)
+        # Tensor's subclass reduction holds the tensor rebuild function,
+        # subclass, tensor arguments and Python state. Rebuild the tensor
+        # first so references back to it in the state resolve via memo.
+        _, (rebuild_tensor, tensor_type, tensor_args, state) = (
+            self.__reduce_ex__(4)
+        )
         with warnings.catch_warnings():
-            # args hold the wrapper's TypedStorage.
+            # tensor_args hold the wrapper's TypedStorage.
             warnings.filterwarnings(
                 "ignore", message="TypedStorage is deprecated"
             )
-            copied = rebuild(*copy.deepcopy(args, memo))
+            copied = rebuild_tensor(*copy.deepcopy(tensor_args, memo))
+        with select_ctx_disable_torch_fn():
+            copied = copied.as_subclass(tensor_type)
         memo[id(self)] = copied
+        state = copy.deepcopy(state, memo)
+        if type(self).__setstate__ is not torch.Tensor.__setstate__:
+            copied.__setstate__(state)
+        else:
+            # Python's default object state is a dict, or (dict, slots).
+            dict_state, slots_state = (
+                state if isinstance(state, tuple) else (state, None)
+            )
+            for attributes in (dict_state, slots_state):
+                for name, value in (attributes or {}).items():
+                    setattr(copied, name, value)
         return copied
 
     def to(self, *args, **kwargs):

@@ -1241,3 +1241,41 @@ def test_qtensor_deepcopy_preserves_sharing_within_one_copy():
     copied = deepcopy({"a": q_tensor, "b": q_tensor})
     assert copied["a"] is copied["b"]
     assert copied["a"] is not q_tensor
+
+
+@skipif_unsupported_qtensor
+def test_qtensor_deepcopy_preserves_metadata_cycles():
+    first = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    second = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    first.self_ref = first
+    first.peer = second
+    second.peer = first
+
+    copied = deepcopy(first)
+
+    assert copied is not first
+    assert copied.self_ref is copied
+    assert copied.peer is not second
+    assert copied.peer.peer is copied
+    assert torch.equal(copied.decompress(), first.decompress())
+    assert torch.equal(copied.peer.decompress(), second.decompress())
+
+
+@skipif_unsupported_qtensor
+def test_qtensor_deepcopy_preserves_shared_scheme():
+    first = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    second = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    second.qscheme = first.qscheme
+
+    copied_first, copied_second = deepcopy((first, second))
+
+    assert copied_first is not copied_second
+    assert copied_first.qscheme is copied_second.qscheme
+    assert copied_first.qscheme is not first.qscheme
+    assert (
+        copied_first.qscheme.scale.data_ptr() != first.qscheme.scale.data_ptr()
+    )
+    assert copied_first.u8_blob.data_ptr() != first.u8_blob.data_ptr()
+    assert copied_second.u8_blob.data_ptr() != second.u8_blob.data_ptr()
+    assert torch.equal(copied_first.decompress(), first.decompress())
+    assert torch.equal(copied_second.decompress(), second.decompress())
