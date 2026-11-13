@@ -52,6 +52,11 @@ from .utils import (
     tract_versions_just_below,
 )
 
+skipif_no_mps = pytest.mark.skipif(
+    not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
+    reason="needs MPS",
+)
+
 
 def check_tensor_in_nnef_archive(
     inference_target: InferenceTarget,
@@ -243,6 +248,38 @@ def test_qtensor_cuda_and_cpu_move_the_packed_codes(device):
     assert type(back) is type(q_tensor)
     assert back.u8_blob.device.type == "cpu"
     assert torch.equal(back.decompress(), expected)
+
+
+@skipif_unsupported_qtensor
+@skipif_no_mps
+def test_qtensor_mps_and_cpu_move_the_packed_codes():
+    original = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(64).reshape(2, 32).float()
+    )
+    expected_values = original.decompress().clone()
+    expected_codes = original.u8_blob.clone()
+    expected_scales = original.qscheme.scale.clone()
+
+    moved = original.to("mps")
+
+    assert type(moved) is type(original)
+    assert moved.u8_blob.device.type == "mps"
+    assert moved.qscheme.scale.device.type == "mps"
+    assert torch.equal(moved.u8_blob.cpu(), expected_codes)
+    assert torch.equal(moved.decompress().cpu(), expected_values)
+    assert original.u8_blob.device.type == "cpu"
+    assert original.qscheme.scale.device.type == "cpu"
+    assert torch.equal(original.qscheme.scale, expected_scales)
+
+    back = moved.cpu()
+
+    assert type(back) is type(original)
+    assert back.u8_blob.device.type == "cpu"
+    assert back.qscheme.scale.device.type == "cpu"
+    assert torch.equal(back.u8_blob, expected_codes)
+    assert torch.equal(back.decompress(), expected_values)
+    assert moved.u8_blob.device.type == "mps"
+    assert moved.qscheme.scale.device.type == "mps"
 
 
 @pytest.fixture
@@ -1344,7 +1381,9 @@ def test_qtensor_cuda_rejects_non_cuda_device(device):
 
 
 @skipif_unsupported_qtensor
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize(
+    "device", ["cpu", "cuda", pytest.param("mps", marks=skipif_no_mps)]
+)
 def test_qtensor_module_device_transfer_preserves_tied_parameters(device):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("needs CUDA")
@@ -1360,7 +1399,10 @@ def test_qtensor_module_device_transfer_preserves_tied_parameters(device):
     expected = weight.decompress().clone()
     expected_codes = weight.u8_blob.clone()
 
-    getattr(model, device)()
+    if device == "mps":
+        model.to("mps")
+    else:
+        getattr(model, device)()
 
     assert model[0].weight is weight
     assert model[1].weight is weight

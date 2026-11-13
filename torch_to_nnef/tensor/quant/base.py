@@ -357,7 +357,7 @@ class QTensor(OpaqueTensor):
 
         # own scheme copy: `to_device` must not move the source parameters
         new_obj = self._rebuild_with(
-            self.dequantize(),
+            self.decompress(),
             copy.copy(self.qscheme),
             new_dtype or self.dequant_to_dtype,
         )
