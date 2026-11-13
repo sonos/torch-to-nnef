@@ -613,7 +613,31 @@ class OffloadedTensor(OpaqueTensor):
         Accepts every ``Tensor.to`` signature (positional or keyword device
         and dtype, or another tensor) by parsing them as torch does.
         """
+        # Module.to's parser deliberately rejects Tensor.to's copy flag.
+        # Remove it from the selected overload before parsing the rest.
+        copy_index = (
+            2
+            if args and isinstance(args[0], (torch.dtype, torch.Tensor))
+            else 3
+        )
+        if len(args) > copy_index:
+            if "copy" in kwargs:
+                raise TypeError("to() got multiple values for argument 'copy'")
+            copy_requested = args[copy_index]
+            args = args[:copy_index] + args[copy_index + 1 :]
+        else:
+            copy_requested = kwargs.pop("copy", False)
+        if not isinstance(copy_requested, bool):
+            raise TypeError("to() argument 'copy' must be bool")
         device, dtype, *_ = torch._C._nn._parse_to(*args, **kwargs)
+        if copy_requested:
+            # A distinct storage identity keeps casts/deletion of the copy
+            # from modifying or unlinking the source payload.
+            copied = self.from_original_tensor(
+                self.reload(), self._name, offload_dir=self.offload_dir
+            )
+            copied.force_gc_collect = self.force_gc_collect
+            return copied.to(device=device, dtype=dtype)
         if dtype is not None and dtype != self.elem.dtype:
             tensor = self.reload().to(dtype)
             self._save(

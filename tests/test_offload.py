@@ -530,3 +530,62 @@ def test_offload_set_updates_nested_qtensor_payload():
         reloaded = offloaded_value.reload()
         assert type(reloaded) is type(q_tensor)
         assert torch.allclose(reloaded.decompress(), q_tensor.decompress())
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("copy_requested", [False, True])
+@pytest.mark.parametrize("signature", ["keyword", "dtype", "device", "tensor"])
+def test_offload_to_copy_argument(tmp_path, copy_requested, signature):
+    values = torch.arange(100, dtype=torch.float32).reshape(10, 10)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    if signature == "keyword":
+        result = original.to(dtype=torch.float16, copy=copy_requested)
+    elif signature == "dtype":
+        result = original.to(torch.float16, False, copy_requested)
+    elif signature == "device":
+        result = original.to("cpu", torch.float16, False, copy_requested)
+    else:
+        result = original.to(
+            torch.empty(0, dtype=torch.float16), False, copy_requested
+        )
+    assert torch.equal(result.reload(), values.half())
+    if copy_requested:
+        assert result is not original
+        assert result.offload_path != original.offload_path
+        assert original.dtype == torch.float32
+        assert torch.equal(original.reload(), values)
+        del result
+        assert original.offload_path.exists()
+        assert torch.equal(original.reload(), values)
+    else:
+        assert result is original
+
+
+@skipif_limited_offload_support
+def test_offload_to_copy_without_conversion(tmp_path):
+    values = torch.randn(4, 4)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    assert original.to(copy=False) is original
+    copied = original.to(copy=True)
+    assert copied is not original
+    assert copied.offload_path != original.offload_path
+    assert torch.equal(copied.reload(), values)
+    copied.to(torch.float16)
+    assert torch.equal(original.reload(), values)
+
+
+@skipif_limited_offload_support
+def test_offload_to_rejects_invalid_copy_before_mutation(tmp_path):
+    original = OffloadedTensor.from_original_tensor(
+        torch.randn(4, 4), "weight", offload_dir=tmp_path
+    )
+    with pytest.raises(TypeError):
+        original.to(torch.float16, copy="yes")
+    with pytest.raises(TypeError):
+        original.to(torch.float16, False, True, copy=True)
+    assert original.dtype == torch.float32
+    assert original.offload_path.exists()
