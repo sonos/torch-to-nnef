@@ -399,6 +399,27 @@ class QTensor(OpaqueTensor):
             raise ValueError(f"Expected a CUDA device, got {device}")
         return self.to(device)
 
+    def xpu(
+        self,
+        device=None,
+        non_blocking=False,
+        memory_format=torch.preserve_format,
+    ):
+        """Move to an XPU device and stay quantized, as ``to(device)`` does.
+
+        ``device`` is a device, an index or ``None`` for the current XPU
+        device. ``non_blocking`` and ``memory_format`` are accepted for
+        signature compatibility only.
+        """
+        if device is None:
+            device = torch.device("xpu")
+        elif isinstance(device, int):
+            device = torch.device("xpu", device)
+        device = torch.device(device)
+        if device.type != "xpu":
+            raise ValueError(f"Expected an XPU device, got {device}")
+        return self.to(device)
+
     def _rebuild_with(self, fp_tensor, qscheme, dequant_to_dtype):
         """New qtensor of `fp_tensor` keeping these exact u8 codes."""
         new_obj = self.__class__(

@@ -58,6 +58,12 @@ skipif_no_mps = pytest.mark.skipif(
 )
 
 
+skipif_no_xpu = pytest.mark.skipif(
+    not (hasattr(torch, "xpu") and torch.xpu.is_available()),
+    reason="needs XPU",
+)
+
+
 def check_tensor_in_nnef_archive(
     inference_target: InferenceTarget,
     path: Path,
@@ -248,6 +254,47 @@ def test_qtensor_cuda_and_cpu_move_the_packed_codes(device):
     assert type(back) is type(q_tensor)
     assert back.u8_blob.device.type == "cpu"
     assert torch.equal(back.decompress(), expected)
+
+
+@skipif_unsupported_qtensor
+@skipif_no_xpu
+@pytest.mark.parametrize("device", [None, 0, "xpu"])
+def test_qtensor_xpu_and_cpu_move_the_packed_codes(device):
+    original = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(64).reshape(2, 32).float()
+    )
+    expected_values = original.decompress().clone()
+    expected_codes = original.u8_blob.clone()
+    expected_scales = original.qscheme.scale.clone()
+
+    moved = original.xpu(device)
+
+    assert type(moved) is type(original)
+    assert moved.u8_blob.device.type == "xpu"
+    assert moved.qscheme.scale.device.type == "xpu"
+    assert torch.equal(moved.u8_blob.cpu(), expected_codes)
+    assert torch.equal(moved.decompress().cpu(), expected_values)
+    assert original.u8_blob.device.type == "cpu"
+    assert original.qscheme.scale.device.type == "cpu"
+    assert torch.equal(original.qscheme.scale, expected_scales)
+
+    back = moved.cpu()
+
+    assert type(back) is type(original)
+    assert back.u8_blob.device.type == "cpu"
+    assert back.qscheme.scale.device.type == "cpu"
+    assert torch.equal(back.u8_blob, expected_codes)
+    assert torch.equal(back.decompress(), expected_values)
+    assert moved.u8_blob.device.type == "xpu"
+    assert moved.qscheme.scale.device.type == "xpu"
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("device", ["cpu", torch.device("meta")])
+def test_qtensor_xpu_rejects_non_xpu_device(device):
+    quantized = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    with pytest.raises(ValueError, match="XPU device"):
+        quantized.xpu(device)
 
 
 @skipif_unsupported_qtensor
@@ -1382,7 +1429,13 @@ def test_qtensor_cuda_rejects_non_cuda_device(device):
 
 @skipif_unsupported_qtensor
 @pytest.mark.parametrize(
-    "device", ["cpu", "cuda", pytest.param("mps", marks=skipif_no_mps)]
+    "device",
+    [
+        "cpu",
+        "cuda",
+        pytest.param("mps", marks=skipif_no_mps),
+        pytest.param("xpu", marks=skipif_no_xpu),
+    ],
 )
 def test_qtensor_module_device_transfer_preserves_tied_parameters(device):
     if device == "cuda" and not torch.cuda.is_available():
