@@ -394,6 +394,9 @@ class QTensor(OpaqueTensor):
             device = torch.device("cuda", torch.cuda.current_device())
         elif isinstance(device, int):
             device = torch.device("cuda", device)
+        device = torch.device(device)
+        if device.type != "cuda":
+            raise ValueError(f"Expected a CUDA device, got {device}")
         return self.to(device)
 
     def _rebuild_with(self, fp_tensor, qscheme, dequant_to_dtype):
@@ -462,7 +465,20 @@ class QTensor(OpaqueTensor):
     @data.setter
     def data(self, new_data):
         """Only support device change."""
-        if isinstance(new_data, self.__class__) and torch.all(self == new_data):
+        if new_data is self:
+            return
+        if (
+            isinstance(new_data, self.__class__)
+            and new_data.dtype == self.dtype
+            and torch.equal(
+                self.decompress(), new_data.decompress().to(self.device)
+            )
+        ):
+            # Module._apply preserves Parameter identity by assigning .data.
+            # Adopt the moved quantized state, keeping tied parameters tied.
+            self.u8_blob = new_data.u8_blob
+            self.qscheme = new_data.qscheme
+            self.u8_compressors = new_data.u8_compressors
             return
         raise T2NErrorNotImplemented(f"Trying to alter a QTensor.data: {self}")
 

@@ -1307,3 +1307,69 @@ def test_qtensor_deepcopy_preserves_shared_scheme():
     assert copied_second.u8_blob.data_ptr() != second.u8_blob.data_ptr()
     assert torch.equal(copied_first.decompress(), first.decompress())
     assert torch.equal(copied_second.decompress(), second.decompress())
+
+
+@skipif_unsupported_qtensor
+def test_qtensor_data_adopts_equivalent_quantized_state():
+    original = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    replacement = deepcopy(original)
+    original.nnef_name = "weight"
+    parameter = nn.Parameter(original, requires_grad=False)
+
+    parameter.data = replacement
+
+    assert parameter is original
+    assert parameter.u8_blob is replacement.u8_blob
+    assert parameter.qscheme is replacement.qscheme
+    assert parameter.u8_compressors is replacement.u8_compressors
+    assert parameter.nnef_name == "weight"
+
+
+@skipif_unsupported_qtensor
+def test_qtensor_data_rejects_changed_values():
+    original = fp_to_tract_q4_0_with_min_max_calibration(torch.ones(4, 32))
+    replacement = fp_to_tract_q4_0_with_min_max_calibration(torch.zeros(4, 32))
+    codes = original.u8_blob
+    with pytest.raises(T2NErrorNotImplemented):
+        original.data = replacement
+    assert original.u8_blob is codes
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("device", ["cpu", torch.device("meta")])
+def test_qtensor_cuda_rejects_non_cuda_device(device):
+    quantized = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    with pytest.raises(ValueError, match="CUDA device"):
+        quantized.cuda(device)
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_qtensor_module_device_transfer_preserves_tied_parameters(device):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("needs CUDA")
+    model = nn.Sequential(
+        nn.Linear(32, 4, bias=False), nn.Linear(32, 4, bias=False)
+    )
+    weight = nn.Parameter(
+        fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32)),
+        requires_grad=False,
+    )
+    model[0].weight = weight
+    model[1].weight = weight
+    expected = weight.decompress().clone()
+    expected_codes = weight.u8_blob.clone()
+
+    getattr(model, device)()
+
+    assert model[0].weight is weight
+    assert model[1].weight is weight
+    assert weight.device.type == device
+    assert weight.qscheme.scale.device.type == device
+    assert torch.equal(weight.u8_blob.cpu(), expected_codes)
+    model.cpu()
+    assert model[0].weight is model[1].weight is weight
+    assert weight.device.type == "cpu"
+    assert weight.qscheme.scale.device.type == "cpu"
+    assert torch.equal(weight.decompress(), expected)
+    assert torch.equal(weight.u8_blob, expected_codes)
