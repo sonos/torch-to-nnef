@@ -52,6 +52,17 @@ from .utils import (
     tract_versions_just_below,
 )
 
+skipif_no_mps = pytest.mark.skipif(
+    not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
+    reason="needs MPS",
+)
+
+
+skipif_no_xpu = pytest.mark.skipif(
+    not (hasattr(torch, "xpu") and torch.xpu.is_available()),
+    reason="needs XPU",
+)
+
 
 def check_tensor_in_nnef_archive(
     inference_target: InferenceTarget,
@@ -215,6 +226,107 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     inp_tensor = torch.rand(4, 2)
     out = mod(inp_tensor)
     assert type(out) is type(inp_tensor)  # avoid propagation of qtype
+
+
+@skipif_unsupported_qtensor
+def test_qtensor_cpu_keeps_the_quantized_tensor():
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(64).reshape(2, 32).float()
+    )
+    moved = q_tensor.cpu()
+    assert type(moved) is type(q_tensor)
+    assert torch.equal(moved.u8_blob, q_tensor.u8_blob)
+    assert torch.equal(moved.decompress(), q_tensor.decompress())
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+@pytest.mark.parametrize("device", [None, 0, "cuda"])
+def test_qtensor_cuda_and_cpu_move_the_packed_codes(device):
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(64).reshape(2, 32).float()
+    )
+    expected = q_tensor.decompress()
+    on_gpu = q_tensor.cuda() if device is None else q_tensor.cuda(device)
+    assert type(on_gpu) is type(q_tensor)
+    assert on_gpu.u8_blob.device.type == "cuda"
+    back = on_gpu.cpu()
+    assert type(back) is type(q_tensor)
+    assert back.u8_blob.device.type == "cpu"
+    assert torch.equal(back.decompress(), expected)
+
+
+@skipif_unsupported_qtensor
+@skipif_no_xpu
+@pytest.mark.parametrize("device", [None, 0, "xpu"])
+def test_qtensor_xpu_and_cpu_move_the_packed_codes(device):
+    original = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(64).reshape(2, 32).float()
+    )
+    expected_values = original.decompress().clone()
+    expected_codes = original.u8_blob.clone()
+    expected_scales = original.qscheme.scale.clone()
+
+    moved = original.xpu(device)
+
+    assert type(moved) is type(original)
+    assert moved.u8_blob.device.type == "xpu"
+    assert moved.qscheme.scale.device.type == "xpu"
+    assert torch.equal(moved.u8_blob.cpu(), expected_codes)
+    assert torch.equal(moved.decompress().cpu(), expected_values)
+    assert original.u8_blob.device.type == "cpu"
+    assert original.qscheme.scale.device.type == "cpu"
+    assert torch.equal(original.qscheme.scale, expected_scales)
+
+    back = moved.cpu()
+
+    assert type(back) is type(original)
+    assert back.u8_blob.device.type == "cpu"
+    assert back.qscheme.scale.device.type == "cpu"
+    assert torch.equal(back.u8_blob, expected_codes)
+    assert torch.equal(back.decompress(), expected_values)
+    assert moved.u8_blob.device.type == "xpu"
+    assert moved.qscheme.scale.device.type == "xpu"
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("device", ["cpu", torch.device("meta")])
+def test_qtensor_xpu_rejects_non_xpu_device(device):
+    quantized = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    with pytest.raises(ValueError, match="XPU device"):
+        quantized.xpu(device)
+
+
+@skipif_unsupported_qtensor
+@skipif_no_mps
+def test_qtensor_mps_and_cpu_move_the_packed_codes():
+    original = fp_to_tract_q4_0_with_min_max_calibration(
+        torch.arange(64).reshape(2, 32).float()
+    )
+    expected_values = original.decompress().clone()
+    expected_codes = original.u8_blob.clone()
+    expected_scales = original.qscheme.scale.clone()
+
+    moved = original.to("mps")
+
+    assert type(moved) is type(original)
+    assert moved.u8_blob.device.type == "mps"
+    assert moved.qscheme.scale.device.type == "mps"
+    assert torch.equal(moved.u8_blob.cpu(), expected_codes)
+    assert torch.equal(moved.decompress().cpu(), expected_values)
+    assert original.u8_blob.device.type == "cpu"
+    assert original.qscheme.scale.device.type == "cpu"
+    assert torch.equal(original.qscheme.scale, expected_scales)
+
+    back = moved.cpu()
+
+    assert type(back) is type(original)
+    assert back.u8_blob.device.type == "cpu"
+    assert back.qscheme.scale.device.type == "cpu"
+    assert torch.equal(back.u8_blob, expected_codes)
+    assert torch.equal(back.decompress(), expected_values)
+    assert moved.u8_blob.device.type == "mps"
+    assert moved.qscheme.scale.device.type == "mps"
 
 
 @pytest.fixture
@@ -1279,3 +1391,111 @@ def test_qtensor_deepcopy_preserves_shared_scheme():
     assert copied_second.u8_blob.data_ptr() != second.u8_blob.data_ptr()
     assert torch.equal(copied_first.decompress(), first.decompress())
     assert torch.equal(copied_second.decompress(), second.decompress())
+
+
+@skipif_unsupported_qtensor
+def test_qtensor_data_adopts_equivalent_quantized_state():
+    original = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    replacement = deepcopy(original)
+    original.nnef_name = "weight"
+    parameter = nn.Parameter(original, requires_grad=False)
+
+    parameter.data = replacement
+
+    assert parameter is original
+    assert parameter.u8_blob is replacement.u8_blob
+    assert parameter.qscheme is replacement.qscheme
+    assert parameter.u8_compressors is replacement.u8_compressors
+    assert parameter.nnef_name == "weight"
+
+
+@skipif_unsupported_qtensor
+def test_qtensor_data_rejects_changed_values():
+    original = fp_to_tract_q4_0_with_min_max_calibration(torch.ones(4, 32))
+    replacement = fp_to_tract_q4_0_with_min_max_calibration(torch.zeros(4, 32))
+    codes = original.u8_blob
+    with pytest.raises(T2NErrorNotImplemented):
+        original.data = replacement
+    assert original.u8_blob is codes
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("device", ["cpu", torch.device("meta")])
+def test_qtensor_cuda_rejects_non_cuda_device(device):
+    quantized = fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32))
+    with pytest.raises(ValueError, match="CUDA device"):
+        quantized.cuda(device)
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        "cuda",
+        pytest.param("mps", marks=skipif_no_mps),
+        pytest.param("xpu", marks=skipif_no_xpu),
+    ],
+)
+def test_qtensor_module_device_transfer_preserves_tied_parameters(device):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("needs CUDA")
+    model = nn.Sequential(
+        nn.Linear(32, 4, bias=False), nn.Linear(32, 4, bias=False)
+    )
+    weight = nn.Parameter(
+        fp_to_tract_q4_0_with_min_max_calibration(torch.randn(4, 32)),
+        requires_grad=False,
+    )
+    model[0].weight = weight
+    model[1].weight = weight
+    expected = weight.decompress().clone()
+    expected_codes = weight.u8_blob.clone()
+
+    if device == "mps":
+        model.to("mps")
+    else:
+        getattr(model, device)()
+
+    assert model[0].weight is weight
+    assert model[1].weight is weight
+    assert weight.device.type == device
+    assert weight.qscheme.scale.device.type == device
+    assert torch.equal(weight.u8_blob.cpu(), expected_codes)
+    model.cpu()
+    assert model[0].weight is model[1].weight is weight
+    assert weight.device.type == "cpu"
+    assert weight.qscheme.scale.device.type == "cpu"
+    assert torch.equal(weight.decompress(), expected)
+    assert torch.equal(weight.u8_blob, expected_codes)
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("same_values", [True, False])
+def test_qtensor_data_rejects_incompatible_decoding_metadata(same_values):
+    original = fp_to_tract_q4_0_with_min_max_calibration(torch.ones(1, 32))
+    replacement = deepcopy(original)
+    original.specific_machine = "x86_64"
+    replacement.specific_machine = "arm64"
+    replacement.qscheme.scale.fill_(0.1234)
+    replacement.u8_blob.fill_(15)  # seven times the scale, rounded to f16
+    if same_values:
+        original.qscheme.scale.copy_(replacement.qscheme.scale * 7)
+        original.u8_blob.fill_(9)  # one times the already-rounded scale
+    else:
+        original.qscheme.scale.copy_(replacement.qscheme.scale)
+        original.u8_blob.fill_(15)
+    expected = original.decompress().clone()
+    codes, scheme = original.u8_blob, original.qscheme
+    assert torch.equal(expected, replacement.decompress()) == same_values
+
+    # When values match, keeping x86 metadata with the replacement's state
+    # would produce 0.8638916015625 instead of 0.86376953125. When they do not
+    # match, even an unchanged candidate must not bypass the value check.
+    with pytest.raises(T2NErrorNotImplemented):
+        original.data = replacement
+
+    assert original.u8_blob is codes
+    assert original.qscheme is scheme
+    assert original.specific_machine == "x86_64"
+    assert torch.equal(original.decompress(), expected)

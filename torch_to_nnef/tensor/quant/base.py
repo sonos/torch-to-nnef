@@ -357,7 +357,7 @@ class QTensor(OpaqueTensor):
 
         # own scheme copy: `to_device` must not move the source parameters
         new_obj = self._rebuild_with(
-            self.dequantize(),
+            self.decompress(),
             copy.copy(self.qscheme),
             new_dtype or self.dequant_to_dtype,
         )
@@ -367,6 +367,58 @@ class QTensor(OpaqueTensor):
         new_obj.nnef_name = self.nnef_name
         new_obj.requires_grad = False
         return new_obj
+
+    def cpu(self, memory_format=torch.preserve_format):
+        """Move to host memory and stay quantized, as ``to("cpu")`` does.
+
+        Without this override the call reaches ``__torch_function__``, which
+        returns the dequantized ``torch.Tensor`` instead, so ``nn.Module.cpu``
+        cannot move a quantized parameter. ``memory_format`` is accepted for
+        signature compatibility only; the packed codes keep their layout.
+        """
+        return self.to("cpu")
+
+    def cuda(
+        self,
+        device=None,
+        non_blocking=False,
+        memory_format=torch.preserve_format,
+    ):
+        """Move to a CUDA device and stay quantized, as ``to(device)`` does.
+
+        ``device`` is a device, an index or ``None`` for the current CUDA
+        device. ``non_blocking`` and ``memory_format`` are accepted for
+        signature compatibility only.
+        """
+        if device is None:
+            device = torch.device("cuda", torch.cuda.current_device())
+        elif isinstance(device, int):
+            device = torch.device("cuda", device)
+        device = torch.device(device)
+        if device.type != "cuda":
+            raise ValueError(f"Expected a CUDA device, got {device}")
+        return self.to(device)
+
+    def xpu(
+        self,
+        device=None,
+        non_blocking=False,
+        memory_format=torch.preserve_format,
+    ):
+        """Move to an XPU device and stay quantized, as ``to(device)`` does.
+
+        ``device`` is a device, an index or ``None`` for the current XPU
+        device. ``non_blocking`` and ``memory_format`` are accepted for
+        signature compatibility only.
+        """
+        if device is None:
+            device = torch.device("xpu")
+        elif isinstance(device, int):
+            device = torch.device("xpu", device)
+        device = torch.device(device)
+        if device.type != "xpu":
+            raise ValueError(f"Expected an XPU device, got {device}")
+        return self.to(device)
 
     def _rebuild_with(self, fp_tensor, qscheme, dequant_to_dtype):
         """New qtensor of `fp_tensor` keeping these exact u8 codes."""
@@ -434,8 +486,31 @@ class QTensor(OpaqueTensor):
     @data.setter
     def data(self, new_data):
         """Only support device change."""
-        if isinstance(new_data, self.__class__) and torch.all(self == new_data):
+        if new_data is self:
             return
+        if (
+            isinstance(new_data, self.__class__)
+            and new_data.dtype == self.dtype
+        ):
+            # Validate the state as this object will decode it. Subclasses
+            # may retain metadata (such as specific_machine) that changes
+            # decoding, so equality with new_data alone is insufficient.
+            candidate = copy.copy(self)
+            candidate.u8_blob = new_data.u8_blob
+            candidate.qscheme = new_data.qscheme
+            candidate.u8_compressors = new_data.u8_compressors
+            original_values = self.decompress()
+            if torch.equal(
+                original_values, new_data.decompress().to(self.device)
+            ) and torch.equal(
+                original_values, candidate.decompress().to(self.device)
+            ):
+                # Module._apply assigns .data to keep Parameter identity.
+                # Commit only after validating, keeping tied weights tied.
+                self.u8_blob = candidate.u8_blob
+                self.qscheme = candidate.qscheme
+                self.u8_compressors = candidate.u8_compressors
+                return
         raise T2NErrorNotImplemented(f"Trying to alter a QTensor.data: {self}")
 
     def write_in_file(self, dirpath: T.Union[str, Path], label: str):
