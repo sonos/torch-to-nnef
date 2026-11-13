@@ -639,16 +639,13 @@ class OffloadedTensor(OpaqueTensor):
             )
 
             residency = active_tensor_residency()
-            if (
-                residency is not None
-                and (residency[1] or self.target_device).type != "meta"
-            ):
-                # Keep the pool's device and include live, unflushed values.
-                values = self.reload().to(device="cpu", dtype=dtype)
+            if residency is not None:
+                # The scope device need not match the actual cached entry.
+                # Ask the pool for current values, including unflushed writes.
+                values = residency[0].read_for_copy(self)
             else:
-                # Meta residency has no values to copy. Read the real disk
-                # payload without trying to change the pool's device.
-                values = self._reload_unmanaged(device="cpu").to(dtype=dtype)
+                values = self._reload_unmanaged(device="cpu")
+            values = values.to(device="cpu", dtype=dtype)
             copied = self.from_original_tensor(
                 values, self._name, offload_dir=self.offload_dir
             )

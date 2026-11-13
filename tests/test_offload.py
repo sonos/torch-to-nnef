@@ -650,3 +650,33 @@ def test_offload_copy_reads_live_resident_values(tmp_path):
         assert copied.target_device == original.target_device
         assert torch.equal(copied.reload(device="cpu"), values + 10)
     assert torch.equal(original.reload(), values + 10)
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("scope_device", ["meta", "cpu:0"])
+@pytest.mark.parametrize("active_lease", [False, True])
+@pytest.mark.parametrize("dtype", [None, torch.float16])
+def test_offload_copy_uses_resident_values_across_scope_devices(
+    tmp_path, scope_device, active_lease, dtype
+):
+    from torch_to_nnef.tensor.residency import TensorResidencyPool
+
+    values = torch.tensor([1.0, 2.0])
+    source = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    with TensorResidencyPool() as pool:
+        with pool.acquire(source, mode="read_write") as live:
+            live.add_(10)
+            if active_lease:
+                with pool.scope(device=scope_device):
+                    copied = source.to(dtype=dtype, copy=True)
+        if not active_lease:
+            with pool.scope(device=scope_device):
+                copied = source.to(dtype=dtype, copy=True)
+        # Neither an active lease nor an exited dirty lease is flushed yet.
+        assert torch.equal(source._reload_unmanaged(device="cpu"), values)
+        assert torch.equal(pool.resolve(source), values + 10)
+        assert torch.equal(copied.reload(), (values + 10).to(dtype=dtype))
+        assert copied.target_device == source.target_device
+    assert torch.equal(source.reload(), values + 10)
