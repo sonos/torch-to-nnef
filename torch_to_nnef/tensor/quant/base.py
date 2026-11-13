@@ -2,6 +2,7 @@ import abc
 import copy
 import logging
 import typing as T
+import warnings
 from pathlib import Path
 
 import torch
@@ -277,6 +278,47 @@ class QTensor(OpaqueTensor):
             dequant_to_dtype=self.dequant_to_dtype,
             nnef_name=self.nnef_name,
         )
+
+    def __deepcopy__(self, memo):
+        """Copy the packed codes and scheme, staying quantized.
+
+        ``Tensor.__deepcopy__`` would reach ``__torch_function__``, which
+        decompresses its argument: the copy came back as the dequantized
+        ``torch.Tensor``, and memo entries were keyed on that temporary. The
+        pickle protocol keeps the QTensor, so the copy is rebuilt from it as
+        ``copy.deepcopy`` rebuilds objects without ``__deepcopy__``: its state
+        is deep-copied with *memo*, so state shared between QTensors (a
+        common scheme, say) stays shared within one deep copy.
+        """
+        if id(self) in memo:
+            return memo[id(self)]
+        # Tensor's subclass reduction holds the tensor rebuild function,
+        # subclass, tensor arguments and Python state. Rebuild the tensor
+        # first so references back to it in the state resolve via memo.
+        _, (rebuild_tensor, tensor_type, tensor_args, state) = (
+            self.__reduce_ex__(4)
+        )
+        with warnings.catch_warnings():
+            # tensor_args hold the wrapper's TypedStorage.
+            warnings.filterwarnings(
+                "ignore", message="TypedStorage is deprecated"
+            )
+            copied = rebuild_tensor(*copy.deepcopy(tensor_args, memo))
+        with select_ctx_disable_torch_fn():
+            copied = copied.as_subclass(tensor_type)
+        memo[id(self)] = copied
+        state = copy.deepcopy(state, memo)
+        if type(self).__setstate__ is not torch.Tensor.__setstate__:
+            copied.__setstate__(state)
+        else:
+            # Python's default object state is a dict, or (dict, slots).
+            dict_state, slots_state = (
+                state if isinstance(state, tuple) else (state, None)
+            )
+            for attributes in (dict_state, slots_state):
+                for name, value in (attributes or {}).items():
+                    setattr(copied, name, value)
+        return copied
 
     def to(self, *args, **kwargs):
         new_dtype = kwargs.get("dtype")
