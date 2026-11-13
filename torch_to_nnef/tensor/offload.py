@@ -608,37 +608,66 @@ class OffloadedTensor(OpaqueTensor):
         return off_tensor
 
     def to(self, *args, **kwargs):
-        """Change the target device when reloaded in memory."""
-        if len(args) > 1:
-            kwargs.update(zip(["device", "dtype"], args, strict=False))
-        else:
-            # unfortunately arg order is not guarantied
-            # in torch .to ...
-            try:
-                torch.device(args[0])
-                kwargs["device"] = args[0]
-            except TypeError:
-                kwargs["dtype"] = args[0]
+        """Change the target device when reloaded in memory.
 
-        if kwargs.get("dtype") is not None:
-            dtype = kwargs["dtype"]
-            assert isinstance(dtype, torch.dtype)
-            if dtype != self.elem.dtype:
-                tensor = self.reload().to(dtype)
-                self._save(
-                    tensor,
-                    self.offload_dir,
-                    self._name,
-                    storage_id=self._storage_id,
-                )
-                self.offload_path.unlink()
-                self.elem = self.elem.to(dtype)
-                self.__dict__["dtype"] = dtype
-                LOGGER.info(
-                    "[casted to %s] offload tensor '%s'", dtype, self._name
-                )
-        if kwargs.get("device") is not None:
-            self.target_device = torch.device(kwargs["device"])
+        Accepts every ``Tensor.to`` signature (positional or keyword device
+        and dtype, or another tensor) by parsing them as torch does.
+        """
+        # Module.to's parser deliberately rejects Tensor.to's copy flag.
+        # Remove it from the selected overload before parsing the rest.
+        copy_index = (
+            2
+            if args and isinstance(args[0], (torch.dtype, torch.Tensor))
+            else 3
+        )
+        if len(args) > copy_index:
+            if "copy" in kwargs:
+                raise TypeError("to() got multiple values for argument 'copy'")
+            copy_requested = args[copy_index]
+            args = args[:copy_index] + args[copy_index + 1 :]
+        else:
+            copy_requested = kwargs.pop("copy", False)
+        if not isinstance(copy_requested, bool):
+            raise TypeError("to() argument 'copy' must be bool")
+        device, dtype, *_ = torch._C._nn._parse_to(*args, **kwargs)
+        if copy_requested:
+            # A distinct storage identity keeps casts/deletion of the copy
+            # from modifying or unlinking the source payload.
+            # Import locally to keep the offload/residency modules acyclic.
+            from torch_to_nnef.tensor.residency import (  # pylint: disable=import-outside-toplevel
+                active_tensor_residency,
+            )
+
+            residency = active_tensor_residency()
+            if residency is not None:
+                # The scope device need not match the actual cached entry.
+                # Ask the pool for current values, including unflushed writes.
+                values = residency[0].read_for_copy(self)
+            else:
+                values = self._reload_unmanaged(device="cpu")
+            values = values.to(device="cpu", dtype=dtype)
+            copied = self.from_original_tensor(
+                values, self._name, offload_dir=self.offload_dir
+            )
+            copied.force_gc_collect = self.force_gc_collect
+            copied.target_device = (
+                device if device is not None else self.target_device
+            )
+            return copied
+        if dtype is not None and dtype != self.elem.dtype:
+            tensor = self.reload().to(dtype)
+            self._save(
+                tensor,
+                self.offload_dir,
+                self._name,
+                storage_id=self._storage_id,
+            )
+            self.offload_path.unlink()
+            self.elem = self.elem.to(dtype)
+            self.__dict__["dtype"] = dtype
+            LOGGER.info("[casted to %s] offload tensor '%s'", dtype, self._name)
+        if device is not None:
+            self.target_device = device
         return self
 
     @property

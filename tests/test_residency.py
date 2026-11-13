@@ -446,3 +446,44 @@ def test_pool_rejects_regular_tensors_with_clear_error(operation):
         ),
     ):
         operation(pool, tensor)
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("budget", [None, 0])
+def test_copy_waits_for_pending_resident_value(monkeypatch, tmp_path, budget):
+    from torch_to_nnef.tensor.residency import TensorPrefetch
+
+    source = OffloadedTensor.from_original_tensor(
+        torch.ones(4), "pending_copy", offload_dir=tmp_path
+    )
+    original_reload = source._reload_unmanaged
+    original_wait = TensorPrefetch.wait
+    load_started = threading.Event()
+    allow_load = threading.Event()
+    reload_count = 0
+
+    def controlled_reload(*args, **kwargs):
+        nonlocal reload_count
+        reload_count += 1
+        load_started.set()
+        assert allow_load.wait(timeout=5)
+        return original_reload(*args, **kwargs) + 10
+
+    def release_and_wait(handle):
+        assert handle._future is not None
+        assert not handle.done()
+        allow_load.set()
+        return original_wait(handle)
+
+    monkeypatch.setattr(source, "_reload_unmanaged", controlled_reload)
+    monkeypatch.setattr(TensorPrefetch, "wait", release_and_wait)
+    with TensorResidencyPool(max_cached_bytes=budget) as pool:
+        pool.prefetch(source, device="cpu:0")
+        assert load_started.wait(timeout=5)
+        try:
+            with pool.scope(device="meta"):
+                copied = source.to(copy=True)
+        finally:
+            allow_load.set()
+    assert reload_count == 1
+    assert torch.equal(copied.reload(), torch.full((4,), 11.0))

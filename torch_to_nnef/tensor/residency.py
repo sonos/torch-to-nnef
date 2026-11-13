@@ -316,6 +316,30 @@ class TensorResidencyPool:
         """
         return self.prefetch(source, device=device).wait()
 
+    def read_for_copy(self, source: OffloadedTensor) -> torch.Tensor:
+        """Return real values for a copy without changing residency.
+
+        Prefer any current non-meta entry, including a pending load,
+        regardless of the scope's requested device. Missing or meta entries
+        use the persisted CPU payload. The returned value may alias a
+        resident tensor; the caller must save or copy it before modifying it.
+        """
+        self._validate_source(source)
+        with self._lock:
+            self._ensure_open()
+            entry = self._entries.get(id(source))
+            handle = None
+            if entry is not None and entry.device.type != "meta":
+                self._touch(entry)
+                # Capture the value/future under the lock so eviction cannot
+                # lose the value between selecting an entry and waiting.
+                handle = TensorPrefetch(
+                    self, source, entry.device, entry.future, entry.value
+                )
+        if handle is not None:
+            return handle.wait()
+        return source._reload_unmanaged(device="cpu")
+
     @contextlib.contextmanager
     def scope(self, device: T.Optional[TDEVICE] = None):
         """Make this pool transparently serve offloaded tensor reloads."""

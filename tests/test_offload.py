@@ -455,6 +455,48 @@ def test_offload_change_dtype():
 
 
 @skipif_limited_offload_support
+@pytest.mark.parametrize(
+    "to_args",
+    [
+        pytest.param(((), {"device": "cpu", "dtype": torch.float16}), id="kw"),
+        pytest.param((("cpu",), {"dtype": torch.float16}), id="mixed"),
+        pytest.param((("cpu", torch.float16), {}), id="positional"),
+        pytest.param(
+            ((torch.zeros(1, dtype=torch.float16),), {}), id="other-tensor"
+        ),
+        pytest.param(
+            ((torch.float16,), {"non_blocking": True}), id="non-blocking"
+        ),
+    ],
+)
+def test_offload_to_accepts_tensor_to_signatures(to_args):
+    args, kwargs = to_args
+    with tempfile.TemporaryDirectory() as td:
+        offloaded_value = OffloadedTensor.from_original_tensor(
+            torch.rand(10, 10, dtype=torch.float32),
+            "my_offloaded_weight",
+            offload_dir=Path(td),
+        )
+        offloaded_value = offloaded_value.to(*args, **kwargs)
+        assert offloaded_value.dtype == torch.float16
+        assert offloaded_value.target_device == torch.device("cpu")
+        assert offloaded_value.reload().dtype == torch.float16
+
+
+@skipif_limited_offload_support
+def test_offload_to_device_only_keeps_dtype():
+    with tempfile.TemporaryDirectory() as td:
+        offloaded_value = OffloadedTensor.from_original_tensor(
+            torch.rand(10, 10, dtype=torch.float32),
+            "my_offloaded_weight",
+            offload_dir=Path(td),
+        )
+        offloaded_value = offloaded_value.to(device="meta")
+        assert offloaded_value.dtype == torch.float32
+        assert offloaded_value.target_device == torch.device("meta")
+
+
+@skipif_limited_offload_support
 def test_offload_set_updates_payload():
     with tempfile.TemporaryDirectory() as td:
         offloaded_value = OffloadedTensor.from_original_tensor(
@@ -488,3 +530,153 @@ def test_offload_set_updates_nested_qtensor_payload():
         reloaded = offloaded_value.reload()
         assert type(reloaded) is type(q_tensor)
         assert torch.allclose(reloaded.decompress(), q_tensor.decompress())
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("copy_requested", [False, True])
+@pytest.mark.parametrize("signature", ["keyword", "dtype", "device", "tensor"])
+def test_offload_to_copy_argument(tmp_path, copy_requested, signature):
+    values = torch.arange(100, dtype=torch.float32).reshape(10, 10)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    if signature == "keyword":
+        result = original.to(dtype=torch.float16, copy=copy_requested)
+    elif signature == "dtype":
+        result = original.to(torch.float16, False, copy_requested)
+    elif signature == "device":
+        result = original.to("cpu", torch.float16, False, copy_requested)
+    else:
+        result = original.to(
+            torch.empty(0, dtype=torch.float16), False, copy_requested
+        )
+    assert torch.equal(result.reload(), values.half())
+    if copy_requested:
+        assert result is not original
+        assert result.offload_path != original.offload_path
+        assert original.dtype == torch.float32
+        assert torch.equal(original.reload(), values)
+        del result
+        assert original.offload_path.exists()
+        assert torch.equal(original.reload(), values)
+    else:
+        assert result is original
+
+
+@skipif_limited_offload_support
+def test_offload_to_copy_without_conversion(tmp_path):
+    values = torch.randn(4, 4)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    assert original.to(copy=False) is original
+    copied = original.to(copy=True)
+    assert copied is not original
+    assert copied.offload_path != original.offload_path
+    assert torch.equal(copied.reload(), values)
+    copied.to(torch.float16)
+    assert torch.equal(original.reload(), values)
+
+
+@skipif_limited_offload_support
+def test_offload_to_rejects_invalid_copy_before_mutation(tmp_path):
+    original = OffloadedTensor.from_original_tensor(
+        torch.randn(4, 4), "weight", offload_dir=tmp_path
+    )
+    with pytest.raises(TypeError):
+        original.to(torch.float16, copy="yes")
+    with pytest.raises(TypeError):
+        original.to(torch.float16, False, True, copy=True)
+    assert original.dtype == torch.float32
+    assert original.offload_path.exists()
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("device", [None, "cpu", "meta"])
+@pytest.mark.parametrize("dtype", [None, torch.float16])
+def test_offload_copy_from_meta_target_preserves_payload(
+    tmp_path, device, dtype
+):
+    values = torch.arange(16, dtype=torch.float32).reshape(4, 4)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    ).to(device="meta")
+
+    copied = original.to(device=device, dtype=dtype, copy=True)
+
+    assert copied.target_device == torch.device(device or "meta")
+    assert copied.offload_path != original.offload_path
+    assert torch.equal(copied.reload(device="cpu"), values.to(dtype=dtype))
+    assert copied.dtype == (dtype or values.dtype)
+    assert original.target_device == torch.device("meta")
+    assert original.dtype == values.dtype
+    assert torch.equal(original.reload(device="cpu"), values)
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("dtype", [None, torch.float16])
+def test_offload_copy_ignores_residency_target_override(tmp_path, dtype):
+    from torch_to_nnef.tensor.residency import TensorResidencyPool
+
+    values = torch.arange(16, dtype=torch.float32).reshape(4, 4)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    with TensorResidencyPool() as pool, pool.scope(device="meta"):
+        assert original.reload().device.type == "meta"
+        copied = original.to(dtype=dtype, copy=True)
+    assert copied.target_device == original.target_device == torch.device("cpu")
+    assert torch.equal(copied.reload(), values.to(dtype=dtype))
+    assert torch.equal(original.reload(), values)
+
+
+@skipif_limited_offload_support
+def test_offload_copy_reads_live_resident_values(tmp_path):
+    from torch_to_nnef.tensor.residency import TensorResidencyPool
+
+    values = torch.arange(16, dtype=torch.float32).reshape(4, 4)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    # The pool distinguishes cpu:0 from cpu, exercising a non-default
+    # resident device without requiring a GPU in the test environment.
+    with (
+        TensorResidencyPool() as pool,
+        pool.scope(device="cpu:0"),
+        pool.acquire(original, device="cpu:0", mode="read_write") as live,
+    ):
+        live.add_(10)
+        copied = original.to(copy=True)
+        assert copied.target_device == original.target_device
+        assert torch.equal(copied.reload(device="cpu"), values + 10)
+    assert torch.equal(original.reload(), values + 10)
+
+
+@skipif_limited_offload_support
+@pytest.mark.parametrize("scope_device", ["meta", "cpu:0"])
+@pytest.mark.parametrize("active_lease", [False, True])
+@pytest.mark.parametrize("dtype", [None, torch.float16])
+def test_offload_copy_uses_resident_values_across_scope_devices(
+    tmp_path, scope_device, active_lease, dtype
+):
+    from torch_to_nnef.tensor.residency import TensorResidencyPool
+
+    values = torch.tensor([1.0, 2.0])
+    source = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    with TensorResidencyPool() as pool:
+        with pool.acquire(source, mode="read_write") as live:
+            live.add_(10)
+            if active_lease:
+                with pool.scope(device=scope_device):
+                    copied = source.to(dtype=dtype, copy=True)
+        if not active_lease:
+            with pool.scope(device=scope_device):
+                copied = source.to(dtype=dtype, copy=True)
+        # Neither an active lease nor an exited dirty lease is flushed yet.
+        assert torch.equal(source._reload_unmanaged(device="cpu"), values)
+        assert torch.equal(pool.resolve(source), values + 10)
+        assert torch.equal(copied.reload(), (values + 10).to(dtype=dtype))
+        assert copied.target_device == source.target_device
+    assert torch.equal(source.reload(), values + 10)
