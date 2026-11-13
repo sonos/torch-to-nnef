@@ -623,7 +623,30 @@ def test_offload_copy_ignores_residency_target_override(tmp_path, dtype):
         values, "weight", offload_dir=tmp_path
     )
     with TensorResidencyPool() as pool, pool.scope(device="meta"):
+        assert original.reload().device.type == "meta"
         copied = original.to(dtype=dtype, copy=True)
     assert copied.target_device == original.target_device == torch.device("cpu")
     assert torch.equal(copied.reload(), values.to(dtype=dtype))
     assert torch.equal(original.reload(), values)
+
+
+@skipif_limited_offload_support
+def test_offload_copy_reads_live_resident_values(tmp_path):
+    from torch_to_nnef.tensor.residency import TensorResidencyPool
+
+    values = torch.arange(16, dtype=torch.float32).reshape(4, 4)
+    original = OffloadedTensor.from_original_tensor(
+        values, "weight", offload_dir=tmp_path
+    )
+    # The pool distinguishes cpu:0 from cpu, exercising a non-default
+    # resident device without requiring a GPU in the test environment.
+    with (
+        TensorResidencyPool() as pool,
+        pool.scope(device="cpu:0"),
+        pool.acquire(original, device="cpu:0", mode="read_write") as live,
+    ):
+        live.add_(10)
+        copied = original.to(copy=True)
+        assert copied.target_device == original.target_device
+        assert torch.equal(copied.reload(device="cpu"), values + 10)
+    assert torch.equal(original.reload(), values + 10)

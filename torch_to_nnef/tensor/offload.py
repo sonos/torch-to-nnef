@@ -633,11 +633,22 @@ class OffloadedTensor(OpaqueTensor):
         if copy_requested:
             # A distinct storage identity keeps casts/deletion of the copy
             # from modifying or unlinking the source payload.
-            # A lazy target (or residency scope) may be meta. Save real
-            # values before setting the copy's target, even for dtype casts.
-            values = self.reload(device="cpu")
-            if dtype is not None:
-                values = values.to(dtype=dtype)
+            # Import locally to keep the offload/residency modules acyclic.
+            from torch_to_nnef.tensor.residency import (  # pylint: disable=import-outside-toplevel
+                active_tensor_residency,
+            )
+
+            residency = active_tensor_residency()
+            if (
+                residency is not None
+                and (residency[1] or self.target_device).type != "meta"
+            ):
+                # Keep the pool's device and include live, unflushed values.
+                values = self.reload().to(device="cpu", dtype=dtype)
+            else:
+                # Meta residency has no values to copy. Read the real disk
+                # payload without trying to change the pool's device.
+                values = self._reload_unmanaged(device="cpu").to(dtype=dtype)
             copied = self.from_original_tensor(
                 values, self._name, offload_dir=self.offload_dir
             )
