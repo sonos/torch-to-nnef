@@ -18,6 +18,8 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 from torch_to_nnef_llm.config import (
+    CUSTOM_CONFIGS,
+    REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
     ExportDirStruct,
     Gemma3Slugs,
     MistralSlugs,
@@ -231,3 +233,27 @@ def test_llama_export_io_npz():
             assert dic["outputs"].shape == (1, 1, 32000)
             assert dic["out_cache_key_0"].shape == (1, 2, total_tokens, 4)
             assert dic["out_cache_value_0"].shape == (1, 2, total_tokens, 4)
+
+
+@pytest.mark.skipif(
+    torch_version() < "2.5.0", reason="SDPA enable_gqa needs torch >= 2.5"
+)
+def test_reified_sdpa_gqa_keeps_dynamic_query_length(monkeypatch, tmp_path):
+    from transformers import AutoConfig
+
+    config = AutoConfig.from_pretrained(LlamaSlugs.DUMMY.value)
+    config.num_key_value_heads = 1
+    config.model_type += "__t2n_gqa_debug"
+    slug = LlamaSlugs.DUMMY.value + "__t2n_gqa_debug"
+    monkeypatch.setitem(CUSTOM_CONFIGS, slug, config)
+    monkeypatch.setitem(
+        REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
+        config.model_type,
+        LlamaSlugs.DUMMY.value,
+    )
+    dump_llm(
+        slug,
+        export_dirpath=tmp_path / "dump_here",
+        force_module_dtype="f32",
+        reify_sdpa_operator=True,
+    )
