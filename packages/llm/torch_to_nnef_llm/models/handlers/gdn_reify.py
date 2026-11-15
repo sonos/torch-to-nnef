@@ -22,13 +22,19 @@ ONE S-generic ``tract_transformers_gdn_recurrent`` /
 ``tract_transformers_causal_conv1d_update`` op instead.
 
 Family applicability is duck-typed: any module binding BOTH rule
-attributes is reified. Architecture handlers opt in from their
+attributes is reified, and so is a GDN module whose modeling file calls
+the rules and ``causal_conv1d_update`` as module-level functions
+(transformers >= 5.16). Architecture handlers opt in from their
 ``prepare_model_for_export`` and choose whether the GQA q/k
 repeat_interleave neutralization is safe for their module class (see
 ``neutralize_gqa_repeat`` below).
 """
 
+import functools
 import logging
+import sys
+import types
+import typing as T
 
 import torch
 
@@ -154,13 +160,96 @@ def _make_conv_update(conv_shim):
     return causal_conv1d_update
 
 
+# HF module-level function name -> GDN module attribute holding its shim.
+_MODULE_LEVEL_RULES = {
+    "torch_recurrent_gated_delta_rule": "recurrent_gated_delta_rule",
+    "torch_chunk_gated_delta_rule": "chunk_gated_delta_rule",
+    "causal_conv1d_update": "causal_conv1d_update",
+}
+
+_ACTIVE_GDN_MODULES: T.List[torch.nn.Module] = []
+
+
+def _binds_rules_as_attributes(module: torch.nn.Module) -> bool:
+    return hasattr(module, "recurrent_gated_delta_rule") and hasattr(
+        module, "chunk_gated_delta_rule"
+    )
+
+
+def _modeling_module_with_rules(
+    module: torch.nn.Module,
+) -> T.Optional[types.ModuleType]:
+    """Return the module defining ``module``'s class when it calls the rules.
+
+    transformers >= 5.16 calls the gated delta rules and the conv update as
+    module-level functions of the modeling file instead of binding them on
+    the GDN module. A GDN module is recognized by its ``conv1d`` / ``A_log``
+    / ``dt_bias`` members next to those module-level functions.
+    """
+    if not all(
+        hasattr(module, attr) for attr in ("conv1d", "A_log", "dt_bias")
+    ):
+        return None
+    modeling = sys.modules.get(type(module).__module__)
+    if modeling is None or not all(
+        callable(getattr(modeling, name, None)) for name in _MODULE_LEVEL_RULES
+    ):
+        return None
+    return modeling
+
+
+def _dispatch_to_active_module(attr: str, original: T.Callable) -> T.Callable:
+    @functools.wraps(original)
+    def dispatch(*args, **kwargs):
+        if not _ACTIVE_GDN_MODULES:
+            return original(*args, **kwargs)
+        return getattr(_ACTIVE_GDN_MODULES[-1], attr)(*args, **kwargs)
+
+    return dispatch
+
+
+def _route_module_level_rules(modeling: types.ModuleType) -> None:
+    """Make the modeling file's rule functions call the running module's shims.
+
+    Outside a reified GDN module forward the original functions run, so
+    models that were not reified keep the HF behaviour.
+    """
+    if getattr(modeling, "_t2n_gdn_rules_routed", False):
+        return
+    for name, attr in _MODULE_LEVEL_RULES.items():
+        setattr(
+            modeling,
+            name,
+            _dispatch_to_active_module(attr, getattr(modeling, name)),
+        )
+    modeling._t2n_gdn_rules_routed = True
+
+
+def _track_active_module(module: torch.nn.Module) -> None:
+    if getattr(module, "_t2n_gdn_active_tracked", False):
+        return
+
+    def enter(mod, _args):
+        _ACTIVE_GDN_MODULES.append(mod)
+
+    def leave(_mod, _args, _out):
+        _ACTIVE_GDN_MODULES.pop()
+
+    module.register_forward_pre_hook(enter)
+    module.register_forward_hook(leave, always_call=True)
+    module._t2n_gdn_active_tracked = True
+
+
 def reify_gated_delta_net(model, *, neutralize_gqa_repeat: bool) -> int:
     """Reify the gated delta rule and causal conv update as tract ops.
 
     Applies to every module of ``model`` that binds both
     ``recurrent_gated_delta_rule`` and ``chunk_gated_delta_rule``
     (the shared HF gated-delta-net module contract, see module
-    docstring). Returns the number of modules reified.
+    docstring), and to GDN modules whose modeling file calls them as
+    module-level functions (transformers >= 5.16): those functions are
+    routed to the shims of the GDN module whose forward is running.
+    Returns the number of modules reified.
 
     ``neutralize_gqa_repeat`` controls the pre-rule q/k
     repeat_interleave neutralization: HF repeat-interleaves q/k to the
@@ -182,9 +271,12 @@ def reify_gated_delta_net(model, *, neutralize_gqa_repeat: bool) -> int:
     n_materialized = 0
     n_gqa = 0
     for module in model.modules():
-        if hasattr(module, "recurrent_gated_delta_rule") and hasattr(
-            module, "chunk_gated_delta_rule"
-        ):
+        modeling = (
+            None
+            if _binds_rules_as_attributes(module)
+            else _modeling_module_with_rules(module)
+        )
+        if _binds_rules_as_attributes(module) or modeling is not None:
             shim = GatedDeltaNetRecurrentReified()
             module.recurrent_gated_delta_rule = shim
             module.chunk_gated_delta_rule = shim
@@ -205,6 +297,9 @@ def reify_gated_delta_net(model, *, neutralize_gqa_repeat: bool) -> int:
             conv_shim = CausalConvUpdateReified()
             module.t2n_conv_update_shim = conv_shim
             module.causal_conv1d_update = _make_conv_update(conv_shim)
+            if modeling is not None:
+                _route_module_level_rules(modeling)
+                _track_active_module(module)
             n_reified += 1
             for owner, attr in (
                 (getattr(module, "conv1d", None), "weight"),

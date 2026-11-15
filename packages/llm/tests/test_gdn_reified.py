@@ -157,11 +157,16 @@ def test_reference_rule_sources_stay_in_sync():
     if len(mods) < 2:
         pytest.skip("fewer than two GDN families in installed transformers")
     ref = mods[0]
+    conv_update_name = (
+        "torch_causal_conv1d_update"
+        if hasattr(ref, "torch_causal_conv1d_update")
+        else "causal_conv1d_update"
+    )
     for other in mods[1:]:
         for fn_name in (
             "torch_recurrent_gated_delta_rule",
             "torch_chunk_gated_delta_rule",
-            "torch_causal_conv1d_update",
+            conv_update_name,
         ):
             assert inspect.getsource(
                 getattr(ref, fn_name)
