@@ -17,6 +17,7 @@ from torch_to_nnef.compress import DEFAULT_COMPRESSION
 from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
+from torch_to_nnef_llm.cli import _parse_cli_to_kwargs
 from torch_to_nnef_llm.config import (
     ExportDirStruct,
     Gemma3Slugs,
@@ -100,6 +101,10 @@ if torch_version() >= "1.13.0":  # pytorch 'meta' device support ok
 SUPPORT_LLM_CLI_OPTS += [{"dump_with_tokenizer_and_conf": True}]
 SUPPORT_LLM_CLI_OPTS += [{"export_dir_struct": ExportDirStruct.FLAT}]
 SUPPORT_LLM_CLI_OPTS += [{"sample_generation_total_size": 8}]
+SUPPORT_LLM_CLI_OPTS += [
+    {"check_inference_modes": False, "sample_generation_total_size": 0}
+]
+SUPPORT_LLM_CLI_OPTS += [{"wrapper_io_check": False}]
 SUPPORT_LLM_CLI_OPTS += [{"naming_scheme": VariableNamingScheme.NUMERIC}]
 
 
@@ -231,3 +236,27 @@ def test_llama_export_io_npz():
             assert dic["outputs"].shape == (1, 1, 32000)
             assert dic["out_cache_key_0"].shape == (1, 2, total_tokens, 4)
             assert dic["out_cache_value_0"].shape == (1, 2, total_tokens, 4)
+
+
+def test_cli_exposes_moe_quantization_and_check_toggles(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "t2n_export_llm_to_tract",
+            "-s",
+            LlamaSlugs.DUMMY.value,
+            "-e",
+            "unused",
+            "--quantize-moe-experts",
+            "q40",
+            "--moe-expert-layout",
+            "linear",
+            "--no-check-inference-modes",
+            "--no-wrapper-io-check",
+        ],
+    )
+    kwargs, _ = _parse_cli_to_kwargs()
+    assert kwargs["quantize_moe_experts"] == "q40"
+    assert kwargs["moe_expert_layout"] == "linear"
+    assert kwargs["check_inference_modes"] is False
+    assert kwargs["wrapper_io_check"] is False

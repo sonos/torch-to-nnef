@@ -3,6 +3,9 @@
 
 ## Unreleased
 
+### Added
+- **LLM export CLI flags for MoE experts and checks** (llm): `-c` compression methods only quantize `nn.Linear` / `nn.Embedding`, so fused MoE expert tensors exported in float from `t2n_export_llm_to_tract`. `--quantize-moe-experts q40` and `--moe-expert-layout {linear,canonical}` now expose the existing `dump_llm` options (also on `t2n_export_multimodal_to_tract`, applied to the decoder). `--no-check-inference-modes` skips the reference modes samples (`--sample-generation-total-size` is then not required to be >= 2), and `--no-wrapper-io-check` skips the wrapper vs vanilla consistency check.
+
 ### Fixed
 - **`OffloadedTensor.to(device=..., dtype=...)` raised `IndexError`**: with keyword arguments only there was no positional argument to inspect, and `.to(other_tensor)` was read as a dtype. Device and dtype overloads now use the torch parser. Keyword and positional `copy` flags are accepted, and `copy=True` creates an independent disk payload.
 - **`copy.deepcopy` keeps a `QTensor` quantized** (core): the default `Tensor.__deepcopy__` went through `__torch_function__`, which decompresses its argument, so a deep copy came back as the dequantized `torch.Tensor`, and its memo was keyed on a temporary whose id could be reused by a later tensor. `QTensor.__deepcopy__` now rebuilds the copy from its pickle reduction, which keeps the packed codes, deep-copying that state with the memo, so a deep-copied module keeps quantized weights and tensors shared within it stay shared.

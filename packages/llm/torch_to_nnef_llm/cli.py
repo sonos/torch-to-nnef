@@ -176,6 +176,23 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--quantize-moe-experts",
+            choices=["q40"],
+            default=None,
+            help="quantize fused MoE expert weights to tract q4_0 (min-max) "
+            "at extraction. `-c` compression methods only quantize "
+            "nn.Linear / nn.Embedding modules, so without this flag fused "
+            "expert tensors export in float.",
+        )
+
+        parser.add_argument(
+            "--moe-expert-layout",
+            choices=["linear", "canonical"],
+            default=None,
+            help="stored layout of MoE expert weights in the exported graph",
+        )
+
+        parser.add_argument(
             "--upcast-quant",
             default=None,
             help="opt-in: dequantize a natively-quantized model (mxfp4, fp8, "
@@ -296,6 +313,20 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             default=6,
             help="Number of tokens to generate in total "
             "for reference 'modes' samples npz dumped ",
+        )
+        parser.add_argument(
+            "--check-inference-modes",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="dump reference 'modes' samples (prompt, prompt with past, "
+            "generation) npz in the export tests dir",
+        )
+        parser.add_argument(
+            "--wrapper-io-check",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="check the export wrapper outputs match the vanilla "
+            "transformers model before export",
         )
         parser.add_argument(
             "-iaed",
