@@ -15,7 +15,12 @@ from tests.utils import (
 )
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.nnef_io.writer import Writer, write_nnef_tensor
-from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.offload import (
+    ON_DISK_DEVICE_MAP_KEY,
+    WEIGHTS_NAME,
+    OffloadedTensor,
+    t2n_load_checkpoint_and_dispatch,
+)
 from torch_to_nnef.tensor.opaque import (
     OFFLOAD_STATE_KEY,
     OpaqueTensor,
@@ -30,6 +35,7 @@ from torch_to_nnef.tensor.quant.qtract import (
 )
 from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
+from torch_to_nnef.utils import init_empty_weights
 
 
 @skipif_limited_offload_support
@@ -680,3 +686,20 @@ def test_offload_copy_uses_resident_values_across_scope_devices(
         assert torch.equal(copied.reload(), (values + 10).to(dtype=dtype))
         assert copied.target_device == source.target_device
     assert torch.equal(source.reload(), values + 10)
+
+
+@skipif_limited_offload_support
+def test_offload_dispatch_from_relative_checkpoint_dir(tmp_path, monkeypatch):
+    torch.save(torch.nn.Linear(4, 4).state_dict(), tmp_path / WEIGHTS_NAME)
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    monkeypatch.chdir(tmp_path.parent)
+    with init_empty_weights():
+        model = torch.nn.Linear(4, 4)
+    t2n_load_checkpoint_and_dispatch(
+        model,
+        Path(tmp_path.name),
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        offload_dir=offload_dir,
+    )
+    assert isinstance(model.weight.data, OffloadedTensor)
