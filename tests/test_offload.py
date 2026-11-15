@@ -12,6 +12,7 @@ from tests.utils import (
     check_model_io_test,
     skipif_limited_offload_support,
     skipif_unsupported_qtensor,
+    skipif_unsupported_tensor_updater,
 )
 from torch_to_nnef.compress import DEFAULT_COMPRESSION
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
@@ -699,6 +700,7 @@ class _TiedEmbeddingHead(torch.nn.Module):
 
 @skipif_limited_offload_support
 @skipif_unsupported_qtensor
+@skipif_unsupported_tensor_updater
 def test_offload_compress_tied_weights(tmp_path):
     torch.save(_TiedEmbeddingHead().state_dict(), tmp_path / WEIGHTS_NAME)
     offload_dir = tmp_path / "offload"
