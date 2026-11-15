@@ -22,6 +22,7 @@ from torch_to_nnef.utils import (
     SemanticVersion,
     T2NExtra,
     init_empty_weights,
+    require_extra,
     require_extra_decorator,
 )
 from torch_to_nnef_llm._optional_types import (
@@ -273,6 +274,8 @@ def _plan_and_inject_upcast(
     if method is None:
         LOGGER.info("up-cast requested but model is not natively quantized")
         return ("none", None)
+    # transformers quantizers refuse to load without accelerate
+    require_extra(extra=T2NExtra.LLM_TRACT_ACCELERATE, module="accelerate")
     plan = plan_upcast(quant_config, requested)
     if plan[0] == "load":
         LOGGER.info("up-casting native '%s' at load time", method)

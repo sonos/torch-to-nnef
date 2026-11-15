@@ -6,6 +6,7 @@ GPU kernels, so only the pure planning / selection / dense-verification is
 covered here.
 """
 
+import importlib
 import json
 from copy import deepcopy
 
@@ -13,6 +14,7 @@ import pytest
 import torch
 from torch import nn
 
+from torch_to_nnef import utils
 from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef.tensor.offload import (
     ON_DISK_DEVICE_MAP_KEY,
@@ -185,6 +187,21 @@ def test_plan_and_inject_load_time(monkeypatch):
     plan = _plan_and_inject_upcast("org/m", ["mxfp4"], kwargs, True, object())
     assert plan == ("load", qc)
     assert kwargs["quantization_config"] is qc and qc.dequantize is True
+
+
+def test_plan_and_inject_requires_accelerate(monkeypatch):
+    monkeypatch.setattr(
+        loader, "_peek_quant_config", lambda *a, **k: _LoadTimeConfig("fp8")
+    )
+
+    def no_accelerate(module):
+        if module == "accelerate":
+            raise ImportError(module)
+        return importlib.import_module(module)
+
+    monkeypatch.setattr(utils, "_import_module_cached", no_accelerate)
+    with pytest.raises(T2NErrorMisuse, match="llm-tract-accelerate"):
+        _plan_and_inject_upcast("org/m", ["fp8"], {}, True, object())
 
 
 def test_plan_and_inject_post_and_none(monkeypatch):
