@@ -1321,6 +1321,7 @@ provides-extras = ["accelerate", "peft", "safetensors"]
 
 [package.metadata.requires-dev]
 test = [
+    { name = "accelerate" },
     { name = "coverage", extras = ["toml"] },
     { name = "peft" },
     { name = "pytest", specifier = ">=9.0.3,<10" },
