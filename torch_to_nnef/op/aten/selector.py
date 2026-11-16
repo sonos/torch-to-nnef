@@ -388,34 +388,55 @@ def narrow(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
-def select(node, op_helper, **kwargs):
-    """Map PyTorch: 'aten:select' to NNEF."""
+def select(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:select' to NNEF.
+
+    A negative index on a dynamic-axes export counts from the runtime end of
+    the axis (``dyn_select_from_end``), not from its traced size.
+    """
     input_node, axis_node, index_node = node.inputs
-    begin = pick_index_in_axis(input_node, axis_node.data, index_node.data)
-    out = op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        "slice",
-        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
-        attrs={
-            "axes": [pick_axis(input_node, axis_node.data)],
-            "begin": [begin],
-            "end": [
-                pick_index_in_axis(
-                    input_node, axis_node.data, index_node.data + 1
-                )
-            ],
-            "stride": [1],
-        },
-        output_tensor_name_suffix="_select",
-        pass_quantization_params=True,
-    )
+    index = index_node.data
+    if isinstance(index, torch.Tensor):
+        index = index.tolist()
+    axis = pick_axis(input_node, axis_node.data)
+    fragments = []
+    if (
+        index < 0
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.has_dynamic_axes
+    ):
+        out = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "dyn_select_from_end",
+            inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            attrs={"axis": axis, "index": index},
+            output_tensor_name_suffix="_select",
+            pass_quantization_params=True,
+        )
+        fragments = ["dyn_select_from_end"]
+    else:
+        begin = pick_index_in_axis(input_node, axis_node.data, index)
+        out = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "slice",
+            inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            attrs={
+                "axes": [axis],
+                "begin": [begin],
+                "end": [begin + 1],
+                "stride": [1],
+            },
+            output_tensor_name_suffix="_select",
+            pass_quantization_params=True,
+        )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "squeeze",
         inputs=out,
-        attrs={"axes": [pick_axis(input_node, axis_node.data)]},
+        attrs={"axes": [axis]},
         pass_quantization_params=True,
     )
+    return fragments
 
 
 @OP_REGISTRY.register()

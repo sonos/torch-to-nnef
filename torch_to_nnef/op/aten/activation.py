@@ -1,3 +1,5 @@
+import torch
+
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -9,7 +11,7 @@ from torch_to_nnef.op.helper import (
     unary_output_op_without_attr,
 )
 from torch_to_nnef.tensor.quant import QTensorTract
-from torch_to_nnef.torch_graph.ir_data import PythonConstant
+from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -310,11 +312,30 @@ def log_softmax(inference_target, **kwargs):
     return ["log_softmax"]
 
 
+def _match_bound_to_float_input(input_node, bound_node):
+    """Materialize integer bounds in the input dtype without changing the IR."""
+    if (
+        isinstance(bound_node, PythonConstant)
+        and isinstance(bound_node.data, int)
+        and input_node.dtype is not None
+        and input_node.dtype.is_floating_point
+    ):
+        value = torch.tensor(bound_node.data, dtype=input_node.dtype)
+        return TensorVariable(
+            name=f"{bound_node.name}_clamp_{input_node.dtype}",
+            data=value,
+            shape=[],
+            dtype=value.dtype,
+        )
+    return bound_node
+
+
 @OP_REGISTRY.register()
 def clamp_min(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:clamp_min' to NNEF."""
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
+    clamp_value_node = _match_bound_to_float_input(input_node, clamp_value_node)
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -338,6 +359,7 @@ def clamp_max(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:clamp_max' to NNEF."""
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
+    clamp_value_node = _match_bound_to_float_input(input_node, clamp_value_node)
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -368,6 +390,8 @@ def clamp(g, node, name_to_tensor, **kwargs):
     the `flatten` `or 0/-1` bug. Use explicit `is None` checks.
     """
     input_node, min_clamp, max_clamp = node.inputs
+    min_clamp = _match_bound_to_float_input(input_node, min_clamp)
+    max_clamp = _match_bound_to_float_input(input_node, max_clamp)
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor

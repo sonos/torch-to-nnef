@@ -96,6 +96,9 @@ for op in [
     partial(torch.clamp, min=5.0, max=20.0),
     partial(torch.clamp, min=10.0),
     partial(torch.clamp, max=11.0),
+    partial(torch.clamp, min=5, max=20),
+    partial(torch.clamp, min=10),
+    partial(torch.clamp, max=11),
     # lambda x: torch.where(
     # _condition_1,
     # input=_input0,
@@ -136,6 +139,8 @@ for op in [
     TensorFnPrimitive("repeat", kwargs={}, args=([1, 2, 1],)),
     TensorFnPrimitive("clamp_min", args=(0.5,)),
     TensorFnPrimitive("clamp_max", args=(0.5,)),
+    TensorFnPrimitive("clamp_min", args=(0,)),
+    TensorFnPrimitive("clamp_max", args=(1,)),
     TensorFnPrimitive("new_zeros", kwargs=dict(size=(3, 2))),
     TensorFnPrimitive("expand", args=(2, 13, 10, 1)),
 ]:
