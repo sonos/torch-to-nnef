@@ -4,6 +4,7 @@
 ## Unreleased
 
 ### Fixed
+- **Gated delta net reification on transformers >= 5.16** (llm): Qwen3.5, Qwen3.5-MoE and Qwen3-Next now call the gated delta rules and the causal conv update as module-level functions of their modeling file, so `reify_gated_delta_net` found nothing to swap. The stock path ran instead: it unrolled the recurrence at the traced length, its in-place conv cache update wrote through to the export inputs (failing the wrapper consistency check) and tripped the tracer. Those module-level functions are now routed to the shims of the GDN module whose forward is running; the attribute-bound layout of older transformers is unchanged.
 - **Disk offload from a relative checkpoint dir** (core): `t2n_load_checkpoint_and_dispatch` joined the checkpoint dir onto paths `iterdir()` had already prefixed with it, so a relative dir (e.g. `-d src/model` with `--device-map t2n_offload_disk`) looked for `src/model/src/model/model.safetensors`.
 - **Compressing tied weights under disk offload** (core): the min-max compressions logged the first owner of a shared weight through its `nnef_name`, which an `OffloadedTensor` does not have, so any tied-embedding model with `--device-map t2n_offload_disk` and a q4_0 recipe raised `AttributeError`. The name is now tracked alongside the weight id.
 - **`--no-verify` did not skip the wrapper consistency check** (llm): `LLMExporter.dump` handed `no_verify` to the tract inference target only, so the export still ran the wrapper vs vanilla check and the test token generation. `no_verify` now reaches both.
