@@ -12,7 +12,9 @@ from tests.utils import (
     check_model_io_test,
     skipif_limited_offload_support,
     skipif_unsupported_qtensor,
+    skipif_unsupported_tensor_updater,
 )
+from torch_to_nnef.compress import DEFAULT_COMPRESSION
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.nnef_io.writer import Writer, write_nnef_tensor
 from torch_to_nnef.tensor.offload import (
@@ -703,3 +705,31 @@ def test_offload_dispatch_from_relative_checkpoint_dir(tmp_path, monkeypatch):
         offload_dir=offload_dir,
     )
     assert isinstance(model.weight.data, OffloadedTensor)
+
+
+class _TiedEmbeddingHead(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.emb = torch.nn.Embedding(16, 64)
+        self.head = torch.nn.Linear(64, 16, bias=False)
+        self.head.weight = self.emb.weight
+
+
+@skipif_limited_offload_support
+@skipif_unsupported_qtensor
+@skipif_unsupported_tensor_updater
+def test_offload_compress_tied_weights(tmp_path):
+    torch.save(_TiedEmbeddingHead().state_dict(), tmp_path / WEIGHTS_NAME)
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    with init_empty_weights():
+        model = _TiedEmbeddingHead()
+    t2n_load_checkpoint_and_dispatch(
+        model,
+        tmp_path,
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        offload_dir=offload_dir,
+    )
+    model.head.weight = model.emb.weight
+    DEFAULT_COMPRESSION["min_max_q4_0_with_embeddings"](model)
+    assert model.head.weight is model.emb.weight

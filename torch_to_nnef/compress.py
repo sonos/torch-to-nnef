@@ -17,7 +17,6 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
-    QTensor,
     fp_to_tract_iq2_s,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
@@ -57,7 +56,7 @@ def _quantize_weights_min_max(
         to_quantize_module_classes
     )
     with torch.no_grad():
-        ids_to_qtensor: T.Dict[int, T.Union[QTensor, OffloadedTensor]] = {}
+        quantized_id_to_name: T.Dict[int, str] = {}
         # try to avoid quant if used in other operators like mix of
         # embedding/linear if linear only quant
         mod_tensor_updater = ModTensorUpdater(model)
@@ -73,10 +72,10 @@ def _quantize_weights_min_max(
             if isinstance(mod, to_quantize_module_classes):
                 LOGGER.info("quantize layer: %s", name)
                 weight_id = id(mod.weight)
-                if weight_id in ids_to_qtensor:
+                if weight_id in quantized_id_to_name:
                     LOGGER.info(
                         "detected shared weight between: '%s' and '%s.weight'",
-                        ids_to_qtensor[weight_id].nnef_name,
+                        quantized_id_to_name[weight_id],
                         name,
                     )
                     continue
@@ -113,7 +112,7 @@ def _quantize_weights_min_max(
                 q_weight = mod_tensor_updater.update_by_ref(
                     mod.weight, q_weight
                 )
-                ids_to_qtensor[id(q_weight)] = q_weight
+                quantized_id_to_name[id(q_weight)] = f"{name}.weight"
     return model
 
 
