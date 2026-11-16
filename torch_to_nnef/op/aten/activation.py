@@ -310,11 +310,28 @@ def log_softmax(inference_target, **kwargs):
     return ["log_softmax"]
 
 
+def _match_bound_to_float_input(input_node, bound_node):
+    """Cast a Python int clamp bound to float when the input is floating.
+
+    PyTorch accepts `clamp(float_x, -3, 3)`; NNEF `max`/`min` need both
+    operands of one dtype, and an int literal reaches tract as an integer
+    (TDim) operand.
+    """
+    if (
+        isinstance(bound_node, PythonConstant)
+        and isinstance(bound_node.data, int)
+        and input_node.dtype is not None
+        and input_node.dtype.is_floating_point
+    ):
+        bound_node.cast_float_inplace()
+
+
 @OP_REGISTRY.register()
 def clamp_min(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:clamp_min' to NNEF."""
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
+    _match_bound_to_float_input(input_node, clamp_value_node)
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -338,6 +355,7 @@ def clamp_max(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:clamp_max' to NNEF."""
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
+    _match_bound_to_float_input(input_node, clamp_value_node)
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -368,6 +386,8 @@ def clamp(g, node, name_to_tensor, **kwargs):
     the `flatten` `or 0/-1` bug. Use explicit `is None` checks.
     """
     input_node, min_clamp, max_clamp = node.inputs
+    _match_bound_to_float_input(input_node, min_clamp)
+    _match_bound_to_float_input(input_node, max_clamp)
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
