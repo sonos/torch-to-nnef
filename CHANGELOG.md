@@ -4,6 +4,7 @@
 ## Unreleased
 
 ### Fixed
+- **Disk offload from a relative checkpoint dir** (core): `t2n_load_checkpoint_and_dispatch` joined the checkpoint dir onto paths `iterdir()` had already prefixed with it, so a relative dir (e.g. `-d src/model` with `--device-map t2n_offload_disk`) looked for `src/model/src/model/model.safetensors`.
 - **Compressing tied weights under disk offload** (core): the min-max compressions logged the first owner of a shared weight through its `nnef_name`, which an `OffloadedTensor` does not have, so any tied-embedding model with `--device-map t2n_offload_disk` and a q4_0 recipe raised `AttributeError`. The name is now tracked alongside the weight id.
 - **`--no-verify` did not skip the wrapper consistency check** (llm): `LLMExporter.dump` handed `no_verify` to the tract inference target only, so the export still ran the wrapper vs vanilla check and the test token generation. `no_verify` now reaches both.
 - **`OffloadedTensor.to(device=..., dtype=...)` raised `IndexError`**: with keyword arguments only there was no positional argument to inspect, and `.to(other_tensor)` was read as a dtype. Device and dtype overloads now use the torch parser. Keyword and positional `copy` flags are accepted, and `copy=True` creates an independent disk payload.

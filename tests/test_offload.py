@@ -690,6 +690,23 @@ def test_offload_copy_uses_resident_values_across_scope_devices(
     assert torch.equal(source.reload(), values + 10)
 
 
+@skipif_limited_offload_support
+def test_offload_dispatch_from_relative_checkpoint_dir(tmp_path, monkeypatch):
+    torch.save(torch.nn.Linear(4, 4).state_dict(), tmp_path / WEIGHTS_NAME)
+    offload_dir = tmp_path / "offload"
+    offload_dir.mkdir()
+    monkeypatch.chdir(tmp_path.parent)
+    with init_empty_weights():
+        model = torch.nn.Linear(4, 4)
+    t2n_load_checkpoint_and_dispatch(
+        model,
+        Path(tmp_path.name),
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+        offload_dir=offload_dir,
+    )
+    assert isinstance(model.weight.data, OffloadedTensor)
+
+
 class _TiedEmbeddingHead(torch.nn.Module):
     def __init__(self):
         super().__init__()
