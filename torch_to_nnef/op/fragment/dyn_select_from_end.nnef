@@ -1,0 +1,17 @@
+extension tract_registry tract_core;
+
+# one-wide slice at a negative index of an axis whose size is only known at
+# runtime: [size + index, size + index + 1), which tract types as width 1
+
+fragment dyn_select_from_end(
+    input: tensor<scalar>,
+    axis: tensor<scalar>,
+    index: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    input_shape = tract_core_shape_of(input);
+    input_dim = slice(input_shape, axes=[0], begin=[axis], end=[axis + 1], stride=[1]);
+    input_axis_size = squeeze(input_dim, axes=[0]);
+    begin = tract_core_cast(input_axis_size + index, to="tdim");
+    output = slice(input, axes = [axis], begin = [begin], end = [begin + 1], stride = [1]);
+}

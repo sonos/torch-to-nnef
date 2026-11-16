@@ -970,7 +970,6 @@ class LLMExporter:
                     "tract_specific_path",
                     "tract_specific_version",
                     "tract_specific_properties",
-                    "no_verify",
                     "force_f32_attention",
                     "force_f32_linear_accumulator",
                     "force_f32_normalization",
@@ -980,6 +979,7 @@ class LLMExporter:
                 ]
                 if key in kwargs
             },
+            no_verify=kwargs.get("no_verify", False),
             compression_method=kwargs.get("compression_method"),
             compression_registry=kwargs.get("compression_registry"),
         )

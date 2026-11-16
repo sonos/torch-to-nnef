@@ -260,6 +260,34 @@ def test_dump_llm_routes_reified_sdpa_input_upcast_policy(
     )
 
 
+def test_dump_llm_no_verify_reaches_target_and_dump(monkeypatch, tmp_path):
+    captured = {}
+
+    class _Exporter:
+        model_infos = SimpleNamespace(conf=SimpleNamespace(model_type="fake"))
+
+        def build_inference_target(self, **kwargs):
+            captured["target"] = kwargs
+            return object()
+
+        def dump_with_inference_target(self, **kwargs):
+            captured["dump"] = kwargs
+
+        def dump(self, **kwargs):
+            return exporter.LLMExporter.dump(self, **kwargs)
+
+    def fake_load(*_args, **_kwargs):
+        return _Exporter()
+
+    monkeypatch.setattr(exporter.LLMExporter, "load", staticmethod(fake_load))
+    exporter.dump_llm(
+        "fake/model", export_dirpath=tmp_path / "export", no_verify=True
+    )
+
+    assert captured["target"]["no_verify"] is True
+    assert captured["dump"]["no_verify"] is True
+
+
 def test_cli_reify_sdpa_operator_implies_sdpa_attention(monkeypatch, tmp_path):
     captured = {}
 
