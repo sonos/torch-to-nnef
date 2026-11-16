@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from torch_to_nnef_llm.models.handlers import Qwen35MoeArchitectureHandler
@@ -89,8 +90,19 @@ def test_qwen35_moe_linear_state_accepts_tensor_backed_cache():
 
 
 def test_qwen35_moe_forward_inputs_rebuild_transformers_hybrid_cache():
+    config_cls = pytest.importorskip(
+        "transformers.models.qwen3_5_moe.configuration_qwen3_5_moe"
+    ).Qwen3_5MoeTextConfig
     handler = Qwen35MoeArchitectureHandler()
     config_helper = FakeConfigHelper()
+    # DynamicCache builds its layers from a real transformers config
+    config_helper.decoder_conf = config_cls(
+        **{
+            k: v
+            for k, v in vars(config_helper.decoder_conf).items()
+            if k != "max_position_embeddings"
+        }
+    )
     spec = handler.build_input_spec(
         tokenizer=FakeTokenizer(),
         config_helper=config_helper,

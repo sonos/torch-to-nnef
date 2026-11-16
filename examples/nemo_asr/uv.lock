@@ -4081,7 +4081,7 @@ test = [
 
 [[package]]
 name = "torch-to-nnef-nemo-asr"
-version = "0.24.12"
+version = "0.25.0"
 source = { editable = "../../packages/nemo-asr" }
 dependencies = [
     { name = "nemo-toolkit", extra = ["asr"] },
