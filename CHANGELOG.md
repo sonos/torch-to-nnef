@@ -4,7 +4,8 @@
 ## Unreleased
 
 ### Added
-- **LLM export CLI flags for MoE experts and checks** (llm): `-c` compression methods only quantize `nn.Linear` / `nn.Embedding`, so fused MoE expert tensors exported in float from `t2n_export_llm_to_tract`. `--quantize-moe-experts q40` and `--moe-expert-layout {linear,canonical}` now expose the existing `dump_llm` options (also on `t2n_export_multimodal_to_tract`, applied to the decoder). `--no-check-inference-modes` skips the reference modes samples (`--sample-generation-total-size` is then not required to be >= 2), and `--no-wrapper-io-check` skips the wrapper vs vanilla consistency check.
+- **`min_max_q4_0_with_embeddings_and_experts` compression** (core): the `min_max_q4_0*` methods only quantize `nn.Linear` / `nn.Embedding`, so fused MoE expert tensors exported in float. This recipe quantizes Linear and Embedding weights like `min_max_q4_0_with_embeddings` and marks every MoE block handled by the `tract_moe_ffn` extractor, whose experts are then quantized to Q4_0 during extraction, in the linear layout so Q4_0 blocks run along the reduction axis. transformers MoE routers are not `nn.Linear` and stay in float.
+- **`--no-check-inference-modes` on the LLM export CLI** (llm): skips the reference modes samples, which some handlers (e.g. Qwen3.5 hybrid caches) cannot build; `--sample-generation-total-size` is then not required to be >= 2.
 
 ### Fixed
 - **`OffloadedTensor.to(device=..., dtype=...)` raised `IndexError`**: with keyword arguments only there was no positional argument to inspect, and `.to(other_tensor)` was read as a dtype. Device and dtype overloads now use the torch parser. Keyword and positional `copy` flags are accepted, and `copy=True` creates an independent disk payload.

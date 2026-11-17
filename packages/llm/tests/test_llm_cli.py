@@ -104,7 +104,6 @@ SUPPORT_LLM_CLI_OPTS += [{"sample_generation_total_size": 8}]
 SUPPORT_LLM_CLI_OPTS += [
     {"check_inference_modes": False, "sample_generation_total_size": 0}
 ]
-SUPPORT_LLM_CLI_OPTS += [{"wrapper_io_check": False}]
 SUPPORT_LLM_CLI_OPTS += [{"naming_scheme": VariableNamingScheme.NUMERIC}]
 
 
@@ -238,7 +237,7 @@ def test_llama_export_io_npz():
             assert dic["out_cache_value_0"].shape == (1, 2, total_tokens, 4)
 
 
-def test_cli_exposes_moe_quantization_and_check_toggles(monkeypatch):
+def test_cli_can_skip_inference_modes(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -247,16 +246,8 @@ def test_cli_exposes_moe_quantization_and_check_toggles(monkeypatch):
             LlamaSlugs.DUMMY.value,
             "-e",
             "unused",
-            "--quantize-moe-experts",
-            "q40",
-            "--moe-expert-layout",
-            "linear",
             "--no-check-inference-modes",
-            "--no-wrapper-io-check",
         ],
     )
     kwargs, _ = _parse_cli_to_kwargs()
-    assert kwargs["quantize_moe_experts"] == "q40"
-    assert kwargs["moe_expert_layout"] == "linear"
     assert kwargs["check_inference_modes"] is False
-    assert kwargs["wrapper_io_check"] is False

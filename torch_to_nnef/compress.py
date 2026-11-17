@@ -14,7 +14,9 @@ from torch import nn
 from torch_to_nnef.exceptions import (
     T2NErrorImpossibleQuantization,
     T2NErrorMisuse,
+    T2NErrorNotImplemented,
 )
+from torch_to_nnef.op.custom_extractors.moe import mark_moe_experts_for_q40
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
     QTensor,
@@ -126,6 +128,30 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
         (nn.Linear,),
         **kwargs,
     )
+
+
+def quantize_weights_min_max_Q4_0_with_experts(  # noqa: N802
+    model: nn.Module, **kwargs
+):
+    """Q4_0 for Linear and Embedding weights and for fused MoE experts.
+
+    Linear and Embedding weights are quantized as in
+    ``min_max_q4_0_with_embeddings``. Fused expert weights are not
+    ``nn.Linear`` modules, so every MoE block the ``tract_moe_ffn`` extractor
+    handles is marked instead: its experts are quantized to Q4_0 min-max
+    while they are extracted, in the linear layout, so the Q4_0 blocks run
+    along the reduction axis as tract's matmul kernels expect. A model
+    without such a block gets the ``min_max_q4_0_with_embeddings`` result.
+    """
+    kwargs.setdefault("to_quantize_module_classes", (nn.Linear, nn.Embedding))
+    model = quantize_weights_min_max_Q4_0(model, **kwargs)
+    try:
+        marked = mark_moe_experts_for_q40(model, layout="linear")
+    except T2NErrorNotImplemented:
+        LOGGER.warning("no MoE block found: no expert weights to quantize")
+        return model
+    LOGGER.info("marked %d MoE blocks for Q4_0 experts", marked)
+    return model
 
 
 def _quantize_embeddings(
@@ -273,6 +299,9 @@ DEFAULT_COMPRESSION = {
     "min_max_q4_0_with_embeddings": partial(
         quantize_weights_min_max_Q4_0,
         to_quantize_module_classes=(nn.Linear, nn.Embedding),
+    ),
+    "min_max_q4_0_with_embeddings_and_experts": (
+        quantize_weights_min_max_Q4_0_with_experts
     ),
     "min_max_q4_0_with_embeddings_99": partial(
         partial(quantize_weights_min_max_Q4_0, percentile=0.99),

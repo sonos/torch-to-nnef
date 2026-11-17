@@ -538,8 +538,7 @@ class LLMExporter:
                     "give inconsistent results compared to "
                     f"vanilla in '{output_name}': "
                     f"avg diff: {(ref - cand).abs().mean():0.4f}. "
-                    "Likely need a torch_to_nnef fix (skip this check with "
-                    "wrapper_io_check=False / --no-wrapper-io-check)."
+                    "Likely need a torch_to_nnef fix."
                 )
                 LOGGER.error(msg)
                 raise T2NErrorConsistency(msg)
@@ -1197,37 +1196,6 @@ def _reject_multimodal_in_llm_dump(model_type: str) -> None:
     )
 
 
-def _check_quantize_moe_experts(quantize_moe_experts: T.Optional[str]):
-    if quantize_moe_experts not in (None, "q40"):
-        raise T2NErrorMisuse(
-            "quantize_moe_experts must be 'q40' or None, got "
-            f"{quantize_moe_experts!r}"
-        )
-
-
-def mark_moe_experts(
-    exporter: "LLMExporter",
-    quantize_moe_experts: T.Optional[str],
-    moe_expert_layout: T.Optional[str],
-) -> None:
-    """Mark the exporter's MoE blocks for q4_0 and/or a stored layout.
-
-    No-op when both are None. See ``dump_llm`` for the accepted values.
-    """
-    if not (quantize_moe_experts or moe_expert_layout):
-        return
-    marked = exporter.mark_moe_experts_for_q40(
-        quantize_q40=quantize_moe_experts == "q40",
-        layout=moe_expert_layout,
-    )
-    LOGGER.info(
-        "marked %d MoE modules (quantize=%s, layout=%s)",
-        marked,
-        quantize_moe_experts,
-        moe_expert_layout,
-    )
-
-
 def dump_llm(
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
@@ -1252,7 +1220,11 @@ def dump_llm(
     to tract q4_0 min-max at extraction; ``moe_expert_layout``
     ("linear" or "canonical") selects the stored expert weight layout.
     """
-    _check_quantize_moe_experts(quantize_moe_experts)
+    if quantize_moe_experts not in (None, "q40"):
+        raise T2NErrorMisuse(
+            "quantize_moe_experts must be 'q40' or None, got "
+            f"{quantize_moe_experts!r}"
+        )
     attn_implementation = _resolve_attn_implementation(
         attn_implementation,
         kwargs.get("reify_sdpa_operator"),
@@ -1272,7 +1244,17 @@ def dump_llm(
         experts_implementation=experts_implementation,
     )
     _reject_multimodal_in_llm_dump(exporter.model_infos.conf.model_type)
-    mark_moe_experts(exporter, quantize_moe_experts, moe_expert_layout)
+    if quantize_moe_experts or moe_expert_layout:
+        marked = exporter.mark_moe_experts_for_q40(
+            quantize_q40=quantize_moe_experts == "q40",
+            layout=moe_expert_layout,
+        )
+        LOGGER.info(
+            "marked %d MoE modules (quantize=%s, layout=%s)",
+            marked,
+            quantize_moe_experts,
+            moe_expert_layout,
+        )
     dump_kwargs = _normalize_dump_kwargs(kwargs)
     exporter.dump(**dump_kwargs)
     export_path = dump_kwargs.get("export_dirpath")

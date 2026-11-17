@@ -37,10 +37,8 @@ from torch_to_nnef_llm.exporter import (
     LM_VAR_SCHEME,
     TYPE_OPTIONAL_DEVICE_MAP,
     LLMExporter,
-    _check_quantize_moe_experts,
     _normalize_dump_kwargs,
     _resolve_attn_implementation,
-    mark_moe_experts,
 )
 from torch_to_nnef_llm.models.base import BaseEncoder, update_forward_signature
 from torch_to_nnef_llm.models.handlers import (
@@ -483,8 +481,6 @@ def dump_multimodal(
     upcast_quant: T.Optional[T.Sequence[str]] = None,
     attn_implementation: T.Optional[str] = None,
     experts_implementation: T.Optional[str] = "auto",
-    quantize_moe_experts: T.Optional[str] = None,
-    moe_expert_layout: T.Optional[str] = None,
     **kwargs,
 ) -> T.Tuple[Path, "MultiModalExporter"]:
     """Export a multimodal model as coordinated NNEF graphs + a manifest.
@@ -492,10 +488,8 @@ def dump_multimodal(
     Mirrors :func:`~torch_to_nnef_llm.exporter.dump_llm`, but loads via
     :class:`MultiModalExporter` and writes the vision/audio encoder graph(s),
     the LLM decoder graph, and a ``multimodal.json`` manifest tying them
-    together. ``quantize_moe_experts`` / ``moe_expert_layout`` apply to the
-    decoder as in ``dump_llm``.
+    together.
     """
-    _check_quantize_moe_experts(quantize_moe_experts)
     attn_implementation = _resolve_attn_implementation(
         attn_implementation,
         kwargs.get("reify_sdpa_operator"),
@@ -513,9 +507,6 @@ def dump_multimodal(
         upcast_quant=upcast_quant,
         attn_implementation=attn_implementation,
         experts_implementation=experts_implementation,
-    )
-    mark_moe_experts(
-        exporter.decoder_exporter, quantize_moe_experts, moe_expert_layout
     )
     dump_kwargs = _normalize_dump_kwargs(kwargs)
     target_kwargs = _split_inference_target_kwargs(exporter, dump_kwargs)

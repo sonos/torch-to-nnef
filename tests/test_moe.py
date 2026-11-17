@@ -13,6 +13,7 @@ import torch
 from torch import nn
 
 from torch_to_nnef import export_model_to_nnef
+from torch_to_nnef.compress import DEFAULT_COMPRESSION
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.tract import TractCli
@@ -375,6 +376,47 @@ def test_moe_ffn_split_experts_q40_linear_layout(inference_target):
     model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=64, k=2)
     model.moe._t2n_quantize_moe_experts_q40 = True
     model.moe._t2n_moe_expert_layout = "linear"
+    model.eval()
+
+    def _assert_linear_q40(inference_target, path):
+        _assert_graph_contains(
+            inference_target,
+            path,
+            "expert_layout = 'linear'",
+        )
+        _assert_moe_expert_weights_q40(
+            inference_target,
+            path,
+            expected_count=2,
+            expected_shapes={
+                "w1": [4, 64, 32],
+                "w2": [4, 32, 64],
+            },
+        )
+
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 32),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=export_target,
+        callback_post_export=_assert_linear_q40,
+    )
+
+
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_q4_0_with_embeddings_and_experts_recipe(inference_target):
+    """The registry recipe exports Q40 experts in the linear layout."""
+    _skip_if_unsupported(inference_target)
+    export_target = deepcopy(inference_target)
+    export_target.check_io = False
+    model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=64, k=2)
+    # unlike transformers' TopKRouter modules, the reference MoEFFN router is
+    # an nn.Linear, which the Q4_0 Linear pass would quantize
+    model = DEFAULT_COMPRESSION["min_max_q4_0_with_embeddings_and_experts"](
+        model, to_quantize_module_classes=(torch.nn.Embedding,)
+    )
     model.eval()
 
     def _assert_linear_q40(inference_target, path):
