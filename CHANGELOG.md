@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+## [0.25.1] - 2026-11-17
+
 ### Added
 - **`min_max_q4_0_with_embeddings_and_experts` compression** (core): the `min_max_q4_0*` methods only quantize `nn.Linear` / `nn.Embedding`, so fused MoE expert tensors exported in float. This recipe quantizes Linear and Embedding weights like `min_max_q4_0_with_embeddings` and marks every MoE block handled by the `tract_moe_ffn` extractor, whose experts are then quantized to Q4_0 during extraction, in the linear layout so Q4_0 blocks run along the reduction axis. MoE routers, including shared-expert gates, stay in float even when implemented as `nn.Linear`.
 - **`--no-check-inference-modes` on the LLM export CLI** (llm): skips the reference modes samples, which some handlers (e.g. Qwen3.5 hybrid caches) cannot build; `--sample-generation-total-size` is then not required to be >= 2.
