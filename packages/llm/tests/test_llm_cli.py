@@ -239,6 +239,16 @@ def test_llama_export_io_npz():
     torch_version() < "2.5.0", reason="SDPA enable_gqa needs torch >= 2.5"
 )
 def test_reified_sdpa_gqa_keeps_dynamic_query_length(monkeypatch, tmp_path):
+    """A single-token GQA trace must not freeze the query length to 1.
+
+    Only transformers versions whose SDPA integration packs single-token
+    GQA queries (``pack_gqa``, from 5.23) can freeze it.
+    """
+    sdpa_attention = pytest.importorskip(
+        "transformers.integrations.sdpa_attention"
+    )
+    if not hasattr(sdpa_attention, "pack_gqa"):
+        pytest.skip("transformers does not pack single-token GQA queries")
     from transformers import AutoConfig
 
     config = AutoConfig.from_pretrained(LlamaSlugs.DUMMY.value)
