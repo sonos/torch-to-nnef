@@ -1216,9 +1216,9 @@ def t2n_load_checkpoint_and_dispatch(
             f for f in checkpoint.iterdir() if f.name == SAFE_WEIGHTS_NAME
         ]
         if len(potential_state_bin) == 1:
-            checkpoint_files = [checkpoint / potential_state_bin[0]]
+            checkpoint_files = [potential_state_bin[0]]
         elif len(potential_state_safetensor) == 1:
-            checkpoint_files = [checkpoint / potential_state_safetensor[0]]
+            checkpoint_files = [potential_state_safetensor[0]]
         else:
             # otherwise check for sharded checkpoints
             potential_index = [
@@ -1236,7 +1236,7 @@ def t2n_load_checkpoint_and_dispatch(
                     f"{checkpoint} containing more than one `.index.json` file,"
                     " delete the irrelevant ones."
                 )
-            index_filename = checkpoint / potential_index[0]
+            index_filename = potential_index[0]
     else:
         raise T2NErrorMisuse(
             "`checkpoint` should be the path to a file containing "

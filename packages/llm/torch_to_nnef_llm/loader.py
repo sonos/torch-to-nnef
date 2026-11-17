@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import typing as T
+from contextlib import contextmanager
 from pathlib import Path
 
 import torch
@@ -646,6 +647,26 @@ def _apply_experts_implementation(
         )
 
 
+@contextmanager
+def _missing_accelerate_as_extra_hint():
+    """Point at the ``llm-tract-accelerate`` extra when a load needs accelerate.
+
+    Some transformers quantizers (e.g. fp8, bitsandbytes) require accelerate
+    to load a natively quantized checkpoint, others do not (e.g. mxfp4 when
+    dequantizing), so this reacts to transformers' own ImportError instead of
+    requiring accelerate up front.
+    """
+    try:
+        yield
+    except ImportError as exp:
+        if "accelerate" not in str(exp).lower():
+            raise
+        raise T2NErrorMisuse(
+            f"{exp} -- install the torch_to_nnef"
+            f"[{T2NExtra.LLM_TRACT_ACCELERATE.value}] extra"
+        ) from exp
+
+
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def _from_pretrained(
@@ -791,12 +812,13 @@ def load_model(
                 dir_path, trust_remote_code=trust_remote_code
             )
             auto_model_class = resolve_auto_model_class(config.model_type)
-            hf_model_causal = _from_pretrained(
-                dir_path,
-                auto_model_class,
-                t2n_upcast_plan=upcast_plan,
-                **kwargs,
-            )
+            with _missing_accelerate_as_extra_hint():
+                hf_model_causal = _from_pretrained(
+                    dir_path,
+                    auto_model_class,
+                    t2n_upcast_plan=upcast_plan,
+                    **kwargs,
+                )
             LOGGER.info(
                 "load '%s' from local directory: %s",
                 hf_model_causal.config.model_type,
@@ -809,12 +831,13 @@ def load_model(
             hf_model_slug, trust_remote_code=trust_remote_code
         )
         auto_model_class = resolve_auto_model_class(config.model_type)
-        hf_model_causal = _from_pretrained(
-            hf_model_slug,
-            auto_model_class,
-            t2n_upcast_plan=upcast_plan,
-            **kwargs,
-        )
+        with _missing_accelerate_as_extra_hint():
+            hf_model_causal = _from_pretrained(
+                hf_model_slug,
+                auto_model_class,
+                t2n_upcast_plan=upcast_plan,
+                **kwargs,
+            )
         LOGGER.info(
             "load default trained model from huggingface: '%s'", hf_model_slug
         )

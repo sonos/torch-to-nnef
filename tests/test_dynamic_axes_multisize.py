@@ -222,3 +222,24 @@ def test_multihead_attention_dynamic_sequence(heads, causal):
         {f"input_{i}": {1: "S"} for i in range(3)},
         sizes=[16, 7, 1],
     )
+
+
+class SelectFromEnd(nn.Module):
+    """`x[:, index]` with a negative index on the dynamic axis."""
+
+    def __init__(self, index):
+        super().__init__()
+        self.index = index
+
+    def forward(self, x):  # (B, S, C): S dynamic
+        return x[:, self.index] * 2.0
+
+
+@pytest.mark.parametrize("index", [-1, -2])
+def test_select_negative_index_on_dynamic_axis(index):
+    _assert_dynamic_correct(
+        SelectFromEnd(index),
+        lambda s: torch.rand(1, s, 8),
+        {"input_0": {1: "S"}},
+        sizes=[2, 7, 3],
+    )

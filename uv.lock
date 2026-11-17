@@ -5779,6 +5779,7 @@ safetensors = [
 
 [package.dev-dependencies]
 test = [
+    { name = "accelerate" },
     { name = "coverage", extra = ["toml"] },
     { name = "peft" },
     { name = "pytest" },
@@ -5802,6 +5803,7 @@ provides-extras = ["accelerate", "peft", "safetensors"]
 
 [package.metadata.requires-dev]
 test = [
+    { name = "accelerate" },
     { name = "coverage", extras = ["toml"] },
     { name = "peft" },
     { name = "pytest", specifier = ">=9.0.3,<10" },
