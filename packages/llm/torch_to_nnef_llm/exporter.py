@@ -3,6 +3,7 @@ import logging
 import time
 import typing as T
 from collections import Counter
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +27,7 @@ from torch_to_nnef.inference_target.tract import (
     TractNNEF,
     build_io,
 )
+from torch_to_nnef.op.aten.attn import reify_with_tract_transformers_sdpa
 from torch_to_nnef.op.custom_extractors.moe import (
     mark_moe_experts_for_q40,
 )
@@ -140,6 +142,35 @@ def _resolve_attn_implementation(
             "reify_sdpa_operator requires attn_implementation='sdpa' or 'auto'"
         )
     return attn_implementation
+
+
+@contextmanager
+def _transformers_sdpa_uses_enable_gqa(enabled: bool):
+    """Make transformers' SDPA attention pass ``enable_gqa=True``.
+
+    transformers >= 5.23 packs GQA queries ``[B, H, 1, D]`` into
+    ``[B, Hkv, H / Hkv, D]`` when the query length is 1, which a single token
+    trace freezes into the graph, so only S=1 stays valid. With
+    ``enable_gqa`` the query keeps its sequence axis and K/V are not
+    repeated: ``tract_transformers_sdpa`` handles Q heads that are a multiple
+    of K/V heads. Only meant while exporting to reified tract SDPA.
+    """
+    sdpa_attention = None
+    if enabled and torch_version() >= "2.5.0":
+        try:
+            # pylint: disable-next=import-outside-toplevel
+            from transformers.integrations import sdpa_attention
+        except ImportError:
+            sdpa_attention = None
+    if sdpa_attention is None or not hasattr(sdpa_attention, "use_gqa_in_sdpa"):
+        yield
+        return
+    original = sdpa_attention.use_gqa_in_sdpa
+    sdpa_attention.use_gqa_in_sdpa = lambda *args, **kwargs: True
+    try:
+        yield
+    finally:
+        sdpa_attention.use_gqa_in_sdpa = original
 
 
 def _ensure_export_test_dir(
@@ -850,7 +881,12 @@ class LLMExporter:
 
         and dump some npz tests to check io latter-on
         """
-        with torch.no_grad():
+        with (
+            torch.no_grad(),
+            _transformers_sdpa_uses_enable_gqa(
+                reify_with_tract_transformers_sdpa(inference_target)
+            ),
+        ):
             if not ignore_already_exist_dir:
                 assert not export_dirpath.exists(), export_dirpath
             assert sample_generation_total_size >= 2
