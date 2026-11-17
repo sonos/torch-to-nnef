@@ -6,6 +6,7 @@ snapshot resolution used by the device_map path, not any real download.
 """
 
 import pytest
+import torch
 
 from torch_to_nnef.exceptions import T2NErrorRuntime
 from torch_to_nnef_llm import exporter as exp_mod
@@ -82,7 +83,7 @@ def test_from_pretrained_device_map_dispatch_reties_weights(
     """Manual dispatch must keep tied weights from staying as meta tensors."""
     calls = {"dispatch": 0, "tie": 0}
 
-    class _Model:
+    class _Model(torch.nn.Module):
         def tie_weights(self):
             calls["tie"] += 1
 
