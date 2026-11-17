@@ -189,10 +189,9 @@ def test_plan_and_inject_load_time(monkeypatch):
     assert kwargs["quantization_config"] is qc and qc.dequantize is True
 
 
-def test_plan_and_inject_requires_accelerate(monkeypatch):
-    monkeypatch.setattr(
-        loader, "_peek_quant_config", lambda *a, **k: _LoadTimeConfig("fp8")
-    )
+def test_plan_and_inject_does_not_require_accelerate(monkeypatch):
+    qc = _LoadTimeConfig("mxfp4")
+    monkeypatch.setattr(loader, "_peek_quant_config", lambda *a, **k: qc)
 
     def no_accelerate(module):
         if module == "accelerate":
@@ -200,8 +199,26 @@ def test_plan_and_inject_requires_accelerate(monkeypatch):
         return importlib.import_module(module)
 
     monkeypatch.setattr(utils, "_import_module_cached", no_accelerate)
-    with pytest.raises(T2NErrorMisuse, match="llm-tract-accelerate"):
-        _plan_and_inject_upcast("org/m", ["fp8"], {}, True, object())
+    assert _plan_and_inject_upcast("org/m", ["mxfp4"], {}, True, object()) == (
+        "load",
+        qc,
+    )
+
+
+def test_missing_accelerate_import_error_names_the_extra():
+    with (
+        pytest.raises(T2NErrorMisuse, match="llm-tract-accelerate"),
+        loader._missing_accelerate_as_extra_hint(),
+    ):
+        raise ImportError(
+            "Loading an FP8 quantized model requires accelerate "
+            "(`pip install accelerate`)"
+        )
+    with (
+        pytest.raises(ImportError, match="other"),
+        loader._missing_accelerate_as_extra_hint(),
+    ):
+        raise ImportError("some other missing module")
 
 
 def test_plan_and_inject_post_and_none(monkeypatch):
