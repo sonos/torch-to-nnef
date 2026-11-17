@@ -148,7 +148,7 @@ def _resolve_attn_implementation(
 def _transformers_sdpa_uses_enable_gqa(enabled: bool):
     """Make transformers' SDPA attention pass ``enable_gqa=True``.
 
-    transformers >= 5.16 packs GQA queries ``[B, H, 1, D]`` into
+    transformers >= 5.23 packs GQA queries ``[B, H, 1, D]`` into
     ``[B, Hkv, H / Hkv, D]`` when the query length is 1, which a single token
     trace freezes into the graph, so only S=1 stays valid. With
     ``enable_gqa`` the query keeps its sequence axis and K/V are not

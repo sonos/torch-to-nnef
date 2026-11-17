@@ -6,6 +6,7 @@ GPU kernels, so only the pure planning / selection / dense-verification is
 covered here.
 """
 
+import importlib
 import json
 from copy import deepcopy
 
@@ -13,9 +14,11 @@ import pytest
 import torch
 from torch import nn
 
+from torch_to_nnef import utils
 from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef.tensor.offload import (
     ON_DISK_DEVICE_MAP_KEY,
+    OffloadedTensor,
     t2n_load_checkpoint_and_dispatch,
 )
 from torch_to_nnef.utils import init_empty_weights
@@ -185,6 +188,38 @@ def test_plan_and_inject_load_time(monkeypatch):
     plan = _plan_and_inject_upcast("org/m", ["mxfp4"], kwargs, True, object())
     assert plan == ("load", qc)
     assert kwargs["quantization_config"] is qc and qc.dequantize is True
+
+
+def test_plan_and_inject_does_not_require_accelerate(monkeypatch):
+    qc = _LoadTimeConfig("mxfp4")
+    monkeypatch.setattr(loader, "_peek_quant_config", lambda *a, **k: qc)
+
+    def no_accelerate(module):
+        if module == "accelerate":
+            raise ImportError(module)
+        return importlib.import_module(module)
+
+    monkeypatch.setattr(utils, "_import_module_cached", no_accelerate)
+    assert _plan_and_inject_upcast("org/m", ["mxfp4"], {}, True, object()) == (
+        "load",
+        qc,
+    )
+
+
+def test_missing_accelerate_import_error_names_the_extra():
+    with (
+        pytest.raises(T2NErrorMisuse, match="llm-tract-accelerate"),
+        loader._missing_accelerate_as_extra_hint(),
+    ):
+        raise ImportError(
+            "Loading an FP8 quantized model requires accelerate "
+            "(`pip install accelerate`)"
+        )
+    with (
+        pytest.raises(ImportError, match="other"),
+        loader._missing_accelerate_as_extra_hint(),
+    ):
+        raise ImportError("some other missing module")
 
 
 def test_plan_and_inject_post_and_none(monkeypatch):
@@ -485,6 +520,105 @@ def test_from_pretrained_t2n_offload_passes_load_time_converters(
     assert kwargs["device_map"] == ON_DISK_DEVICE_MAP_KEY
     assert kwargs["weight_converters"] is converters
     assert kwargs["hf_quantizer"] is quantizer
+
+
+@pytest.mark.parametrize(
+    "config_name, model_name",
+    [
+        # per-expert checkpoint weights fused into gate_up_proj / down_proj
+        ("OlmoeConfig", "OlmoeForCausalLM"),
+        # fused checkpoint weights stored under other names (renamings)
+        ("GraniteMoeConfig", "GraniteMoeForCausalLM"),
+    ],
+)
+def test_from_pretrained_t2n_offload_applies_checkpoint_conversions(
+    tmp_path, config_name, model_name
+):
+    transformers = pytest.importorskip("transformers")
+    pytest.importorskip("transformers.conversion_mapping")
+    safe_open = pytest.importorskip("safetensors").safe_open
+    config = getattr(transformers, config_name)(
+        vocab_size=64,
+        hidden_size=32,
+        intermediate_size=16,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        num_key_value_heads=2,
+        num_local_experts=4,
+        num_experts=4,
+        num_experts_per_tok=2,
+    )
+    torch.manual_seed(0)
+    reference = getattr(transformers, model_name)(config).eval()
+    reference.save_pretrained(tmp_path)
+    with safe_open(tmp_path / "model.safetensors", framework="pt") as f:
+        checkpoint_keys = set(f.keys())
+    if checkpoint_keys == set(reference.state_dict()):
+        pytest.skip("checkpoint keys already match the model, nothing to do")
+
+    raw_from_pretrained = loader._from_pretrained.__wrapped__.__wrapped__
+    model = raw_from_pretrained(
+        tmp_path,
+        transformers.AutoModelForCausalLM,
+        transformers=transformers,
+        huggingface_hub=object(),
+        device_map=ON_DISK_DEVICE_MAP_KEY,
+    )
+
+    loaded = dict(model.named_parameters())
+    for name, param in reference.named_parameters():
+        data = loaded[name].data
+        if isinstance(data, OffloadedTensor):
+            data = data.to_base_tensor()
+        torch.testing.assert_close(data, param.data, msg=name)
+
+
+def test_from_pretrained_rejects_parameters_left_on_meta():
+    with init_empty_weights():
+        model = nn.Linear(2, 2)
+
+    with pytest.raises(T2NErrorMisuse, match="not loaded from the checkpoint"):
+        loader._raise_on_unloaded_params(model)
+
+
+def test_from_pretrained_accelerate_cpu_disk_offload_keeps_meta_params(
+    tmp_path,
+):
+    transformers = pytest.importorskip("transformers")
+    pytest.importorskip("accelerate")
+    config = transformers.LlamaConfig(
+        vocab_size=64,
+        hidden_size=32,
+        intermediate_size=64,
+        num_hidden_layers=2,
+        num_attention_heads=2,
+        num_key_value_heads=2,
+    )
+    torch.manual_seed(0)
+    reference = transformers.LlamaForCausalLM(config).eval()
+    reference.save_pretrained(tmp_path)
+    input_ids = torch.tensor([[1, 5, 9, 3]])
+    with torch.no_grad():
+        expected = reference(input_ids).logits
+
+    raw_from_pretrained = loader._from_pretrained.__wrapped__.__wrapped__
+    model = raw_from_pretrained(
+        tmp_path,
+        transformers.AutoModelForCausalLM,
+        transformers=transformers,
+        huggingface_hub=object(),
+        device_map={
+            "model.embed_tokens": "cpu",
+            "model.rotary_emb": "cpu",
+            "model.layers": "disk",
+            "model.norm": "cpu",
+            "lm_head": "cpu",
+        },
+    )
+
+    assert any(p.is_meta for p in model.parameters())
+    with torch.no_grad():
+        torch.testing.assert_close(model(input_ids).logits, expected)
 
 
 def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
