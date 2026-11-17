@@ -1075,6 +1075,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#torch_to_nnef.compress.quantize_weights_min_max_Q4_0_with_experts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;quantize_weights_min_max_Q4_0_with_experts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.compress.quantize_weights_min_max_Q8_0" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4289,6 +4300,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#torch_to_nnef.compress.quantize_weights_min_max_Q4_0_with_experts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;quantize_weights_min_max_Q4_0_with_experts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#torch_to_nnef.compress.quantize_weights_min_max_Q8_0" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4415,6 +4437,14 @@
               <td>
                 <div class="doc-md-description">
                   <p>Example of quantization function for a model to Q40.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            quantize_weights_min_max_Q4_0_with_experts (torch_to_nnef.compress.quantize_weights_min_max_Q4_0_with_experts)" href="#torch_to_nnef.compress.quantize_weights_min_max_Q4_0_with_experts">quantize_weights_min_max_Q4_0_with_experts</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Q4_0 for Linear and Embedding weights and for fused MoE experts.</p>
                 </div>
               </td>
             </tr>
@@ -4602,6 +4632,34 @@ so only <code>nn.Embedding</code> (or subclasses) can be quantized.</p>
     <div class="doc doc-contents ">
 
         <p>Example of quantization function for a model to Q40.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="torch_to_nnef.compress.quantize_weights_min_max_Q4_0_with_experts" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">quantize_weights_min_max_Q4_0_with_experts</span>
+
+
+</h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">quantize_weights_min_max_Q4_0_with_experts</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">Module</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Q4_0 for Linear and Embedding weights and for fused MoE experts.</p>
+<p>Linear and Embedding weights are quantized as in
+<code>min_max_q4_0_with_embeddings</code>, except MoE routers (including shared
+expert gates), whose weights stay in floating point. Fused expert weights
+are not <code>nn.Linear</code> modules, so every MoE block handled by the
+<code>tract_moe_ffn</code> extractor is marked instead: its experts are quantized
+to Q4_0 min-max during extraction, in the linear layout. Q4_0 blocks
+run along the reduction axis as tract's matmul kernels expect. A model
+without such a block gets the <code>min_max_q4_0_with_embeddings</code> result.</p>
 
 
     </div>

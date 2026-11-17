@@ -3340,6 +3340,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.quant.QTensor.cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;cpu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.quant.QTensor.cuda" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;cuda
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.tensor.quant.QTensor.to_device" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3355,6 +3377,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;write_in_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.quant.QTensor.xpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;xpu
       
     </span>
   </a>
@@ -5084,6 +5117,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.quant.QTensor.cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;cpu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.quant.QTensor.cuda" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;cuda
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.tensor.quant.QTensor.to_device" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5099,6 +5154,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;write_in_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.quant.QTensor.xpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;xpu
       
     </span>
   </a>
@@ -6862,6 +6928,22 @@ allowing faster computation</p>
       </thead>
       <tbody>
             <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            cpu (torch_to_nnef.tensor.quant.QTensor.cpu)" href="#torch_to_nnef.tensor.quant.QTensor.cpu">cpu</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Move to host memory and stay quantized, as <code>to("cpu")</code> does.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            cuda (torch_to_nnef.tensor.quant.QTensor.cuda)" href="#torch_to_nnef.tensor.quant.QTensor.cuda">cuda</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Move to a CUDA device and stay quantized, as <code>to(device)</code> does.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
               <td><code><a class="autorefs autorefs-internal" title="            to_device (torch_to_nnef.tensor.quant.QTensor.to_device)" href="#torch_to_nnef.tensor.quant.QTensor.to_device">to_device</a></code></td>
               <td>
                 <div class="doc-md-description">
@@ -6874,6 +6956,14 @@ allowing faster computation</p>
               <td>
                 <div class="doc-md-description">
                   <p>Called at NNEF write time.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            xpu (torch_to_nnef.tensor.quant.QTensor.xpu)" href="#torch_to_nnef.tensor.quant.QTensor.xpu">xpu</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Move to an XPU device and stay quantized, as <code>to(device)</code> does.</p>
                 </div>
               </td>
             </tr>
@@ -6895,6 +6985,53 @@ allowing faster computation</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.quant.QTensor.cpu" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">cpu</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">cpu</span><span class="p">(</span><span class="n">memory_format</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">preserve_format</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Move to host memory and stay quantized, as <code>to("cpu")</code> does.</p>
+<p>Without this override the call reaches <code>__torch_function__</code>, which
+returns the dequantized <code>torch.Tensor</code> instead, so <code>nn.Module.cpu</code>
+cannot move a quantized parameter. <code>memory_format</code> is accepted for
+signature compatibility only; the packed codes keep their layout.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.quant.QTensor.cuda" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">cuda</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">cuda</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">non_blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">memory_format</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">preserve_format</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Move to a CUDA device and stay quantized, as <code>to(device)</code> does.</p>
+<p><code>device</code> is a device, an index or <code>None</code> for the current CUDA
+device. <code>non_blocking</code> and <code>memory_format</code> are accepted for
+signature compatibility only.</p>
+
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 
@@ -6932,6 +7069,29 @@ allowing faster computation</p>
         <p>Called at NNEF write time.</p>
 <p>Each specific inference engine format should implement
 the file dump prefered.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.quant.QTensor.xpu" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">xpu</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">xpu</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">non_blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">memory_format</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">preserve_format</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Move to an XPU device and stay quantized, as <code>to(device)</code> does.</p>
+<p><code>device</code> is a device, an index or <code>None</code> for the current XPU
+device. <code>non_blocking</code> and <code>memory_format</code> are accepted for
+signature compatibility only.</p>
 
 
     </div>

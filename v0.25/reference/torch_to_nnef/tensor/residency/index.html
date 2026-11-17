@@ -3340,6 +3340,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.read_for_copy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;read_for_copy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resolve" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4508,6 +4519,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.read_for_copy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;read_for_copy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resolve" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5023,6 +5045,14 @@ without being retained by the pool unless they are pinned.</p>
               </td>
             </tr>
             <tr class="doc-section-item">
+              <td><code><a class="autorefs autorefs-internal" title="            read_for_copy (torch_to_nnef.tensor.residency.TensorResidencyPool.read_for_copy)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.read_for_copy">read_for_copy</a></code></td>
+              <td>
+                <div class="doc-md-description">
+                  <p>Return real values for a copy without changing residency.</p>
+                </div>
+              </td>
+            </tr>
+            <tr class="doc-section-item">
               <td><code><a class="autorefs autorefs-internal" title="            resolve (torch_to_nnef.tensor.residency.TensorResidencyPool.resolve)" href="#torch_to_nnef.tensor.residency.TensorResidencyPool.resolve">resolve</a></code></td>
               <td>
                 <div class="doc-md-description">
@@ -5279,6 +5309,30 @@ are available only with :attr:<code>ResidencyStrategy.LRU</code>.</p>
     <div class="doc doc-contents ">
 
         <p>Begin loading <code>source</code> and return a completion handle.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="torch_to_nnef.tensor.residency.TensorResidencyPool.read_for_copy" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">read_for_copy</span>
+
+
+</h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">read_for_copy</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">OffloadedTensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return real values for a copy without changing residency.</p>
+<p>Prefer any current non-meta entry, including a pending load,
+regardless of the scope's requested device. Missing or meta entries
+use the persisted CPU payload. The returned value may alias a
+resident tensor; the caller must save or copy it before modifying it.</p>
 
 
     </div>
