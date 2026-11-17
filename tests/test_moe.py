@@ -30,6 +30,7 @@ from torch_to_nnef.op.custom_extractors.moe import (
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.opaque import OpaqueTensorRef
 from torch_to_nnef.tensor.quant import (
+    QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 
@@ -405,6 +406,54 @@ def test_moe_ffn_split_experts_q40_linear_layout(inference_target):
 
 
 @skipif_unsupported_qtensor
+def test_moe_recipe_preserves_router_and_tied_weights():
+    model = nn.Module()
+    # Register the tied owner first to exercise exclusion before visiting MoE.
+    model.tied = nn.Linear(32, 4, bias=False)
+    model.moe = MoEFFN(4, 32, 64)
+    model.tied.weight = model.moe.gate.weight
+    # An unrelated layer called gate must still be quantized.
+    model.gate = nn.Linear(32, 32, bias=False)
+    model.embedding = nn.Embedding(32, 32)
+    router_weight = model.moe.gate.weight.detach().clone()
+
+    DEFAULT_COMPRESSION["min_max_q4_0_with_embeddings_and_experts"](model)
+
+    assert model.tied.weight is model.moe.gate.weight
+    assert not isinstance(model.moe.gate.weight, QTensor)
+    torch.testing.assert_close(
+        model.moe.gate.weight, router_weight, rtol=0, atol=0
+    )
+    assert isinstance(model.gate.weight, QTensor)
+    assert isinstance(model.embedding.weight, QTensor)
+
+
+@skipif_unsupported_qtensor
+def test_moe_recipe_preserves_qwen_routers():
+    qwen = pytest.importorskip(
+        "transformers.models.qwen2_moe.modeling_qwen2_moe"
+    )
+    config = qwen.Qwen2MoeConfig(
+        hidden_size=32,
+        moe_intermediate_size=32,
+        shared_expert_intermediate_size=64,
+        num_experts=4,
+        num_experts_per_tok=2,
+    )
+    model = qwen.Qwen2MoeSparseMoeBlock(config)
+    _init_moe_weights(model)
+    routers = (model.gate, model.shared_expert_gate)
+    weights = [router.weight.detach().clone() for router in routers]
+
+    DEFAULT_COMPRESSION["min_max_q4_0_with_embeddings_and_experts"](model)
+
+    for router, weight in zip(routers, weights, strict=True):
+        assert not isinstance(router.weight, QTensor)
+        torch.testing.assert_close(router.weight, weight, rtol=0, atol=0)
+    assert isinstance(model.shared_expert.gate_proj.weight, QTensor)
+
+
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_q4_0_with_embeddings_and_experts_recipe(inference_target):
     """The registry recipe exports Q40 experts in the linear layout."""
@@ -412,10 +461,13 @@ def test_q4_0_with_embeddings_and_experts_recipe(inference_target):
     export_target = deepcopy(inference_target)
     export_target.check_io = False
     model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=64, k=2)
-    # unlike transformers' TopKRouter modules, the reference MoEFFN router is
-    # an nn.Linear, which the Q4_0 Linear pass would quantize
+    router_weight = model.moe.gate.weight.detach().clone()
     model = DEFAULT_COMPRESSION["min_max_q4_0_with_embeddings_and_experts"](
-        model, to_quantize_module_classes=(torch.nn.Embedding,)
+        model
+    )
+    assert not isinstance(model.moe.gate.weight, QTensor)
+    torch.testing.assert_close(
+        model.moe.gate.weight, router_weight, rtol=0, atol=0
     )
     model.eval()
 
@@ -434,6 +486,21 @@ def test_q4_0_with_embeddings_and_experts_recipe(inference_target):
                 "w2": [4, 32, 64],
             },
         )
+
+        with (
+            tempfile.TemporaryDirectory() as td,
+            tarfile.open(path, "r:*") as tf,
+        ):
+            router_headers = []
+            for member in tf.getmembers():
+                if not member.name.endswith(".dat"):
+                    continue
+                tf.extract(member, td)
+                header = DatBinHeader.from_dat(Path(td) / member.name)
+                if header.dims == [4, 32]:
+                    router_headers.append(header)
+            assert len(router_headers) == 1
+            assert router_headers[0].torch_dtype_or_custom == torch.float32
 
     check_model_io_test(
         model=model,

@@ -16,10 +16,12 @@ from torch_to_nnef.exceptions import (
     T2NErrorMisuse,
     T2NErrorNotImplemented,
 )
-from torch_to_nnef.op.custom_extractors.moe import mark_moe_experts_for_q40
+from torch_to_nnef.op.custom_extractors.moe import (
+    iter_moe_routers,
+    mark_moe_experts_for_q40,
+)
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
-    QTensor,
     fp_to_tract_iq2_s,
     fp_to_tract_q4_0_with_min_max_calibration,
     fp_to_tract_q4_k,
@@ -58,8 +60,15 @@ def _quantize_weights_min_max(
     assert all(issubclass(_, nn.Module) for _ in to_quantize_module_classes), (
         to_quantize_module_classes
     )
+    # Skip shared weights too: updating another owner would also quantize
+    # the excluded module through ModTensorUpdater.update_by_ref.
+    skipped_weight_ids = {
+        id(param)
+        for module in kwargs.get("modules_to_skip", ())
+        for param in module.parameters()
+    }
     with torch.no_grad():
-        ids_to_qtensor: T.Dict[int, T.Union[QTensor, OffloadedTensor]] = {}
+        quantized_id_to_name: T.Dict[int, str] = {}
         # try to avoid quant if used in other operators like mix of
         # embedding/linear if linear only quant
         mod_tensor_updater = ModTensorUpdater(model)
@@ -75,10 +84,12 @@ def _quantize_weights_min_max(
             if isinstance(mod, to_quantize_module_classes):
                 LOGGER.info("quantize layer: %s", name)
                 weight_id = id(mod.weight)
-                if weight_id in ids_to_qtensor:
+                if weight_id in skipped_weight_ids:
+                    continue
+                if weight_id in quantized_id_to_name:
                     LOGGER.info(
                         "detected shared weight between: '%s' and '%s.weight'",
-                        ids_to_qtensor[weight_id].nnef_name,
+                        quantized_id_to_name[weight_id],
                         name,
                     )
                     continue
@@ -115,7 +126,7 @@ def _quantize_weights_min_max(
                 q_weight = mod_tensor_updater.update_by_ref(
                     mod.weight, q_weight
                 )
-                ids_to_qtensor[id(q_weight)] = q_weight
+                quantized_id_to_name[id(q_weight)] = f"{name}.weight"
     return model
 
 
@@ -136,14 +147,19 @@ def quantize_weights_min_max_Q4_0_with_experts(  # noqa: N802
     """Q4_0 for Linear and Embedding weights and for fused MoE experts.
 
     Linear and Embedding weights are quantized as in
-    ``min_max_q4_0_with_embeddings``. Fused expert weights are not
-    ``nn.Linear`` modules, so every MoE block the ``tract_moe_ffn`` extractor
-    handles is marked instead: its experts are quantized to Q4_0 min-max
-    while they are extracted, in the linear layout, so the Q4_0 blocks run
-    along the reduction axis as tract's matmul kernels expect. A model
+    ``min_max_q4_0_with_embeddings``, except MoE routers (including shared
+    expert gates), whose weights stay in floating point. Fused expert weights
+    are not ``nn.Linear`` modules, so every MoE block handled by the
+    ``tract_moe_ffn`` extractor is marked instead: its experts are quantized
+    to Q4_0 min-max during extraction, in the linear layout. Q4_0 blocks
+    run along the reduction axis as tract's matmul kernels expect. A model
     without such a block gets the ``min_max_q4_0_with_embeddings`` result.
     """
     kwargs.setdefault("to_quantize_module_classes", (nn.Linear, nn.Embedding))
+    kwargs["modules_to_skip"] = (
+        *kwargs.get("modules_to_skip", ()),
+        *iter_moe_routers(model),
+    )
     model = quantize_weights_min_max_Q4_0(model, **kwargs)
     try:
         marked = mark_moe_experts_for_q40(model, layout="linear")

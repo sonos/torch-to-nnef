@@ -1,8 +1,10 @@
+import inspect
 import json
 import logging
 import os
 import tempfile
 import typing as T
+from contextlib import contextmanager
 from pathlib import Path
 
 import torch
@@ -15,6 +17,7 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.tensor.offload import (
     AUTO_DEVICE_MAP_KEY,
     ON_DISK_DEVICE_MAP_KEY,
+    OffloadedTensor,
     t2n_load_checkpoint_and_dispatch,
 )
 from torch_to_nnef.utils import (
@@ -278,6 +281,59 @@ def _plan_and_inject_upcast(
         LOGGER.info("up-casting native '%s' at load time", method)
         kwargs["quantization_config"] = plan[1]
     return plan
+
+
+def _model_conversion_mapping(model, hf_quantizer=None) -> T.List[T.Any]:
+    """Return the model's own checkpoint conversions (e.g. MoE expert fusion).
+
+    These are the transforms ``from_pretrained`` applies to turn checkpoint
+    tensors into model parameters, such as fusing per-expert
+    ``experts.N.gate_proj`` / ``up_proj`` weights into ``gate_up_proj``.
+    Generic legacy renamings are left out. Empty when the installed
+    transformers has no model conversion mapping.
+    """
+    try:
+        # pylint: disable-next=import-outside-toplevel
+        from transformers.conversion_mapping import get_model_conversion_mapping
+    except ImportError:
+        return []
+    if (
+        "add_legacy"
+        not in inspect.signature(get_model_conversion_mapping).parameters
+    ):
+        return []
+    return list(
+        get_model_conversion_mapping(
+            model, None, hf_quantizer, add_legacy=False
+        )
+    )
+
+
+def _offload_weight_converters(model, plan):
+    """Return the weight converters and quantizer for T2N offload dispatch.
+
+    Combines the model's own checkpoint conversions with the load-time
+    up-cast conversions of ``plan``, merged by transformers as in
+    ``from_pretrained``. Models without their own conversions get the
+    up-cast conversions alone.
+    """
+    weight_converters, hf_quantizer = _load_time_weight_converters(plan)
+    if not _model_conversion_mapping(model):
+        return weight_converters, hf_quantizer
+    return _model_conversion_mapping(model, hf_quantizer), hf_quantizer
+
+
+def _raise_on_unloaded_params(model) -> None:
+    missing = [
+        name
+        for name, param in model.named_parameters()
+        if not isinstance(param.data, OffloadedTensor) and param.is_meta
+    ]
+    if missing:
+        raise T2NErrorMisuse(
+            f"{len(missing)} parameters were not loaded from the checkpoint "
+            f"(still on the meta device), e.g. {missing[:5]}"
+        )
 
 
 def _load_time_weight_converters(plan):
@@ -591,6 +647,26 @@ def _apply_experts_implementation(
         )
 
 
+@contextmanager
+def _missing_accelerate_as_extra_hint():
+    """Point at the ``llm-tract-accelerate`` extra when a load needs accelerate.
+
+    Some transformers quantizers (e.g. fp8, bitsandbytes) require accelerate
+    to load a natively quantized checkpoint, others do not (e.g. mxfp4 when
+    dequantizing), so this reacts to transformers' own ImportError instead of
+    requiring accelerate up front.
+    """
+    try:
+        yield
+    except ImportError as exp:
+        if "accelerate" not in str(exp).lower():
+            raise
+        raise T2NErrorMisuse(
+            f"{exp} -- install the torch_to_nnef"
+            f"[{T2NExtra.LLM_TRACT_ACCELERATE.value}] extra"
+        ) from exp
+
+
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def _from_pretrained(
@@ -620,12 +696,13 @@ def _from_pretrained(
 
             device_map = accelerate.infer_auto_device_map(model)
             LOGGER.info("device map selected: %s", device_map)
-        if any(
+        t2n_dispatch = any(
             _ in device_map
             for _ in [AUTO_DEVICE_MAP_KEY, ON_DISK_DEVICE_MAP_KEY]
-        ):
-            weight_converters, hf_quantizer = _load_time_weight_converters(
-                t2n_upcast_plan
+        )
+        if t2n_dispatch:
+            weight_converters, hf_quantizer = _offload_weight_converters(
+                model, t2n_upcast_plan
             )
             t2n_load_checkpoint_and_dispatch(
                 model,
@@ -650,6 +727,10 @@ def _from_pretrained(
             # init_empty_weights + dispatch path needs the same step, otherwise
             # tied weights absent from the checkpoint can stay as meta tensors.
             model.tie_weights()
+        if t2n_dispatch:
+            # accelerate's own dispatch legitimately keeps offloaded
+            # parameters on meta and fills them during forward
+            _raise_on_unloaded_params(model)
         return model
     return auto_model_class.from_pretrained(slug_or_dir, **kwargs)
 
@@ -731,12 +812,13 @@ def load_model(
                 dir_path, trust_remote_code=trust_remote_code
             )
             auto_model_class = resolve_auto_model_class(config.model_type)
-            hf_model_causal = _from_pretrained(
-                dir_path,
-                auto_model_class,
-                t2n_upcast_plan=upcast_plan,
-                **kwargs,
-            )
+            with _missing_accelerate_as_extra_hint():
+                hf_model_causal = _from_pretrained(
+                    dir_path,
+                    auto_model_class,
+                    t2n_upcast_plan=upcast_plan,
+                    **kwargs,
+                )
             LOGGER.info(
                 "load '%s' from local directory: %s",
                 hf_model_causal.config.model_type,
@@ -749,12 +831,13 @@ def load_model(
             hf_model_slug, trust_remote_code=trust_remote_code
         )
         auto_model_class = resolve_auto_model_class(config.model_type)
-        hf_model_causal = _from_pretrained(
-            hf_model_slug,
-            auto_model_class,
-            t2n_upcast_plan=upcast_plan,
-            **kwargs,
-        )
+        with _missing_accelerate_as_extra_hint():
+            hf_model_causal = _from_pretrained(
+                hf_model_slug,
+                auto_model_class,
+                t2n_upcast_plan=upcast_plan,
+                **kwargs,
+            )
         LOGGER.info(
             "load default trained model from huggingface: '%s'", hf_model_slug
         )

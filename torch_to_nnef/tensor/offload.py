@@ -107,6 +107,18 @@ def _dot_natural_key(key: str):
     ]
 
 
+def _is_pure_renaming(converter: _WeightConverterLike) -> bool:
+    """Whether ``converter`` only renames keys (a ``WeightRenaming``).
+
+    transformers applies these renames to every checkpoint key before
+    matching converters and never calls their ``convert``. Recognized by
+    class name so this module does not import transformers.
+    """
+    return any(
+        cls.__name__ == "WeightRenaming" for cls in type(converter).__mro__
+    )
+
+
 class _WeightConversionCollector:
     def __init__(
         self,
@@ -122,7 +134,10 @@ class _WeightConversionCollector:
     ):
         self.model = model
         self.model_keys = model_keys
-        self.weight_converters = list(weight_converters)
+        self.renamings = [c for c in weight_converters if _is_pure_renaming(c)]
+        self.weight_converters = [
+            c for c in weight_converters if not _is_pure_renaming(c)
+        ]
         self.hf_quantizer = hf_quantizer
         self.unexpected_keys = unexpected_keys
         self.set_param = set_param
@@ -148,6 +163,9 @@ class _WeightConversionCollector:
             None
         )
         if all_checkpoint_keys is not None:
+            all_checkpoint_keys = [
+                self.apply_renamings(key) for key in all_checkpoint_keys
+            ]
             self.checkpoint_key_rank = {
                 key: rank for rank, key in enumerate(all_checkpoint_keys)
             }
@@ -213,6 +231,12 @@ class _WeightConversionCollector:
                 return None
             keys.extend(file_keys)
         return sorted(keys, key=_dot_natural_key)
+
+    def apply_renamings(self, source_key):
+        """Apply every pure renaming to a checkpoint key, in order."""
+        for renaming in self.renamings:
+            source_key, _ = renaming.rename_source_key(source_key)
+        return source_key
 
     def rename_source_key(self, source_key):
         renamed_key = source_key
@@ -1192,9 +1216,9 @@ def t2n_load_checkpoint_and_dispatch(
             f for f in checkpoint.iterdir() if f.name == SAFE_WEIGHTS_NAME
         ]
         if len(potential_state_bin) == 1:
-            checkpoint_files = [checkpoint / potential_state_bin[0]]
+            checkpoint_files = [potential_state_bin[0]]
         elif len(potential_state_safetensor) == 1:
-            checkpoint_files = [checkpoint / potential_state_safetensor[0]]
+            checkpoint_files = [potential_state_safetensor[0]]
         else:
             # otherwise check for sharded checkpoints
             potential_index = [
@@ -1212,7 +1236,7 @@ def t2n_load_checkpoint_and_dispatch(
                     f"{checkpoint} containing more than one `.index.json` file,"
                     " delete the irrelevant ones."
                 )
-            index_filename = checkpoint / potential_index[0]
+            index_filename = potential_index[0]
     else:
         raise T2NErrorMisuse(
             "`checkpoint` should be the path to a file containing "
@@ -1317,7 +1341,9 @@ def t2n_load_checkpoint_and_dispatch(
                     LOGGER.error("unsupported SCB param")
                     continue
 
-                param_name = remap_checkpoint_key(param_name)
+                param_name = remap_checkpoint_key(
+                    converter_collector.apply_renamings(param_name)
+                )
 
                 if converter_collector.collect(param_name, param):
                     continue
