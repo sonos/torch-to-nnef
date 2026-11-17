@@ -298,6 +298,13 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "for reference 'modes' samples npz dumped ",
         )
         parser.add_argument(
+            "--check-inference-modes",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="dump reference 'modes' samples (prompt, prompt with past, "
+            "generation) npz in the export tests dir",
+        )
+        parser.add_argument(
             "-iaed",
             "--ignore-already-exist-dir",
             action="store_true",

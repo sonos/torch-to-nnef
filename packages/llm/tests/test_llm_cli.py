@@ -17,6 +17,7 @@ from torch_to_nnef.compress import DEFAULT_COMPRESSION
 from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
+from torch_to_nnef_llm.cli import _parse_cli_to_kwargs
 from torch_to_nnef_llm.config import (
     CUSTOM_CONFIGS,
     REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
@@ -102,6 +103,9 @@ if torch_version() >= "1.13.0":  # pytorch 'meta' device support ok
 SUPPORT_LLM_CLI_OPTS += [{"dump_with_tokenizer_and_conf": True}]
 SUPPORT_LLM_CLI_OPTS += [{"export_dir_struct": ExportDirStruct.FLAT}]
 SUPPORT_LLM_CLI_OPTS += [{"sample_generation_total_size": 8}]
+SUPPORT_LLM_CLI_OPTS += [
+    {"check_inference_modes": False, "sample_generation_total_size": 0}
+]
 SUPPORT_LLM_CLI_OPTS += [{"naming_scheme": VariableNamingScheme.NUMERIC}]
 
 
@@ -233,6 +237,22 @@ def test_llama_export_io_npz():
             assert dic["outputs"].shape == (1, 1, 32000)
             assert dic["out_cache_key_0"].shape == (1, 2, total_tokens, 4)
             assert dic["out_cache_value_0"].shape == (1, 2, total_tokens, 4)
+
+
+def test_cli_can_skip_inference_modes(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "t2n_export_llm_to_tract",
+            "-s",
+            LlamaSlugs.DUMMY.value,
+            "-e",
+            "unused",
+            "--no-check-inference-modes",
+        ],
+    )
+    kwargs, _ = _parse_cli_to_kwargs()
+    assert kwargs["check_inference_modes"] is False
 
 
 @pytest.mark.skipif(

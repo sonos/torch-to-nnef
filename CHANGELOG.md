@@ -3,6 +3,10 @@
 
 ## Unreleased
 
+### Added
+- **`min_max_q4_0_with_embeddings_and_experts` compression** (core): the `min_max_q4_0*` methods only quantize `nn.Linear` / `nn.Embedding`, so fused MoE expert tensors exported in float. This recipe quantizes Linear and Embedding weights like `min_max_q4_0_with_embeddings` and marks every MoE block handled by the `tract_moe_ffn` extractor, whose experts are then quantized to Q4_0 during extraction, in the linear layout so Q4_0 blocks run along the reduction axis. MoE routers, including shared-expert gates, stay in float even when implemented as `nn.Linear`.
+- **`--no-check-inference-modes` on the LLM export CLI** (llm): skips the reference modes samples, which some handlers (e.g. Qwen3.5 hybrid caches) cannot build; `--sample-generation-total-size` is then not required to be >= 2.
+
 ### Fixed
 - **Reified SDPA froze the query length of GQA models to 1** (llm): transformers >= 5.23 packs a single token GQA query `[B, H, 1, D]` into `[B, Hkv, H / Hkv, D]`, and the single token export trace baked that reshape into the graph, so tract refused any other sequence length (`1024*S should be equal to 1024`). With `reify_sdpa_operator`, the export now makes transformers call SDPA with `enable_gqa=True` (torch >= 2.5), which `tract_transformers_sdpa` handles natively.
 - **Disk offload ignored the model's checkpoint conversions** (core, llm): `--device-map t2n_offload_disk` only applied transformers weight converters for native-quant up-casts, so checkpoints whose tensors differ from the model parameters loaded nothing for them and left them on the meta device, giving NaN outputs. This hit MoE models whose experts are stored per expert (OLMoE, Qwen3.5-MoE) or under other names (Granite MoE). The offload loader now applies the model's own transformers conversion mapping (renamings, then converters, merged with any up-cast conversions), and raises when a parameter is still unloaded after dispatch.

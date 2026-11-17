@@ -889,7 +889,6 @@ class LLMExporter:
         ):
             if not ignore_already_exist_dir:
                 assert not export_dirpath.exists(), export_dirpath
-            assert sample_generation_total_size >= 2
             (
                 inputs,
                 input_names,
@@ -907,6 +906,13 @@ class LLMExporter:
             )
 
             if check_inference_modes:
+                if sample_generation_total_size < 2:
+                    raise T2NErrorMisuse(
+                        "sample_generation_total_size must be >= 2 to dump "
+                        "inference modes, got "
+                        f"{sample_generation_total_size} (disable with "
+                        "check_inference_modes=False)"
+                    )
                 self._dump_modes_json(
                     export_dirpath, test_dir, sample_generation_total_size
                 )

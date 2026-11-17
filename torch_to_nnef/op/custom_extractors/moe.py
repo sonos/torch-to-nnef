@@ -654,6 +654,21 @@ def _get_adapter(module: nn.Module) -> _MoEWeightAdapter:
     return adapter_cls()
 
 
+def iter_moe_routers(model: nn.Module) -> T.Iterator[nn.Module]:
+    """Yield router submodules of blocks supported by the MoE extractor.
+
+    Include shared-expert gates and nested router projections, without
+    materializing expert weights or matching unrelated modules by name.
+    """
+    for module in model.modules():
+        if type(module).__name__ not in _ADAPTER_BY_CLASSNAME:
+            continue
+        for name in ("gate", "router", "shared_expert_gate"):
+            router = getattr(module, name, None)
+            if isinstance(router, nn.Module):
+                yield router
+
+
 _EXPERT_LAYOUTS = {"canonical", "linear", "tract_moe_ffn"}
 
 
