@@ -675,10 +675,11 @@ def _from_pretrained(
 
             device_map = accelerate.infer_auto_device_map(model)
             LOGGER.info("device map selected: %s", device_map)
-        if any(
+        t2n_dispatch = any(
             _ in device_map
             for _ in [AUTO_DEVICE_MAP_KEY, ON_DISK_DEVICE_MAP_KEY]
-        ):
+        )
+        if t2n_dispatch:
             weight_converters, hf_quantizer = _offload_weight_converters(
                 model, t2n_upcast_plan
             )
@@ -705,7 +706,10 @@ def _from_pretrained(
             # init_empty_weights + dispatch path needs the same step, otherwise
             # tied weights absent from the checkpoint can stay as meta tensors.
             model.tie_weights()
-        _raise_on_unloaded_params(model)
+        if t2n_dispatch:
+            # accelerate's own dispatch legitimately keeps offloaded
+            # parameters on meta and fills them during forward
+            _raise_on_unloaded_params(model)
         return model
     return auto_model_class.from_pretrained(slug_or_dir, **kwargs)
 

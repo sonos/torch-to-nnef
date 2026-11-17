@@ -547,6 +547,46 @@ def test_from_pretrained_rejects_parameters_left_on_meta():
         loader._raise_on_unloaded_params(model)
 
 
+def test_from_pretrained_accelerate_cpu_disk_offload_keeps_meta_params(
+    tmp_path,
+):
+    transformers = pytest.importorskip("transformers")
+    pytest.importorskip("accelerate")
+    config = transformers.LlamaConfig(
+        vocab_size=64,
+        hidden_size=32,
+        intermediate_size=64,
+        num_hidden_layers=2,
+        num_attention_heads=2,
+        num_key_value_heads=2,
+    )
+    torch.manual_seed(0)
+    reference = transformers.LlamaForCausalLM(config).eval()
+    reference.save_pretrained(tmp_path)
+    input_ids = torch.tensor([[1, 5, 9, 3]])
+    with torch.no_grad():
+        expected = reference(input_ids).logits
+
+    raw_from_pretrained = loader._from_pretrained.__wrapped__.__wrapped__
+    model = raw_from_pretrained(
+        tmp_path,
+        transformers.AutoModelForCausalLM,
+        transformers=transformers,
+        huggingface_hub=object(),
+        device_map={
+            "model.embed_tokens": "cpu",
+            "model.rotary_emb": "cpu",
+            "model.layers": "disk",
+            "model.norm": "cpu",
+            "lm_head": "cpu",
+        },
+    )
+
+    assert any(p.is_meta for p in model.parameters())
+    with torch.no_grad():
+        torch.testing.assert_close(model(input_ids).logits, expected)
+
+
 def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
     save_file = pytest.importorskip("safetensors.torch").save_file
 
