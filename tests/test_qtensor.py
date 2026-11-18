@@ -229,6 +229,16 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
 
 
 @skipif_unsupported_qtensor
+def test_q4_0_min_max_keeps_the_signed_extreme():
+    weight = torch.zeros(2, 32)
+    weight[0, :2] = torch.tensor([-1.0, 0.5])
+    weight[1, :2] = torch.tensor([1.0, -0.5])
+    deq = fp_to_tract_q4_0_with_min_max_calibration(weight).decompress()
+    assert deq[0, 0] == -1.0 and deq[1, 0] == 1.0, deq[:, :2]
+    assert deq[0, 1] == 0.5 and deq[1, 1] == -0.5, deq[:, :2]
+
+
+@skipif_unsupported_qtensor
 def test_qtensor_cpu_keeps_the_quantized_tensor():
     q_tensor = fp_to_tract_q4_0_with_min_max_calibration(
         torch.arange(64).reshape(2, 32).float()
