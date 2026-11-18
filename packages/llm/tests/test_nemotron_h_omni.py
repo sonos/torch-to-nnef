@@ -1,0 +1,204 @@
+import os
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+import torch
+
+from torch_to_nnef.inference_target.tract import TractCli
+from torch_to_nnef.op.custom_extractors.mamba2 import MAMBA2_MIN_TRACT_VERSION
+from torch_to_nnef.op.custom_extractors.moe import (
+    MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION,
+)
+from torch_to_nnef_llm.config import HFConfigHelper
+from torch_to_nnef_llm.models.base import BaseCausal
+from torch_to_nnef_llm.models.handlers import (
+    NemotronHOmniArchitectureHandler,
+    NemotronHOmniAudioEncoderHandler,
+    NemotronHOmniVisionEncoderHandler,
+    get_handler,
+)
+from torch_to_nnef_llm.models.handlers.nemotron_h_omni import (
+    NemotronHOmniAudioEncoder,
+    NemotronHOmniVisionEncoder,
+)
+
+transformers = pytest.importorskip("transformers")
+if not hasattr(transformers, "NemotronH_Omni_Reasoning_V3"):
+    pytest.skip(
+        "transformers too old for nemotron_h_omni", allow_module_level=True
+    )
+
+IMAGE_TOKEN, AUDIO_TOKEN = 10, 11
+
+
+def _config():
+    text = dict(
+        vocab_size=128,
+        hidden_size=32,
+        layers_block_type=[
+            "linear_attention",
+            "moe",
+            "full_attention",
+            "linear_attention",
+        ],
+        mamba_num_heads=4,
+        mamba_head_dim=8,
+        n_groups=2,
+        ssm_state_size=16,
+        conv_kernel=4,
+        chunk_size=4,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        head_dim=8,
+        intermediate_size=48,
+        moe_intermediate_size=64,
+        moe_shared_expert_intermediate_size=40,
+        n_routed_experts=8,
+        num_experts_per_tok=3,
+        routed_scaling_factor=2.5,
+        pad_token_id=0,
+        tie_word_embeddings=False,
+    )
+    vision = dict(
+        hidden_size=32,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        patch_size=16,
+        max_img_size=128,
+        # as C-RADIOv4-H: 10 summary tokens, not a whole number of merge cells
+        num_cls_tokens=3,
+        num_registers=7,
+        summary_idxs=[0, 1, 2],
+        video_temporal_patch_size=2,
+    )
+    audio = dict(
+        hidden_size=32,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        intermediate_size=64,
+        conv_kernel_size=9,
+        subsampling_conv_channels=16,
+        num_mel_bins=16,
+        projection_hidden_size=48,
+        projection_bias=False,
+    )
+    return transformers.NemotronH_Omni_Reasoning_V3_Config(
+        text_config=text,
+        vision_config=vision,
+        audio_config=audio,
+        vision_hidden_size=32,
+        projector_hidden_size=48,
+        image_token_id=IMAGE_TOKEN,
+        audio_token_id=AUDIO_TOKEN,
+    )
+
+
+@pytest.fixture
+def tiny_model():
+    torch.manual_seed(0)
+    model = transformers.NemotronH_Omni_Reasoning_V3(_config()).float().eval()
+    nemotron_h = pytest.importorskip(
+        "transformers.models.nemotron_h.modeling_nemotron_h"
+    )
+    with torch.no_grad():
+        for module in model.modules():
+            if isinstance(module, nemotron_h.NemotronHTopkRouter):
+                module.e_score_correction_bias.normal_(std=0.3)
+            if isinstance(module, nemotron_h.NemotronHMamba2Mixer):
+                module.time_step_limit = (0.0, float("inf"))
+    return model
+
+
+def test_nemotron_h_omni_handlers_are_registered():
+    assert get_handler("nemotron_h_omni") is NemotronHOmniArchitectureHandler
+
+
+@pytest.mark.parametrize("grid", [(2, 3), (5, 2)])
+def test_vision_encoder_matches_native(tiny_model, grid):
+    """Merge-cell ordered patches give the native features for any grid."""
+    mh, mw = grid
+    patches = torch.randn(mh, mw, 2, 2, 3 * 16 * 16)
+    row_major = patches.permute(0, 2, 1, 3, 4).reshape(-1, 3 * 16 * 16)
+    grid_hw = torch.tensor([[2 * mh, 2 * mw]])
+    with torch.no_grad():
+        expected = tiny_model.get_image_features(row_major, grid_hw)
+        actual = NemotronHOmniVisionEncoder(tiny_model)(patches)
+    torch.testing.assert_close(actual, expected.pooler_output[0])
+
+
+@pytest.mark.parametrize("frames", [40, 57])
+def test_audio_encoder_matches_native(tiny_model, frames):
+    features = torch.randn(1, frames, 16)
+    with torch.no_grad():
+        expected = tiny_model.get_audio_features(features).pooler_output
+        NemotronHOmniAudioEncoderHandler().prepare_model_for_export(tiny_model)
+        actual = NemotronHOmniAudioEncoder(tiny_model)(features)
+    torch.testing.assert_close(actual, expected.reshape(actual.shape))
+
+
+def _decoder_spec(model):
+    return NemotronHOmniArchitectureHandler().build_input_spec(
+        tokenizer=lambda *a, **kw: SimpleNamespace(
+            input_ids=torch.arange(20, 52).reshape(1, -1)
+        ),
+        config_helper=HFConfigHelper(model.config),
+        inputs_dtype=torch.float32,
+        sample_text="",
+        n_input_tokens=6,
+        n_past_input_tokens=0,
+    )
+
+
+def test_decoder_matches_native(tiny_model):
+    """Spliced embeddings and chunked state match the native LM in one go."""
+    handler = NemotronHOmniArchitectureHandler()
+    handler.prepare_model_for_export(tiny_model)
+    wrapper = BaseCausal(tiny_model, handler=handler, num_logits_to_keep=0)
+    spec = _decoder_spec(tiny_model)
+    ids, states = spec.inputs[0], spec.inputs[1:-2]
+    image, audio = spec.inputs[-2:]
+    assert ids[0, :3].tolist() == [IMAGE_TOKEN, IMAGE_TOKEN, AUDIO_TOKEN]
+    with torch.no_grad():
+        first = wrapper(ids[:, :4], *states, image, audio)
+        second = wrapper(ids[:, 4:], *first[1:])
+        lm = tiny_model.language_model
+        embeds = lm.get_input_embeddings()(ids)
+        embeds[0, :2] = image
+        embeds[0, 2] = audio[0]
+        expected = lm(inputs_embeds=embeds, use_cache=False).logits
+    torch.testing.assert_close(first[0], expected[:, :4], atol=1e-4, rtol=1e-4)
+    torch.testing.assert_close(second[0], expected[:, 4:], atol=1e-4, rtol=1e-4)
+
+
+def test_nemotron_h_omni_multimodal_export(tiny_model, tmp_path):
+    binary = os.environ.get("T2N_TEST_TRACT_PATH")
+    if not binary:
+        pytest.skip("set T2N_TEST_TRACT_PATH for the tract check")
+    required = max(
+        MAMBA2_MIN_TRACT_VERSION, MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION
+    )
+    cli = TractCli(Path(binary))
+    if cli.version < required:
+        pytest.skip(f"NemotronH Omni requires tract >= {required}")
+    from torch_to_nnef_llm.exporter import LM_VAR_SCHEME, LLMExporter
+    from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
+
+    exporter = MultiModalExporter(
+        LLMExporter(
+            hf_model_causal=tiny_model,
+            tokenizer=lambda *a, **kw: SimpleNamespace(
+                input_ids=torch.arange(20, 84).reshape(1, -1)
+            ),
+            force_module_dtype="f32",
+        )
+    )
+    assert [type(h) for h in exporter.encoder_handlers] == [
+        NemotronHOmniVisionEncoderHandler,
+        NemotronHOmniAudioEncoderHandler,
+    ]
+    target = exporter.decoder_exporter.build_inference_target(
+        tract_specific_path=Path(binary)
+    )
+    exporter.export(tmp_path / "omni", target, LM_VAR_SCHEME)
+    assert (tmp_path / "omni" / "multimodal.json").exists()
