@@ -334,6 +334,44 @@ def test_moe_ffn_split_experts_linear_layout(inference_target):
     )
 
 
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_q40_keeps_unaligned_experts_in_float(inference_target):
+    """An expert whose last axis is not a multiple of 32 stays in float.
+
+    Q4_0 blocks run along the last axis and would straddle rows.
+    """
+    _skip_if_unsupported(inference_target)
+    export_target = deepcopy(inference_target)
+    export_target.check_io = False
+    model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=48, k=2)
+    model.moe._t2n_quantize_moe_experts_q40 = True
+    model.moe._t2n_moe_expert_layout = "linear"
+    model.eval()
+
+    def _assert_mixed(inference_target, path):
+        dtypes = {}
+        with (
+            tempfile.TemporaryDirectory() as td,
+            tarfile.open(path, "r:*") as tf,
+        ):
+            for name, member in _moe_expert_weight_members(tf):
+                tf.extract(member, td)
+                header = DatBinHeader.from_dat(Path(td) / member.name)
+                dtypes[name] = header.torch_dtype_or_custom
+        assert dtypes["w1"] == DatBinHeader.TractCustomTypes.Q40, dtypes
+        assert dtypes["w2"] == torch.float32, dtypes
+
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 32),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=export_target,
+        callback_post_export=_assert_mixed,
+    )
+
+
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_moe_ffn_accepts_tract_moe_ffn_layout_alias(inference_target):
     """Reloaded checkpoints may label canonical expert tensors by target op."""

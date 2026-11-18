@@ -58,6 +58,7 @@ from torch_to_nnef.tensor.quant import (
 
 LOGGER = logging.getLogger(__name__)
 MOE_FFN_MIN_TRACT_VERSION = "0.23.9"
+Q40_BLOCK_LEN = 32
 # `sigmoid_norm` gate and `relu2` activation
 MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION = "0.23.11"
 
@@ -1074,6 +1075,16 @@ def _maybe_quantize_expert_weight(
         or name not in {"w1", "w2", "w3"}
         or _is_qtensor_like(data)
     ):
+        return data
+    if data.shape[-1] % Q40_BLOCK_LEN != 0:
+        # Q4_0 blocks run along the last axis: they would straddle rows
+        LOGGER.warning(
+            "%s %s kept in float: last axis %d is not a multiple of %d",
+            node.outputs[0].name,
+            name,
+            data.shape[-1],
+            Q40_BLOCK_LEN,
+        )
         return data
     q_data = expert_q40_quantizer(
         data.contiguous(),
