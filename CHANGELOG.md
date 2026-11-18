@@ -6,6 +6,9 @@
 ### Fixed
 - **`arange` ignored its dtype under tract** (core): `torch.arange(n, dtype=torch.float32)` (or `float16`) exported a bare `tract_core_range`, which yields integers, so the first float op consuming it failed to load in tract (`No super type for F32 and I64`) unless the model happened to cast it. The range is now cast to any requested dtype other than int64, and the strict NNEF constant path builds it with that dtype.
 
+### Changed
+- **Min max per group calibration keeps the sign of the extreme** (core): full range formats (`Q4_0`) scaled each group by its absolute maximum over the lowest code, so a group whose largest magnitude is negative mapped it past the highest code and clipped it (a `-1.0` extreme came back as `-0.875`). The scale now comes from the signed extreme, as in GGML, which maps it exactly onto the lowest code; on real weights this lowers the `Q4_0` error by about 8%. Restricted range formats (`Q8_1`) and percentile calibration are unchanged.
+
 ## [0.25.1] - 2026-11-17
 
 ### Added
