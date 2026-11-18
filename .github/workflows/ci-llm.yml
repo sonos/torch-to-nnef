@@ -6,6 +6,7 @@ on:
     paths:
       - "packages/llm/**"
       - "torch_to_nnef/**"
+      - "tests/utils.py"
       - "uv.lock"
       - ".github/workflows/ci-llm.yml"
       - "scripts/hf_pull.py"
@@ -14,6 +15,7 @@ on:
     paths:
       - "packages/llm/**"
       - "torch_to_nnef/**"
+      - "tests/utils.py"
       - "uv.lock"
       - ".github/workflows/ci-llm.yml"
       - "scripts/hf_pull.py"
