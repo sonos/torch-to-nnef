@@ -21,6 +21,7 @@ from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.op.custom_extractors import MoEFFN
 from torch_to_nnef.op.custom_extractors.moe import (
     MOE_FFN_MIN_TRACT_VERSION,
+    MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION,
     _convert_moe_to_nnef,
     _get_adapter,
     _GraniteMoEAdapter,
@@ -333,6 +334,44 @@ def test_moe_ffn_split_experts_linear_layout(inference_target):
     )
 
 
+@skipif_unsupported_qtensor
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_q40_keeps_unaligned_experts_in_float(inference_target):
+    """An expert whose last axis is not a multiple of 32 stays in float.
+
+    Q4_0 blocks run along the last axis and would straddle rows.
+    """
+    _skip_if_unsupported(inference_target)
+    export_target = deepcopy(inference_target)
+    export_target.check_io = False
+    model = MoEFFNWrapper(num_experts=4, d_model=32, d_hidden=48, k=2)
+    model.moe._t2n_quantize_moe_experts_q40 = True
+    model.moe._t2n_moe_expert_layout = "linear"
+    model.eval()
+
+    def _assert_mixed(inference_target, path):
+        dtypes = {}
+        with (
+            tempfile.TemporaryDirectory() as td,
+            tarfile.open(path, "r:*") as tf,
+        ):
+            for name, member in _moe_expert_weight_members(tf):
+                tf.extract(member, td)
+                header = DatBinHeader.from_dat(Path(td) / member.name)
+                dtypes[name] = header.torch_dtype_or_custom
+        assert dtypes["w1"] == DatBinHeader.TractCustomTypes.Q40, dtypes
+        assert dtypes["w2"] == torch.float32, dtypes
+
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 32),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=export_target,
+        callback_post_export=_assert_mixed,
+    )
+
+
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_moe_ffn_accepts_tract_moe_ffn_layout_alias(inference_target):
     """Reloaded checkpoints may label canonical expert tensors by target op."""
@@ -546,22 +585,40 @@ def test_moe_ffn_custom_q40_quantizer(inference_target):
     ]
 
 
+def _graph_text(archive: Path) -> str:
+    with tarfile.open(archive) as tar:
+        member = tar.extractfile("graph.nnef")
+        assert member is not None
+        return member.read().decode()
+
+
 @pytest.mark.parametrize("bias_name", ["b1", "b2", "both"])
-def test_moe_ffn_with_bias_rejected(tmp_path, bias_name, export_only_target):
-    """Nonzero reference biases must never be silently dropped by export."""
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_with_bias_without_w3(bias_name, inference_target):
+    """Expert biases of an ungated MoE are passed to tract by name."""
+    _skip_if_unsupported(inference_target)
     model = MoEFFNWithBiasWrapper(num_experts=4, d_model=16, d_hidden=32, k=2)
     model.eval()
+    labels = []
     with torch.no_grad():
-        for name in ("b1", "b2"):
+        for name, label in (("b1", "w1_bias"), ("b2", "w2_bias")):
             if bias_name in (name, "both"):
-                getattr(model.moe, name).fill_(0.5)
-    with pytest.raises(T2NErrorNotImplemented, match="biases without w3"):
-        export_model_to_nnef(
-            model,
-            (torch.randn(8, 16),),
-            tmp_path / "biased.nnef.tgz",
-            export_only_target(),
-        )
+                getattr(model.moe, name).normal_(std=0.5)
+                labels.append(label)
+            else:
+                setattr(model.moe, name, None)
+
+    def check_named_biases(_inference_target, path):
+        graph = _graph_text(path)
+        for label in labels:
+            assert re.search(rf"tract_moe_ffn\(.*\b{label} = ", graph), graph
+
+    check_model_io_test(
+        model=model,
+        test_input=(torch.randn(8, 16),),
+        inference_target=inference_target,
+        callback_post_export=check_named_biases,
+    )
 
 
 @pytest.mark.parametrize("adapter_cls", [_MixtralAdapter, _QwenMoEAdapter])
@@ -831,6 +888,98 @@ def test_moe_ffn_qwen2_shared_expert(inference_target):
     check_model_io_test(
         model=model,
         test_input=(torch.randn(1, 5, 16),),
+        input_names=["tokens"],
+        output_names=["output"],
+        inference_target=inference_target,
+    )
+
+
+def _nemotron_h_block(seed=0):
+    nemotron_h = pytest.importorskip(
+        "transformers.models.nemotron_h.modeling_nemotron_h",
+        reason="transformers too old for nemotron_h",
+    )
+    cfg = nemotron_h.NemotronHConfig(
+        hidden_size=32,
+        moe_intermediate_size=64,
+        moe_shared_expert_intermediate_size=48,
+        n_routed_experts=8,
+        num_experts_per_tok=3,
+        routed_scaling_factor=2.5,
+    )
+    block = nemotron_h.NemotronHMoE(cfg)
+    _init_moe_weights(block, seed=seed)
+    with torch.no_grad():
+        # large enough to change which experts are picked
+        block.gate.e_score_correction_bias.normal_(std=0.3)
+    return block.eval()
+
+
+def test_nemotron_h_adapter_matches_block():
+    """Adapter tensors under tract_moe_ffn semantics reproduce the HF block."""
+    block = _nemotron_h_block()
+    adapter = _get_adapter(block)
+    assert adapter.gate(block) == "sigmoid_norm"
+    assert adapter.activation(block) == "relu2"
+    assert not adapter.has_w3(block)
+    wg, bias = adapter.gate_weight(block), adapter.gate_bias(block)
+    w1, w2 = adapter.expert_w1(block), adapter.expert_w2(block)
+    shared = adapter.shared_expert(block)
+    k = adapter.top_k(block)
+    x = torch.randn(7, 32)
+    with torch.no_grad():
+        expected = block(x)
+        sig = (x @ wg.T).sigmoid()
+        pick = (sig + bias).topk(k, dim=-1).indices
+        weights = sig.gather(1, pick)
+        weights = weights / weights.sum(-1, keepdim=True)
+        routed = torch.zeros_like(x)
+        for t in range(x.shape[0]):
+            for j, e in enumerate(pick[t].tolist()):
+                h = torch.relu(x[t] @ w1[e]) ** 2
+                routed[t] += weights[t, j] * (h @ w2[e])
+        up = torch.relu(x @ shared["up_proj"].T) ** 2
+        shared_out = up @ shared["down_proj"].T
+    torch.testing.assert_close(routed + shared_out, expected)
+
+
+def test_nemotron_h_moe_emission(export_only_target, tmp_path):
+    path = tmp_path / "nemotron_h.nnef.tgz"
+    export_model_to_nnef(
+        _BlockWrapper(_nemotron_h_block()),
+        (torch.randn(1, 5, 32),),
+        path,
+        export_only_target(MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION),
+    )
+    graph = _graph_text(path)
+    moe = re.search(r"tract_moe_ffn\(.*\);", graph)
+    assert moe, graph
+    assert "gate = 'sigmoid_norm'" in moe.group(0)
+    assert "activation = 'relu2'" in moe.group(0)
+    assert "wg_bias = " in moe.group(0)
+    assert "sqr(" in graph
+
+
+def test_nemotron_h_moe_rejects_older_tract(export_only_target, tmp_path):
+    with pytest.raises(T2NErrorNotImplemented, match="requires tract >= "):
+        export_model_to_nnef(
+            _BlockWrapper(_nemotron_h_block()),
+            (torch.randn(1, 5, 32),),
+            tmp_path / "nemotron_h.nnef.tgz",
+            export_only_target("0.23.10"),
+        )
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_moe_ffn_nemotron_h(inference_target):
+    if inference_target.version < MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION:
+        pytest.skip(
+            "sigmoid_norm and relu2 require tract >= "
+            f"{MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION}"
+        )
+    check_model_io_test(
+        model=_BlockWrapper(_nemotron_h_block()),
+        test_input=(torch.randn(1, 5, 32),),
         input_names=["tokens"],
         output_names=["output"],
         inference_target=inference_target,

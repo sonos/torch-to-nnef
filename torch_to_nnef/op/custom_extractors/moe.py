@@ -8,13 +8,17 @@ Supports (transformers):
 - GptOssMLP (router + expert biases, interleaved gate/up, clamped SwiGLU)
 - Qwen2/Qwen3/Qwen3.5/Qwen3-Next MoE (shared expert decomposed outside)
 - OlmoeSparseMoeBlock
+- NemotronHMoE (sigmoid routing with a selection bias, relu2 experts,
+  ungated relu2 shared expert)
 
 All variants are normalized to the same tract_moe_ffn signature:
     inputs:  x [T,D], wg [E,D], w1 [E,D,H], w2 [E,H,D], w3 [E,D,H],
              optional biases (wg_bias, w1_bias, w3_bias, w2_bias)
     attrs:   k (int), activation (str), gate (softmax_topk | softmax_all |
-             sigmoid | raw), optional act_alpha / act_limit (clamped SwiGLU),
-             optional expert_layout ("canonical" | "linear")
+             sigmoid | sigmoid_norm | raw), optional act_alpha / act_limit
+             (clamped SwiGLU), optional expert_layout ("canonical" | "linear")
+The optional biases are passed by name, so any subset of them can be given,
+with or without w3.
     output:  y [T,D]
 The default canonical expert layout matches the signature above. The optional
 linear layout stores expert weights in their native linear-filter orientation:
@@ -30,6 +34,7 @@ import logging
 import os
 import typing as T
 
+import nnef
 import numpy as np
 import torch
 from nnef_tools.model import Tensor as NTensor
@@ -53,6 +58,9 @@ from torch_to_nnef.tensor.quant import (
 
 LOGGER = logging.getLogger(__name__)
 MOE_FFN_MIN_TRACT_VERSION = "0.23.9"
+Q40_BLOCK_LEN = 32
+# `sigmoid_norm` gate and `relu2` activation
+MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION = "0.23.11"
 
 
 def _require_silu(activation, context: str) -> None:
@@ -176,7 +184,8 @@ class _MoEWeightAdapter:
     # Optional always-on shared expert (e.g. Qwen2-MoE / Qwen3.5-MoE):
     #   out = routed_experts(x) + sigmoid(shared_gate(x)) * shared_mlp(x)
     # Returns the raw nn.Linear weights ([out, in], used directly as NNEF
-    # linear filters) or None when the arch has no shared expert.
+    # linear filters) or None when the arch has no shared expert. Without
+    # "gate_proj" the expert is ungated: down(relu(up(x))^2) (NemotronH).
     def shared_expert(
         self, m: nn.Module
     ) -> T.Optional[T.Dict[str, torch.Tensor]]:
@@ -612,6 +621,83 @@ class _GraniteMoEAdapter(_MoEWeightAdapter):
         return super().activation(m)
 
 
+class _NemotronHAdapter(_MoEWeightAdapter):
+    """NemotronH routed experts and shared expert.
+
+    Sigmoid router whose correction bias only biases the pick, renormalized
+    top-k weights scaled by `routed_scaling_factor` (folded into w2), stacked
+    relu2 experts and an ungated relu2 shared expert.
+    """
+
+    @staticmethod
+    def _check(m: nn.Module) -> None:
+        config = m.config
+        if config.topk_group != config.n_group:
+            raise T2NErrorNotImplemented(
+                "NemotronH group-limited routing (topk_group < n_group) is "
+                "unsupported"
+            )
+        if not config.norm_topk_prob:
+            raise T2NErrorNotImplemented(
+                "NemotronH routing without norm_topk_prob is unsupported"
+            )
+        if config.moe_latent_size is not None:
+            raise T2NErrorNotImplemented(
+                "NemotronH MoE latent projections are unsupported"
+            )
+
+    def gate_weight(self, m: nn.Module) -> torch.Tensor:
+        # the router runs in f32 whatever the model dtype
+        return self._constant(m.gate.weight).float()
+
+    def gate_bias(self, m: nn.Module) -> torch.Tensor:
+        return self._constant(m.gate.e_score_correction_bias).float()
+
+    def expert_w1(self, m: nn.Module) -> torch.Tensor:
+        self._check(m)
+        return self._constant(m.experts.up_proj).transpose(-1, -2)
+
+    def expert_w2(self, m: nn.Module) -> torch.Tensor:
+        down = self._constant(m.experts.down_proj)
+        scale = m.config.routed_scaling_factor
+        if scale != 1.0:
+            down = down * scale
+        return down.transpose(-1, -2)
+
+    def expert_sources(self, m: nn.Module) -> T.Sequence[torch.Tensor]:
+        return (m.experts.up_proj, m.experts.down_proj)
+
+    def top_k(self, m: nn.Module) -> int:
+        return int(m.config.num_experts_per_tok)
+
+    def activation(self, m: nn.Module) -> str:
+        if m.config.mlp_hidden_act != "relu2":
+            raise T2NErrorNotImplemented(
+                f"NemotronH expert activation {m.config.mlp_hidden_act!r} "
+                "is unsupported (relu2 only)"
+            )
+        return "relu2"
+
+    def gate(self, m: nn.Module) -> str:
+        self._check(m)
+        return "sigmoid_norm"
+
+    def shared_expert(self, m: nn.Module) -> T.Dict[str, torch.Tensor]:
+        shared = m.shared_experts
+        weights = {}
+        for name in ("up_proj", "down_proj"):
+            projection = getattr(shared, name)
+            if projection.bias is not None:
+                raise T2NErrorNotImplemented(
+                    "NemotronH shared expert biases are unsupported"
+                )
+            weight = projection.weight
+            weights[name] = (
+                weight if _is_qtensor_like(weight) else weight.detach()
+            )
+        return weights
+
+
 # ---------------------------------------------------------------------------
 # Adapter dispatch
 # ---------------------------------------------------------------------------
@@ -640,6 +726,7 @@ _ADAPTER_BY_CLASSNAME: T.Dict[str, T.Type[_MoEWeightAdapter]] = {
     # IBM Granite MoE: same maths, different attribute names.
     "GraniteMoeMoE": _GraniteMoEAdapter,
     "GraniteMoeSharedMoE": _GraniteMoEAdapter,
+    "NemotronHMoE": _NemotronHAdapter,
 }
 
 
@@ -831,6 +918,7 @@ def _emit_shared_expert(
 
     out = routed + sigmoid(x @ Wr^T) * down(silu(x @ Wg^T) * (x @ Wu^T)).
     Without a router weight (Mistral4), add the shared MLP output directly.
+    Without a gate projection (NemotronH), the expert is down(relu(x @ Wu^T)^2).
     All weights are raw nn.Linear [out, in], used as NNEF linear filters
     (linear computes x @ filter^T) so no transpose is needed.
     """
@@ -841,7 +929,7 @@ def _emit_shared_expert(
     # bandwidth. Accumulate in the weight dtype, exactly like the standard
     # aten::linear path; force_linear_accumulation_in_f32 restores the old
     # behavior on demand.
-    weight_dtype = shared["gate_proj"].dtype
+    weight_dtype = shared["up_proj"].dtype
     acc = TORCH_DTYPE_TO_TRACT_STR[weight_dtype]
     if weight_dtype != torch.float32 and getattr(
         inference_target, "force_linear_accumulation_in_f32", False
@@ -917,24 +1005,31 @@ def _emit_shared_expert(
         )
 
     d_model = x_shape[-1]
-    hs = shared["gate_proj"].shape[0]
+    hs = shared["up_proj"].shape[0]
     hs_shape = x_shape[:-1] + [hs]
     d_shape = x_shape[:-1] + [d_model]
     one_shape = x_shape[:-1] + [1]
 
-    w_gate = add_weight("se_gate_proj", shared["gate_proj"])
     w_up = add_weight("se_up_proj", shared["up_proj"])
     w_down = add_weight("se_down_proj", shared["down_proj"])
-
-    gate_h = linear(
-        input_tensor, shared["gate_proj"], w_gate, mk("se_gate_h", hs_shape)
-    )
     up_h = linear(
         input_tensor, shared["up_proj"], w_up, mk("se_up_h", hs_shape)
     )
-    gate_sig = emit("sigmoid", (gate_h,), mk("se_gate_sig", hs_shape))
-    silu_g = emit("mul", (gate_h, gate_sig), mk("se_silu", hs_shape))
-    inter = emit("mul", (silu_g, up_h), mk("se_inter", hs_shape))
+    if "gate_proj" in shared:
+        w_gate = add_weight("se_gate_proj", shared["gate_proj"])
+        gate_h = linear(
+            input_tensor,
+            shared["gate_proj"],
+            w_gate,
+            mk("se_gate_h", hs_shape),
+        )
+        gate_sig = emit("sigmoid", (gate_h,), mk("se_gate_sig", hs_shape))
+        silu_g = emit("mul", (gate_h, gate_sig), mk("se_silu", hs_shape))
+        inter = emit("mul", (silu_g, up_h), mk("se_inter", hs_shape))
+    else:
+        # ungated expert: relu2 is the only activation an adapter returns
+        relu_h = emit("relu", (up_h,), mk("se_relu", hs_shape))
+        inter = emit("sqr", (relu_h,), mk("se_inter", hs_shape))
     shared_out = linear(
         inter, shared["down_proj"], w_down, mk("se_out", d_shape)
     )
@@ -980,6 +1075,16 @@ def _maybe_quantize_expert_weight(
         or name not in {"w1", "w2", "w3"}
         or _is_qtensor_like(data)
     ):
+        return data
+    if data.shape[-1] % Q40_BLOCK_LEN != 0:
+        # Q4_0 blocks run along the last axis: they would straddle rows
+        LOGGER.warning(
+            "%s %s kept in float: last axis %d is not a multiple of %d",
+            node.outputs[0].name,
+            name,
+            data.shape[-1],
+            Q40_BLOCK_LEN,
+        )
         return data
     q_data = expert_q40_quantizer(
         data.contiguous(),
@@ -1065,30 +1170,23 @@ def _moe_attrs(adapter, moe):
     return attrs
 
 
-def _append_optional_moe_biases(moe, adapter, has_w3, inputs, add_weight):
-    # tract maps positional inputs as:
-    # x, wg, w1, w2, w3, wg_bias, w1_bias, w3_bias, w2_bias.
+def _optional_moe_bias_attrs(moe, adapter, add_weight):
+    """The optional biases, as named arguments.
+
+    Positionally the fifth input of tract_moe_ffn is w3, so naming them
+    allows any subset of biases, with or without w3.
+    """
     biases = (
         (adapter.gate_bias(moe), "wg_bias"),
         (adapter.expert_w1_bias(moe), "w1_bias"),
         (adapter.expert_w3_bias(moe), "w3_bias"),
         (adapter.expert_w2_bias(moe), "w2_bias"),
     )
-    if not any(bias is not None for bias, _ in biases):
-        return
-    if not has_w3:
-        raise T2NErrorNotImplemented(
-            "MoE biases are only supported alongside a gated activation (w3); "
-            f"got biases without w3 for {type(moe).__name__}"
-        )
-    for bias, label in biases:
-        if bias is None:
-            raise T2NErrorNotImplemented(
-                f"partial MoE bias set: {label} is missing while other "
-                "biases are present (positional mapping needs all four)"
-            )
-    for bias, label in biases:
-        inputs.append(add_weight(label, bias))
+    return {
+        label: nnef.Identifier(add_weight(label, bias).name)
+        for bias, label in biases
+        if bias is not None
+    }
 
 
 def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
@@ -1154,8 +1252,16 @@ def _convert_moe_to_nnef(g, node, name_to_tensor, inference_target):
         inputs.append(w3)
 
     attrs = _moe_attrs(adapter, moe)
-
-    _append_optional_moe_biases(moe, adapter, has_w3, inputs, _add_weight)
+    if (
+        attrs["gate"] == "sigmoid_norm" or attrs["activation"] == "relu2"
+    ) and inference_target.version < MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION:
+        raise T2NErrorNotImplemented(
+            f"tract_moe_ffn gate {attrs['gate']!r} with activation "
+            f"{attrs['activation']!r} requires tract >= "
+            f"{MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION}; targeted version is "
+            f"{inference_target.version}."
+        )
+    attrs.update(_optional_moe_bias_attrs(moe, adapter, _add_weight))
 
     # tract_moe_ffn is single-output (the routed hidden states). Some modules
     # (e.g. gpt-oss GptOssMLP) also return router_scores as a second output,
@@ -1347,6 +1453,10 @@ def _register_all_transformers_moe():
         (
             "transformers.models.granitemoeshared.modeling_granitemoeshared",
             "GraniteMoeSharedMoE",
+        ),
+        (
+            "transformers.models.nemotron_h.modeling_nemotron_h",
+            "NemotronHMoE",
         ),
     ]
     for import_path, class_name in _candidates:
