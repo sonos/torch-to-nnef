@@ -103,6 +103,7 @@ class Lfm3ArchitectureHandler(DefaultArchitectureHandler):
     """Export unpadded, batch-one LFM3 continuation and prefill."""
 
     ARCH_NAMES = ("lfm3",)
+    carries_recurrent_state = True
 
     def prepare_model_for_export(self, model):
         for layer in model.model.layers:

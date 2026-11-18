@@ -668,7 +668,7 @@ class LLMExporter:
         self, io_npz_dirpath: Path, size: int = 6
     ) -> T.List[T.Tuple[Path, Path]]:
         """Realistic dump of IO's."""
-        if self.model_infos.conf.model_type == "lfm3":
+        if self.model_infos.handler.carries_recurrent_state:
             return self._dump_mixed_state_io(io_npz_dirpath, size)
         half = size // 2
         prompt_in_npz = io_npz_dirpath / "prompt_inputs.npz"

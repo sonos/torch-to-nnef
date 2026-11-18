@@ -192,6 +192,9 @@ class ArchitectureHandler(ABC):
 
     ARCH_NAMES: T.Tuple[str, ...] = ()
     with_dyn_cache: bool = True
+    # states that cannot be rebuilt by slicing a longer KV cache (conv or
+    # recurrent states): IO probes then run the actual prefix instead
+    carries_recurrent_state: bool = False
 
     @staticmethod
     def get_auto_model_class(transformers):
@@ -230,7 +233,7 @@ class ArchitectureHandler(ABC):
         # a baked triu diagonal (or a shape[0]=batch bug) made the mask
         # degenerate and attention non-causal.
         q_pos = cache_position.unsqueeze(1)
-        k_pos = torch.arange(total_length).unsqueeze(0)
+        k_pos = torch.arange(total_length, device=device).unsqueeze(0)
         future = (k_pos > q_pos).to(attn_mask_dtype)  # 1.0 where masked
         attention_mask = (
             (torch.full([seq_length, total_length], neg) * future)

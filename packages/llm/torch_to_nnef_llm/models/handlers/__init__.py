@@ -23,6 +23,7 @@ from .idefics3_vl import (
 )
 from .lfm3 import Lfm3ArchitectureHandler
 from .mistral3 import Mistral3TextArchitectureHandler
+from .nemotron_h import NemotronHArchitectureHandler
 from .openelm import OpenELMArchitectureHandler
 from .phi import PhiArchitectureHandler
 from .qwen2_5_vl import (
@@ -55,6 +56,7 @@ __all__ = [
     "ArchitectureHandler",
     "DefaultArchitectureHandler",
     "Mistral3TextArchitectureHandler",
+    "NemotronHArchitectureHandler",
     "EmbeddingContract",
     "EncoderHandler",
     "Gemma3ArchitectureHandler",
