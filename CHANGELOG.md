@@ -3,6 +3,10 @@
 
 ## Unreleased
 
+### Added
+- **Mamba-2 recurrence export** (core): calling `Mamba2RecurrentReified` exports one `tract_transformers_mamba2_recurrent` op (x already scaled by dt, grouped B and C, `dt * A` log decay, f32 state), which runs any sequence length, instead of a Python loop unrolled at the traced length. Requires tract >= 0.23.11.
+- **Causal conv update with a bias** (core): `CausalConvUpdateReified` takes an optional bias, added before the SiLU and passed to `tract_transformers_causal_conv1d_update` by name, as Mamba-2 convolutions need. Requires tract >= 0.23.11.
+
 ### Fixed
 - **`arange` ignored its dtype under tract** (core): `torch.arange(n, dtype=torch.float32)` (or `float16`) exported a bare `tract_core_range`, which yields integers, so the first float op consuming it failed to load in tract (`No super type for F32 and I64`) unless the model happened to cast it. The range is now cast to any requested dtype other than int64, and the strict NNEF constant path builds it with that dtype.
 

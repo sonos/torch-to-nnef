@@ -32,6 +32,7 @@ eager math stays HF-exact).
 import logging
 import typing as T
 
+import nnef
 import torch
 from torch import nn
 
@@ -45,6 +46,8 @@ from torch_to_nnef.op import helper
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 
 LOGGER = logging.getLogger(__name__)
+# optional `bias` argument of tract_transformers_causal_conv1d_update
+CAUSAL_CONV_BIAS_MIN_TRACT_VERSION = "0.23.11"
 
 
 def _l2norm(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
@@ -132,6 +135,32 @@ class GatedDeltaNetRecurrentReified(nn.Module):
         return core, (state if output_final_state else None)
 
 
+def _causal_conv_args(args):
+    """(hidden_states, conv_state, weight, bias or None) from traced args.
+
+    The extractor replays the traced module arguments, parameters first, so
+    they are told apart by rank and by the state time axis being the kernel
+    width, as the extractor does.
+    """
+    if len(args) not in (3, 4):
+        raise T2NErrorNotImplemented(
+            f"causal conv takes 3 or 4 tensors, got {len(args)}"
+        )
+    if [a.dim() for a in args[:3]] == [3, 3, 2]:
+        return args[0], args[1], args[2], args[3] if len(args) == 4 else None
+    weight = next(a for a in args if a.dim() == 2)
+    bias = next((a for a in args if a.dim() == 1), None)
+    rank3 = [a for a in args if a.dim() == 3]
+    states = [a for a in rank3 if a.shape[-1] == weight.shape[-1]]
+    if len(rank3) != 2 or len(states) != 1:
+        raise T2NErrorNotImplemented(
+            "cannot identify causal conv arguments: "
+            f"{[list(a.shape) for a in args]}"
+        )
+    hidden = next(a for a in rank3 if a is not states[0])
+    return hidden, states[0], weight, bias
+
+
 class CausalConvUpdateReified(nn.Module):
     """Drop-in core for HF's `torch_causal_conv1d_update`.
 
@@ -142,7 +171,8 @@ class CausalConvUpdateReified(nn.Module):
     `tract_transformers_causal_conv1d_update` op.
 
     Layout: hidden_states `[b, C, S]`, conv_state `[b, C, k]`,
-    weight `[C, k]` -> (out `[b, C, S]`, final_state `[b, C, k]`).
+    weight `[C, k]`, optional bias `[C]` added before the SiLU
+    -> (out `[b, C, S]`, final_state `[b, C, k]`).
     The caller keeps responsibility for writing final_state back into
     the HF cache (a plain `copy_`, handled by the aten copy handler).
     """
@@ -152,6 +182,7 @@ class CausalConvUpdateReified(nn.Module):
         hidden_states: torch.Tensor,
         conv_state: torch.Tensor,
         weight: torch.Tensor,
+        bias: T.Optional[torch.Tensor] = None,
     ):
         k = conv_state.shape[-1]
         s_len = hidden_states.shape[-1]
@@ -170,7 +201,10 @@ class CausalConvUpdateReified(nn.Module):
         # S positions (windows ending at each new sample).
         windows = full.unfold(-1, k, 1)
         out = (windows * weight.unsqueeze(0).unsqueeze(2)).sum(-1)
-        out = torch.nn.functional.silu(out[:, :, -s_len:])
+        out = out[:, :, -s_len:]
+        if bias is not None:
+            out = out + bias.to(out.dtype)[None, :, None]
+        out = torch.nn.functional.silu(out)
         return out.to(hidden_states.dtype), final_state
 
 
@@ -178,6 +212,10 @@ class CausalConvUpdateExtractor(ModuleInfoExtractor):
     """Emit `tract_transformers_causal_conv1d_update` for the reified conv."""
 
     MODULE_CLASS = CausalConvUpdateReified
+
+    @staticmethod
+    def _call_original_mod_with_args(mod, *args):
+        return mod(*_causal_conv_args(args))
 
     def convert_to_nnef(
         self,
@@ -196,11 +234,29 @@ class CausalConvUpdateExtractor(ModuleInfoExtractor):
         tensor_inputs = [
             inp for inp in node.inputs if isinstance(inp, tg.TensorVariable)
         ]
-        if len(tensor_inputs) != 3:
+        if len(tensor_inputs) not in (3, 4):
             raise T2NErrorNotImplemented(
                 "reified causal conv expects (hidden_states, conv_state, "
-                f"weight) tensor inputs, got {len(tensor_inputs)}"
+                f"weight[, bias]) tensor inputs, got {len(tensor_inputs)}"
             )
+        biases = [t for t in tensor_inputs if len(t.shape) == 1]
+        if len(biases) > 1:
+            raise T2NErrorNotImplemented(
+                "cannot identify causal conv bias: "
+                f"{[list(t.shape) for t in tensor_inputs]}"
+            )
+        attribs = {}
+        if biases:
+            if inference_target.version < CAUSAL_CONV_BIAS_MIN_TRACT_VERSION:
+                raise T2NErrorNotImplemented(
+                    "causal conv bias requires tract >= "
+                    f"{CAUSAL_CONV_BIAS_MIN_TRACT_VERSION}; targeted version "
+                    f"is {inference_target.version}."
+                )
+            bias = helper.get_or_add_tensor_variable_in_nnef(
+                g, biases[0], name_to_tensor
+            )
+            attribs["bias"] = nnef.Identifier(bias.name)
         # The traced module-boundary input order is the FIRST-USE order
         # inside the shim, not the signature order: identify the inputs
         # semantically. weight is the only rank-2 tensor [C, k]; the state
@@ -267,7 +323,7 @@ class CausalConvUpdateExtractor(ModuleInfoExtractor):
             type="tract_transformers_causal_conv1d_update",
             inputs=nnef_inputs,
             outputs=nnef_outputs,
-            attribs={},
+            attribs=attribs,
             force_consistent_inputs_shapes=False,
         )
         return ["tract_transformers"]
