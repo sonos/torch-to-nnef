@@ -19,6 +19,7 @@ import torch
 from torch import nn
 
 from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.opaque import OpaqueTensorRef
 
 from .base import (
     EmbeddingContract,
@@ -45,15 +46,21 @@ def _load_back(*modules) -> None:
 
     The towers are small next to the decoder and trace like plain modules
     once they hold real tensors, which the offload tracing strategy needs
-    for their concatenations and position arithmetic.
+    for their concatenations and position arithmetic. An earlier export of
+    the decoder leaves every offloaded tensor of the model wrapped in an
+    `OpaqueTensorRef`, which is unwrapped first.
     """
     for root in modules:
         if root is None:
             continue
         for module in root.modules():
-            for name, _ in list(module.named_parameters(recurse=False)):
+            for name, param in list(module.named_parameters(recurse=False)):
+                if isinstance(param, OpaqueTensorRef):
+                    setattr(module, name, param.opaque_tensor)
                 _materialize_offloaded(module, name)
             for name, buffer in list(module.named_buffers(recurse=False)):
+                if isinstance(buffer, OpaqueTensorRef):
+                    buffer = buffer.opaque_tensor
                 if isinstance(buffer, OffloadedTensor):
                     setattr(module, name, buffer.reload().to(buffer.dtype))
 

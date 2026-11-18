@@ -4,11 +4,17 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+from torch import nn
 
 from torch_to_nnef.inference_target.tract import TractCli
 from torch_to_nnef.op.custom_extractors.mamba2 import MAMBA2_MIN_TRACT_VERSION
 from torch_to_nnef.op.custom_extractors.moe import (
     MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION,
+)
+from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.opaque import (
+    OpaqueTensorRef,
+    set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef_llm.config import HFConfigHelper
 from torch_to_nnef_llm.models.base import BaseCausal
@@ -125,6 +131,23 @@ def test_vision_encoder_matches_native(tiny_model, grid):
         expected = tiny_model.get_image_features(row_major, grid_hw)
         actual = NemotronHOmniVisionEncoder(tiny_model)(patches)
     torch.testing.assert_close(actual, expected.pooler_output[0])
+
+
+def test_vision_weights_reload_after_decoder_export(tiny_model, tmp_path):
+    """The decoder export leaves offloaded weights wrapped as references."""
+    vision = tiny_model.vision_model
+    expected = {n: p.detach().clone() for n, p in vision.named_parameters()}
+    for module in vision.modules():
+        for name, param in list(module.named_parameters(recurse=False)):
+            offloaded = OffloadedTensor.from_original_tensor(
+                param.detach(), name, offload_dir=tmp_path
+            )
+            setattr(module, name, nn.Parameter(offloaded, requires_grad=False))
+    set_opaque_tensor_in_params_as_ref(vision)
+    NemotronHOmniVisionEncoderHandler().prepare_model_for_export(tiny_model)
+    for name, param in vision.named_parameters():
+        assert not isinstance(param, OpaqueTensorRef), name
+        torch.testing.assert_close(param.data, expected[name])
 
 
 @pytest.mark.parametrize("frames", [40, 57])
