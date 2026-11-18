@@ -3,6 +3,9 @@
 
 ## Unreleased
 
+### Fixed
+- **`arange` ignored its dtype under tract** (core): `torch.arange(n, dtype=torch.float32)` (or `float16`) exported a bare `tract_core_range`, which yields integers, so the first float op consuming it failed to load in tract (`No super type for F32 and I64`) unless the model happened to cast it. The range is now cast to any requested dtype other than int64, and the strict NNEF constant path builds it with that dtype.
+
 ## [0.25.1] - 2026-11-17
 
 ### Added
