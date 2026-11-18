@@ -243,3 +243,20 @@ def test_select_negative_index_on_dynamic_axis(index):
         {"input_0": {1: "S"}},
         sizes=[2, 7, 3],
     )
+
+
+class TypedArange(nn.Module):
+    """`arange` of a requested dtype over a dynamic length, used unconverted."""
+
+    def forward(self, x):  # (S,), S dynamic
+        return x - torch.arange(x.shape[0], dtype=x.dtype)
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16, torch.int32])
+def test_arange_keeps_requested_dtype(dtype):
+    _assert_dynamic_correct(
+        TypedArange(),
+        lambda s: (torch.rand(s) * 100).to(dtype),
+        {"input_0": {0: "S"}},
+        sizes=[12, 20, 5],
+    )

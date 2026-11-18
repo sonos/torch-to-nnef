@@ -22,6 +22,9 @@ from torch_to_nnef.op.custom_extractors.gdn import (  # noqa: F401
     CausalConvUpdateReified,
     GatedDeltaNetRecurrentReified,
 )
+from torch_to_nnef.op.custom_extractors.mamba2 import (  # noqa: F401
+    Mamba2RecurrentReified,
+)
 from torch_to_nnef.op.custom_extractors.moe import (  # noqa: F401
     MoEFFN,
     mark_moe_experts_for_q40,
@@ -44,4 +47,5 @@ __all__ = [
     "mark_moe_experts_for_q40",
     "GatedDeltaNetRecurrentReified",
     "CausalConvUpdateReified",
+    "Mamba2RecurrentReified",
 ]

@@ -5,12 +5,16 @@
 
 ### Added
 - **NemotronH MoE blocks export to `tract_moe_ffn`** (core): `NemotronHMoE` (transformers `nemotron_h`, e.g. Nemotron 3 Nano) maps to the `sigmoid_norm` gate, which picks the top k of the router sigmoids plus `e_score_correction_bias` and weights them by the renormalized sigmoids, and to `relu2` experts, with `routed_scaling_factor` folded into the down projections and the ungated relu2 shared expert added outside the operator. The router stays in f32. Group-limited routing (`topk_group < n_group`), routing without `norm_topk_prob` and latent projections are rejected. Requires tract >= 0.23.11.
+- **Mamba-2 recurrence export** (core): calling `Mamba2RecurrentReified` exports one `tract_transformers_mamba2_recurrent` op (x already scaled by dt, grouped B and C, `dt * A` log decay, f32 state), which runs any sequence length, instead of a Python loop unrolled at the traced length. Requires tract >= 0.23.11.
+- **Causal conv update with a bias** (core): `CausalConvUpdateReified` takes an optional bias, added before the SiLU and passed to `tract_transformers_causal_conv1d_update` by name, as Mamba-2 convolutions need. Requires tract >= 0.23.11.
 
 ### Fixed
 - **Q4_0 experts whose last axis is not a multiple of 32** (core): blocks run along the last axis, so they straddled rows and tract rejected the weights. Such experts now stay in float, with a warning.
+- **`arange` ignored its dtype under tract** (core): `torch.arange(n, dtype=torch.float32)` (or `float16`) exported a bare `tract_core_range`, which yields integers, so the first float op consuming it failed to load in tract (`No super type for F32 and I64`) unless the model happened to cast it. The range is now cast to any requested dtype other than int64, and the strict NNEF constant path builds it with that dtype.
 
 ### Changed
 - **`tract_moe_ffn` biases are passed by name** (core): they used to be positional after `w3`, so an MoE without gated experts could not carry any, and a partial set was rejected. Any subset of `wg_bias`, `w1_bias`, `w3_bias` and `w2_bias` now exports, with or without `w3`, including the `w1_bias` / `w2_bias` of the reference `MoEFFN`.
+- **Min max per group calibration keeps the sign of the extreme** (core): full range formats (`Q4_0`) scaled each group by its absolute maximum over the lowest code, so a group whose largest magnitude is negative mapped it past the highest code and clipped it (a `-1.0` extreme came back as `-0.875`). The scale now comes from the signed extreme, as in GGML, which maps it exactly onto the lowest code; on real weights this lowers the `Q4_0` error by about 8%. Restricted range formats (`Q8_1`) and percentile calibration are unchanged.
 
 ## [0.25.1] - 2026-11-17
 
