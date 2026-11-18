@@ -11,6 +11,7 @@
 ### Fixed
 - **Q4_0 experts whose last axis is not a multiple of 32** (core): blocks run along the last axis, so they straddled rows and tract rejected the weights. Such experts now stay in float, with a warning.
 - **`arange` ignored its dtype under tract** (core): `torch.arange(n, dtype=torch.float32)` (or `float16`) exported a bare `tract_core_range`, which yields integers, so the first float op consuming it failed to load in tract (`No super type for F32 and I64`) unless the model happened to cast it. The range is now cast to any requested dtype other than int64, and the strict NNEF constant path builds it with that dtype.
+- **Nemotron-H decoders failed to export from disk offload** (core): when shape inference had to rerun the causal conv of a Mamba-2 layer, it called `CausalConvUpdateReified` with its inputs in the extractor's order, parameters first, and the conv failed. Its forward now accepts them in either order.
 
 ### Changed
 - **`tract_moe_ffn` biases are passed by name** (core): they used to be positional after `w3`, so an MoE without gated experts could not carry any, and a partial set was rejected. Any subset of `wg_bias`, `w1_bias`, `w3_bias` and `w2_bias` now exports, with or without `w3`, including the `w1_bias` / `w2_bias` of the reference `MoEFFN`.
