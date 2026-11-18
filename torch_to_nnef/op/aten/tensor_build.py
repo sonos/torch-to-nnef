@@ -70,7 +70,13 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
                 "please update to latest tract to use 'tract_core_range'"
             )
 
-        add_single_output_op(
+        # tract_core_range yields integers: honour any other requested dtype
+        cast_to = (
+            None
+            if dtype_node.data in (None, 4)
+            else SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+        )
+        out = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -93,7 +99,17 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
             attrs={"step": step_node.data}
             if isinstance(step_node, PythonConstant)
             else {},
+            output_tensor_name_suffix="range" if cast_to is not None else "",
         )
+        if cast_to is not None:
+            add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_cast",
+                inputs=out,
+                attrs={"to": TORCH_DTYPE_TO_TRACT_STR[cast_to]},
+            )
         return ["tract_core"]
     if start_node.data is None or end_node.data is None:
         raise T2NErrorNotImplemented(
@@ -101,7 +117,14 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
         )
 
     node.outputs[0].data.set_data(
-        torch.arange(start_node.data, end_node.data, step=step_node.data)
+        torch.arange(
+            start_node.data,
+            end_node.data,
+            step=step_node.data,
+            dtype=None
+            if dtype_node.data is None
+            else SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data],
+        )
     )
     add_tensor_variable_node_as_nnef_tensor(
         g,
