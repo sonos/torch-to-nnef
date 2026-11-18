@@ -562,7 +562,12 @@ def qscale_per_group_f16_min_max_calibration(
     # by default we use full-range symmetric
     # like torch, ONNX, but oposed to restricted range from
     # TensorFlow, NVIDIA TensorRT and Intel DNNL
-    if percentile == 1:
+    if percentile == 1 and not restricted_range:
+        # signed extreme, as GGML: it maps exactly onto the lowest code, while
+        # its absolute value would leave a negative extreme clipped at q_max-1
+        extreme = fp_tensor_per_group.abs().argmax(dim=1, keepdim=True)
+        x = fp_tensor_per_group.gather(1, extreme).squeeze(1)
+    elif percentile == 1:
         x = fp_tensor_per_group.abs().max(dim=1).values
     else:
         # torch.quantile only support f32 (2024-09-10, torch 2.2.2)
