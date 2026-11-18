@@ -136,11 +136,11 @@ class GatedDeltaNetRecurrentReified(nn.Module):
 
 
 def _causal_conv_args(args):
-    """(hidden_states, conv_state, weight, bias or None) from either order.
+    """(hidden_states, conv_state, weight, bias or None) from traced args.
 
-    Callers pass them in that order. The extractor replays the traced module
-    arguments, parameters first, so they are then told apart by rank and by
-    the state time axis being the kernel width, as the extractor does.
+    The extractor replays the traced module arguments, parameters first, so
+    they are told apart by rank and by the state time axis being the kernel
+    width, as the extractor does.
     """
     if len(args) not in (3, 4):
         raise T2NErrorNotImplemented(
@@ -177,8 +177,13 @@ class CausalConvUpdateReified(nn.Module):
     the HF cache (a plain `copy_`, handled by the aten copy handler).
     """
 
-    def forward(self, *args: torch.Tensor):
-        hidden_states, conv_state, weight, bias = _causal_conv_args(args)
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        conv_state: torch.Tensor,
+        weight: torch.Tensor,
+        bias: T.Optional[torch.Tensor] = None,
+    ):
         k = conv_state.shape[-1]
         s_len = hidden_states.shape[-1]
         # copy=True: a same-dtype `.to` ALIASES its input; the caller then
@@ -207,6 +212,10 @@ class CausalConvUpdateExtractor(ModuleInfoExtractor):
     """Emit `tract_transformers_causal_conv1d_update` for the reified conv."""
 
     MODULE_CLASS = CausalConvUpdateReified
+
+    @staticmethod
+    def _call_original_mod_with_args(mod, *args):
+        return mod(*_causal_conv_args(args))
 
     def convert_to_nnef(
         self,

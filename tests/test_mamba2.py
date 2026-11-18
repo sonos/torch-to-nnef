@@ -174,6 +174,39 @@ def test_causal_conv_bias_emission(export_only_target, tmp_path):
     assert "bias = " in graph, graph
 
 
+class KeywordConv(BiasedConv):
+    def forward(self, hidden, state):
+        return self.conv(
+            hidden_states=hidden,
+            conv_state=state,
+            weight=self.weight,
+            bias=self.bias,
+        )
+
+
+def test_causal_conv_keyword_call(export_only_target, tmp_path):
+    model = KeywordConv()
+    hidden, state = _conv_args()
+    for got, expected in zip(
+        model(hidden, state),
+        BiasedConv.forward(model, hidden, state),
+        strict=True,
+    ):
+        torch.testing.assert_close(got, expected)
+    unbiased = model.conv(
+        hidden_states=hidden, conv_state=state, weight=model.weight
+    )
+    assert len(unbiased) == 2
+    path = tmp_path / "conv.nnef.tgz"
+    export_model_to_nnef(
+        model,
+        (hidden, state),
+        path,
+        export_only_target(CAUSAL_CONV_BIAS_MIN_TRACT_VERSION),
+    )
+    assert "bias = " in _graph_text(path)
+
+
 def test_causal_conv_bias_rejects_older_tract(export_only_target, tmp_path):
     with pytest.raises(T2NErrorNotImplemented, match="requires tract >= "):
         export_model_to_nnef(
