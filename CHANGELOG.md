@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+### Added
+- **NemotronH MoE blocks export to `tract_moe_ffn`** (core): `NemotronHMoE` (transformers `nemotron_h`, e.g. Nemotron 3 Nano) maps to the `sigmoid_norm` gate, which picks the top k of the router sigmoids plus `e_score_correction_bias` and weights them by the renormalized sigmoids, and to `relu2` experts, with `routed_scaling_factor` folded into the down projections and the ungated relu2 shared expert added outside the operator. The router stays in f32. Group-limited routing (`topk_group < n_group`), routing without `norm_topk_prob` and latent projections are rejected. Requires tract >= 0.23.11.
+
+### Changed
+- **`tract_moe_ffn` biases are passed by name** (core): they used to be positional after `w3`, so an MoE without gated experts could not carry any, and a partial set was rejected. Any subset of `wg_bias`, `w1_bias`, `w3_bias` and `w2_bias` now exports, with or without `w3`, including the `w1_bias` / `w2_bias` of the reference `MoEFFN`.
+
 ## [0.25.1] - 2026-11-17
 
 ### Added
