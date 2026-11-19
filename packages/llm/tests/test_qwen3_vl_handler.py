@@ -39,6 +39,7 @@ class FakeQwen3VLModel(nn.Module):
             image_token_id=8,
             video_token_id=9,
             text_config=SimpleNamespace(
+                model_type="qwen3_vl_text",
                 max_position_embeddings=128,
                 num_hidden_layers=1,
                 num_attention_heads=1,

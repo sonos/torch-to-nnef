@@ -29,6 +29,7 @@ from hf_pull import prefetch  # noqa: E402  (depends on the sys.path above)
 MODELS = [
     "yujiepan/llama-2-tiny-random",  # LlamaSlugs.DUMMY (the usual 429 victim)
     "HuggingFaceTB/SmolLM-135M",  # SmolSlugs.TINY
+    "tiny-random/mistral-small-4",  # Mistral4 runtime export
     "Qwen/Qwen3-0.6B",  # Qwen3Slugs.TINY
     "google/gemma-3-270m",  # Gemma3Slugs.TINY
 ]

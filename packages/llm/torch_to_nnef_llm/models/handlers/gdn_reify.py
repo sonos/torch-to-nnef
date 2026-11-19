@@ -92,6 +92,22 @@ def patch_linear_cache_for_export() -> None:
     def update_conv_state(
         self, conv_states, state_idx=0, conv_kernel_size=None, **kwargs
     ):
+        # Older transformers stores one tensor per layer; newer releases
+        # support multiple state slots. Preserve each API's return contract.
+        if isinstance(self.is_conv_states_initialized, bool):
+            if not self.is_conv_states_initialized:
+                self.dtype, self.device = conv_states.dtype, conv_states.device
+                self.max_batch_size = conv_states.shape[0]
+                self.conv_kernel_size = conv_states.shape[-1]
+                self.is_conv_states_initialized = True
+            if self.has_previous_state:
+                conv_states = torch.cat(
+                    [self.conv_states, conv_states], dim=-1
+                )[..., -self.conv_kernel_size :]
+            self.has_previous_state = True
+            conv_states._t2n_cache_slot = (self, None)
+            self.conv_states = conv_states
+            return conv_states
         if not self.is_conv_states_initialized[state_idx]:
             kernel = (
                 conv_states.shape[-1]
@@ -120,6 +136,10 @@ def patch_linear_cache_for_export() -> None:
         return full
 
     def update_recurrent_state(self, recurrent_states, state_idx=0, **kwargs):
+        if isinstance(self.is_recurrent_states_initialized, bool):
+            self.is_recurrent_states_initialized = True
+            self.recurrent_states = recurrent_states
+            return recurrent_states
         self.is_recurrent_states_initialized[state_idx] = True
         self.recurrent_states[state_idx] = recurrent_states
         return recurrent_states
@@ -152,7 +172,10 @@ def _make_conv_update(conv_shim):
         if slot is not None:
             layer, state_idx = slot
             final_state._t2n_cache_slot = slot
-            layer.conv_states[state_idx] = final_state
+            if state_idx is None:
+                layer.conv_states = final_state
+            else:
+                layer.conv_states[state_idx] = final_state
         else:
             conv_state.copy_(final_state)
         return out

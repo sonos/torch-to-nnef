@@ -10,6 +10,11 @@ can use `experimental` (enabled locally with `--run-experimental`).
 older Transformers versions in CI. Add tests there when they should run across
 all supported Transformers environments.
 
+Each tox environment reads its Transformers pin from `constraints/`. The same
+file constrains every uv installation step, including editable workspace
+dependencies. `check_ci_environment.py` verifies the installed version before
+pytest starts, so dependency resolution cannot silently change the matrix.
+
 For tract runtime tests, parametrize over `TRACT_INFERENCES_TO_TESTS_APPROX`
 (or `TRACT_INFERENCES_TO_TESTS_EXACT`) from the root `tests.utils`. This tests
 all entries in `TractNNEF.OFFICIAL_SUPPORTED_VERSIONS`, including the oldest

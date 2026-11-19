@@ -9,6 +9,7 @@ covered here.
 import importlib
 import json
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -476,6 +477,7 @@ def test_from_pretrained_t2n_offload_passes_load_time_converters(
     monkeypatch, tmp_path
 ):
     sentinel_model = nn.Module()
+    sentinel_model.config = SimpleNamespace(model_type="test")
     converters = [_ToyWeightConverter()]
     quantizer = object()
     calls = {}

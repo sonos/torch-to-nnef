@@ -34,7 +34,9 @@ if torch_version() > "1.13.0":
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSlugs.DUMMY.value)
     tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
-    causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
+    causal_llama = AutoModelForCausalLM.from_pretrained(
+        DEFAULT_MODEL_SLUG
+    ).float()
     model_infos = HFConfigHelper(causal_llama.config)
     striped_model = BaseCausal(
         causal_llama,

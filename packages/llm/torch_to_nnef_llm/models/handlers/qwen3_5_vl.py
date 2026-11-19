@@ -283,6 +283,8 @@ class Qwen35VisionEncoder(torch.nn.Module):
 class Qwen35VisionEncoderHandler(EncoderHandler):
     """Encoder handler for the Qwen3.5 vision tower."""
 
+    # The dynamic vision wrapper computes attention explicitly in float32.
+    USES_SDPA_ATTENTION = False
     MODALITY = "vision"
     ARCH_NAMES = ("qwen3_5",)
     MODEL_INPUT_NAME = "pixel_values"
