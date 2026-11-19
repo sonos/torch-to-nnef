@@ -90,7 +90,12 @@ class _WeightConverterLike(T.Protocol):
     ) -> None:
         """Collect one source tensor for later conversion."""
 
-    def convert(self, layer_name: str, **kwargs) -> T.Mapping[str, T.Any]:
+    def convert(
+        self, layer_name: str, **kwargs
+    ) -> T.Union[
+        T.Mapping[str, T.Any],
+        T.Tuple[T.Mapping[str, T.Any], T.Optional[T.Mapping[str, str]]],
+    ]:
         """Convert collected tensors to one or more target tensors."""
 
 
@@ -358,6 +363,15 @@ class _WeightConversionCollector:
                 f"failed to convert checkpoint tensors for '{renamed_key}': "
                 f"{exc}"
             ) from exc
+        # Transformers 5.0 returns (tensors, conversion_errors); later
+        # versions return the tensor mapping directly.
+        if isinstance(converted_tensors, tuple):
+            converted_tensors, conversion_errors = converted_tensors
+            if conversion_errors:
+                raise T2NErrorMisuse(
+                    "failed to convert checkpoint tensors for "
+                    f"'{renamed_key}': {conversion_errors}"
+                )
         for target_name, param in converted_tensors.items():
             param = param[0] if isinstance(param, list) else param
             self.set_param(target_name, param)

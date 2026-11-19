@@ -623,7 +623,22 @@ def test_from_pretrained_accelerate_cpu_disk_offload_keeps_meta_params(
         torch.testing.assert_close(model(input_ids).logits, expected)
 
 
-def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
+@pytest.mark.parametrize("result_kind", ["mapping", "tuple", "tuple_error"])
+def test_t2n_dispatch_applies_weight_converter_across_shards(
+    tmp_path, monkeypatch, result_kind
+):
+    original_convert = _ToyWeightConverter.convert
+
+    def convert(self, *args, **kwargs):
+        tensors = original_convert(self, *args, **kwargs)
+        if result_kind == "mapping":
+            return tensors
+        errors = (
+            {"foo": "invalid weights"} if result_kind == "tuple_error" else None
+        )
+        return tensors, errors
+
+    monkeypatch.setattr(_ToyWeightConverter, "convert", convert)
     save_file = pytest.importorskip("safetensors.torch").save_file
 
     class TinyModel(nn.Module):
@@ -661,6 +676,17 @@ def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
 
     offload_dir = tmp_path / "offload"
     offload_dir.mkdir()
+    if result_kind == "tuple_error":
+        with pytest.raises(T2NErrorMisuse, match="invalid weights"):
+            t2n_load_checkpoint_and_dispatch(
+                model,
+                tmp_path,
+                device_map=ON_DISK_DEVICE_MAP_KEY,
+                offload_dir=offload_dir,
+                weight_converters=[_ToyWeightConverter()],
+            )
+        assert model.foo.is_meta
+        return
     t2n_load_checkpoint_and_dispatch(
         model,
         tmp_path,
@@ -832,12 +858,16 @@ def _direct_mxfp4_conversion(
                 tensor,
             )
         if matched:
-            return converter.convert(
+            result = converter.convert(
                 target_key,
                 model=model,
                 config=getattr(model, "config", None),
                 hf_quantizer=hf_quantizer,
-            )[target_key]
+            )
+            if isinstance(result, tuple):
+                result, errors = result
+                assert not errors
+            return result[target_key]
     raise AssertionError(f"no MXFP4 converter matched {target_key}")
 
 
