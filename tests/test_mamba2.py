@@ -16,12 +16,15 @@ from torch_to_nnef.op.custom_extractors import (
     CausalConvUpdateReified,
     Mamba2RecurrentReified,
 )
+from torch_to_nnef.op.custom_extractors.base import CUSTOMOP_KIND
 from torch_to_nnef.op.custom_extractors.gdn import (
     CAUSAL_CONV_BIAS_MIN_TRACT_VERSION,
 )
 from torch_to_nnef.op.custom_extractors.mamba2 import (
     MAMBA2_MIN_TRACT_VERSION,
 )
+from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
+from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
@@ -228,3 +231,19 @@ def test_causal_conv_bias_tract(inference_target):
         test_input=_conv_args(),
         inference_target=inference_target,
     )
+
+
+def test_causal_conv_node_replays_like_the_module():
+    """A custom op node replays its module like the extractor traced it.
+
+    Its inputs come parameters first, as shape inference passes them.
+    """
+    model = BiasedConv()
+    hidden, state = _conv_args()
+    graph = module_tracer_into_ir_graph(
+        TorchModuleTracer(model, args=(hidden, state))
+    )
+    (node,) = [op for op in graph.op_nodes if op.kind.startswith(CUSTOMOP_KIND)]
+    out, new_state = node.call_op()
+    assert out.shape == hidden.shape
+    assert new_state.shape == state.shape

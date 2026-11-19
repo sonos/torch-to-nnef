@@ -138,9 +138,9 @@ class GatedDeltaNetRecurrentReified(nn.Module):
 def _causal_conv_args(args):
     """(hidden_states, conv_state, weight, bias or None) from traced args.
 
-    The extractor replays the traced module arguments, parameters first, so
-    they are told apart by rank and by the state time axis being the kernel
-    width, as the extractor does.
+    Callers pass them in that order. The extractor and shape inference replay
+    the traced module arguments parameters first, so they are then told apart
+    by rank and by the state time axis being the kernel width.
     """
     if len(args) not in (3, 4):
         raise T2NErrorNotImplemented(
@@ -184,6 +184,12 @@ class CausalConvUpdateReified(nn.Module):
         weight: torch.Tensor,
         bias: T.Optional[torch.Tensor] = None,
     ):
+        # shape inference replays the traced node with its inputs in the
+        # extractor's order, parameters first
+        args = (hidden_states, conv_state, weight)
+        hidden_states, conv_state, weight, bias = _causal_conv_args(
+            args if bias is None else (*args, bias)
+        )
         k = conv_state.shape[-1]
         s_len = hidden_states.shape[-1]
         # copy=True: a same-dtype `.to` ALIASES its input; the caller then

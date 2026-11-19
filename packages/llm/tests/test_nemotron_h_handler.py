@@ -1,13 +1,11 @@
-import os
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import torch
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
-from torch_to_nnef.inference_target.tract import TractCli
 from torch_to_nnef.op.custom_extractors.mamba2 import MAMBA2_MIN_TRACT_VERSION
 from torch_to_nnef.op.custom_extractors.moe import (
     MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION,
@@ -138,16 +136,14 @@ def test_nemotron_h_streaming_matches_hf(tiny_model):
             )
 
 
-def test_nemotron_h_dynamic_nnef(tiny_model, tmp_path):
-    binary = os.environ.get("TRACT_BIN")
-    if not binary:
-        pytest.skip("set TRACT_BIN for dynamic NNEF runtime validation")
-    cli = TractCli(Path(binary))
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_nemotron_h_dynamic_nnef(tiny_model, tmp_path, inference_target):
     required = max(
         MAMBA2_MIN_TRACT_VERSION, MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION
     )
-    if cli.version < required:
+    if inference_target.version < required:
         pytest.skip(f"NemotronH requires tract >= {required}")
+    cli = inference_target.tract_cli
     NemotronHArchitectureHandler().prepare_model_for_export(tiny_model)
     spec = _spec(tiny_model, past=2)
     wrapper = BaseCausal(
