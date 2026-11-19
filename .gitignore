@@ -149,3 +149,6 @@ examples/tts/pocket_tts/voices/
 AGENTS.md
 .claude/
 .codex/
+
+# Transformers pins used by the LLM CI matrix.
+!packages/llm/tests/constraints/*.txt
