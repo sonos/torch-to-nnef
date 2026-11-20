@@ -302,6 +302,11 @@ class MultiModalExporter:
             input_names=io_spec.input_names,
             output_names=io_spec.output_names,
             nnef_variable_naming_scheme=naming_scheme,
+            custom_extensions=[
+                f"tract_assert {assertion}"
+                for assertion in handler.TRACT_ASSERTS
+            ]
+            or None,
         )
         return EncoderArtifact(
             label=label,

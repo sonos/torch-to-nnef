@@ -355,6 +355,9 @@ class EncoderHandler(ABC):
     #: single-input :meth:`build_forward_inputs`; leave empty and override that
     #: method for a multi-input encoder.
     MODEL_INPUT_NAME: str = ""
+    #: tract assertions on the input symbols (e.g. "FRAMES >= 1"), for shape
+    #: expressions tract cannot simplify without bounds.
+    TRACT_ASSERTS: T.Tuple[str, ...] = ()
 
     @classmethod
     def is_available(cls, config) -> bool:
