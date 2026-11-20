@@ -9,7 +9,7 @@
       
       
       
-        <link rel="prev" href="../gdn/">
+        <link rel="prev" href="../mamba2/">
       
       
         <link rel="next" href="../rnn/">
@@ -2207,6 +2207,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../mamba2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>mamba2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -4319,7 +4347,9 @@
 - Gemma4RoutedExperts (gated GELU, folded router/input/output scales)
 - GptOssMLP (router + expert biases, interleaved gate/up, clamped SwiGLU)
 - Qwen2/Qwen3/Qwen3.5/Qwen3-Next MoE (shared expert decomposed outside)
-- OlmoeSparseMoeBlock</p>
+- OlmoeSparseMoeBlock
+- NemotronHMoE (sigmoid routing with a selection bias, relu2 experts,
+  ungated relu2 shared expert)</p>
 
 
 <details class="all-variants-are-normalized-to-the-same-tract_moe_ffn-signature" open>
@@ -4327,10 +4357,12 @@
   <p>inputs:  x [T,D], wg [E,D], w1 [E,D,H], w2 [E,H,D], w3 [E,D,H],
          optional biases (wg_bias, w1_bias, w3_bias, w2_bias)
 attrs:   k (int), activation (str), gate (softmax_topk | softmax_all |
-         sigmoid | raw), optional act_alpha / act_limit (clamped SwiGLU),
-         optional expert_layout ("canonical" | "linear")
-output:  y [T,D]</p>
-</details>        <p>The default canonical expert layout matches the signature above. The optional
+         sigmoid | sigmoid_norm | raw), optional act_alpha / act_limit
+         (clamped SwiGLU), optional expert_layout ("canonical" | "linear")</p>
+</details>        <p>The optional biases are passed by name, so any subset of them can be given,
+with or without w3.
+    output:  y [T,D]
+The default canonical expert layout matches the signature above. The optional
 linear layout stores expert weights in their native linear-filter orientation:
     w1/w3 [E,H,D], w2 [E,D,H]
 Layout selection is independent from whether those tensors are quantized.
@@ -4802,9 +4834,9 @@ on (i.e. with a registered weight adapter) is marked; pass
         
           
           <a
-            href="../gdn/"
+            href="../mamba2/"
             class="md-footer__link md-footer__link--prev"
-            aria-label="Previous: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;gdn"
+            aria-label="Previous: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;mamba2"
           >
             <div class="md-footer__button md-icon">
               
@@ -4815,7 +4847,7 @@ on (i.e. with a registered weight adapter) is marked; pass
                 Previous
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>gdn
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>mamba2
               </div>
             </div>
           </a>

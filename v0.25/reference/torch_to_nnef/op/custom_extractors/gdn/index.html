@@ -12,7 +12,7 @@
         <link rel="prev" href="../base/">
       
       
-        <link rel="next" href="../moe/">
+        <link rel="next" href="../mamba2/">
       
       
         
@@ -2301,6 +2301,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../mamba2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>mamba2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../moe/" class="md-nav__link">
         
   
@@ -4407,7 +4435,8 @@ meta kernel breaks under the offload tracing strategy): the conv is
 an unfold + mul + sum. At export the call is reified as one
 <code>tract_transformers_causal_conv1d_update</code> op.</p>
 <p>Layout: hidden_states <code>[b, C, S]</code>, conv_state <code>[b, C, k]</code>,
-weight <code>[C, k]</code> -&gt; (out <code>[b, C, S]</code>, final_state <code>[b, C, k]</code>).
+weight <code>[C, k]</code>, optional bias <code>[C]</code> added before the SiLU
+-&gt; (out <code>[b, C, S]</code>, final_state <code>[b, C, k]</code>).
 The caller keeps responsibility for writing final_state back into
 the HF cache (a plain <code>copy_</code>, handled by the aten copy handler).</p>
 
@@ -4633,16 +4662,16 @@ reified as one <code>tract_transformers_gdn_recurrent</code> op.</p>
         
           
           <a
-            href="../moe/"
+            href="../mamba2/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;moe"
+            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;mamba2"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>moe
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>mamba2
               </div>
             </div>
             <div class="md-footer__button md-icon">
