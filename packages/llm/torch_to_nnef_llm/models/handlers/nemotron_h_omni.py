@@ -147,7 +147,15 @@ class NemotronHOmniVisionEncoder(nn.Module):
 
 
 class NemotronHOmniAudioEncoder(nn.Module):
-    """Parakeet encoder + projector for one clip `[1, frames, mel_bins]`."""
+    """Parakeet encoder + projector for one clip `[1, frames, mel_bins]`.
+
+    The input is the processor's features of one clip, every frame of them:
+    the feature mask then leaves out the last frame only, and the native model
+    runs the encoder masked to the other frames but keeps the embeddings of
+    all of them (as many as the processor's placeholder tokens). The graph
+    builds that mask from the input, so it gives the same embeddings, count
+    included.
+    """
 
     def __init__(self, hf_model):
         super().__init__()
@@ -155,7 +163,12 @@ class NemotronHOmniAudioEncoder(nn.Module):
         self.projector = hf_model.embed_audio
 
     def forward(self, input_features):
-        hidden = self.audio_tower(input_features=input_features)
+        # from a slice of the input, not its shape: see _merge_cell_positions
+        frame = torch.cumsum(torch.ones_like(input_features[0, :, 0]), 0) - 1
+        mask = (frame < frame[-1:])[None]
+        hidden = self.audio_tower(
+            input_features=input_features, attention_mask=mask
+        )
         return self.projector(hidden.last_hidden_state)[0]
 
 
@@ -239,9 +252,11 @@ class NemotronHOmniAudioEncoderHandler(EncoderHandler):
     MODALITY = "audio"
     ARCH_NAMES = ("nemotron_h_omni",)
     MODEL_INPUT_NAME = "input_features"
-    # Parakeet's relative shift slices off one padded row
-    TRACT_ASSERTS = ("FRAMES >= 1",)
-    SAMPLE_FRAMES = 40
+    # the last frame is masked out: at least one valid frame before it
+    TRACT_ASSERTS = ("FRAMES >= 2",)
+    # 40 valid frames, a multiple of the subsampling factor: the case where
+    # cropping to them would drop the last embedding
+    SAMPLE_FRAMES = 41
 
     @classmethod
     def is_available(cls, config) -> bool:
@@ -286,8 +301,9 @@ class NemotronHOmniAudioEncoderHandler(EncoderHandler):
             "name": "input_features",
             "layout": [1, "FRAMES", "num_mel_bins"],
             "host_prep": (
-                "One clip of log-mel features from the processor, cut to its "
-                "valid frames (the feature mask): the graph takes no mask."
+                "One clip of log-mel features from the processor, all of "
+                "its frames (the feature mask covers all but the last one): "
+                "the graph takes no mask and masks that last frame itself."
             ),
         }
 

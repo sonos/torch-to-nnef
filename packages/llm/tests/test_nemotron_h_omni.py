@@ -150,14 +150,24 @@ def test_vision_weights_reload_after_decoder_export(tiny_model, tmp_path):
         torch.testing.assert_close(param.data, expected[name])
 
 
-@pytest.mark.parametrize("frames", [40, 57])
+@pytest.mark.parametrize("frames", [41, 40, 57, 2])
 def test_audio_encoder_matches_native(tiny_model, frames):
+    """Same embeddings as the native masked call on the processor's output.
+
+    The processor's mask covers all frames of a clip but the last one, which
+    it zeroes; 41 and 57 frames leave a multiple of the subsampling factor
+    valid, where cropping to the mask would drop an embedding.
+    """
     features = torch.randn(1, frames, 16)
+    features[:, -1] = 0
+    mask = torch.ones(1, frames, dtype=torch.long)
+    mask[:, -1] = 0
     with torch.no_grad():
-        expected = tiny_model.get_audio_features(features).pooler_output
+        expected = tiny_model.get_audio_features(features, mask).pooler_output
         NemotronHOmniAudioEncoderHandler().prepare_model_for_export(tiny_model)
         actual = NemotronHOmniAudioEncoder(tiny_model)(features)
-    torch.testing.assert_close(actual, expected.reshape(actual.shape))
+    assert actual.shape[0] == (frames + 7) // 8
+    torch.testing.assert_close(actual, expected)
 
 
 def _decoder_spec(model):
