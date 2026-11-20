@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+## [0.25.2] - 2026-11-20
+
 ### Added
 - **NemotronH MoE blocks export to `tract_moe_ffn`** (core): `NemotronHMoE` (transformers `nemotron_h`, e.g. Nemotron 3 Nano) maps to the `sigmoid_norm` gate, which picks the top k of the router sigmoids plus `e_score_correction_bias` and weights them by the renormalized sigmoids, and to `relu2` experts, with `routed_scaling_factor` folded into the down projections and the ungated relu2 shared expert added outside the operator. The router stays in f32. Group-limited routing (`topk_group < n_group`), routing without `norm_topk_prob` and latent projections are rejected. Requires tract >= 0.23.11.
 - **Mamba-2 recurrence export** (core): calling `Mamba2RecurrentReified` exports one `tract_transformers_mamba2_recurrent` op (x already scaled by dt, grouped B and C, `dt * A` log decay, f32 state), which runs any sequence length, instead of a Python loop unrolled at the traced length. Requires tract >= 0.23.11.
