@@ -1,12 +1,11 @@
-import os
-from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 from torch import nn
 
-from torch_to_nnef.inference_target.tract import TractCli
 from torch_to_nnef.op.custom_extractors.mamba2 import MAMBA2_MIN_TRACT_VERSION
 from torch_to_nnef.op.custom_extractors.moe import (
     MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION,
@@ -204,18 +203,30 @@ def test_decoder_matches_native(tiny_model):
     torch.testing.assert_close(second[0], expected[:, 4:], atol=1e-4, rtol=1e-4)
 
 
-def test_nemotron_h_omni_multimodal_export(tiny_model, tmp_path):
-    binary = os.environ.get("T2N_TEST_TRACT_PATH")
-    if not binary:
-        pytest.skip("set T2N_TEST_TRACT_PATH for the tract check")
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_nemotron_h_omni_multimodal_export(
+    tiny_model, tmp_path, inference_target
+):
     required = max(
         MAMBA2_MIN_TRACT_VERSION, MOE_FFN_NEMOTRON_H_MIN_TRACT_VERSION
     )
-    cli = TractCli(Path(binary))
-    if cli.version < required:
+    if inference_target.version < required:
         pytest.skip(f"NemotronH Omni requires tract >= {required}")
+    cli = inference_target.tract_cli
     from torch_to_nnef_llm.exporter import LM_VAR_SCHEME, LLMExporter
     from torch_to_nnef_llm.multimodal_exporter import MultiModalExporter
+
+    # native audio embeddings at lengths other than the traced one, taken
+    # before the export, which rewrites the model in place
+    audio_refs = []
+    for frames in (57, 40, 2):
+        features = torch.randn(1, frames, 16)
+        features[:, -1] = 0
+        mask = torch.ones(1, frames, dtype=torch.long)
+        mask[:, -1] = 0
+        with torch.no_grad():
+            native = tiny_model.get_audio_features(features, mask)
+        audio_refs.append((features, native.pooler_output))
 
     exporter = MultiModalExporter(
         LLMExporter(
@@ -231,7 +242,17 @@ def test_nemotron_h_omni_multimodal_export(tiny_model, tmp_path):
         NemotronHOmniAudioEncoderHandler,
     ]
     target = exporter.decoder_exporter.build_inference_target(
-        tract_specific_path=Path(binary)
+        tract_specific_path=cli.tract_path
     )
     exporter.export(tmp_path / "omni", target, LM_VAR_SCHEME)
     assert (tmp_path / "omni" / "multimodal.json").exists()
+    for features, expected in audio_refs:
+        in_path, out_path = tmp_path / "in.npz", tmp_path / "out.npz"
+        np.savez(in_path, input_features=features.numpy())
+        np.savez(out_path, out_audio_embeddings=expected.numpy())
+        cli.assert_io(
+            tmp_path / "omni" / "audio" / "model.nnef.tgz",
+            in_path,
+            out_path,
+            check_tolerance=target.check_io_tolerance,
+        )
