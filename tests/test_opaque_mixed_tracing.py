@@ -201,3 +201,79 @@ def test_unrelated_trace_failure_is_not_retried(monkeypatch):
     with pytest.raises(RuntimeError, match="unrelated model failure"):
         trace_with_opaque_retry(model, (torch.ones(1, 5, 32),))
     assert len(calls) == 1
+
+
+@pytest.mark.skipif(
+    not NEW_OPAQUE_TRACING_STRATEGY, reason="requires default opaque tracing"
+)
+def test_retry_after_inplace_input_transpose():
+    from torch_to_nnef.tensor.named import apply_name_to_tensor_in_module
+    from torch_to_nnef.tensor.opaque import set_opaque_tensor_in_params_as_ref
+    from torch_to_nnef.torch_graph.opaque_trace import trace_with_opaque_retry
+
+    class TransposedInput(MixedWeights):
+        def forward(self, x):
+            x.transpose_(1, 2)
+            return super().forward(x)
+
+    torch.manual_seed(7)
+    model = DEFAULT_COMPRESSION["min_max_q4_0"](TransposedInput(False).eval())
+    x = torch.randn(1, 32, 5)
+    with torch.no_grad():
+        expected = model(x.clone())
+        apply_name_to_tensor_in_module(model)
+        set_opaque_tensor_in_params_as_ref(model)
+        traced = trace_with_opaque_retry(
+            model, (x.clone(),), check_trace=False, strict=False
+        )
+        torch.testing.assert_close(traced(x.clone()), expected)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["transpose", "offset", "resize", "storage"]
+)
+def test_checkpoint_restores_original_tensor_metadata_and_aliases(mutation):
+    from torch_to_nnef.torch_graph.opaque_trace import _TraceCheckpoint
+
+    base = torch.arange(30.0)
+    x = base[3:15].view(3, 4)
+    buffer = base[15:27].view(3, 4)
+    model = nn.Module()
+    model.register_buffer("state", buffer)
+    checkpoint = _TraceCheckpoint(model, (x,))
+    originals = [t.clone() for t in (x, buffer)]
+    for tensor in (x, buffer):
+        if mutation == "transpose":
+            tensor.transpose_(0, 1)
+        elif mutation == "offset":
+            tensor.as_strided_((3, 4), (4, 1), 0)
+        elif mutation == "resize":
+            tensor.resize_(2, 6)
+        else:
+            tensor.set_(torch.zeros(3, 4))
+    checkpoint.restore()
+    assert model.state is buffer
+    for tensor, saved, offset in zip(
+        (x, buffer), originals, (3, 15), strict=True
+    ):
+        assert tensor.shape == (3, 4)
+        assert tensor.stride() == (4, 1)
+        assert tensor.storage_offset() == offset
+        assert (
+            tensor.untyped_storage().data_ptr()
+            == base.untyped_storage().data_ptr()
+        )
+        torch.testing.assert_close(tensor, saved)
+    # Restoration preserves shared storage, not just matching values.
+    x[0, 0] = -1
+    assert base[3] == -1
+
+
+def test_checkpoint_restores_stride_even_when_values_are_equal():
+    from torch_to_nnef.torch_graph.opaque_trace import _TraceCheckpoint
+
+    x = torch.zeros(3, 3).t()
+    checkpoint = _TraceCheckpoint(nn.Module(), (x,))
+    x.transpose_(0, 1)
+    checkpoint.restore()
+    assert x.stride() == (1, 3)

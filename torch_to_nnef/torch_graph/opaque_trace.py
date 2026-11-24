@@ -4,9 +4,9 @@ Quantized and offloaded weights normally use fake tensors during JIT tracing
 so their floating-point values do not need to be materialized. A fake
 activation reaching an ordinary named weight or buffer interrupts the trace
 before PyTorch's real-to-fake conversion can trigger a JIT internal assertion.
-The checkpoint restores tensor values, registered buffer bindings, and
-CPU/initialized-CUDA RNG state before one concrete-expansion retry. Unrelated
-tracing errors are not retried.
+The checkpoint restores tensor values, storage and view metadata, buffer
+bindings, and CPU/initialized-CUDA RNG state before one concrete-expansion
+retry. Unrelated tracing errors are not retried.
 
 The retry keeps custom-op identities and metadata-only parameter references,
 so exported weights retain their packed format. Unlike legacy tracing, it
@@ -69,7 +69,15 @@ class _TraceCheckpoint:
                 if id(tensor) not in self.values and not isinstance(
                     tensor, (opaque.OpaqueTensor, opaque.OpaqueTensorRef)
                 ):
-                    self.values[id(tensor)] = (tensor, _plain(tensor).clone())
+                    plain = _plain(tensor)
+                    self.values[id(tensor)] = (
+                        tensor,
+                        plain.untyped_storage(),
+                        plain.storage_offset(),
+                        plain.size(),
+                        plain.stride(),
+                        plain.clone(),
+                    )
         self.cpu_rng = torch.random.get_rng_state()
         self.cuda_rng = (
             torch.cuda.get_rng_state_all()
@@ -79,12 +87,23 @@ class _TraceCheckpoint:
 
     def restore(self):
         with torch.no_grad():
-            for tensor, saved in self.values.values():
+            for (
+                tensor,
+                storage,
+                offset,
+                size,
+                stride,
+                saved,
+            ) in self.values.values():
+                # An as_subclass alias has independent metadata. Restore the
+                # original object itself, including its original storage, so
+                # transpose_/resize_/set_ cannot leak into the retry and
+                # shared-storage relationships remain intact.
+                with select_ctx_disable_torch_fn():
+                    tensor.set_(storage, offset, size, stride)
                 plain = _plain(tensor)
                 if torch.equal(plain, saved):
                     continue
-                if plain.shape != saved.shape:
-                    plain.resize_(saved.shape)
                 plain.copy_(saved)
         for module, buffers in self.buffers:
             module._buffers.clear()
