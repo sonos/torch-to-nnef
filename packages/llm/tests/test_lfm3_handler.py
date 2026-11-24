@@ -1,13 +1,12 @@
 import os
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import torch
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 
-from torch_to_nnef import TractNNEF, export_model_to_nnef
-from torch_to_nnef.inference_target.tract import TractCli
+from torch_to_nnef import export_model_to_nnef
 from torch_to_nnef_llm.config import HFConfigHelper
 from torch_to_nnef_llm.models.base import BaseCausal
 from torch_to_nnef_llm.models.handlers import (
@@ -109,23 +108,17 @@ def test_lfm3_streaming_matches_original(tiny_model):
 
 
 @pytest.mark.parametrize("tiny_model", [3, 24], indirect=True)
-def test_lfm3_dynamic_nnef(tiny_model, tmp_path):
-    binary = os.environ.get("TRACT_BIN")
-    if not binary:
-        pytest.skip("set TRACT_BIN for dynamic NNEF runtime validation")
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_lfm3_dynamic_nnef(tiny_model, tmp_path, inference_target):
     Lfm3ArchitectureHandler().prepare_model_for_export(tiny_model)
-    cli = TractCli(Path(binary))
+    cli = inference_target.tract_cli
     spec = _spec(tiny_model, past=2)
     wrapper = BaseCausal(
         tiny_model, handler=Lfm3ArchitectureHandler(), num_logits_to_keep=0
     )
     path = tmp_path / "model.nnef.tgz"
-    target = TractNNEF(
-        version=cli.version,
-        specific_tract_binary_path=cli.tract_path,
-        dynamic_axes=spec.dynamic_axes,
-        check_io=True,
-    )
+    target = inference_target.with_dynamic_axes(spec.dynamic_axes)
+
     with torch.no_grad():
         export_model_to_nnef(
             model=wrapper,

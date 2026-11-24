@@ -243,6 +243,57 @@ class ArchitectureHandler(ABC):
         )
         return attention_mask, position_ids, cache_position
 
+    @staticmethod
+    def build_attention_mask_mapping(
+        *,
+        seq_length: int,
+        past_length: int,
+        sliding_window: int,
+        device: torch.device,
+    ) -> T.Dict[str, torch.Tensor]:
+        """Additive causal and causal-plus-window masks over ``S+P`` keys.
+
+        Built from token positions with arange comparisons rather than a baked
+        triangular constant, so the graph stays correct for any ``(S, P)`` at
+        inference time.
+        """
+        # Float arithmetic throughout (comparisons cast straight to the mask
+        # dtype, AND via multiply) rather than boolean `&` on tensors: t2n's
+        # shape inference re-runs bitwise ops with a float placeholder and
+        # fails with "bitwise_and not implemented for Float". Same reason as
+        # the note in `gemma3_vl._build_mask_mapping`.
+        dtype = torch.float32
+        total_length = seq_length + past_length
+        q_pos = torch.arange(
+            past_length, total_length, device=device
+        ).unsqueeze(1)
+        k_pos = torch.arange(total_length, device=device).unsqueeze(0)
+
+        visible_full = (k_pos <= q_pos).to(dtype)
+        # Query at absolute position q sees keys in (q - window, q], matching
+        # `masking_utils.sliding_window_overlay`'s `kv_idx > q_idx - window`.
+        within_window = (k_pos > (q_pos - sliding_window)).to(dtype)
+        visible_sliding = visible_full * within_window
+
+        neg = torch.finfo(dtype).min
+
+        def to_additive(visible: torch.Tensor) -> torch.Tensor:
+            return ((1.0 - visible) * neg).unsqueeze(0).unsqueeze(0)
+
+        return {
+            "full_attention": to_additive(visible_full),
+            "sliding_attention": to_additive(visible_sliding),
+        }
+
+    def has_dequantized_checkpoint_weights(self, model) -> bool:
+        """Whether native quantization metadata describes already dense weights.
+
+        Override for architectures whose checkpoint conversion dequantizes
+        weights without creating an HF quantizer. Verify the loaded weights;
+        recognizing a model type alone is not sufficient.
+        """
+        return False
+
     def prepare_model_for_export(self, model) -> None:
         """Apply architecture-specific model tweaks before wrapping."""
         return None

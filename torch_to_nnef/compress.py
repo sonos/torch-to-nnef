@@ -17,6 +17,7 @@ from torch_to_nnef.exceptions import (
     T2NErrorNotImplemented,
 )
 from torch_to_nnef.op.custom_extractors.moe import (
+    SelectedGatedExperts,
     iter_moe_routers,
     mark_moe_experts_for_q40,
 )
@@ -141,10 +142,40 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
+def _quantize_selected_experts_q40(
+    model: nn.Module, *, modules_to_skip=(), percentile=1.0
+) -> int:
+    """Quantize selected-expert tables in place and return the block count."""
+    updater = ModTensorUpdater(model)
+    skipped = {
+        id(param) for module in modules_to_skip for param in module.parameters()
+    }
+    selected_count = 0
+    for name, module in model.named_modules():
+        if not isinstance(module, SelectedGatedExperts):
+            continue
+        for attr in ("gate_up_proj", "down_proj"):
+            weight = getattr(module, attr)
+            if id(weight) in skipped:
+                continue
+            quantized = offloaded_tensor_qtensor(
+                partial(
+                    fp_to_tract_q4_0_with_min_max_calibration,
+                    percentile=percentile,
+                ),
+                weight,
+                "q40_min_max",
+            )
+            quantized.nnef_name = f"{name}.{attr}"
+            updater.update_by_ref(weight, quantized)
+        selected_count += 1
+    return selected_count
+
+
 def quantize_weights_min_max_Q4_0_with_experts(  # noqa: N802
     model: nn.Module, **kwargs
 ):
-    """Q4_0 for Linear and Embedding weights and for fused MoE experts.
+    """Q4_0 for Linear and Embedding weights and for MoE experts.
 
     Linear and Embedding weights are quantized as in
     ``min_max_q4_0_with_embeddings``, except MoE routers (including shared
@@ -152,8 +183,10 @@ def quantize_weights_min_max_Q4_0_with_experts(  # noqa: N802
     are not ``nn.Linear`` modules, so every MoE block handled by the
     ``tract_moe_ffn`` extractor is marked instead: its experts are quantized
     to Q4_0 min-max during extraction, in the linear layout. Q4_0 blocks
-    run along the reduction axis as tract's matmul kernels expect. A model
-    without such a block gets the ``min_max_q4_0_with_embeddings`` result.
+    run along the reduction axis as tract's matmul kernels expect.
+    SelectedGatedExperts weights are quantized as flattened expert rows
+    and dequantized by gather at runtime. A model without experts
+    gets the ``min_max_q4_0_with_embeddings`` result.
     """
     kwargs.setdefault("to_quantize_module_classes", (nn.Linear, nn.Embedding))
     kwargs["modules_to_skip"] = (
@@ -161,12 +194,20 @@ def quantize_weights_min_max_Q4_0_with_experts(  # noqa: N802
         *iter_moe_routers(model),
     )
     model = quantize_weights_min_max_Q4_0(model, **kwargs)
+    selected_count = _quantize_selected_experts_q40(
+        model,
+        modules_to_skip=kwargs["modules_to_skip"],
+        percentile=kwargs.get("percentile", 1.0),
+    )
     try:
         marked = mark_moe_experts_for_q40(model, layout="linear")
     except T2NErrorNotImplemented:
-        LOGGER.warning("no MoE block found: no expert weights to quantize")
-        return model
-    LOGGER.info("marked %d MoE blocks for Q4_0 experts", marked)
+        marked = 0
+    LOGGER.info(
+        "Q4_0 experts: %d selected-expert blocks, %d fused blocks marked",
+        selected_count,
+        marked,
+    )
     return model
 
 

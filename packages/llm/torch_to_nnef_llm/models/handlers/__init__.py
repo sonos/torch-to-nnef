@@ -21,6 +21,10 @@ from .idefics3_vl import (
     Idefics3ArchitectureHandler,
     Idefics3VisionEncoderHandler,
 )
+from .inkling2 import (
+    Inkling2ArchitectureHandler,
+    Inkling2TextArchitectureHandler,
+)
 from .lfm3 import Lfm3ArchitectureHandler
 from .mistral3 import Mistral3TextArchitectureHandler
 from .nemotron_h import NemotronHArchitectureHandler
@@ -75,6 +79,8 @@ __all__ = [
     "GptOssArchitectureHandler",
     "IOSpec",
     "Lfm3ArchitectureHandler",
+    "Inkling2ArchitectureHandler",
+    "Inkling2TextArchitectureHandler",
     "Idefics3ArchitectureHandler",
     "Idefics3VisionEncoderHandler",
     "MultiModalArchitectureHandler",

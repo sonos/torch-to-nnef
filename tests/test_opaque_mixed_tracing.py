@@ -4,6 +4,7 @@ import pytest
 import torch
 from torch import nn
 
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 from torch_to_nnef.compress import DEFAULT_COMPRESSION
 from torch_to_nnef.tensor.opaque import NEW_OPAQUE_TRACING_STRATEGY
@@ -52,23 +53,20 @@ def test_quantized_linear_then_float_conv(tmp_path, with_state):
     not NEW_OPAQUE_TRACING_STRATEGY, reason="requires default opaque tracing"
 )
 @pytest.mark.parametrize("with_state", [False, True])
-def test_mixed_weight_dynamic_runtime_and_packed_storage(tmp_path, with_state):
-    import os
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_mixed_weight_dynamic_runtime_and_packed_storage(
+    tmp_path, with_state, inference_target
+):
     import subprocess
     import tarfile
-    from pathlib import Path
 
     import numpy as np
 
-    from torch_to_nnef.inference_target.tract import TractCli
     from torch_to_nnef.nnef_io.tensor import DatBinHeader
 
-    binary = os.environ.get("TRACT_BIN")
-    if not binary:
-        pytest.skip("set TRACT_BIN for dynamic NNEF runtime checks")
     torch.manual_seed(7)
     model = DEFAULT_COMPRESSION["min_max_q4_0"](MixedWeights(with_state).eval())
-    cli = TractCli(Path(binary))
+    cli = inference_target.tract_cli
     axes = {"x": {1: "S"}}
     names = ["x", "history"] if with_state else ["x"]
     cases = [
@@ -78,18 +76,15 @@ def test_mixed_weight_dynamic_runtime_and_packed_storage(tmp_path, with_state):
         for s in (5, 3, 7)
     ]
     path = tmp_path / "model.nnef.tgz"
+    target = inference_target.with_dynamic_axes(axes)
+    target.check_io = False
     with torch.no_grad():
         expected = [model(*args).numpy() for args in cases]
         export_model_to_nnef(
             model,
             cases[0],
             path,
-            inference_target=TractNNEF(
-                cli.version,
-                specific_tract_binary_path=cli.tract_path,
-                dynamic_axes=axes,
-                check_io=False,
-            ),
+            inference_target=target,
             input_names=names,
             output_names=["y"],
         )

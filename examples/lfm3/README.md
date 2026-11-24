@@ -43,7 +43,7 @@ from `model_type=lfm3`.
 ## Regression checks
 
 ```sh
-LFM3_MODEL_DIR=/path/to/snapshot TRACT_BIN=/path/to/tract \
+LFM3_MODEL_DIR=/path/to/snapshot T2N_TEST_TRACT_PATH=/path/to/tract \
   uv run --extra llm pytest packages/llm/tests/test_lfm3_handler.py
 ```
 

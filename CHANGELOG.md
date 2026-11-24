@@ -3,8 +3,20 @@
 
 ## Unreleased
 
+### Added
+
+- **Inkling 2 Mini text export** (llm): export `inkling2_loop` and `inkling2_loop_text` models through the standard LLM CLI, with independent KV and convolution state for each loop visit. Supports unpadded batch-one prefill and decoding, including Q4_0 expert tables through `min_max_q4_0_with_embeddings_and_experts`, while keeping routers in floating point. Requires Transformers with Inkling support; float32 and Q4_0 streaming execution are tested on small random models with tract 0.23.10. Full-checkpoint export, image inputs, and speculative draft export are not validated. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
+
+- **Selected gated experts** (core): add a reusable `SelectedGatedExperts` adapter for dynamic expert selection while preserving model-specific gate/up activations. The `min_max_q4_0_with_embeddings_and_experts` registry quantizes its flattened expert tables, respects `modules_to_skip`, and keeps associated routers in floating point. Selected weights are gathered and dequantized before floating-point matmuls; this is not a fused quantized MoE kernel. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
+
 ### Fixed
 
+- **Leading dimensions in `expand`** (core): retain each new leading axis instead of flattening their sizes into one repeat, supporting multiple symbolic leading dimensions and scalar inputs. Align ranks with distinct `unsqueeze` axes for static and dynamic export. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
+- **Negative `gather` axes** (core): normalize negative axes before emitting the NNEF gather operation. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
+- **Symbolic tail slices** (core): use a dedicated lowering when the begin bound is provably negative and the stride is one, preserving symbolic lengths while clipping bounds before the start of the input. Bounds whose sign is unknown and strided slices retain the general path. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
+- **Unsorted `topk` export** (core): accept `sorted=False`; tract may return sorted results because the requested order is unspecified, while preserving value/index correspondence. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
+- **Development version parsing** (core): accept Python `.devN` version suffixes, such as `5.24.0.dev0`, while preserving prerelease ordering and local build metadata. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
+- **Already-dequantized checkpoint detection** (llm): let architecture handlers verify weights converted to dense tensors upstream even when native quantization metadata remains. Preserve legacy bitsandbytes detection from `load_in_4bit` / `load_in_8bit` dictionaries. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
 - **Mixed quantized/offloaded and floating-point JIT export** (core): detect unsafe fake-activation interactions with named weights or buffers before PyTorch asserts, then automatically retry with concrete weight expansion while preserving packed export storage. The retry restores input and buffer values, storage, shape, strides, offsets, and RNG state; supported fake traces remain non-materializing. Eager calls after export use concrete values. This boundary no longer requires `T2N_LEGACY_OPAQUE_TRACING=1`, though retrying can increase temporary tracing memory and computation. ([#453](https://github.com/sonos/torch-to-nnef/pull/453))
 
 ## [0.25.2] - 2026-11-20

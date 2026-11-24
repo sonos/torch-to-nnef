@@ -1,0 +1,17 @@
+extension tract_registry tract_core;
+
+# Used only when the exporter proves begin < 0 for every runtime shape.
+# Preserve Python's clipping for bounds before the start of the input.
+fragment dyn_slice_begin_negative(
+    input: tensor<scalar>,
+    axis: tensor<scalar>,
+    begin: tensor<scalar>,
+    stride: tensor<scalar>
+) -> (output: tensor<scalar>)
+{
+    input_shape = tract_core_shape_of(input);
+    input_dim = slice(input_shape, axes=[0], begin=[axis], end=[axis + 1], stride=[1]);
+    input_axis_size = squeeze(input_dim, axes=[0]);
+    start = tract_core_cast(max(0, input_axis_size + begin), to="tdim");
+    output = slice(input, axes=[axis], begin=[start], end=[input_axis_size], stride=[stride]);
+}

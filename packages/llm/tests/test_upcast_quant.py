@@ -83,6 +83,13 @@ def test_quant_method_normalization():
     assert _native_quant_method(_Model(_LoadTimeConfig("mxfp4"))) == "mxfp4"
 
 
+def test_legacy_bitsandbytes_metadata_is_not_treated_as_dense():
+    model = _Model({"load_in_8bit": True})
+    assert _native_quant_method(model) == "bitsandbytes"
+    with pytest.raises(T2NErrorMisuse, match="bitsandbytes"):
+        assert_upcast_dense(model, ["any"])
+
+
 def test_normalize_upcast_request():
     # nothing requested -> None
     assert _normalize_upcast_request(None) is None

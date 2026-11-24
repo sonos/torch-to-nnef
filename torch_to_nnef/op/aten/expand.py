@@ -64,16 +64,13 @@ def expand(node, inference_target, op_helper, **kwargs):
     repeats = _expand_build_repeats(
         op_helper,
         input_node,
-        shape_node,
         shapes,
         node,
         inference_target=inference_target,
     )
 
     nnef_input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
-    if input_node.rank != len(repeats) and isinstance(
-        inference_target, TractNNEF
-    ):
+    if input_node.rank != len(repeats):
         qte_missing_dim = len(repeats) - input_node.rank
         assert qte_missing_dim > 0, qte_missing_dim
 
@@ -81,7 +78,7 @@ def expand(node, inference_target, op_helper, **kwargs):
             node,
             "unsqueeze",
             inputs=nnef_input_tensor,
-            attrs={"axes": [0] * qte_missing_dim},
+            attrs={"axes": list(range(qte_missing_dim))},
             output_tensor_name_suffix="unsqueeze_align",
         )
 
@@ -222,7 +219,7 @@ def _append_repeats_on_existing_dims(
 
 
 def _expand_build_repeats(
-    op_helper, input_node, shape_node, shapes, node, inference_target
+    op_helper, input_node, shapes, node, inference_target
 ):
     input_shape_soc = None
     if (
@@ -243,29 +240,26 @@ def _expand_build_repeats(
         inference_target,
     )
 
-    if len(shape_node.data) - input_node.rank > 0:
-        base_mul = 1
-        mul_to_ids = []
-        vals = shape_node.data
-        if input_node.rank != 0:
-            vals = vals[: -input_node.rank]
-        for val in vals:
-            if isinstance(val, TensorVariable):
-                mul_to_ids.append(val)
-            elif isinstance(val, PythonConstant):
-                base_mul *= val.data
-            else:
-                base_mul *= val
-
-        if mul_to_ids:
-            if base_mul == 1 and len(mul_to_ids) == 1:
-                base_mul = nnef.Identifier(mul_to_ids[0].export_name)
-            else:
-                raise T2NErrorNotImplemented(
-                    "In such case would need to apply mul chain ops "
-                    "and replace base_mul with related assigned symbol"
-                )
-        repeats.insert(0, base_mul)
+    # Keep each new leading dimension separate. Flattening the prefix into
+    # one repeat requires multiplying symbolic sizes and obscures their shape
+    # relationships; unsqueeze + per-axis tile expresses expand directly.
+    prefix = []
+    for idx, dim in enumerate(shapes[: len(shapes) - input_node.rank]):
+        if isinstance(dim, Data) and dim.data is not None:
+            prefix.append(int(dim.data))
+        elif isinstance(dim, Data):
+            ref = op_helper.get_or_add_tensor_variable_in_nnef(dim)
+            ref = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "tract_core_cast",
+                inputs=ref,
+                attrs={"to": "tdim"},
+                output_tensor_name_suffix=f"prefix{idx}_as_tdim",
+            )
+            prefix.append(nnef.Identifier(ref.name))
+        else:
+            prefix.append(dim)
+    repeats = prefix + repeats
     return repeats
 
 

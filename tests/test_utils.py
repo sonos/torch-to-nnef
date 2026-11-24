@@ -9,9 +9,17 @@ from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef.utils import (
     NamedItem,
     ReactiveNamedItemDict,
+    SemanticVersion,
     check_torch_ecosystem,
     flatten_dict_tuple_or_list,
 )
+
+
+def test_python_development_version():
+    version = SemanticVersion.from_str("5.24.0.dev0")
+    assert "5.23.0" < version < "5.24.0"
+    assert version < SemanticVersion.from_str("5.24.0.dev1")
+    assert version == SemanticVersion.from_str("5.24.0.dev0+local")
 
 
 @pytest.mark.parametrize(
