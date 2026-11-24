@@ -7,7 +7,10 @@ import torch
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR, TORCH_TO_NUMPY_DTYPE
-from torch_to_nnef.exceptions import T2NErrorNotImplemented
+from torch_to_nnef.exceptions import (
+    T2NErrorNotImplemented,
+    T2NErrorTorchNotFoundOp,
+)
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -97,6 +100,53 @@ def _resolve_slice_bound(
     return default, True
 
 
+def _scalar_integer_bounds(value, graph, depth=0):
+    """Conservative bounds for integer shape arithmetic, never trace values.
+
+    A negative tail bound such as ``-(x.size(2) + 2)`` is always negative,
+    even when the size is symbolic. Avoid a runtime sign selection in that
+    case so tract can retain the slice's symbolic length.
+    """
+    if depth > 16:
+        return None, None
+    data = value.data
+    if isinstance(data, int):
+        return data, data
+    if (
+        isinstance(data, torch.Tensor)
+        and data.numel() == 1
+        and not data.is_floating_point()
+        and not data.is_complex()
+    ):
+        return int(data), int(data)
+    try:
+        op = graph.find_data_node_producer(value)
+    except T2NErrorTorchNotFoundOp:
+        return None, None
+    if op.kind == "aten::size":
+        return 0, None
+    if op.kind in ("aten::Int", "prim::NumToTensor", "aten::ScalarImplicit"):
+        return _scalar_integer_bounds(op.inputs[0], graph, depth + 1)
+    if op.kind == "aten::neg":
+        lo, hi = _scalar_integer_bounds(op.inputs[0], graph, depth + 1)
+        return -hi if hi is not None else None, -lo if lo is not None else None
+    if op.kind in ("aten::add", "aten::sub"):
+        # Tensor add/sub may carry an alpha multiplier. Handle only alpha=1.
+        if len(op.inputs) > 2 and op.inputs[2].data != 1:
+            return None, None
+        alo, ahi = _scalar_integer_bounds(op.inputs[0], graph, depth + 1)
+        blo, bhi = _scalar_integer_bounds(op.inputs[1], graph, depth + 1)
+        if op.kind == "aten::sub":
+            blo, bhi = (
+                -bhi if bhi is not None else None,
+                -blo if blo is not None else None,
+            )
+        lo = alo + blo if alo is not None and blo is not None else None
+        hi = ahi + bhi if ahi is not None and bhi is not None else None
+        return lo, hi
+    return None, None
+
+
 @OP_REGISTRY.register(torch_op_ids=["slice"])
 def slice_(
     node,
@@ -168,6 +218,11 @@ def slice_(
         if end == np.iinfo(np.int64).max:
             # skip end value expression
             fragment_name = "dyn_slice_begin"
+            _, upper = _scalar_integer_bounds(begin_node, torch_graph)
+            # Tract's Downsample declutter currently requires a concrete
+            # slice start; retain the general path for strided slices.
+            if upper is not None and upper < 0 and stride_node.data == 1:
+                fragment_name = "dyn_slice_begin_negative"
         else:
             fragment_name = "dyn_slice"
             attrs["end"] = end
@@ -474,7 +529,7 @@ def gather(node, op_helper, inference_target, **kwargs):
             ),
         ],
         attrs={
-            "axis": dim_node.data,
+            "axis": pick_axis(input_node, dim_node.data),
         },
         force_consistent_inputs_shapes=False,
     )

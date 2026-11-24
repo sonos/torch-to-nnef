@@ -96,34 +96,13 @@ class _ShortConvolution(torch.nn.Module):
             mod.conv_idx,
             mod.conv_kernel_size,
         )
-        if hasattr(mod, "static_weight"):
-            batch, seq, channels = hidden_states.shape
-            weights = (
-                mod.weight_proj(dynamic_input)
-                .float()
-                .reshape(batch, seq, mod.num_heads, 1, mod.conv_kernel_size)
-            )
-            weights = weights + mod.static_weight.float().T.reshape(
-                mod.num_heads, -1, mod.conv_kernel_size
-            )
-            # Fixed tap loop avoids aten::unfold and preserves symbolic S.
-            taps = []
-            positions = torch.arange(seq, device=context.device)
-            for lag in range(mod.conv_kernel_size):
-                start = mod.conv_kernel_size - 1 - lag
-                tap = context.index_select(2, positions + start).transpose(1, 2)
-                tap = tap.reshape(batch, seq, mod.num_heads, -1)
-                taps.append(tap * weights[..., lag])
-            out = sum(taps).reshape(batch, seq, channels)
-            divisor = math.sqrt(2 * mod.conv_kernel_size + 1)
-        else:
-            out = F.conv1d(
-                context.to(mod.conv1d.weight.dtype),
-                mod.conv1d.weight,
-                mod.conv1d.bias,
-                groups=mod.conv1d.groups,
-            ).transpose(1, 2)
-            divisor = math.sqrt(mod.conv_kernel_size + 1)
+        out = F.conv1d(
+            context.to(mod.conv1d.weight.dtype),
+            mod.conv1d.weight,
+            mod.conv1d.bias,
+            groups=mod.conv1d.groups,
+        ).transpose(1, 2)
+        divisor = math.sqrt(mod.conv_kernel_size + 1)
         return ((out + residual) / divisor).to(hidden_states.dtype)
 
 
@@ -177,53 +156,6 @@ class _Router(torch.nn.Module):
         return logits, weights * mod.routed_scaling_factor, indices
 
 
-class _RelativePositionBias(torch.nn.Module):
-    def __init__(self, original):
-        super().__init__()
-        self.original = original
-
-    def forward(self, hidden_states, relative_distance, position_ids):
-        mod = self.original
-        states = mod.linear(hidden_states).reshape(
-            *hidden_states.shape[:-1], mod.num_heads, -1
-        )
-        states = mod.norm(states, position_ids)
-        logits = (states @ mod.proj).transpose(1, 2)
-        indices = relative_distance.clamp(0, mod.rel_extent - 1)
-        indices = (
-            indices.unsqueeze(0).unsqueeze(0).expand(1, mod.num_heads, -1, -1)
-        )
-        valid = (relative_distance >= 0).to(logits.dtype) * (
-            relative_distance < mod.rel_extent
-        ).to(logits.dtype)
-        return logits.gather(3, indices) * valid
-
-
-class _AttentionResidual(torch.nn.Module):
-    """Broadcast fixed residual queries without expanding symbolic prefixes."""
-
-    def __init__(self, original):
-        super().__init__()
-        self.original = original
-
-    def forward(self, block_states, partial_block_states, loop_layer_idx=None):
-        mod = self.original
-        states = mod.norm(
-            torch.cat(
-                (block_states, partial_block_states.unsqueeze(-2)), dim=-2
-            ).float()
-        )
-        query = (
-            mod.query if loop_layer_idx is None else mod.query[loop_layer_idx]
-        )
-        query = query.float().reshape(1, 1, -1, mod.config.hidden_size)
-        scores = (
-            query @ states.transpose(-1, -2)
-        ) * mod.config.hidden_size**-0.5
-        output = scores.softmax(-1) @ states
-        return output.unbind(-2) if loop_layer_idx is None else output
-
-
 @register_handler
 class Inkling2TextArchitectureHandler(DefaultArchitectureHandler):
     """Text-only Inkling decoder with KV and four conv states per visit."""
@@ -274,22 +206,12 @@ class Inkling2TextArchitectureHandler(DefaultArchitectureHandler):
         for parent in list(model.modules()):
             for name, module in list(parent.named_children()):
                 kind = type(module).__name__
-                if kind in (
-                    "Inkling2LoopShortConvolution",
-                    "Inkling2LoopDynamicShortConvolution",
-                ):
+                if kind == "Inkling2LoopShortConvolution":
                     setattr(parent, name, _ShortConvolution(module))
                 elif kind == "Inkling2LoopExperts":
                     setattr(parent, name, _Experts(module))
                 elif kind == "Inkling2LoopTopKRouter":
                     setattr(parent, name, _Router(module))
-                elif kind == "Inkling2LoopRelativePositionBias":
-                    setattr(parent, name, _RelativePositionBias(module))
-                elif kind in (
-                    "Inkling2LoopBlockAttentionResidual",
-                    "Inkling2LoopMessageAttentionResidual",
-                ):
-                    setattr(parent, name, _AttentionResidual(module))
         model._t2n_inkling_prepared = True
 
     def build_input_spec(
