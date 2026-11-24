@@ -65,7 +65,7 @@ jobs:
       - name: Check Inkling upstream parity and streaming NNEF execution
         working-directory: packages/llm
         run: python -m pytest tests/test_inkling2_handler.py -q
-      - name: Run the documented float32 and Q4_0 examples
+      - name: Run the float32 and Q4_0 examples
         run: |
           python examples/inkling2/export.py --tract "$TRACT_BIN" --out /tmp/inkling-f32
           python examples/inkling2/export.py --tract "$TRACT_BIN" --out /tmp/inkling-q4 --q4

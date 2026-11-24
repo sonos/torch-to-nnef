@@ -3,8 +3,13 @@
 
 ## Unreleased
 
+### Added
+
+- **Inkling 2 Mini text export** (llm): export `inkling2_loop` and `inkling2_loop_text` models through the standard LLM CLI, with independent KV and convolution state for each loop visit. Supports unpadded batch-one prefill and decoding, including Q4_0 expert tables through `min_max_q4_0_with_embeddings_and_experts`, while keeping routers in floating point. Requires Transformers with Inkling support; float32 and Q4_0 streaming execution are tested on small random models with tract 0.23.10. Full-checkpoint export, image inputs, and speculative draft export are not validated. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
+
 ### Fixed
 
+- **Dynamic shape operations** (core): preserve separate symbolic leading dimensions in `expand`, normalize negative `gather` axes, and retain symbolic lengths for provably negative tail slices. Allow `topk(sorted=False)` using a valid sorted result. These changes let Inkling's upstream attention and dynamic convolution modules export directly. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
 - **Mixed quantized/offloaded and floating-point JIT export** (core): detect unsafe fake-activation interactions with named weights or buffers before PyTorch asserts, then automatically retry with concrete weight expansion while preserving packed export storage. The retry restores input and buffer values, storage, shape, strides, offsets, and RNG state; supported fake traces remain non-materializing. Eager calls after export use concrete values. This boundary no longer requires `T2N_LEGACY_OPAQUE_TRACING=1`, though retrying can increase temporary tracing memory and computation. ([#453](https://github.com/sonos/torch-to-nnef/pull/453))
 
 ## [0.25.2] - 2026-11-20
