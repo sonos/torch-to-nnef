@@ -28,9 +28,11 @@ needed for loading and tracing. No full-checkpoint export has been validated.
 For Q4_0 export, use tract 0.23.10 and add
 `-c min_max_q4_0_with_embeddings_and_experts --tract-check-io-tolerance very`
 to the command above. Quantized matmuls also round activations in tract,
-so the default float32 IO tolerance may be too strict. Prefix
-the command with `T2N_LEGACY_OPAQUE_TRACING=1`: the fake-tensor tracing path
-cannot currently combine quantized weights with this model's recurrent state.
+so the default float32 IO tolerance may be too strict. The exporter
+automatically retries unsupported fake-tensor boundaries with concrete weight
+expansion; no legacy tracing flag is required. This retry can increase tracing
+memory and computation, and inputs and registered buffers are snapshotted
+before tracing to preserve recurrent state if a retry is needed.
 The registry quantizes eligible linear/embedding weights and the shared
 selected-expert adapter's weight tables. Routers remain floating point.
 Expert tables are gathered and dequantized before floating-point matmuls;

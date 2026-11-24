@@ -260,7 +260,7 @@ def test_exporter_probes_carry_all_state(tiny_model, tmp_path):
 
 
 @pytest.mark.parametrize("quantize", [False, True])
-def test_dynamic_nnef(tiny_model, tmp_path, quantize, monkeypatch):
+def test_dynamic_nnef(tiny_model, tmp_path, quantize):
     binary = os.environ.get("TRACT_BIN")
     if not binary:
         pytest.skip("set TRACT_BIN for NNEF runtime validation")
@@ -268,12 +268,7 @@ def test_dynamic_nnef(tiny_model, tmp_path, quantize, monkeypatch):
     if quantize:
         from torch_to_nnef.compress import DEFAULT_COMPRESSION
         from torch_to_nnef.modules import SelectedGatedExperts
-        from torch_to_nnef.tensor import opaque
         from torch_to_nnef.tensor.quant import QTensor
-
-        # Equivalent to T2N_LEGACY_OPAQUE_TRACING=1: recurrent caches mix
-        # real tensors with opaque weights, which fake tracing cannot handle.
-        monkeypatch.setattr(opaque, "NEW_OPAQUE_TRACING_STRATEGY", False)
 
         wrapper = DEFAULT_COMPRESSION[
             "min_max_q4_0_with_embeddings_and_experts"

@@ -100,6 +100,8 @@ def _resolve_slice_bound(
     return default, True
 
 
+# Each supported arithmetic operation has its own conservative bounds rule.
+# pylint: disable-next=too-many-return-statements
 def _scalar_integer_bounds(value, graph, depth=0):
     """Conservative bounds for integer shape arithmetic, never trace values.
 
