@@ -30,15 +30,22 @@ class MixedWeights(nn.Module):
 def test_quantized_linear_then_float_conv(tmp_path, with_state):
     torch.manual_seed(7)
     model = DEFAULT_COMPRESSION["min_max_q4_0"](MixedWeights(with_state).eval())
+    args = (
+        (torch.randn(1, 5, 32), torch.randn(1, 32, 2))
+        if with_state
+        else (torch.randn(1, 5, 32),)
+    )
     with torch.no_grad():
+        expected = model(*args)
         export_model_to_nnef(
             model,
-            (torch.randn(1, 5, 32), torch.randn(1, 32, 2))
-            if with_state
-            else (torch.randn(1, 5, 32),),
+            args,
             tmp_path / "model.nnef.tgz",
             inference_target=TractNNEF("0.23.10", check_io=False),
         )
+        actual = model(*args)
+        assert getattr(actual, "fake_mode", None) is None
+        torch.testing.assert_close(actual, expected)
 
 
 @pytest.mark.skipif(

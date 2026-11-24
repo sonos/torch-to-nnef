@@ -121,7 +121,11 @@ def trace_tensor_device_for_func(func) -> T.Optional[str]:
     meta result is recognized as aliasing its constant input); keep the two
     lists in sync when adding a new view op.
     """
-    if not NEW_OPAQUE_TRACING_STRATEGY or _MATERIALIZED_TRACE.get():
+    if (
+        not NEW_OPAQUE_TRACING_STRATEGY
+        or _MATERIALIZED_TRACE.get()
+        or torch._C._get_tracing_state() is None
+    ):
         return None
     func_name = getattr(func, "__name__", "")
     if func_name in {"embedding", "index_select"}:
