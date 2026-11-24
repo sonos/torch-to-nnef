@@ -3,6 +3,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Mixed quantized/offloaded and floating-point JIT export** (core): detect unsafe fake-activation interactions with named weights or buffers before PyTorch asserts, then automatically retry with concrete weight expansion while preserving packed export storage. The retry restores input and buffer values, storage, shape, strides, offsets, and RNG state; supported fake traces remain non-materializing. Eager calls after export use concrete values. This boundary no longer requires `T2N_LEGACY_OPAQUE_TRACING=1`, though retrying can increase temporary tracing memory and computation. ([#453](https://github.com/sonos/torch-to-nnef/pull/453))
+
 ## [0.25.2] - 2026-11-20
 
 ### Added
