@@ -39,6 +39,10 @@ def find_fake_mode(*containers):
     return None
 
 
+class OpaqueTraceBoundary(RuntimeError):
+    """A fake activation reached an ordinary named operand during JIT."""
+
+
 class NamedTensor(torch.Tensor):
     """Tensor enriched with name attribute."""
 
@@ -132,6 +136,16 @@ class NamedTensor(torch.Tensor):
             # ``NamedTensor`` clone, and re-activate the fake mode so the op
             # resolves (plain tensors resolve fine either way under meta).
             fake_mode = find_fake_mode(args, kwargs.values())
+            if (
+                fake_mode is not None
+                and torch._C._get_tracing_state() is not None
+            ):
+                # Fail before FakeTensor's real-to-fake view conversion enters
+                # JIT bookkeeping. Its internal assertion can corrupt later
+                # traces in the same process; catching it afterward is too late.
+                raise OpaqueTraceBoundary(
+                    "fake activation reached a real named operand"
+                )
 
             def _prepare(value):
                 if not isinstance(value, cls):

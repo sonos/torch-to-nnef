@@ -10,13 +10,14 @@ with few related helper functions (e.g. ``_is_io_quantized_module`` and
 import typing as T
 
 import torch
-from torch import jit, nn
+from torch import nn
 
 from torch_to_nnef.dtypes import is_quantized_dtype
 from torch_to_nnef.exceptions import T2NErrorTorchJitTraceFailed
 from torch_to_nnef.torch_graph.jit_mutation import (
     functionalize_view_inplace_copy,
 )
+from torch_to_nnef.torch_graph.opaque_trace import trace_with_opaque_retry
 from torch_to_nnef.utils import cache, torch_version
 
 
@@ -123,7 +124,7 @@ class TorchModuleTracer:
         """
         if self._traced_module is None:
             try:
-                self._traced_module = jit.trace(
+                self._traced_module = trace_with_opaque_retry(
                     self.mod,
                     self.args,
                     check_trace=("1.8.0" <= torch_version() < "1.12.0"),

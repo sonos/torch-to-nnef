@@ -4,6 +4,7 @@ import logging
 import os
 import typing as T
 import warnings
+from contextvars import ContextVar
 
 import torch
 from torch._tensor import _convert
@@ -35,16 +36,25 @@ IR_OPAQUE_NAME = "t2n::opaque_tensor_expand"
 # T2N_LEGACY_OPAQUE_TRACING=1 forces the legacy strategy: every opaque
 # param materializes per-use during trace (streamed through the
 # opaque_t2n_expand custom op, so the traced graph does not retain the
-# values). Needed for STATEFUL models under disk offload: the meta/fake
-# strategy makes the whole activation stream fake, and every op mixing
-# it with the (real) handler-fed cache tensors (cat/copy_ on KV, conv or
-# recurrent states) trips jit tracer internal asserts at the real/fake
-# boundary.
+# values). The default custom-op strategy automatically retries the named
+# real/fake operand boundary with concrete expansion; legacy mode remains
+# an explicit compatibility escape hatch for other unsupported trace paths.
 NEW_OPAQUE_TRACING_STRATEGY = (
     torch_version() >= "2.4.0"
     and os.environ.get("T2N_LEGACY_OPAQUE_TRACING", "0") != "1"
 )
 _TRACE_FAKE_MODE = None
+_MATERIALIZED_TRACE = ContextVar("t2n_materialized_trace", default=False)
+
+
+@contextlib.contextmanager
+def materialized_opaque_trace():
+    """Expand at use sites through custom ops, without eager dense refs."""
+    token = _MATERIALIZED_TRACE.set(True)
+    try:
+        yield
+    finally:
+        _MATERIALIZED_TRACE.reset(token)
 
 
 def _fake_trace_tensor(
@@ -111,7 +121,7 @@ def trace_tensor_device_for_func(func) -> T.Optional[str]:
     meta result is recognized as aliasing its constant input); keep the two
     lists in sync when adding a new view op.
     """
-    if not NEW_OPAQUE_TRACING_STRATEGY:
+    if not NEW_OPAQUE_TRACING_STRATEGY or _MATERIALIZED_TRACE.get():
         return None
     func_name = getattr(func, "__name__", "")
     if func_name in {"embedding", "index_select"}:
