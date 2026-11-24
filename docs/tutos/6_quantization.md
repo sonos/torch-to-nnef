@@ -1284,26 +1284,3 @@ You should observe that operators are correctly understood as Quantized with QU8
 
     You exported your first quantized network with `torch_to_nnef` in 8bit
     and learned how to create and manage your own quantization registry !
-
-## Mixed opaque-weight tracing
-
-Quantized and offloaded weights normally use fake tensors during JIT tracing
-so their full floating-point values do not need to be materialized. When a
-fake activation reaches an ordinary named weight or buffer, the exporter
-interrupts that trace before PyTorch's real-to-fake conversion can trigger a
-JIT internal assertion. It restores tensor inputs, registered buffers, and
-CPU/initialized-CUDA RNG state, then retries once with concrete opaque-weight
-expansion at each use site. Unrelated tracing errors are not retried.
-
-This retry uses the modern custom-op representation: parameter references
-remain metadata-only and the exported weights retain their packed format.
-Unlike enabling legacy tracing, it does not eagerly build dense references
-for every opaque parameter. Temporary decompression, input/buffer snapshots,
-and real computation still increase tracing memory and work. A warning
-reports the retry. Supported fake traces continue without materializing weights.
-
-`T2N_LEGACY_OPAQUE_TRACING=1` is not required for this named-operand boundary.
-It remains a compatibility option for other unsupported tracing paths. As
-with JIT tracing generally, inference forwards must not mutate parameters or
-rely on arbitrary Python side effects; those effects cannot be rolled back
-by the retry's tensor-state checkpoint.

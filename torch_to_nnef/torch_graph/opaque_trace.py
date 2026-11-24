@@ -1,4 +1,25 @@
-"""Retry the known FakeTensor/JIT boundary failure with concrete expansion."""
+"""Retry unsafe opaque-weight JIT boundaries with concrete expansion.
+
+Quantized and offloaded weights normally use fake tensors during JIT tracing
+so their floating-point values do not need to be materialized. A fake
+activation reaching an ordinary named weight or buffer interrupts the trace
+before PyTorch's real-to-fake conversion can trigger a JIT internal assertion.
+The checkpoint restores tensor values, registered buffer bindings, and
+CPU/initialized-CUDA RNG state before one concrete-expansion retry. Unrelated
+tracing errors are not retried.
+
+The retry keeps custom-op identities and metadata-only parameter references,
+so exported weights retain their packed format. Unlike legacy tracing, it
+does not eagerly build dense references for every opaque parameter. Temporary
+decompression, input/buffer snapshots, and real computation still increase
+tracing memory and work; a warning reports this tradeoff. Supported fake
+traces continue without materializing weights.
+
+T2N_LEGACY_OPAQUE_TRACING=1 is not required for this named-operand boundary,
+but remains a compatibility option for other unsupported tracing paths.
+Inference forwards must not mutate parameters or rely on arbitrary Python
+side effects: the tensor-state checkpoint cannot roll those effects back.
+"""
 
 import logging
 
