@@ -4,8 +4,8 @@ import logging
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorOpaqueTraceBoundary
 from torch_to_nnef.tensor import opaque
-from torch_to_nnef.tensor.named import OpaqueTraceBoundary
 from torch_to_nnef.utils import select_ctx_disable_torch_fn
 
 LOGGER = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ def _trace_with_checkpoint(module, args, **kwargs):
     checkpoint = _TraceCheckpoint(module, args)
     try:
         return torch.jit.trace(module, args, **kwargs)
-    except OpaqueTraceBoundary:
+    except T2NErrorOpaqueTraceBoundary:
         checkpoint.restore()
         LOGGER.warning(
             "FakeTensor/JIT boundary failure: retrying with concrete opaque "

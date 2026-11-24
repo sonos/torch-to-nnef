@@ -107,6 +107,10 @@ class T2NErrorTorchGraphExtraction(T2NError):
 
 
 # Torch are linked to torch_graph module errors
+class T2NErrorOpaqueTraceBoundary(RuntimeError, T2NErrorTorchGraphExtraction):
+    """A fake activation reached an ordinary named operand during JIT."""
+
+
 class T2NErrorTorchJitTraceFailed(RuntimeError, T2NErrorTorchGraphExtraction):
     pass
 

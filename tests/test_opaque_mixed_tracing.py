@@ -126,9 +126,11 @@ def test_mixed_weight_dynamic_runtime_and_packed_storage(tmp_path, with_state):
 
 
 def _raise_boundary_failure():
-    from torch_to_nnef.tensor.named import OpaqueTraceBoundary
+    from torch_to_nnef.exceptions import T2NErrorOpaqueTraceBoundary
 
-    raise OpaqueTraceBoundary("fake activation reached a real named operand")
+    raise T2NErrorOpaqueTraceBoundary(
+        "fake activation reached a real named operand"
+    )
 
 
 @pytest.mark.parametrize("retry_error", [False, True])

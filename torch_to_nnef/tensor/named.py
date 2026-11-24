@@ -6,7 +6,10 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.exceptions import T2NErrorNotImplemented
+from torch_to_nnef.exceptions import (
+    T2NErrorNotImplemented,
+    T2NErrorOpaqueTraceBoundary,
+)
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
@@ -37,10 +40,6 @@ def find_fake_mode(*containers):
             if isinstance(value, FakeTensor):
                 return value.fake_mode
     return None
-
-
-class OpaqueTraceBoundary(RuntimeError):
-    """A fake activation reached an ordinary named operand during JIT."""
 
 
 class NamedTensor(torch.Tensor):
@@ -143,7 +142,7 @@ class NamedTensor(torch.Tensor):
                 # Fail before FakeTensor's real-to-fake view conversion enters
                 # JIT bookkeeping. Its internal assertion can corrupt later
                 # traces in the same process; catching it afterward is too late.
-                raise OpaqueTraceBoundary(
+                raise T2NErrorOpaqueTraceBoundary(
                     "fake activation reached a real named operand"
                 )
 
