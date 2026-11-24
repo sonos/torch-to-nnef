@@ -9,6 +9,7 @@ covered here.
 import importlib
 import json
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -476,6 +477,7 @@ def test_from_pretrained_t2n_offload_passes_load_time_converters(
     monkeypatch, tmp_path
 ):
     sentinel_model = nn.Module()
+    sentinel_model.config = SimpleNamespace(model_type="test")
     converters = [_ToyWeightConverter()]
     quantizer = object()
     calls = {}
@@ -621,8 +623,16 @@ def test_from_pretrained_accelerate_cpu_disk_offload_keeps_meta_params(
         torch.testing.assert_close(model(input_ids).logits, expected)
 
 
-def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
+@pytest.mark.parametrize("legacy_result", [False, True])
+def test_t2n_dispatch_applies_weight_converter_across_shards(
+    tmp_path, legacy_result
+):
     save_file = pytest.importorskip("safetensors.torch").save_file
+
+    class Converter(_ToyWeightConverter):
+        def convert(self, layer_name, **kwargs):
+            tensors = super().convert(layer_name, **kwargs)
+            return (tensors, None) if legacy_result else tensors
 
     class TinyModel(nn.Module):
         def __init__(self):
@@ -664,7 +674,7 @@ def test_t2n_dispatch_applies_weight_converter_across_shards(tmp_path):
         tmp_path,
         device_map=ON_DISK_DEVICE_MAP_KEY,
         offload_dir=offload_dir,
-        weight_converters=[_ToyWeightConverter()],
+        weight_converters=[Converter()],
     )
 
     assert not model.foo.is_meta
@@ -830,12 +840,16 @@ def _direct_mxfp4_conversion(
                 tensor,
             )
         if matched:
-            return converter.convert(
+            converted = converter.convert(
                 target_key,
                 model=model,
                 config=getattr(model, "config", None),
                 hf_quantizer=hf_quantizer,
-            )[target_key]
+            )
+            if isinstance(converted, tuple):
+                converted, errors = converted
+                assert not errors
+            return converted[target_key]
     raise AssertionError(f"no MXFP4 converter matched {target_key}")
 
 

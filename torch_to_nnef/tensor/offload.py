@@ -353,6 +353,12 @@ class _WeightConversionCollector:
                 config=getattr(self.model, "config", None),
                 hf_quantizer=self.hf_quantizer,
             )
+            # Transformers 5.0 returned (tensors, conversion_errors).
+            # Later versions return the tensor mapping directly.
+            if isinstance(converted_tensors, tuple):
+                converted_tensors, conversion_errors = converted_tensors
+                if conversion_errors:
+                    raise T2NErrorMisuse(str(conversion_errors))
         except Exception as exc:
             raise T2NErrorMisuse(
                 f"failed to convert checkpoint tensors for '{renamed_key}': "

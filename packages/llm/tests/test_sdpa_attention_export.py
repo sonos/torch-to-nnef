@@ -7,6 +7,24 @@ from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef_llm import cli, exporter, loader
 
 
+@pytest.mark.parametrize("keyword", ["cache_kwargs", "kwargs"])
+def test_dynamic_layer_update_accepts_transformers_cache_keywords(keyword):
+    import torch
+
+    from torch_to_nnef_llm.models.base import _force_dyn_layer_update_ge4_56
+
+    layer = SimpleNamespace(keys=None, values=None)
+    keys = torch.randn(1, 2, 3, 4)
+    values = torch.randn_like(keys)
+    for length in (3, 6):
+        actual_keys, actual_values = _force_dyn_layer_update_ge4_56(
+            layer, keys, values, **{keyword: {"cache_position": None}}
+        )
+        assert actual_keys.shape[-2] == length
+        torch.testing.assert_close(actual_keys[..., -3:, :], keys)
+        torch.testing.assert_close(actual_values[..., -3:, :], values)
+
+
 class _FakeModel:
     def __init__(self, config=None):
         self.config = config or SimpleNamespace(model_type="fake")
