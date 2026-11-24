@@ -81,6 +81,7 @@ def _force_dyn_layer_update_ge4_56(
     key_states: torch.Tensor,
     value_states: torch.Tensor,
     cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
+    **kwargs: T.Any,
 ) -> T.Tuple[torch.Tensor, torch.Tensor]:
     """Avoid concat with lazy inited cache of empty 0 dim.
 

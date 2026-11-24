@@ -6,7 +6,10 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.exceptions import T2NErrorNotImplemented
+from torch_to_nnef.exceptions import (
+    T2NErrorNotImplemented,
+    T2NErrorOpaqueTraceBoundary,
+)
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
@@ -132,6 +135,16 @@ class NamedTensor(torch.Tensor):
             # ``NamedTensor`` clone, and re-activate the fake mode so the op
             # resolves (plain tensors resolve fine either way under meta).
             fake_mode = find_fake_mode(args, kwargs.values())
+            if (
+                fake_mode is not None
+                and torch._C._get_tracing_state() is not None
+            ):
+                # Fail before FakeTensor's real-to-fake view conversion enters
+                # JIT bookkeeping. Its internal assertion can corrupt later
+                # traces in the same process; catching it afterward is too late.
+                raise T2NErrorOpaqueTraceBoundary(
+                    "fake activation reached a real named operand"
+                )
 
             def _prepare(value):
                 if not isinstance(value, cls):
