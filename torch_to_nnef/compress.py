@@ -142,6 +142,36 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
     )
 
 
+def _quantize_selected_experts_q40(
+    model: nn.Module, *, modules_to_skip=(), percentile=1.0
+) -> int:
+    """Quantize selected-expert tables in place and return the block count."""
+    updater = ModTensorUpdater(model)
+    skipped = {
+        id(param) for module in modules_to_skip for param in module.parameters()
+    }
+    selected_count = 0
+    for name, module in model.named_modules():
+        if not isinstance(module, SelectedGatedExperts):
+            continue
+        for attr in ("gate_up_proj", "down_proj"):
+            weight = getattr(module, attr)
+            if id(weight) in skipped:
+                continue
+            quantized = offloaded_tensor_qtensor(
+                partial(
+                    fp_to_tract_q4_0_with_min_max_calibration,
+                    percentile=percentile,
+                ),
+                weight,
+                "q40_min_max",
+            )
+            quantized.nnef_name = f"{name}.{attr}"
+            updater.update_by_ref(weight, quantized)
+        selected_count += 1
+    return selected_count
+
+
 def quantize_weights_min_max_Q4_0_with_experts(  # noqa: N802
     model: nn.Module, **kwargs
 ):
@@ -164,31 +194,11 @@ def quantize_weights_min_max_Q4_0_with_experts(  # noqa: N802
         *iter_moe_routers(model),
     )
     model = quantize_weights_min_max_Q4_0(model, **kwargs)
-    updater = ModTensorUpdater(model)
-    skipped = {
-        id(param)
-        for module in kwargs["modules_to_skip"]
-        for param in module.parameters()
-    }
-    selected_count = 0
-    for name, module in model.named_modules():
-        if not isinstance(module, SelectedGatedExperts):
-            continue
-        for attr in ("gate_up_proj", "down_proj"):
-            weight = getattr(module, attr)
-            if id(weight) in skipped:
-                continue
-            quantized = offloaded_tensor_qtensor(
-                partial(
-                    fp_to_tract_q4_0_with_min_max_calibration,
-                    percentile=kwargs.get("percentile", 1.0),
-                ),
-                weight,
-                "q40_min_max",
-            )
-            quantized.nnef_name = f"{name}.{attr}"
-            updater.update_by_ref(weight, quantized)
-        selected_count += 1
+    selected_count = _quantize_selected_experts_q40(
+        model,
+        modules_to_skip=kwargs["modules_to_skip"],
+        percentile=kwargs.get("percentile", 1.0),
+    )
     try:
         marked = mark_moe_experts_for_q40(model, layout="linear")
     except T2NErrorNotImplemented:
