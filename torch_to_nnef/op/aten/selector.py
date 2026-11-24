@@ -1268,8 +1268,9 @@ def topk(node, op_helper, inference_target, **kwargs):
     assert isinstance(dim_node, PythonConstant), dim_node
     assert isinstance(dim_node.data, int), dim_node
     assert isinstance(k_node.data, int), k_node
-    if not sorted_node.data:
-        raise T2NErrorNotImplemented("non sorted topk not implemented")
+    # sorted=False leaves the order unspecified. Tract's sorted output is
+    # valid too; values and indices must retain their correspondence.
+    assert isinstance(sorted_node.data, bool), sorted_node
     dim = pick_axis(input_node, dim_node.data)
 
     output_tensors = [

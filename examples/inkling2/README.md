@@ -25,6 +25,20 @@ to dense tensors on load. This export does **not** preserve native low-bit
 storage: float32 weights alone require roughly 106 GB, with additional memory
 needed for loading and tracing. No full-checkpoint export has been validated.
 
+For Q4_0 export, use tract 0.23.10 and add
+`-c min_max_q4_0_with_embeddings_and_experts --tract-check-io-tolerance very`
+to the command above. Quantized matmuls also round activations in tract,
+so the default float32 IO tolerance may be too strict. Prefix
+the command with `T2N_LEGACY_OPAQUE_TRACING=1`: the fake-tensor tracing path
+cannot currently combine quantized weights with this model's recurrent state.
+The registry quantizes eligible linear/embedding weights and the shared
+selected-expert adapter's weight tables. Routers remain floating point.
+Expert tables are gathered and dequantized before floating-point matmuls;
+this reduces stored weight size but does not provide a fused low-bit MoE
+kernel. Loading still requires upstream dequantization, and selected expert
+matrices can consume substantial temporary memory. Other quantization
+registry entries are not covered by the Inkling regression tests.
+
 The decoder supports unpadded batch-one text, chunked prefill, and single-token
 decoding. Image inputs and the speculative draft model are not included.
 Inkling's original loop schedule and message gates are retained. The 24 physical
@@ -59,3 +73,9 @@ TRACT_BIN=/path/to/tract .venv/bin/python -m pytest \
 Tests compare streaming logits with the unmodified upstream model, exercise
 different sequence lengths after tracing, and check NNEF execution in tract.
 The float32 tiny model was checked with tract `0.23.5-pre` and PyTorch `2.14.1`.
+Float32 and Q4_0 regressions also run with tract `0.23.10`. The Q4_0 test
+checks stored expert tensor headers and compares every streaming output
+against the dequantized PyTorch reference with `atol=rtol=2e-3`, tighter
+than the CLI's `very` preset. This checks exporter/runtime agreement;
+it does not measure the full checkpoint's language-model quality after
+requantization.

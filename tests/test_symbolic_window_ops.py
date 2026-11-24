@@ -149,3 +149,25 @@ def test_tail_slice_clipping_and_unknown_sign(tmp_path, sign_changing, stride):
         ],
         {"input_0": {0: "S"}, "input_1": {0: "N"}},
     )
+
+
+class UnsortedTopK(torch.nn.Module):
+    def __init__(self, largest):
+        super().__init__()
+        self.largest = largest
+
+    def forward(self, x):
+        values, indices = x.topk(3, dim=-1, largest=self.largest, sorted=False)
+        # Compare order-independent membership and value/index correspondence.
+        chosen = torch.nn.functional.one_hot(indices, num_classes=8).float()
+        return (chosen * values.unsqueeze(-1)).sum(-2)
+
+
+@pytest.mark.parametrize("largest", [False, True])
+def test_unsorted_topk_membership_and_values(tmp_path, largest):
+    _check_dynamic(
+        tmp_path,
+        UnsortedTopK(largest),
+        [(torch.randn(s, 8),) for s in (3, 1, 7)],
+        {"input_0": {0: "S"}},
+    )

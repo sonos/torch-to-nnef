@@ -47,6 +47,7 @@ from torch_to_nnef.exceptions import (
     T2NErrorStrictNNEFSpec,
 )
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.modules import SelectedGatedExperts
 from torch_to_nnef.op import helper
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 from torch_to_nnef.tensor.offload import OffloadedTensor
@@ -748,7 +749,11 @@ def iter_moe_routers(model: nn.Module) -> T.Iterator[nn.Module]:
     materializing expert weights or matching unrelated modules by name.
     """
     for module in model.modules():
-        if type(module).__name__ not in _ADAPTER_BY_CLASSNAME:
+        fused = type(module).__name__ in _ADAPTER_BY_CLASSNAME
+        selected = isinstance(
+            getattr(module, "experts", None), SelectedGatedExperts
+        )
+        if not (fused or selected):
             continue
         for name in ("gate", "router", "shared_expert_gate"):
             router = getattr(module, name, None)

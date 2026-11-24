@@ -2,6 +2,8 @@
 
 import copy
 import os
+import subprocess
+import tarfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -86,6 +88,16 @@ def tiny_model(request):
             "hybrid" if (i + 1) % 6 == 0 else "hybrid_sliding"
             for i in range(24)
         ]
+    if getattr(
+        request.node, "callspec", None
+    ) and request.node.callspec.params.get("quantize"):
+        # Exercise eligible projections as well as expert tables: Q4_0's
+        # reduction dimension must be a multiple of 32.
+        config.hidden_size = 32
+        config.head_dim = 16
+        config.swa_head_dim = 16
+        config.moe_intermediate_size = 32
+        config.loop_gate_rank = 32
     torch.manual_seed(7)
     model = transformers.Inkling2LoopForCausalLM(config).float().eval()
     # HF initializes message gates and convolution weights to zero. Exercise
@@ -247,18 +259,45 @@ def test_exporter_probes_carry_all_state(tiny_model, tmp_path):
                 assert np.any(inputs["in_cache_conv3_7"] != 0)
 
 
-def test_dynamic_nnef(tiny_model, tmp_path):
+@pytest.mark.parametrize("quantize", [False, True])
+def test_dynamic_nnef(tiny_model, tmp_path, quantize, monkeypatch):
     binary = os.environ.get("TRACT_BIN")
     if not binary:
         pytest.skip("set TRACT_BIN for NNEF runtime validation")
     wrapper = _wrapper(tiny_model)
+    if quantize:
+        from torch_to_nnef.compress import DEFAULT_COMPRESSION
+        from torch_to_nnef.modules import SelectedGatedExperts
+        from torch_to_nnef.tensor import opaque
+        from torch_to_nnef.tensor.quant import QTensor
+
+        # Equivalent to T2N_LEGACY_OPAQUE_TRACING=1: recurrent caches mix
+        # real tensors with opaque weights, which fake tracing cannot handle.
+        monkeypatch.setattr(opaque, "NEW_OPAQUE_TRACING_STRATEGY", False)
+
+        wrapper = DEFAULT_COMPRESSION[
+            "min_max_q4_0_with_embeddings_and_experts"
+        ](wrapper)
+        experts = [
+            m for m in wrapper.modules() if isinstance(m, SelectedGatedExperts)
+        ]
+        assert experts
+        for module in experts:
+            assert isinstance(module.gate_up_proj, QTensor)
+            assert isinstance(module.down_proj, QTensor)
     spec = _spec(tiny_model, past=2)
     cli = TractCli(Path(binary))
+    if quantize and cli.version < "0.23.10":
+        pytest.skip(
+            "Inkling Q4_0 requires tract 0.23.10 quantized-slice support"
+        )
     target = TractNNEF(
         version=cli.version,
         specific_tract_binary_path=cli.tract_path,
         dynamic_axes=spec.dynamic_axes,
-        check_io=True,
+        # Quantized matmul also rounds activations in tract. Check a narrow
+        # explicit tolerance below against the dequantized PyTorch reference.
+        check_io=not quantize,
     )
     path = tmp_path / "inkling.nnef.tgz"
     with torch.no_grad():
@@ -270,6 +309,26 @@ def test_dynamic_nnef(tiny_model, tmp_path):
             input_names=spec.input_names,
             output_names=spec.output_names,
         )
+        if quantize:
+            from torch_to_nnef.nnef_io.tensor import DatBinHeader
+
+            with tarfile.open(path) as archive:
+                members = [
+                    m
+                    for m in archive.getmembers()
+                    if m.name.endswith(
+                        ("experts.gate_up_proj.dat", "experts.down_proj.dat")
+                    )
+                ]
+                assert len(members) == 2 * len(experts)
+                for idx, member in enumerate(members):
+                    weight_path = tmp_path / f"expert_{idx}.dat"
+                    weight_path.write_bytes(archive.extractfile(member).read())
+                    header = DatBinHeader.from_dat(weight_path)
+                    assert (
+                        header.torch_dtype_or_custom
+                        == DatBinHeader.TractCustomTypes.Q40
+                    )
         state = _spec(tiny_model).inputs[1:]
         for count in (3, 1, 5, 1):
             inputs = (torch.arange(1, count + 1).reshape(1, -1), *state)
@@ -287,9 +346,27 @@ def test_dynamic_nnef(tiny_model, tmp_path):
                         for name, value in zip(names, tensors, strict=True)
                     },
                 )
-            cli.assert_io(
-                path,
-                in_path,
-                out_path,
-                check_tolerance=target.check_io_tolerance,
-            )
+            if quantize:
+                actual_path = tmp_path / "actual.npz"
+                subprocess.run(
+                    cli.run_save_outputs_cmd_str(path, in_path, actual_path),
+                    check=True,
+                    capture_output=True,
+                )
+                with np.load(actual_path) as actual:
+                    for name, reference in zip(
+                        spec.output_names, expected, strict=True
+                    ):
+                        np.testing.assert_allclose(
+                            actual[name],
+                            reference.numpy(),
+                            atol=2e-3,
+                            rtol=2e-3,
+                        )
+            else:
+                cli.assert_io(
+                    path,
+                    in_path,
+                    out_path,
+                    check_tolerance=target.check_io_tolerance,
+                )

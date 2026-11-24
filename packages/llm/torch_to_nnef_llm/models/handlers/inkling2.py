@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import torch
 from torch.nn import functional as F
 
+from torch_to_nnef.modules import SelectedGatedExperts
+
 from .base import IOSpec, StateContext
 from .default import DefaultArchitectureHandler
 from .registry import register_handler
@@ -106,56 +108,6 @@ class _ShortConvolution(torch.nn.Module):
         return ((out + residual) / divisor).to(hidden_states.dtype)
 
 
-class _Experts(torch.nn.Module):
-    """Trace routing dynamically while retaining Inkling's softcapped gates.
-
-    tract_moe_ffn's SwiGLU does not implement Inkling's two tanh softcaps.
-    Gather only selected experts and express their computation as matmuls.
-    """
-
-    def __init__(self, original):
-        super().__init__()
-        self.original = original
-
-    def forward(self, hidden_states, top_k_index, top_k_weights):
-        mod = self.original
-        weights = mod.gate_up_proj[top_k_index]
-        gate_up = torch.matmul(
-            weights, hidden_states[:, None, :, None]
-        ).squeeze(-1)
-        gate, up = gate_up.chunk(2, dim=-1)
-        activated = mod.act_fn(gate, up)
-        out = torch.matmul(
-            mod.down_proj[top_k_index], activated.unsqueeze(-1)
-        ).squeeze(-1)
-        return (
-            (out.float() * top_k_weights.unsqueeze(-1))
-            .sum(1)
-            .to(hidden_states.dtype)
-        )
-
-
-class _Router(torch.nn.Module):
-    def __init__(self, original):
-        super().__init__()
-        self.original = original
-
-    def forward(self, hidden_states):
-        mod = self.original
-        logits = F.linear(hidden_states.float(), mod.weight)
-        scores = mod.score_fn(logits)
-        # Expert summation is permutation invariant; tract requires sorted k.
-        indices = torch.topk(
-            scores + mod.e_score_correction_bias,
-            mod.top_k,
-            dim=-1,
-            sorted=True,
-        ).indices
-        weights = scores.gather(1, indices)
-        weights = weights / (weights.sum(-1, keepdim=True) + 1e-20)
-        return logits, weights * mod.routed_scaling_factor, indices
-
-
 @register_handler
 class Inkling2TextArchitectureHandler(DefaultArchitectureHandler):
     """Text-only Inkling decoder with KV and four conv states per visit."""
@@ -209,9 +161,13 @@ class Inkling2TextArchitectureHandler(DefaultArchitectureHandler):
                 if kind == "Inkling2LoopShortConvolution":
                     setattr(parent, name, _ShortConvolution(module))
                 elif kind == "Inkling2LoopExperts":
-                    setattr(parent, name, _Experts(module))
-                elif kind == "Inkling2LoopTopKRouter":
-                    setattr(parent, name, _Router(module))
+                    setattr(
+                        parent,
+                        name,
+                        SelectedGatedExperts(
+                            module.gate_up_proj, module.down_proj, module.act_fn
+                        ),
+                    )
         model._t2n_inkling_prepared = True
 
     def build_input_spec(
