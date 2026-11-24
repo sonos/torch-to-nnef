@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import torch
 from torch.nn import functional as F
 
-from torch_to_nnef.modules import SelectedGatedExperts
+from torch_to_nnef.op.custom_extractors.moe import SelectedGatedExperts
 
 from .base import IOSpec, StateContext
 from .default import DefaultArchitectureHandler

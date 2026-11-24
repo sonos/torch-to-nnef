@@ -16,8 +16,8 @@ from torch_to_nnef.exceptions import (
     T2NErrorMisuse,
     T2NErrorNotImplemented,
 )
-from torch_to_nnef.modules import SelectedGatedExperts
 from torch_to_nnef.op.custom_extractors.moe import (
+    SelectedGatedExperts,
     iter_moe_routers,
     mark_moe_experts_for_q40,
 )

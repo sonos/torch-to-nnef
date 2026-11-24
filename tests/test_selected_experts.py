@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from torch_to_nnef.compress import DEFAULT_COMPRESSION
-from torch_to_nnef.modules import SelectedGatedExperts
+from torch_to_nnef.op.custom_extractors.moe import SelectedGatedExperts
 from torch_to_nnef.tensor.quant import QTensor
 
 
@@ -85,13 +85,11 @@ def test_selected_experts_registry_respects_skip_and_keeps_router_float():
 
 
 @pytest.mark.parametrize("quantize", [False, True])
-def test_selected_experts_dynamic_nnef(tmp_path, quantize, monkeypatch):
+def test_selected_experts_dynamic_nnef(tmp_path, quantize):
     from tests.test_symbolic_window_ops import _check_dynamic
-    from torch_to_nnef.tensor import opaque
 
     model = _experts()
     if quantize:
-        monkeypatch.setattr(opaque, "NEW_OPAQUE_TRACING_STRATEGY", False)
         DEFAULT_COMPRESSION["min_max_q4_0_with_embeddings_and_experts"](model)
     _check_dynamic(
         tmp_path,

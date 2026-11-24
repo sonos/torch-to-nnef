@@ -267,7 +267,7 @@ def test_dynamic_nnef(tiny_model, tmp_path, quantize):
     wrapper = _wrapper(tiny_model)
     if quantize:
         from torch_to_nnef.compress import DEFAULT_COMPRESSION
-        from torch_to_nnef.modules import SelectedGatedExperts
+        from torch_to_nnef.op.custom_extractors.moe import SelectedGatedExperts
         from torch_to_nnef.tensor.quant import QTensor
 
         wrapper = DEFAULT_COMPRESSION[

@@ -108,7 +108,11 @@ def _native_quant_method(model) -> T.Optional[str]:
         model
     ):
         return None
-    return _quant_method_of(raw)
+    # Explicit checkpoint metadata can name a format handled by the model's
+    # own converters rather than AutoQuantizationConfig (e.g. modelopt).
+    # Legacy bitsandbytes dictionaries instead need normalization to infer
+    # their method from load_in_4bit/load_in_8bit.
+    return _quant_method_of(raw) or _quant_method_of(_as_quant_config(raw))
 
 
 def should_upcast(
