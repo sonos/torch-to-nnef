@@ -1,15 +1,12 @@
 """Generic dynamic-shape regressions exercised by looped attention models."""
 
-import os
-from pathlib import Path
-
 import numpy as np
 import pytest
 import torch
 from torch.nn import functional as F
 
-from torch_to_nnef import TractNNEF, export_model_to_nnef
-from torch_to_nnef.inference_target.tract import TractCli
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
+from torch_to_nnef import export_model_to_nnef
 
 
 class LeadingExpand(torch.nn.Module):
@@ -59,18 +56,10 @@ class TailSlice(torch.nn.Module):
         return x[-(length_source.shape[0] + 2) :: self.stride]
 
 
-def _check_dynamic(tmp_path, model, cases, axes):
-    binary = os.environ.get("TRACT_BIN")
-    if not binary:
-        pytest.skip("set TRACT_BIN for dynamic NNEF runtime validation")
-    cli = TractCli(Path(binary))
+def _check_dynamic(tmp_path, model, cases, axes, inference_target):
+    target = inference_target.with_dynamic_axes(axes)
+    cli = target.tract_cli
     names = [f"input_{i}" for i in range(len(cases[0]))]
-    target = TractNNEF(
-        version=cli.version,
-        specific_tract_binary_path=cli.tract_path,
-        dynamic_axes=axes,
-        check_io=True,
-    )
     path = tmp_path / "model.nnef.tgz"
     with torch.no_grad():
         export_model_to_nnef(
@@ -103,43 +92,73 @@ def _check_dynamic(tmp_path, model, cases, axes):
 
 
 @pytest.mark.parametrize("scalar", [False, True])
-def test_expand_multiple_symbolic_leading_axes(tmp_path, scalar):
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_expand_multiple_symbolic_leading_axes(
+    tmp_path, scalar, inference_target
+):
     _check_dynamic(
         tmp_path,
         LeadingExpand(scalar),
         [(torch.randn(b, s, 4),) for b, s in ((2, 3), (1, 5), (3, 1))],
         {"input_0": {0: "B", 1: "S"}},
+        inference_target,
     )
 
 
 @pytest.mark.parametrize("scalar", [False, True])
-def test_expand_static_leading_axes(tmp_path, scalar):
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_expand_static_leading_axes(tmp_path, scalar, inference_target):
     _check_dynamic(
-        tmp_path, LeadingExpand(scalar), [(torch.randn(2, 3, 4),)], {}
+        tmp_path,
+        LeadingExpand(scalar),
+        [(torch.randn(2, 3, 4),)],
+        {},
+        inference_target,
     )
 
 
-def test_relative_gather_and_boolean_mask(tmp_path):
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_relative_gather_and_boolean_mask(tmp_path, inference_target):
     _check_dynamic(
         tmp_path,
         RelativeGather(),
         [(torch.randn(b, 2, s, 4),) for b, s in ((2, 3), (1, 7), (3, 1))],
         {"input_0": {0: "B", 2: "S"}},
+        inference_target,
     )
 
 
-def test_padded_dynamic_tail_unfold(tmp_path):
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_padded_dynamic_tail_unfold(tmp_path, inference_target, request):
+    if inference_target.version == "0.22.1":
+        request.node.add_marker(
+            pytest.mark.xfail(
+                strict=True,
+                reason="tract 0.22.1 cannot simplify symbolic unfold lengths",
+            )
+        )
     _check_dynamic(
         tmp_path,
         SlidingWindows(),
         [(torch.randn(1, 4, s), torch.randn(1, 4, 2)) for s in (3, 1, 7)],
         {"input_0": {2: "S"}},
+        inference_target,
     )
 
 
 @pytest.mark.parametrize("sign_changing", [False, True])
 @pytest.mark.parametrize("stride", [1, 2])
-def test_tail_slice_clipping_and_unknown_sign(tmp_path, sign_changing, stride):
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_tail_slice_clipping_and_unknown_sign(
+    tmp_path, sign_changing, stride, inference_target, request
+):
+    if inference_target.version == "0.22.1" and (sign_changing or stride != 1):
+        request.node.add_marker(
+            pytest.mark.xfail(
+                strict=True,
+                reason="tract 0.22.1 computes incorrect dynamic slice lengths",
+            )
+        )
     _check_dynamic(
         tmp_path,
         TailSlice(sign_changing, stride),
@@ -148,6 +167,7 @@ def test_tail_slice_clipping_and_unknown_sign(tmp_path, sign_changing, stride):
             for s, n in ((5, 1), (1, 7), (9, 2), (8, 4))
         ],
         {"input_0": {0: "S"}, "input_1": {0: "N"}},
+        inference_target,
     )
 
 
@@ -164,10 +184,14 @@ class UnsortedTopK(torch.nn.Module):
 
 
 @pytest.mark.parametrize("largest", [False, True])
-def test_unsorted_topk_membership_and_values(tmp_path, largest):
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_unsorted_topk_membership_and_values(
+    tmp_path, largest, inference_target
+):
     _check_dynamic(
         tmp_path,
         UnsortedTopK(largest),
         [(torch.randn(s, 8),) for s in (3, 1, 7)],
         {"input_0": {0: "S"}},
+        inference_target,
     )

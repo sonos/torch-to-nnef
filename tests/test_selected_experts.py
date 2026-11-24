@@ -4,6 +4,7 @@ import pytest
 import torch
 from torch import nn
 
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 from torch_to_nnef.compress import DEFAULT_COMPRESSION
 from torch_to_nnef.op.custom_extractors.moe import SelectedGatedExperts
 from torch_to_nnef.tensor.quant import QTensor
@@ -85,7 +86,8 @@ def test_selected_experts_registry_respects_skip_and_keeps_router_float():
 
 
 @pytest.mark.parametrize("quantize", [False, True])
-def test_selected_experts_dynamic_nnef(tmp_path, quantize):
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_selected_experts_dynamic_nnef(tmp_path, quantize, inference_target):
     from tests.test_symbolic_window_ops import _check_dynamic
 
     model = _experts()
@@ -99,4 +101,5 @@ def test_selected_experts_dynamic_nnef(tmp_path, quantize):
             for n in (2, 1, 5)
         ],
         {"input_0": {0: "S"}, "input_1": {0: "S"}, "input_2": {0: "S"}},
+        inference_target,
     )

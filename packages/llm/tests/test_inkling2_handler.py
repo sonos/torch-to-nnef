@@ -1,18 +1,16 @@
 """Inkling streaming parity, including loop passes and convolution history."""
 
 import copy
-import os
 import subprocess
 import tarfile
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import torch
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 
-from torch_to_nnef import TractNNEF, export_model_to_nnef
-from torch_to_nnef.inference_target.tract import TractCli
+from torch_to_nnef import export_model_to_nnef
 from torch_to_nnef_llm.config import HFConfigHelper
 from torch_to_nnef_llm.models.base import BaseCausal, update_forward_signature
 from torch_to_nnef_llm.models.handlers import get_handler
@@ -260,10 +258,17 @@ def test_exporter_probes_carry_all_state(tiny_model, tmp_path):
 
 
 @pytest.mark.parametrize("quantize", [False, True])
-def test_dynamic_nnef(tiny_model, tmp_path, quantize):
-    binary = os.environ.get("TRACT_BIN")
-    if not binary:
-        pytest.skip("set TRACT_BIN for NNEF runtime validation")
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_dynamic_nnef(
+    tiny_model, tmp_path, quantize, inference_target, request
+):
+    if not quantize and inference_target.version == "0.22.1":
+        request.node.add_marker(
+            pytest.mark.xfail(
+                strict=True,
+                reason="tract 0.22.1 cannot simplify symbolic unfold lengths",
+            )
+        )
     wrapper = _wrapper(tiny_model)
     if quantize:
         from torch_to_nnef.compress import DEFAULT_COMPRESSION
@@ -281,19 +286,14 @@ def test_dynamic_nnef(tiny_model, tmp_path, quantize):
             assert isinstance(module.gate_up_proj, QTensor)
             assert isinstance(module.down_proj, QTensor)
     spec = _spec(tiny_model, past=2)
-    cli = TractCli(Path(binary))
+    cli = inference_target.tract_cli
     if quantize and cli.version < "0.23.10":
         pytest.skip(
             "Inkling Q4_0 requires tract 0.23.10 quantized-slice support"
         )
-    target = TractNNEF(
-        version=cli.version,
-        specific_tract_binary_path=cli.tract_path,
-        dynamic_axes=spec.dynamic_axes,
-        # Quantized matmul also rounds activations in tract. Check a narrow
-        # explicit tolerance below against the dequantized PyTorch reference.
-        check_io=not quantize,
-    )
+    target = inference_target.with_dynamic_axes(spec.dynamic_axes)
+    target.check_io = not quantize
+
     path = tmp_path / "inkling.nnef.tgz"
     with torch.no_grad():
         export_model_to_nnef(
