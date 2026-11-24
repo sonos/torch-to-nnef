@@ -46,7 +46,7 @@ jobs:
       - name: Install pinned Inkling dependencies
         run: |
           python -m pip install 'torch==2.14.1' --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install -e . -e packages/llm 'pytest>=8,<10' \
+          python -m pip install -e . -e packages/llm 'pytest>=8,<10' 'hypothesis>=6.100,<7' \
             'transformers @ git+https://github.com/huggingface/transformers.git@d8f10a82213a3a9db48385aba3a4b57ab535de50'
       - name: Require Inkling support and tract runtime
         run: |
