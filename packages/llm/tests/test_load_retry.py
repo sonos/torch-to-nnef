@@ -5,6 +5,8 @@ only the retry/backoff branching in LLMExporter.load and the cache-first
 snapshot resolution used by the device_map path, not any real download.
 """
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 
@@ -88,6 +90,7 @@ def test_from_pretrained_device_map_dispatch_reties_weights(
             calls["tie"] += 1
 
     model = _Model()
+    model.config = SimpleNamespace(model_type="test")
 
     class _AutoModel:
         @staticmethod
