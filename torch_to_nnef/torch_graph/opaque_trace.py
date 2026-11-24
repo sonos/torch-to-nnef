@@ -72,7 +72,9 @@ class _TraceCheckpoint:
                     plain = _plain(tensor)
                     self.values[id(tensor)] = (
                         tensor,
-                        plain.untyped_storage(),
+                        plain.untyped_storage()
+                        if hasattr(plain, "untyped_storage")
+                        else plain.storage(),
                         plain.storage_offset(),
                         plain.size(),
                         plain.stride(),

@@ -259,10 +259,7 @@ def test_checkpoint_restores_original_tensor_metadata_and_aliases(mutation):
         assert tensor.shape == (3, 4)
         assert tensor.stride() == (4, 1)
         assert tensor.storage_offset() == offset
-        assert (
-            tensor.untyped_storage().data_ptr()
-            == base.untyped_storage().data_ptr()
-        )
+        assert tensor.data_ptr() == base[offset:].data_ptr()
         torch.testing.assert_close(tensor, saved)
     # Restoration preserves shared storage, not just matching values.
     x[0, 0] = -1
