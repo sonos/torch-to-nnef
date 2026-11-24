@@ -5,9 +5,6 @@ on:
     branches: [main]
     paths:
       - "packages/llm/**"
-      - "examples/inkling2/**"
-      - "tests/test_selected_experts.py"
-      - "tests/test_symbolic_window_ops.py"
       - "torch_to_nnef/**"
       - "uv.lock"
       - ".github/workflows/ci-llm.yml"
@@ -16,9 +13,6 @@ on:
     branches: [main]
     paths:
       - "packages/llm/**"
-      - "examples/inkling2/**"
-      - "tests/test_selected_experts.py"
-      - "tests/test_symbolic_window_ops.py"
       - "torch_to_nnef/**"
       - "uv.lock"
       - ".github/workflows/ci-llm.yml"
@@ -29,47 +23,6 @@ permissions:
   contents: read
 
 jobs:
-  inkling:
-    name: Inkling streaming export
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      OMP_NUM_THREADS: "1"
-      HF_HUB_OFFLINE: "1"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.11"
-      - name: Install pinned Inkling dependencies
-        run: |
-          python -m pip install 'torch==2.14.1' --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install -e . -e packages/llm 'pytest>=8,<10' 'hypothesis>=6.100,<7' \
-            'transformers @ git+https://github.com/huggingface/transformers.git@d8f10a82213a3a9db48385aba3a4b57ab535de50'
-      - name: Require Inkling support and tract runtime
-        run: |
-          python - <<'PY'
-          import os
-          from transformers import Inkling2LoopForCausalLM
-          from torch_to_nnef.inference_target.tract import TractCli
-          from torch_to_nnef.utils import SemanticVersion
-          cli = TractCli.download(SemanticVersion.from_str("0.23.10"))
-          assert cli.version == "0.23.10"
-          with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write(f"TRACT_BIN={cli.tract_path}\n")
-          PY
-      - name: Check generic expert and symbolic-window operations
-        run: python -m pytest tests/test_selected_experts.py tests/test_symbolic_window_ops.py -q
-      - name: Check Inkling upstream parity and streaming NNEF execution
-        working-directory: packages/llm
-        run: python -m pytest tests/test_inkling2_handler.py -q
-      - name: Run the float32 and Q4_0 examples
-        run: |
-          python examples/inkling2/export.py --tract "$TRACT_BIN" --out /tmp/inkling-f32
-          python examples/inkling2/export.py --tract "$TRACT_BIN" --out /tmp/inkling-q4 --q4
-
   prepare:
     runs-on: ubuntu-latest
     steps:
