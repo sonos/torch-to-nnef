@@ -1,10 +1,8 @@
 """Inkling 2 Mini text export with independent state for every loop pass."""
 
-import math
 from types import SimpleNamespace
 
 import torch
-from torch.nn import functional as F
 
 from torch_to_nnef.op.custom_extractors.moe import SelectedGatedExperts
 
@@ -54,6 +52,15 @@ class _InklingCache:
         layer.values = torch.cat((layer.values, value), dim=2)
         return layer.keys, layer.values
 
+    def get_conv_state(self, layer_idx, state_idx):
+        """Expose no mutable view: upstream must use update_conv_state.
+
+        Returning None selects the general convolution path for every chunk
+        size, including single-token decoding. That path receives the saved
+        history through update_conv_state and avoids in-place cache updates.
+        """
+        return None
+
     def update_conv_state(self, state, layer_idx, state_idx, conv_kernel_size):
         layer = self.layers[layer_idx]
         joined = torch.cat((layer.conv_states[state_idx], state), dim=-1)
@@ -63,49 +70,6 @@ class _InklingCache:
             joined[..., -width:] if width else joined[..., :0]
         )
         return joined
-
-
-class _ShortConvolution(torch.nn.Module):
-    """Convolve history and current tokens without data-dependent dispatch."""
-
-    def __init__(self, original):
-        super().__init__()
-        self.original = original
-
-    def forward(
-        self,
-        hidden_states,
-        dynamic_input=None,
-        cache=None,
-        conv_mask=None,
-        cache_offset=0,
-        **kwargs,
-    ):
-        if not isinstance(cache, _InklingCache):
-            return self.original(
-                hidden_states,
-                dynamic_input=dynamic_input,
-                cache=cache,
-                conv_mask=conv_mask,
-                cache_offset=cache_offset,
-                **kwargs,
-            )
-        mod = self.original
-        residual = hidden_states.float()
-        context = cache.update_conv_state(
-            residual.transpose(1, 2),
-            mod.layer_idx + cache_offset,
-            mod.conv_idx,
-            mod.conv_kernel_size,
-        )
-        out = F.conv1d(
-            context.to(mod.conv1d.weight.dtype),
-            mod.conv1d.weight,
-            mod.conv1d.bias,
-            groups=mod.conv1d.groups,
-        ).transpose(1, 2)
-        divisor = math.sqrt(mod.conv_kernel_size + 1)
-        return ((out + residual) / divisor).to(hidden_states.dtype)
 
 
 @register_handler
@@ -158,9 +122,7 @@ class Inkling2TextArchitectureHandler(DefaultArchitectureHandler):
         for parent in list(model.modules()):
             for name, module in list(parent.named_children()):
                 kind = type(module).__name__
-                if kind == "Inkling2LoopShortConvolution":
-                    setattr(parent, name, _ShortConvolution(module))
-                elif kind == "Inkling2LoopExperts":
+                if kind == "Inkling2LoopExperts":
                     setattr(
                         parent,
                         name,

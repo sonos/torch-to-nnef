@@ -56,7 +56,9 @@ class TailSlice(torch.nn.Module):
         return x[-(length_source.shape[0] + 2) :: self.stride]
 
 
-def _check_dynamic(tmp_path, model, cases, axes, inference_target):
+def _check_dynamic(
+    tmp_path, model, cases, axes, inference_target, custom_extensions=None
+):
     target = inference_target.with_dynamic_axes(axes)
     cli = target.tract_cli
     names = [f"input_{i}" for i in range(len(cases[0]))]
@@ -69,6 +71,7 @@ def _check_dynamic(tmp_path, model, cases, axes, inference_target):
             inference_target=target,
             input_names=names,
             output_names=["output"],
+            custom_extensions=custom_extensions,
         )
         for inputs in cases:
             in_path, out_path = (
@@ -193,5 +196,64 @@ def test_unsorted_topk_membership_and_values(
         UnsortedTopK(largest),
         [(torch.randn(s, 8),) for s in (3, 1, 7)],
         {"input_0": {0: "S"}},
+        inference_target,
+    )
+
+
+class PaddedConvolutionTail(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv = torch.nn.Conv1d(4, 4, 3, groups=4, padding=2, bias=False)
+
+    def forward(self, x, history):
+        context = torch.cat((history, x), dim=-1)
+        result = self.conv(context)[..., : context.shape[-1]]
+        result = result[..., -x.shape[-1] :]
+        # The consumer requires the tail's symbolic length to remain S.
+        return torch.cat((x.unsqueeze(2), result.unsqueeze(2)), dim=2)
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_padded_convolution_tail_with_positive_sequence(
+    tmp_path, inference_target, request
+):
+    if inference_target.version == "0.22.1":
+        request.node.add_marker(
+            pytest.mark.xfail(
+                strict=True,
+                reason="tract 0.22.1 cannot resolve constrained tail lengths",
+            )
+        )
+    _check_dynamic(
+        tmp_path,
+        PaddedConvolutionTail(),
+        [(torch.randn(1, 4, s), torch.randn(1, 4, 2)) for s in (3, 1, 7)],
+        {"input_0": {2: "S"}},
+        inference_target,
+        custom_extensions=["tract_assert S >= 1"],
+    )
+
+
+class PossiblyEmptyTail(torch.nn.Module):
+    def forward(self, x, length_source):
+        return x[-length_source.shape[0] :]
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_tail_of_zero_length_means_entire_input(
+    tmp_path, inference_target, request
+):
+    if inference_target.version == "0.22.1":
+        request.node.add_marker(
+            pytest.mark.xfail(
+                strict=True,
+                reason="tract 0.22.1 computes incorrect dynamic slice lengths",
+            )
+        )
+    _check_dynamic(
+        tmp_path,
+        PossiblyEmptyTail(),
+        [(torch.randn(5, 4), torch.ones(n)) for n in (2, 0, 1, 7)],
+        {"input_1": {0: "N"}},
         inference_target,
     )

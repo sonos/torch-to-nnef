@@ -157,10 +157,12 @@ def test_streaming_matches_upstream(tiny_model):
             )
 
 
-def test_trace_remains_dynamic(tiny_model):
+@pytest.mark.parametrize("trace_tokens", [1, 3])
+def test_trace_remains_dynamic(tiny_model, trace_tokens):
     wrapper = _wrapper(tiny_model)
     with torch.no_grad():
-        traced = torch.jit.trace(wrapper, _spec(tiny_model, past=2).inputs)
+        ids, *history = _spec(tiny_model, past=2).inputs
+        traced = torch.jit.trace(wrapper, (ids[:, :trace_tokens], *history))
         state = _spec(tiny_model).inputs[1:]
         for count in (3, 1, 5, 1):
             inputs = (torch.arange(1, count + 1).reshape(1, -1), *state)
@@ -186,6 +188,23 @@ def test_loader_accepts_upstream_dequantized_experts(tiny_model, tmp_path):
             loaded(ids, use_cache=False).logits,
             tiny_model(ids, use_cache=False).logits,
         )
+
+
+def test_prepare_keeps_upstream_convolutions(tiny_model):
+    originals = [
+        (name, module)
+        for name, module in tiny_model.named_modules()
+        if type(module).__name__
+        in (
+            "Inkling2LoopShortConvolution",
+            "Inkling2LoopDynamicShortConvolution",
+        )
+    ]
+    assert originals
+    Inkling2TextArchitectureHandler().prepare_model_for_export(tiny_model)
+    prepared = dict(tiny_model.named_modules())
+    for name, module in originals:
+        assert prepared[name] is module
 
 
 def test_prepare_is_idempotent(tiny_model):
@@ -303,6 +322,9 @@ def test_dynamic_nnef(
             inference_target=target,
             input_names=spec.input_names,
             output_names=spec.output_names,
+            # Match the standard LLM CLI's input-domain constraints. S=0 is
+            # not a valid decoder call; P=0 is valid for the initial prompt.
+            custom_extensions=["tract_assert S >= 1", "tract_assert P >= 0"],
         )
         if quantize:
             from torch_to_nnef.nnef_io.tensor import DatBinHeader
