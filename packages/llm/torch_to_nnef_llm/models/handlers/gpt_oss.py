@@ -26,48 +26,6 @@ class GptOssArchitectureHandler(DefaultArchitectureHandler):
             ):
                 config._experts_implementation = "batched_mm"
 
-    @staticmethod
-    def _build_mask_mapping(
-        *,
-        seq_length: int,
-        past_length: int,
-        sliding_window: int,
-        device: torch.device,
-    ) -> T.Dict[str, torch.Tensor]:
-        """Additive causal and causal-plus-window masks over ``S+P`` keys.
-
-        Built from token positions with arange comparisons rather than a baked
-        triangular constant, so the graph stays correct for any ``(S, P)`` at
-        inference time.
-        """
-        # Float arithmetic throughout (comparisons cast straight to the mask
-        # dtype, AND via multiply) rather than boolean `&` on tensors: t2n's
-        # shape inference re-runs bitwise ops with a float placeholder and
-        # fails with "bitwise_and not implemented for Float". Same reason as
-        # the note in `gemma3_vl._build_mask_mapping`.
-        dtype = torch.float32
-        total_length = seq_length + past_length
-        q_pos = torch.arange(
-            past_length, total_length, device=device
-        ).unsqueeze(1)
-        k_pos = torch.arange(total_length, device=device).unsqueeze(0)
-
-        visible_full = (k_pos <= q_pos).to(dtype)
-        # Query at absolute position q sees keys in (q - window, q], matching
-        # `masking_utils.sliding_window_overlay`'s `kv_idx > q_idx - window`.
-        within_window = (k_pos > (q_pos - sliding_window)).to(dtype)
-        visible_sliding = visible_full * within_window
-
-        neg = torch.finfo(dtype).min
-
-        def to_additive(visible: torch.Tensor) -> torch.Tensor:
-            return ((1.0 - visible) * neg).unsqueeze(0).unsqueeze(0)
-
-        return {
-            "full_attention": to_additive(visible_full),
-            "sliding_attention": to_additive(visible_sliding),
-        }
-
     def build_forward_inputs(
         self,
         *,
@@ -99,7 +57,7 @@ class GptOssArchitectureHandler(DefaultArchitectureHandler):
         if sliding_window <= 0 or "sliding_attention" not in layer_types:
             return ctx
 
-        ctx.model_inputs["attention_mask"] = self._build_mask_mapping(
+        ctx.model_inputs["attention_mask"] = self.build_attention_mask_mapping(
             seq_length=inputs[0].shape[1],
             past_length=inputs[1].shape[2],
             sliding_window=sliding_window,

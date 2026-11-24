@@ -88,7 +88,11 @@ def _quant_method_of(quant_config) -> T.Optional[str]:
     """Lowercased ``quant_method`` of a quant config object, or ``None``."""
     if quant_config is None:
         return None
-    qm = getattr(quant_config, "quant_method", None)
+    qm = (
+        quant_config.get("quant_method")
+        if isinstance(quant_config, dict)
+        else getattr(quant_config, "quant_method", None)
+    )
     if qm is None:
         return None
     return str(getattr(qm, "value", qm)).lower()
@@ -97,7 +101,14 @@ def _quant_method_of(quant_config) -> T.Optional[str]:
 def _native_quant_method(model) -> T.Optional[str]:
     """Native quant method of a model, or ``None`` if (no longer) quantized."""
     raw = getattr(getattr(model, "config", None), "quantization_config", None)
-    return _quant_method_of(_as_quant_config(raw))
+    model_type = getattr(
+        getattr(model, "config", None), "model_type", "default"
+    )
+    if handlers.get_handler(model_type)().has_dequantized_checkpoint_weights(
+        model
+    ):
+        return None
+    return _quant_method_of(raw)
 
 
 def should_upcast(

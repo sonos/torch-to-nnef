@@ -402,6 +402,9 @@ class SemanticVersion:
 
     @classmethod
     def from_str(cls, version: str) -> "SemanticVersion":
+        # Python development releases (e.g. transformers main) use PEP 440
+        # spelling; retain prerelease ordering when accepting that spelling.
+        version = re.sub(r"\.dev(\d+)(?=\+|$)", r"-dev.\1", version.strip())
         m = cls._SEMVER_RE.match(version.strip())
         if not m:
             raise ValueError(f"Invalid semantic version: {version}")
