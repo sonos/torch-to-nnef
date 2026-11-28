@@ -3,6 +3,9 @@
 
 ## Unreleased
 
+### Changed
+- **Latest officially supported tract version is now 0.23.11**, up from 0.23.10. Default exports target 0.23.11.
+
 ### Added
 
 - **Inkling 2 Mini text export** (llm): export `inkling2_loop` and `inkling2_loop_text` models through the standard LLM CLI, with independent KV and convolution state for each loop visit. Supports unpadded batch-one prefill and decoding, including Q4_0 expert tables through `min_max_q4_0_with_embeddings_and_experts`, while keeping routers in floating point. Requires Transformers with Inkling support; float32 and Q4_0 streaming execution are tested on small random models with tract 0.23.10. Full-checkpoint export, image inputs, and speculative draft export are not validated. ([#452](https://github.com/sonos/torch-to-nnef/pull/452))
